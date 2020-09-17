@@ -1,0 +1,25 @@
+syntax = "proto3";                                                                                                                                                                                              
+package Parsimony;
+
+message mut {
+    int32 position = 1;
+    int32 ref_nuc = 2;
+    int32 par_nuc = 3;
+    repeated int32 mut_nuc = 4;
+    string chromosome = 5;
+}
+
+message mutation_list {
+    repeated mut mutation = 1;
+}
+
+message condensed_node {
+    string node_name = 1;
+    repeated string condensed_leaves = 2;
+}
+
+message data {
+    string newick = 1;
+    repeated mutation_list node_mutations = 2; 
+    repeated condensed_node condensed_nodes = 3;
+}
