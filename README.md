@@ -1,6 +1,6 @@
 # Ultrafast Sample Placement on Existing Trees (UShER)
 
-![Logo](/images/usher_logo.png =250x)
+![Logo](/images/usher_logo.png)
 
 ### Install prerequisites and build programs
 * Perhaps the simplest build process for this package on any platform (Windows, Linux or MacOS) is using [Docker](https://www.docker.com/) (see installation instructions [here](https://docs.docker.com/get-docker/)). Once Docker is installed (which takes a few minutes typically), the following two commands would build the programs and start a new bash in an Ubuntu 18.04 container following which the remaning commands on this page should work smoothly.
