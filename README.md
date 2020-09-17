@@ -16,8 +16,8 @@ UShER is much faster than existing tools with similar functionality and has now 
 
 First, clone the UShER repository using the commands below.
 ```
-git clone https://github.com/yatisht/strain_phylogenetics.git
-cd strain_phylogenetics
+git clone https://github.com/yatisht/usher.git
+cd usher
 ```
 
 Next, you may install UShER either using [Docker](https://www.docker.com/) (**recommended**) or using one of the installation scripts that we provide for **MacOS (10.14 and above)**, **Ubuntu (18.04 and above)** and **CentOS (7 and above)**. See instructions below.
