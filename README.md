@@ -1,5 +1,11 @@
 # Ultrafast Sample Placement on Existing Trees (UShER)
 
+[license-badge]: https://img.shields.io/badge/License-MIT-yellow.svg 
+[license-link]: https://github.com/yatisht/usher/blob/master/LICENSE
+
+[![License][license-badge]][license-link]
+[![Build Status](https://github.com/yatisht/usher/workflows/build/badge.svg)](https://github.com/yatisht/usher/actions)
+
 <img src="/images/usher_logo.png" width="600">
 
 ### Install prerequisites and build programs
