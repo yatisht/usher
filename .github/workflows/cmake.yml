@@ -1,0 +1,51 @@
+name: build
+
+on: 
+  pull_request:
+  push:
+    branches: 
+      - master
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  ubuntu-18-04:
+    runs-on: ubuntu-18.04
+    steps:
+    - uses: actions/checkout@master
+    - name: install pre-reqs and build
+      run: sudo ./installUbuntu.sh
+    - name: test
+      run: |
+        ./build/usher --help
+  
+  ubuntu-20-04:
+    runs-on: ubuntu-20.04
+    steps:
+    - uses: actions/checkout@master
+    - name: install pre-reqs and build
+      run: sudo ./installUbuntu.sh
+    - name: test
+      run: |
+        ./build/usher --help
+
+  macOS-10-14:
+    runs-on: macOS-10.14
+    steps:
+    - uses: actions/checkout@master
+    - name: install pre-reqs and build
+      run: ./installMacOS.sh
+    - name: test
+      run: |
+        ./build/usher --help
+
+  macOS-10-15:
+    runs-on: macOS-10.15
+    steps:
+    - uses: actions/checkout@master
+    - name: install pre-reqs and build
+      run: ./installMacOS.sh
+    - name: test
+      run: |
+        ./build/usher --help
