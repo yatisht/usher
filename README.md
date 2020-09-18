@@ -138,7 +138,7 @@ ARTIC Network multiple sequence alignment output file(s)
 ### Usage
 
 ```
-python3 ARTIC2UShER.py -inpath [Path to directry containing ARTIC msa files] -outfile [output file name]
+python3 ARTIC2UShER.py -inpath [Path to directry containing ONLY ARTIC msa files] -outfile [output file name]
 ```
 
 ### Output
