@@ -65,7 +65,7 @@ In the **placement phase**, UShER loads the pre-processed mutation-annotated tre
 
 ![placement](/images/placement.png)
 
-At the end of the placement phase, UShER allows the user to create another protocol-buffer file containing the mutation-annotated tree object for the newly generated tree including added samples as also shown in the example figure above. This allows for another round of placements to be carried out over and above the newly added samples. 
+At the end of the placement phase, UShER allows the user to create another protocol-buffer (protobuf) file containing the mutation-annotated tree object for the newly generated tree including added samples as also shown in the example figure above. This allows for another round of placements to be carried out over and above the newly added samples. 
 
 ## Using UShER
 
@@ -105,6 +105,13 @@ In addition to the global phylogeny, one often needs to contextualize the newly 
 ```
 ./build/usher --load-assignments global_assignments.pb --vcf test/new_samples.vcf --print-uncondensed-final-tree --print-subtrees-size 20
 ```
+
+Finally, the new mutation-annotated tree object can be stored again using *--save-assignments* command (overwriting the loaded protobuf file is allowed).
+
+```
+./build/usher --load-assignments global_assignments.pb --vcf test/new_samples.vcf --print-uncondensed-final-tree --save-assignments new-global_assignments.pb
+```
+
 
 ### Uncertainty in placing new samples
 
