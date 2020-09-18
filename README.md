@@ -135,6 +135,12 @@ ARTIC Network multiple sequence alignment output file(s)
 
 **-outfile**: Output VCF file name
 
+### Usage
+
+```
+python3 ARTIC2UShER.py -inpath [Path to directry containing ARTIC msa files] -outfile [output file name]
+```
+
 ### Output
 
 Merged VCF without problematic sites and with missing data for a particular sample denoted as "." in the corresponding genotype column.
