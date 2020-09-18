@@ -91,10 +91,10 @@ Also note that the placement phase in UShER would automatically place onto the i
 
 ### Placing new samples
 
-Once the pre-processing is complete and a mutation-annotated tree object is generate (e.g. global_assignments.pb), UShER can place new sequences whose variants are called in a VCF file (e.g. missing_samples.vcf) to existing tree as follows:
+Once the pre-processing is complete and a mutation-annotated tree object is generate (e.g. global_assignments.pb), UShER can place new sequences whose variants are called in a VCF file (e.g. new_samples.vcf) to existing tree as follows:
 
 ```
-./build/usher --load-assignments pglobal_assignments.pb --vcf test/missing_samples.vcf --print-uncondensed-final-tree
+./build/usher --load-assignments global_assignments.pb --vcf test/new_samples.vcf --print-uncondensed-final-tree
 ```
 Again, by default, UShER uses **all available threads** but the user can also specify the number of threads using the *--threads* command-line parameter.
 
@@ -103,14 +103,14 @@ The above command not only places each new sample sequentially, but also reports
 In addition to the global phylogeny, one often needs to contextualize the newly added sequences using subtrees of closest *N* neighbouring sequences, where *N* is small. UShER allows this functionality using *--print-subtrees-size*, which can be set to an arbitrary *N*, such as 20 in the example below:
 
 ```
-./build/usher --load-assignments global_assignments.pb --vcf test/missing_samples.vcf --print-uncondensed-final-tree --print-subtrees-size 20
+./build/usher --load-assignments global_assignments.pb --vcf test/new_samples.vcf --print-uncondensed-final-tree --print-subtrees-size 20
 ```
 
 ### Uncertainty in placing new samples
 
 UShER also allows quantifying the uncertainty in placing new samples by reporting the parsimony scores of adding new samples to all possible nodes in the tree **without** actually modifying the tree (this is because the tree structure, as well as number of possible optimal placements could change with each new sequential placement). In particular, this can help the user explore which nodes of the tree result in a small and optimal or near-optimal parsimony score. This can be done by setting the *--print-parsimony-scores-per-node*, for example, as follows:
 ```
-./build/usher --load-assignments global_assignments.pb --vcf test/missing_samples.vcf --print-parsimony-scores-per-node
+./build/usher --load-assignments global_assignments.pb --vcf test/new_samples.vcf --print-parsimony-scores-per-node
 ```
 Note that because the above command does not perform the sequential placement on the tree, the number of parsimony-optimal placements reported for the second and later samples could differ from those reported with actual placements.
 
