@@ -579,9 +579,26 @@ int main(int argc, char** argv) {
 #endif
 
             if (print_parsimony_scores) {
-                fprintf (stdout, "#Sample\tTree_node\tParsimony_score\n"); 
+                fprintf (stdout, "#Sample\tTree node\tParsimony score\tParsimony-increasing mutations (for optimal nodes)\n"); 
                 for (size_t k = 0; k < total_nodes; k++) {
-                    fprintf (stdout, "%s\t%s\t%d\n", sample.c_str(), dfs[k]->identifier.c_str(), node_set_difference[k]); 
+                    fprintf (stdout, "%s\t%s\t%d\t", sample.c_str(), dfs[k]->identifier.c_str(), node_set_difference[k]); 
+                    if (node_set_difference[k] == best_set_difference) {
+                        assert (node_excess_mutations[k].size() == node_set_difference[k]);
+                        if (node_set_difference[k] == 0) {
+                            fprintf(stdout, "*");
+                        }
+                        for (auto m: node_excess_mutations[k]) {
+                            fprintf(stdout, "|%s", (get_nuc_char(m.par_nuc) + std::to_string(m.position)).c_str());
+                            for (size_t c_size =0; c_size < m.mut_nuc.size(); c_size++) {
+                                fprintf(stdout, "%c", get_nuc_char(m.mut_nuc[c_size]));
+                                if (c_size + 1 < m.mut_nuc.size()) {
+                                    fprintf(stdout, ",");
+                                }
+                            }
+                            fprintf(stdout, "| ");
+                        }
+                    }
+                    fprintf(stdout, "\n");
                 }
             }
             else {
@@ -915,12 +932,13 @@ int main(int argc, char** argv) {
     }
 
     if ((print_subtrees_size > 1) && (missing_samples.size() > 0)) {
-        fprintf(stderr, "Printing subtrees for display. \n");
+        fprintf(stderr, "Printing subtrees for added samples. \n");
 
         timer.Start();
         
         std::vector<bool> displayed_mising_sample (missing_samples.size(), false);
         
+        int num_subtrees = 0;
         for (size_t i = 0; i < missing_samples.size(); i++) {
             if (displayed_mising_sample[i]) {
                 continue;
@@ -934,6 +952,28 @@ int main(int argc, char** argv) {
 
                 std::string newick = TreeLib::get_newick_string(T, anc, false, true);
                 Tree new_T = TreeLib::create_tree_from_newick_string(newick);
+
+                std::unordered_map<Node*, std::vector<mutation>> subtree_node_mutations;
+                std::vector<mutation> subtree_root_mutations;
+                auto dfs1 = T.depth_first_expansion(anc);
+                auto dfs2 = new_T.depth_first_expansion();
+
+                assert(dfs1.size() == dfs2.size());
+
+                for (size_t k = 0; k < dfs1.size(); k++) {
+                    auto n1 = dfs1[k];
+                    auto n2 = dfs2[k];
+                    subtree_node_mutations[n2] = node_mutations[n1];
+
+                    if (k == 0) {
+                        for (auto p: T.rsearch(n1->identifier)) {
+                            for (auto m: node_mutations[p]) {
+                                subtree_root_mutations.push_back(m);
+                            }
+                        }
+                        std::reverse(subtree_root_mutations.begin(), subtree_root_mutations.end());
+                    }
+                }
 
                 if (num_leaves > print_subtrees_size) {
                     auto last_anc = new_T.get_node(missing_samples[i]);
@@ -965,7 +1005,7 @@ int main(int argc, char** argv) {
                         }
                     }
 
-                    newick = TreeLib::get_newick_string(new_T, false, true);
+                    newick = TreeLib::get_newick_string(new_T, true, true);
                 }
 
 #pragma omp parallel for
@@ -977,7 +1017,57 @@ int main(int argc, char** argv) {
                     }
                 }
                 
+                fprintf(stderr, "Subtree %d.\n", ++num_subtrees);
                 fprintf(stdout, "%s\n", newick.c_str());
+
+                fprintf(stderr, "Mutations at the nodes of subtree %d.\n", num_subtrees);
+                if (subtree_root_mutations.size() > 0) {
+                    fprintf(stderr, "ROOT->%s: ", new_T.root->identifier.c_str());
+                    for (auto m: subtree_root_mutations) {
+                        fprintf(stderr, "|%s", (get_nuc_char(m.par_nuc) + std::to_string(m.position)).c_str());
+                        for (size_t c_size =0; c_size < m.mut_nuc.size(); c_size++) {
+                            fprintf(stderr, "%c", get_nuc_char(m.mut_nuc[c_size]));
+                            if (c_size + 1 < m.mut_nuc.size()) {
+                                fprintf(stderr, ",");
+                            }
+                        }
+                        fprintf(stderr, "| ");
+                    }
+                    fprintf(stderr, "\n");
+                }
+                for (auto n: new_T.depth_first_expansion()) {
+                    fprintf(stderr, "%s: ", n->identifier.c_str());
+                    for (auto m: subtree_node_mutations[n]) {
+                        fprintf(stderr, "|%s", (get_nuc_char(m.par_nuc) + std::to_string(m.position)).c_str());
+                        for (size_t c_size =0; c_size < m.mut_nuc.size(); c_size++) {
+                            fprintf(stderr, "%c", get_nuc_char(m.mut_nuc[c_size]));
+                            if (c_size + 1 < m.mut_nuc.size()) {
+                                fprintf(stderr, ",");
+                            }
+                        }
+                        fprintf(stderr, "| ");
+                    }
+                    fprintf(stderr, "\n");
+                }
+
+                bool has_condensed = false;
+                for (auto l: new_T.get_leaves()) {
+                    if (condensed_nodes.find(l->identifier) != condensed_nodes.end()) {
+                        if (!has_condensed) {
+                            fprintf(stderr, "\nExpanded condensed nodes for subtree %d:\n", num_subtrees);
+                            has_condensed = true;
+                        }
+                        fprintf(stderr, "%s: ", l->identifier.c_str());
+                        for (auto n: condensed_nodes[l->identifier]) {
+                            fprintf(stderr, "%s ", n.c_str());
+                        }
+                        fprintf(stderr, "\n");
+                    }
+                }
+                if (has_condensed) {
+                    fprintf(stderr, "\n");
+                }
+
                 break;
             }
         }
