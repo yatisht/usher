@@ -123,7 +123,7 @@ Note that because the above command does not perform the sequential placement on
 
 ## ARTIC-2-UShER
 
-Converts standard multiple sequence alignment output from the SARS-CoV-2 ARTIC Network protocol (see https://artic.network/ncov-2019) into a merged VCF viable for input to UShER (Ultrafast Sample Placement on Existing Trees). ARTIC-2-UShER also considers missing data in SARS-CoV-2 genomic sequences and filters variants at problematic sites (see https://virological.org/t/issues-with-sars-cov-2-sequencing-data/473/12 and https://www.biorxiv.org/content/biorxiv/early/2020/06/09/2020.06.08.141127.full.pdf). 
+We also provide a tool, ARTIC-2-UShER, that converts standard multiple sequence alignment output from the SARS-CoV-2 ARTIC Network protocol (see https://artic.network/ncov-2019) into a merged VCF viable for input to UShER. ARTIC-2-UShER also considers missing data in SARS-CoV-2 genomic sequences and automatically filters variants at problematic sites (see https://virological.org/t/issues-with-sars-cov-2-sequencing-data/473/12 and https://www.biorxiv.org/content/biorxiv/early/2020/06/09/2020.06.08.141127.full.pdf). 
 
 ### Input
 
@@ -150,4 +150,7 @@ Merged VCF without problematic sites and with missing data for a particular samp
 For the example above, a new VCF *test/test_merged.vcf* is generated (identical to the one already provided), which can be used by UShER to place the new samples. 
 
 ## Reference
+### UShER
 * Coming soon
+### For ARTIC-2-UShER, please also cite
+* Yatish Turakhia, Bryan Thornlow, Landen Gozashti, Angie S. Hinrichs, Jason D. Fernandes, David Haussler, and Russell Corbett-Detig, "Stability of SARS-CoV-2 Phylogenies", bioRxiv [pre-print](https://www.biorxiv.org/content/10.1101/2020.06.08.141127v1) 2020.
