@@ -150,7 +150,8 @@ Merged VCF without problematic sites and with missing data for a particular samp
 For the example above, a new VCF *test/test_merged.vcf* is generated (identical to the one already provided), which can be used by UShER to place the new samples. 
 
 ## Reference
-### UShER
+**UShER:**
 * Coming soon
-### For ARTIC-2-UShER, please also cite
+
+**For ARTIC-2-UShER, please also cite:**
 * Yatish Turakhia, Bryan Thornlow, Landen Gozashti, Angie S. Hinrichs, Jason D. Fernandes, David Haussler, and Russell Corbett-Detig, "Stability of SARS-CoV-2 Phylogenies", bioRxiv [pre-print](https://www.biorxiv.org/content/10.1101/2020.06.08.141127v1) 2020.
