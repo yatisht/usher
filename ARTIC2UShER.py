@@ -27,7 +27,6 @@ for name in glob.glob('{0}/*'.format(args['inpath'])):
 seqDic = {}
 altCount = {}
 refCount = {}
-print(msaList)
 
 
 """
@@ -113,12 +112,8 @@ with open('{0}'.format(args['outfile']),'w') as f:
     f.write('#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t{0}\n'.format('\t'.join(gDic[0].keys())))
     for site in gDic:
         if varDic[site]:
-           # print(myTestSeq[site])
-           # print(varDic[site])
-       	   # print(gDic[site].keys())
-           # print(gDic[site].values()) 
+
             stringList = [str(x) for x in gDic[site].values()]
-           # print(stringList)
             f.write('{0}\t{1}\t.\t{2}\t{3}\t.\t.\tAC={4}\tGT\t{5}\n'.format(refHead,str(site+1),refSeq[site],','.join(varDic[site]),altCount[site],'\t'.join(stringList)))
     
 
