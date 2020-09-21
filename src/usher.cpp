@@ -64,18 +64,20 @@ int main(int argc, char** argv) {
     bool print_parsimony_scores = false;
     size_t print_subtrees_size=0;
     po::options_description desc{"Options"};
+
+    std::string num_threads_message = "Number of threads (default uses all available cores," + std::to_string(num_cores) + " detected on this machine)";
     desc.add_options()
-        ("vcf", po::value<std::string>(&vcf_filename)->required(), "Input VCF file (in uncompressed or gzip-compressed format)")
+        ("vcf", po::value<std::string>(&vcf_filename)->required(), "Input VCF file (in uncompressed or gzip-compressed .gz format)")
         ("tree", po::value<std::string>(&tree_filename)->default_value(""), "Input tree file")
         ("load-assignments", po::value<std::string>(&din_filename)->default_value(""), "Load mutation-annotated tree object")
         ("save-assignments", po::value<std::string>(&dout_filename)->default_value(""), "Save output mutation-annotated tree object")
-        ("threads", po::value<uint32_t>(&num_threads)->default_value(num_cores), "Number of threads")
-        ("collapse-final-tree", po::bool_switch(&collapse_tree), "Collapse internal nodes of the output tree with no mutations and condense identical sequences")
+        ("threads", po::value<uint32_t>(&num_threads)->default_value(num_cores), num_threads_message.c_str())
+        ("collapse-final-tree", po::bool_switch(&collapse_tree), "Collapse internal nodes of the output tree with no mutations and condense identical sequences in polytomies into a single node")
         ("print-uncondensed-final-tree", po::bool_switch(&print_uncondensed_tree), "Print the final tree in uncondensed format")
         ("print-subtrees-size", po::value<size_t>(&print_subtrees_size)->default_value(0), \
-         "Print minimum set of subtrees covering the missing samples of size equal to or larger than this value")
+         "Print minimum set of subtrees covering the newly added samples of size equal to or larger than this value")
         ("print-parsimony-scores-per-node", po::bool_switch(&print_parsimony_scores), \
-         "Print the parsimony scores for adding missing samples at each existing node in the tree without modifying the tree.")
+         "Print the parsimony scores for adding new samples at each existing node in the tree without modifying the tree")
         ("help", "Print help messages");
     
     po::options_description all_options;
