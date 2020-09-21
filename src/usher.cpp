@@ -65,7 +65,7 @@ int main(int argc, char** argv) {
     size_t print_subtrees_size=0;
     po::options_description desc{"Options"};
 
-    std::string num_threads_message = "Number of threads (default uses all available cores," + std::to_string(num_cores) + " detected on this machine)";
+    std::string num_threads_message = "Number of threads (default uses all available cores, " + std::to_string(num_cores) + " detected on this machine)";
     desc.add_options()
         ("vcf", po::value<std::string>(&vcf_filename)->required(), "Input VCF file (in uncompressed or gzip-compressed .gz format)")
         ("tree", po::value<std::string>(&tree_filename)->default_value(""), "Input tree file")
