@@ -10,6 +10,7 @@
 #include <tbb/task_scheduler_init.h>
 #include <tbb/blocked_range.h>
 #include <tbb/tbb.h>
+#include "boost/filesystem.hpp"
 #include "usher_graph.hpp"
 #include "parsimony.pb.h"
 
@@ -55,7 +56,9 @@ int main(int argc, char** argv) {
 
     std::string tree_filename;
     std::string din_filename;
+    //bool save_assignments=false;
     std::string dout_filename;
+    std::string outdir;
     std::string vcf_filename;
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
     uint32_t num_threads;
@@ -65,28 +68,25 @@ int main(int argc, char** argv) {
     size_t print_subtrees_size=0;
     po::options_description desc{"Options"};
 
-    std::string num_threads_message = "Number of threads (default uses all available cores, " + std::to_string(num_cores) + " detected on this machine)";
+    std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
     desc.add_options()
-        ("vcf", po::value<std::string>(&vcf_filename)->required(), "Input VCF file (in uncompressed or gzip-compressed .gz format)")
+        ("vcf", po::value<std::string>(&vcf_filename)->required(), "Input VCF file (in uncompressed or gzip-compressed .gz format) [REQUIRED]")
         ("tree", po::value<std::string>(&tree_filename)->default_value(""), "Input tree file")
-        ("load-assignments", po::value<std::string>(&din_filename)->default_value(""), "Load mutation-annotated tree object")
-        ("save-assignments", po::value<std::string>(&dout_filename)->default_value(""), "Save output mutation-annotated tree object")
+        ("outdir", po::value<std::string>(&outdir)->default_value("."), "Output directory to dump output and log files [DEFAULT uses current directory]")
+        ("load-mutation-annotated-tree", po::value<std::string>(&din_filename)->default_value(""), "Load mutation-annotated tree object")
+        ("save-mutation-annotated-tree", po::value<std::string>(&dout_filename)->default_value(""), "Save output mutation-annotated tree object to the specified filename")
+        ("collapse-final-tree", po::bool_switch(&collapse_tree), \
+         "Collapse internal nodes of the output tree with no mutations and condense identical sequences in polytomies into a single node and the save the tree to file condensed-final-tree.nh in outdir")
+        ("write-uncondensed-final-tree", po::bool_switch(&print_uncondensed_tree), "Write the final tree in uncondensed format and save to file uncondensed-final-tree.nh in outdir")
+        ("write-subtrees-size", po::value<size_t>(&print_subtrees_size)->default_value(0), \
+         "Write minimum set of subtrees covering the newly added samples of size equal to or larger than this value")
+        ("write-parsimony-scores-per-node", po::bool_switch(&print_parsimony_scores), \
+         "Write the parsimony scores for adding new samples at each existing node in the tree without modifying the tree in a file names parsimony-scores.tsv in outdir")
         ("threads", po::value<uint32_t>(&num_threads)->default_value(num_cores), num_threads_message.c_str())
-        ("collapse-final-tree", po::bool_switch(&collapse_tree), "Collapse internal nodes of the output tree with no mutations and condense identical sequences in polytomies into a single node")
-        ("print-uncondensed-final-tree", po::bool_switch(&print_uncondensed_tree), "Print the final tree in uncondensed format")
-        ("print-subtrees-size", po::value<size_t>(&print_subtrees_size)->default_value(0), \
-         "Print minimum set of subtrees covering the newly added samples of size equal to or larger than this value")
-        ("print-parsimony-scores-per-node", po::bool_switch(&print_parsimony_scores), \
-         "Print the parsimony scores for adding new samples at each existing node in the tree without modifying the tree")
         ("help", "Print help messages");
     
     po::options_description all_options;
     all_options.add(desc);
-
-    //    po::positional_options_description p;
-    //    p.add("tree", 1);
-    //    p.add("vcf", 1);
-    //    p.add("threads", 1);
 
     po::variables_map vm;
     try{
@@ -113,9 +113,19 @@ int main(int argc, char** argv) {
 
     if (print_parsimony_scores) {
         if (collapse_tree || print_uncondensed_tree || (print_subtrees_size > 0) || (dout_filename != "")) {
+        //if (collapse_tree || print_uncondensed_tree || (print_subtrees_size > 0) || save_assignments) {
             fprintf (stderr, "WARNING: --print-parsimony-scores-per-node is set. Will terminate without modifying the original tree.\n");
         }
     }
+
+    boost::filesystem::path path(outdir);
+    if (!boost::filesystem::exists(path)) {
+        fprintf(stderr, "Creating output directory.\n\n");
+        boost::filesystem::create_directory(path);
+    }
+    path = boost::filesystem::canonical(outdir);
+    outdir = path.generic_string();
+
 
     fprintf(stderr, "Initializing %u worker threads.\n\n", num_threads);
 
@@ -246,14 +256,15 @@ int main(int argc, char** argv) {
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
     else if (din_filename != "") {
-        fprintf(stderr, "Loading existing assignments\n");
         timer.Start();
+
+        fprintf(stderr, "Loading existing mutation-annotated tree object from file %s\n", din_filename.c_str());
         
         Parsimony::data data;
 
         std::ifstream inpfile(din_filename, std::ios::in | std::ios::binary);
         if (!inpfile) {
-            fprintf(stderr, "ERROR: Could not load the assignments file: %s!\n", din_filename.c_str());
+            fprintf(stderr, "ERROR: Could not load the mutation-annotated tree object from file: %s!\n", din_filename.c_str());
             exit(1);
         }
         data.ParseFromIstream(&inpfile);
@@ -393,10 +404,12 @@ int main(int argc, char** argv) {
         exit(1);
     }
 
-    fprintf(stderr, "Found %zu missing samples.\n", missing_samples.size()); 
+    fprintf(stderr, "Found %zu missing samples.\n\n", missing_samples.size()); 
 
     // Timer timer;
 
+    FILE* parsimony_scores_file; 
+        
     if (missing_samples.size() > 0) {
         fprintf(stderr, "Sorting node mutations by positions.\n");  
         timer.Start();
@@ -417,11 +430,14 @@ int main(int argc, char** argv) {
 
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
         
+        
         if (print_parsimony_scores) {
-            fprintf(stderr, "Printing current tree (with internal nodes labelled). \n");
-            fprintf(stdout, "%s\n", TreeLib::get_newick_string(T, true, true).c_str());
-
-            fprintf(stderr, "\nComputing parsimony score for adding the missing samples at each of the %zu nodes in the existing tree without modifying the tree.\n\n", T.depth_first_expansion().size()); 
+            auto current_tree_filename = outdir + "/current-tree.nh";
+            
+            fprintf(stderr, "Writing current tree with internal nodes labelled to file %s \n", current_tree_filename.c_str());
+            FILE* current_tree_file = fopen(current_tree_filename.c_str(), "w");
+            fprintf(current_tree_file, "%s\n", TreeLib::get_newick_string(T, true, true).c_str());
+            fclose(current_tree_file);
         } 
         else {
             fprintf(stderr, "Adding missing samples to the tree.\n");  
@@ -431,6 +447,17 @@ int main(int argc, char** argv) {
             timer.Start();
             
             auto sample = missing_samples[s];
+                
+            if (print_parsimony_scores) {
+                auto parsimony_scores_filename = outdir + "/parsimony-scores.tsv";
+                if (s==0) {
+                    fprintf(stderr, "\nNow computing branch parsimony scores for adding the missing samples at each of the %zu nodes in the existing tree without modifying the tree.\n", T.depth_first_expansion().size()); 
+                    fprintf(stderr, "The branch parsimony scores will be written to file %s\n\n", parsimony_scores_filename.c_str());
+                    
+                    parsimony_scores_file = fopen(parsimony_scores_filename.c_str(), "w");
+                    fprintf (parsimony_scores_file, "#Sample\tTree node\tOptimal (y/n)\tParsimony score\tParsimony-increasing mutations (for optimal nodes)\n"); 
+                }
+            }
 
             auto dfs = T.depth_first_expansion();
             size_t total_nodes = dfs.size();
@@ -488,7 +515,7 @@ int main(int argc, char** argv) {
             }); 
 
             if (!print_parsimony_scores) {
-                fprintf(stderr, "Current tree size (#nodes): %zu\tMissing sample: %s\tParsimony score: %d\tNumber of parsimony-optimal placements: %zu\n", total_nodes, sample.c_str(), \
+                fprintf(stderr, "Current tree size (#nodes): %zu\tSample name: %s\tParsimony score: %d\tNumber of parsimony-optimal placements: %zu\n", total_nodes, sample.c_str(), \
                         best_set_difference, num_best);
                 if (num_best > 3) {
                     low_confidence_samples.push_back(sample);
@@ -498,6 +525,7 @@ int main(int argc, char** argv) {
             else {
                 fprintf(stderr, "Missing sample: %s\t Best parsimony score: %d\tNumber of parsimony-optimal placements: %zu\n", sample.c_str(), \
                         best_set_difference, num_best);
+
             }
 
 #if DEBUG == 1
@@ -581,26 +609,31 @@ int main(int argc, char** argv) {
 #endif
 
             if (print_parsimony_scores) {
-                fprintf (stdout, "#Sample\tTree node\tParsimony score\tParsimony-increasing mutations (for optimal nodes)\n"); 
                 for (size_t k = 0; k < total_nodes; k++) {
-                    fprintf (stdout, "%s\t%s\t%d\t", sample.c_str(), dfs[k]->identifier.c_str(), node_set_difference[k]); 
+                    char is_optimal = (node_set_difference[k] == best_set_difference) ? 'y' : 'n';
+                    fprintf (parsimony_scores_file, "%s\t%s\t%d\t\t%c\t", sample.c_str(), dfs[k]->identifier.c_str(), node_set_difference[k], is_optimal); 
                     if (node_set_difference[k] == best_set_difference) {
-                        assert (node_excess_mutations[k].size() == node_set_difference[k]);
                         if (node_set_difference[k] == 0) {
-                            fprintf(stdout, "*");
+                            fprintf(parsimony_scores_file, "*");
                         }
-                        for (auto m: node_excess_mutations[k]) {
-                            fprintf(stdout, "|%s", (get_nuc_char(m.par_nuc) + std::to_string(m.position)).c_str());
+                        for (size_t idx = 0; idx < node_set_difference[k]; idx++) {
+                            auto m = node_excess_mutations[k][idx];
+                            fprintf(parsimony_scores_file, "%s", (get_nuc_char(m.par_nuc) + std::to_string(m.position)).c_str());
                             for (size_t c_size =0; c_size < m.mut_nuc.size(); c_size++) {
-                                fprintf(stdout, "%c", get_nuc_char(m.mut_nuc[c_size]));
+                                fprintf(parsimony_scores_file, "%c", get_nuc_char(m.mut_nuc[c_size]));
                                 if (c_size + 1 < m.mut_nuc.size()) {
-                                    fprintf(stdout, ",");
+                                    fprintf(parsimony_scores_file, "/");
                                 }
                             }
-                            fprintf(stdout, "| ");
+                            if (idx+1 < node_set_difference[k]) {
+                                fprintf(parsimony_scores_file, ",");
+                            }
                         }
                     }
-                    fprintf(stdout, "\n");
+                    else {
+                        fprintf(parsimony_scores_file, "N/A");
+                    }
+                    fprintf(parsimony_scores_file, "\n");
                 }
             }
             else {
@@ -754,6 +787,9 @@ int main(int argc, char** argv) {
     }
             
     if (print_parsimony_scores) {
+        if (missing_samples.size() > 0) {
+            fclose(parsimony_scores_file);
+        }
         return 0;
     }
 
@@ -836,19 +872,31 @@ int main(int argc, char** argv) {
                 }
             }
         }
-        fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
         
-        fprintf(stderr, "Printing condensed tree. \n");
-        fprintf(stdout, "%s\n", TreeLib::get_newick_string(condensed_T, true, true).c_str());
+        auto condensed_tree_filename = outdir + "/condensed-final-tree.nh";
+        FILE* condensed_tree_file = fopen(condensed_tree_filename.c_str(), "w");
+        fprintf(stderr, "Writing condensed final tree to file %s\n", condensed_tree_filename.c_str());
+        fprintf(condensed_tree_file, "%s\n", TreeLib::get_newick_string(condensed_T, true, true).c_str());
+        fclose(condensed_tree_file);
+        
+        fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
 
-    fprintf(stderr, "Printing final tree. \n");
-    fprintf(stdout, "%s\n", TreeLib::get_newick_string(T, true, true).c_str());
+    timer.Start();
+    auto final_tree_filename = outdir + "/final-tree.nh";
+    FILE* final_tree_file = fopen(final_tree_filename.c_str(), "w");
+    fprintf(stderr, "Writing final tree to file %s \n", final_tree_filename.c_str());
+    fprintf(final_tree_file, "%s\n", TreeLib::get_newick_string(T, true, true).c_str());
+    fclose(final_tree_file);
+    fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 
     if (print_uncondensed_tree) {
-        fprintf(stderr, "Printing uncondensed final tree. \n");
         
         timer.Start();
+
+        auto uncondensed_final_tree_filename = outdir + "/uncondensed-final-tree.nh";
+        FILE* uncondensed_final_tree_file = fopen(uncondensed_final_tree_filename.c_str(), "w");
+        fprintf(stderr, "Writing uncondensed final tree to file %s \n", uncondensed_final_tree_filename.c_str());
         
         if (!collapse_tree && (condensed_nodes.size() > 0)) {
             Tree T_to_print = TreeLib::create_tree_from_newick_string(TreeLib::get_newick_string(T, false, true)); 
@@ -869,19 +917,23 @@ int main(int argc, char** argv) {
                     T_to_print.create_node(cn->second[s], par->identifier, n->branch_length);
                 }
             }
-            fprintf(stdout, "%s\n", TreeLib::get_newick_string(T_to_print, true, true).c_str());
+            fprintf(uncondensed_final_tree_file, "%s\n", TreeLib::get_newick_string(T_to_print, true, true).c_str());
         }
         else {
-            fprintf(stdout, "%s\n", TreeLib::get_newick_string(T, true, true).c_str());
+            fprintf(uncondensed_final_tree_file, "%s\n", TreeLib::get_newick_string(T, true, true).c_str());
         }
+        fclose(uncondensed_final_tree_file);
         
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
     
     if (missing_samples.size() > 0) {
-        fprintf(stderr, "Printing mutation paths in the new tree for missing samples.\n");  
 
         timer.Start();
+
+        auto mutation_paths_filename = outdir + "/mutation-paths.txt";
+        FILE* mutation_paths_file = fopen(mutation_paths_filename.c_str(), "w");
+        fprintf(stderr, "Writing mutation paths to file %s \n", mutation_paths_filename.c_str());
         
         for (size_t s=0; s<missing_samples.size(); s++) {
             auto sample = missing_samples[s];
@@ -923,20 +975,24 @@ int main(int argc, char** argv) {
                 }
             }
             
-            fprintf(stderr, "%s\t", sample.c_str()); 
+            fprintf(mutation_paths_file, "%s\t", sample.c_str()); 
             while (mutation_stack.size()) {
-                fprintf(stderr, "%s", mutation_stack.top().c_str()); 
+                fprintf(mutation_paths_file, "%s", mutation_stack.top().c_str()); 
                 mutation_stack.pop();
             }
-            fprintf(stderr, "\n"); 
+            fprintf(mutation_paths_file, "\n"); 
         }
+        
+        fclose(mutation_paths_file);
+
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
 
     if ((print_subtrees_size > 1) && (missing_samples.size() > 0)) {
-        fprintf(stderr, "Printing subtrees for added samples. \n");
 
         timer.Start();
+
+        fprintf(stderr, "Computing subtrees for added samples. \n\n");
         
         std::vector<bool> displayed_mising_sample (missing_samples.size(), false);
         
@@ -1019,55 +1075,76 @@ int main(int argc, char** argv) {
                     }
                 }
                 
-                fprintf(stderr, "Subtree %d.\n", ++num_subtrees);
-                fprintf(stdout, "%s\n", newick.c_str());
+                auto subtree_filename = outdir + "/subtree-" + std::to_string(++num_subtrees) + ".nh";
+                FILE* subtree_file = fopen(subtree_filename.c_str(), "w");
+                fprintf(stderr, "Writing subtree %d to file %s.\n", num_subtrees, subtree_filename.c_str());
+                fprintf(subtree_file, "%s\n", newick.c_str());
+                fclose(subtree_file);
 
-                fprintf(stderr, "Mutations at the nodes of subtree %d.\n", num_subtrees);
+                auto subtree_mutations_filename = outdir + "/subtree-" + std::to_string(num_subtrees) + "-mutations.txt";
+                FILE* subtree_mutations_file = fopen(subtree_mutations_filename.c_str(), "w");
+                fprintf(stderr, "Writing list of mutations at the nodes of subtree %d to file %s\n", num_subtrees, subtree_mutations_filename.c_str());
+
                 if (subtree_root_mutations.size() > 0) {
-                    fprintf(stderr, "ROOT->%s: ", new_T.root->identifier.c_str());
-                    for (auto m: subtree_root_mutations) {
-                        fprintf(stderr, "|%s", (get_nuc_char(m.par_nuc) + std::to_string(m.position)).c_str());
+                    fprintf(subtree_mutations_file, "ROOT->%s: ", new_T.root->identifier.c_str());
+                    size_t tot_mutations = subtree_root_mutations.size();
+                    for (size_t idx = 0; idx < tot_mutations; idx++) {
+                        auto m = subtree_root_mutations[idx];
+                        fprintf(subtree_mutations_file, "%s", (get_nuc_char(m.par_nuc) + std::to_string(m.position)).c_str());
                         for (size_t c_size =0; c_size < m.mut_nuc.size(); c_size++) {
-                            fprintf(stderr, "%c", get_nuc_char(m.mut_nuc[c_size]));
+                            fprintf(subtree_mutations_file, "%c", get_nuc_char(m.mut_nuc[c_size]));
                             if (c_size + 1 < m.mut_nuc.size()) {
-                                fprintf(stderr, ",");
+                                fprintf(subtree_mutations_file, "/");
                             }
                         }
-                        fprintf(stderr, "| ");
+                        if (idx+1 <tot_mutations) {
+                            fprintf(subtree_mutations_file, ",");
+                        }
                     }
-                    fprintf(stderr, "\n");
+                    fprintf(subtree_mutations_file, "\n");
                 }
                 for (auto n: new_T.depth_first_expansion()) {
-                    fprintf(stderr, "%s: ", n->identifier.c_str());
-                    for (auto m: subtree_node_mutations[n]) {
-                        fprintf(stderr, "|%s", (get_nuc_char(m.par_nuc) + std::to_string(m.position)).c_str());
-                        for (size_t c_size =0; c_size < m.mut_nuc.size(); c_size++) {
-                            fprintf(stderr, "%c", get_nuc_char(m.mut_nuc[c_size]));
-                            if (c_size + 1 < m.mut_nuc.size()) {
-                                fprintf(stderr, ",");
+                    size_t tot_mutations = subtree_node_mutations[n].size();
+                    if (tot_mutations > 0) {
+                        fprintf(subtree_mutations_file, "%s: ", n->identifier.c_str());
+                        for (size_t idx = 0; idx < tot_mutations; idx++) {
+                            auto m = subtree_node_mutations[n][idx];
+                            fprintf(subtree_mutations_file, "%s", (get_nuc_char(m.par_nuc) + std::to_string(m.position)).c_str());
+                            for (size_t c_size =0; c_size < m.mut_nuc.size(); c_size++) {
+                                fprintf(subtree_mutations_file, "%c", get_nuc_char(m.mut_nuc[c_size]));
+                                if (c_size + 1 < m.mut_nuc.size()) {
+                                    fprintf(subtree_mutations_file, "/");
+                                }
+                            }
+                            if (idx+1 <tot_mutations) {
+                                fprintf(subtree_mutations_file, ",");
                             }
                         }
-                        fprintf(stderr, "| ");
+                        fprintf(subtree_mutations_file, "\n");
                     }
-                    fprintf(stderr, "\n");
                 }
 
+                fclose(subtree_mutations_file);
+
                 bool has_condensed = false;
+                FILE* subtree_expanded_file;
                 for (auto l: new_T.get_leaves()) {
                     if (condensed_nodes.find(l->identifier) != condensed_nodes.end()) {
                         if (!has_condensed) {
-                            fprintf(stderr, "\nExpanded condensed nodes for subtree %d:\n", num_subtrees);
+                            auto subtree_expanded_filename = outdir + "/subtree-" + std::to_string(num_subtrees) + "-expanded.txt";
+                            subtree_expanded_file = fopen(subtree_expanded_filename.c_str(), "w");
+                            fprintf(stderr, "Subtree %d has condensed nodes.\nExpanding the condensed nodes for subtree %d in file %s\n", num_subtrees, num_subtrees, subtree_expanded_filename.c_str());
                             has_condensed = true;
                         }
-                        fprintf(stderr, "%s: ", l->identifier.c_str());
+                        fprintf(subtree_expanded_file, "%s: ", l->identifier.c_str());
                         for (auto n: condensed_nodes[l->identifier]) {
-                            fprintf(stderr, "%s ", n.c_str());
+                            fprintf(subtree_expanded_file, "%s ", n.c_str());
                         }
-                        fprintf(stderr, "\n");
+                        fprintf(subtree_expanded_file, "\n");
                     }
                 }
                 if (has_condensed) {
-                    fprintf(stderr, "\n");
+                    fclose(subtree_expanded_file);
                 }
 
                 break;
@@ -1084,9 +1161,13 @@ int main(int argc, char** argv) {
     }
 
     if (dout_filename != "") {
-        fprintf(stderr, "Saving assignments. \n");
+    //if (save_assignments) {
 
         timer.Start();
+
+        //std::string dout_filename = outdir + "/assignments.pb";
+
+        fprintf(stderr, "Saving mutation-annotated tree object to file %s\n", dout_filename.c_str());
 
         Parsimony::data data;
 
