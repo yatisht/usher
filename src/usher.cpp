@@ -1085,7 +1085,7 @@ int main(int argc, char** argv) {
                 FILE* subtree_mutations_file = fopen(subtree_mutations_filename.c_str(), "w");
                 fprintf(stderr, "Writing list of mutations at the nodes of subtree %d to file %s\n", num_subtrees, subtree_mutations_filename.c_str());
 
-                if (subtree_root_mutations.size() > 0) {
+                //if (subtree_root_mutations.size() > 0) {
                     fprintf(subtree_mutations_file, "ROOT->%s: ", new_T.root->identifier.c_str());
                     size_t tot_mutations = subtree_root_mutations.size();
                     for (size_t idx = 0; idx < tot_mutations; idx++) {
@@ -1102,10 +1102,10 @@ int main(int argc, char** argv) {
                         }
                     }
                     fprintf(subtree_mutations_file, "\n");
-                }
+                //}
                 for (auto n: new_T.depth_first_expansion()) {
                     size_t tot_mutations = subtree_node_mutations[n].size();
-                    if (tot_mutations > 0) {
+                    //if (tot_mutations > 0) {
                         fprintf(subtree_mutations_file, "%s: ", n->identifier.c_str());
                         for (size_t idx = 0; idx < tot_mutations; idx++) {
                             auto m = subtree_node_mutations[n][idx];
@@ -1121,7 +1121,7 @@ int main(int argc, char** argv) {
                             }
                         }
                         fprintf(subtree_mutations_file, "\n");
-                    }
+                    //}
                 }
 
                 fclose(subtree_mutations_file);
