@@ -10,7 +10,7 @@
 
 UShER is a program that rapidly places new samples onto an existing phylogeny using maximum parsimony. It is particularly helpful in understanding the relationships of newly sequenced SARS-CoV-2 genomes with each other and with previously sequenced genomes in a global phylogeny. This has emerged as an important challenge during this pandemic for enabling *genomic contact tracing* since the viral phylogeny is already very large (>50K sequences, see https://github.com/roblanf/sarscov2phylo/releases) and is expected to grow by many fold in the coming months. 
 
-UShER is much faster than existing tools with similar functionality and has now also been integrated in the [UCSC SARS-CoV-2 Genome Browser](https://genome.ucsc.edu/cgi-bin/hgPhyloPlace).
+UShER is much faster than existing tools with similar functionality and has now also been integrated in the [UCSC SARS-CoV-2 Genome Browser](https://genome.ucsc.edu/cgi-bin/hgPhyloPlace), which does not require UShER installation and usage know-how as described below for SARS-CoV-2 applications. Please follow the steps below if you wish to use UShER in a standalone fashion.
 
 ## Installing UShER
 
@@ -69,61 +69,69 @@ At the end of the placement phase, UShER allows the user to create another proto
 
 ## Using UShER
 
+### Displaying help message
+
+To familiarize with the different command-line options of UShER, it would be useful to view its help message using the command below:
+
+```
+./build/usher --help
+```
+
 ### Pre-processing global phylogeny
 
-The following example command pre-processes the existing phylogeny (global_phylo.nh) and using the genotypes (global_samples.vcf) and generates the mutation-annotated tree object that gets stored in a protobuf file (global_assignments.pb). 
+The following example command pre-processes the existing phylogeny (global_phylo.nh) and using the genotypes (global_samples.vcf) and generates the mutation-annotated tree object that gets stored in a protobuf file (global_assignments.pb). Note that UShER would automatically place onto the input global phylogeny any samples in the VCF that are missing in the input global phylogeny using its parsimony-optimal placement algorithm. This final tree is written to a file named final-tree.nh in the folder specified by *--outdir* (if not specified, default uses current directory). 
 ```
-./build/usher --tree test/global_phylo.nh --vcf test/global_samples.vcf --save-assignments global_assignments.pb 
+./build/usher --tree test/global_phylo.nh --vcf test/global_samples.vcf --save-mutation-annotated-tree global_assignments.pb --outdir output/
 ```
 By default, UShER uses **all available threads** but the user can also specify the number of threads using the *--threads* command-line parameter.
 
-UShER also allows an option during the pre-processing phase to collapse nodes (i.e. delete the node after moving its child nodes to its parent node) that are not inferred to contain a mutation through the Fitch-Sankoff algorithm as well as to condense nodes that contain identical sequences into a single representative node. This is the **recommended usage** for UShER as it not only helps in significantly reducing the search space for the placement phase but also helps reduce ambiguities in the placement step and can be done by setting the *--collapse-final-tree* parameter.  
+UShER also allows an option during the pre-processing phase to collapse nodes (i.e. delete the node after moving its child nodes to its parent node) that are not inferred to contain a mutation through the Fitch-Sankoff algorithm as well as to condense nodes that contain identical sequences into a single representative node. This is the **recommended usage** for UShER as it not only helps in significantly reducing the search space for the placement phase but also helps reduce ambiguities in the placement step and can be done by setting the *--collapse-final-tree* parameter. The collapsed tree is stored as condensed-final-tree.nh in the output directory. 
 ```
-./build/usher --tree test/global_phylo.nh --vcf test/global_samples.vcf --save-assignments global_assignments.pb --collapse-final-tree
-```
-
-Note the the above command would condense identical sequences, namely S2, S3 and S4, in the example figure above into a single condensed new node (named something like *node_1_condensed_3_leaves*). If you wish to display the collapsed tree without condensing the nodes, also set the *--print-uncondensed-final-tree* option, for example, as follows:
-```
-./build/usher --tree test/global_phylo.nh --vcf test/global_samples.vcf --save-assignments global_assignments.pb --collapse-final-tree --print-uncondensed-final-tree
+./build/usher --tree test/global_phylo.nh --vcf test/global_samples.vcf --save-mutation-annotated-tree global_assignments.pb --collapse-final-tree --outdir output/
 ```
 
-Also note that the placement phase in UShER would automatically place onto the input global phylogeny any samples in the VCF that are missing in the input global phylogeny using its parsimony-optimal placement algorithm.
+Note the the above command would condense identical sequences, namely S2, S3 and S4, in the example figure above into a single condensed new node (named something like *node_1_condensed_3_leaves*). If you wish to display the collapsed tree without condensing the nodes, also set the *--write-uncondensed-final-tree* option, for example, as follows:
+```
+./build/usher --tree test/global_phylo.nh --vcf test/global_samples.vcf --save-mutation-annotated-tree global_assignments.pb --collapse-final-tree  --write-uncondensed-final-tree --outdir output/
+```
+The above commands saves the collapsed but uncondensed tree as uncondensed-final-tree.nh in the output directory. 
 
 ### Placing new samples
 
 Once the pre-processing is complete and a mutation-annotated tree object is generate (e.g. global_assignments.pb), UShER can place new sequences whose variants are called in a VCF file (e.g. new_samples.vcf) to existing tree as follows:
 
 ```
-./build/usher --load-assignments global_assignments.pb --vcf test/new_samples.vcf --print-uncondensed-final-tree
+./build/usher --load-mutation-annotated-tree global_assignments.pb --vcf test/new_samples.vcf --write-uncondensed-final-tree  --outdir output/
 ```
 Again, by default, UShER uses **all available threads** but the user can also specify the number of threads using the *--threads* command-line parameter.
 
 The above command not only places each new sample sequentially, but also reports the parsimony score and the number of parsimony-optimal placements found for each added sample. UShER displays warning messages if several (>=4) possibilities of parsimony-optimal placements are found for a sample. This can happen due to several factors, including (i) missing data in new samples, (ii) presence of ambiguous genotypes in new samples and (iii) structure and mutations in the global phylogeny itself, including presence of multiple back-mutations. 
 
-In addition to the global phylogeny, one often needs to contextualize the newly added sequences using subtrees of closest *N* neighbouring sequences, where *N* is small. UShER allows this functionality using *--print-subtrees-size*, which can be set to an arbitrary *N*, such as 20 in the example below:
+In addition to the global phylogeny, one often needs to contextualize the newly added sequences using subtrees of closest *N* neighbouring sequences, where *N* is small. UShER allows this functionality using *--write-subtrees-size*, which can be set to an arbitrary *N*, such as 20 in the example below:
 
 ```
-./build/usher --load-assignments global_assignments.pb --vcf test/new_samples.vcf --print-uncondensed-final-tree --print-subtrees-size 20
+./build/usher --load-mutation-annotated-tree global_assignments.pb --vcf test/new_samples.vcf --write-uncondensed-final-tree  --write-subtrees-size 20 --outdir output/
 ```
+The above command writes subtrees to files names subtree-<subtree-number>.nh. It also write a text file for each subtree (named subtree-<subtree-number>-mutations.txt showing mutations at each internal node of the subtree. If the subtrees contain condensed nodes, it writes the expanded leaves for those nodes to text files named subtree-<subtree-number>-expanded.txt. 
 
-Finally, the new mutation-annotated tree object can be stored again using *--save-assignments* command (overwriting the loaded protobuf file is allowed).
+Finally, the new mutation-annotated tree object can be stored again using *--save-mutation-annotated-tree* command (overwriting the loaded protobuf file is allowed).
 
 ```
-./build/usher --load-assignments global_assignments.pb --vcf test/new_samples.vcf --print-uncondensed-final-tree --save-assignments new-global_assignments.pb
+./build/usher --load-mutation-annotated-tree global_assignments.pb --vcf test/new_samples.vcf --write-uncondensed-final-tree --save-mutation-annotated-tree new_global_assignments.pb --outdir output/
 ```
 
 
 ### Uncertainty in placing new samples
 
-UShER also allows quantifying the uncertainty in placing new samples by reporting the parsimony scores of adding new samples to all possible nodes in the tree **without** actually modifying the tree (this is because the tree structure, as well as number of possible optimal placements could change with each new sequential placement). In particular, this can help the user explore which nodes of the tree result in a small and optimal or near-optimal parsimony score. This can be done by setting the *--print-parsimony-scores-per-node*, for example, as follows:
+UShER also allows quantifying the uncertainty in placing new samples by reporting the parsimony scores of adding new samples to all possible nodes in the tree **without** actually modifying the tree (this is because the tree structure, as well as number of possible optimal placements could change with each new sequential placement). In particular, this can help the user explore which nodes of the tree result in a small and optimal or near-optimal parsimony score. This can be done by setting the *--write-parsimony-scores-per-node*, for example, as follows:
 ```
-./build/usher --load-assignments global_assignments.pb --vcf test/new_samples.vcf --print-parsimony-scores-per-node
+./build/usher --load-mutation-annotated-tree global_assignments.pb --vcf test/new_samples.vcf --write-parsimony-scores-per-node --outdir output/
 ```
-Note that because the above command does not perform the sequential placement on the tree, the number of parsimony-optimal placements reported for the second and later samples could differ from those reported with actual placements.
+The above command writes a file parsimony-scores.tsv containing branch parsimony scores to the output directoy. Note that because the above command does not perform the sequential placement on the tree, the number of parsimony-optimal placements reported for the second and later samples could differ from those reported with actual placements.
 
 ## ARTIC-2-UShER
 
-Converts standard multiple sequence alignment output from the SARS-CoV-2 ARTIC Network protocol (see https://artic.network/ncov-2019) into a merged VCF viable for input to UShER (Ultrafast Sample Placement on Existing Trees). ARTIC-2-UShER also considers missing data in SARS-CoV-2 genomic sequences and filters variants at problematic sites (see https://virological.org/t/issues-with-sars-cov-2-sequencing-data/473/12 and https://www.biorxiv.org/content/biorxiv/early/2020/06/09/2020.06.08.141127.full.pdf). 
+We also provide a tool, ARTIC-2-UShER, that converts standard multiple sequence alignment output from the SARS-CoV-2 ARTIC Network protocol (see https://artic.network/ncov-2019) into a merged VCF viable for input to UShER. ARTIC-2-UShER also considers missing data in SARS-CoV-2 genomic sequences and automatically filters variants at problematic sites (see https://virological.org/t/issues-with-sars-cov-2-sequencing-data/473/12 and https://www.biorxiv.org/content/biorxiv/early/2020/06/09/2020.06.08.141127.full.pdf). 
 
 ### Input
 
@@ -140,20 +148,18 @@ ARTIC Network multiple sequence alignment output file(s)
 Please ensure sequenceAnalyzer.py is in your current working directory. 
 
 ```
-python3 ARTIC2UShER.py -inpath ./test/ARTIC2UShER -outfile ./test/test_merged.vcf
+python3 scripts/ARTIC2UShER.py -inpath ./test/ARTIC2UShER -outfile ./test/test_merged.vcf
 ```
 
 ### Output
 
 Merged VCF without problematic sites and with missing data for a particular sample denoted as "." in the corresponding genotype column.
 
-For example:
-Three files (containing sample1, sample2 and sample3) served as input to ARTIC-2-UShER.py. For a given site 68, if sample1 matched the reference, sample2 possessed the alternate allele, and sample3 possessed missing data ("N"), the corresponding line in the output vcf would read as follows:
-
-#CHROM    &emsp;POS     &emsp;ID	   &emsp; REF     &emsp;ALT    &emsp; QUAL    &emsp;FILTER    &emsp;INFO    &emsp;FORMAT  &emsp;  Sample1   &emsp; Sample2    &emsp;Sample3
-
-MN908947.3	&emsp;68	   &emsp;.	    &emsp; A	  &emsp; &emsp;  T	     &emsp;&emsp;.	   &emsp;  &emsp; &emsp; .	   &emsp;   &emsp;AC=1   &emsp;   &emsp;GT	      &emsp; &emsp; &emsp; &emsp; 0 &emsp;	&emsp; &emsp;  &emsp;     1 &emsp;  &emsp; &emsp;       .
-
+For the example above, a new VCF *test/test_merged.vcf* is generated (identical to the one already provided), which can be used by UShER to place the new samples. 
 
 ## Reference
+**UShER:**
 * Coming soon
+
+**For ARTIC-2-UShER, please also cite:**
+* Yatish Turakhia, Bryan Thornlow, Landen Gozashti, Angie S. Hinrichs, Jason D. Fernandes, David Haussler, and Russell Corbett-Detig, "Stability of SARS-CoV-2 Phylogenies", bioRxiv [pre-print](https://www.biorxiv.org/content/10.1101/2020.06.08.141127v1) 2020.

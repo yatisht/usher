@@ -19,6 +19,7 @@ jobs:
     - name: test
       run: |
         ./build/usher --help
+        python3 scripts/ARTIC2UShER.py -h
   
   ubuntu-20-04:
     runs-on: ubuntu-20.04
@@ -29,6 +30,7 @@ jobs:
     - name: test
       run: |
         ./build/usher --help
+        python3 scripts/ARTIC2UShER.py -h
 
   macOS-10-14:
     runs-on: macOS-10.14
@@ -39,6 +41,7 @@ jobs:
     - name: test
       run: |
         ./build/usher --help
+        python3 scripts/ARTIC2UShER.py -h
 
   macOS-10-15:
     runs-on: macOS-10.15
@@ -49,3 +52,4 @@ jobs:
     - name: test
       run: |
         ./build/usher --help
+        python3 scripts/ARTIC2UShER.py -h
