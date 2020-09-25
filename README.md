@@ -131,30 +131,33 @@ The above command writes a file parsimony-scores.tsv containing branch parsimony
 
 ## Fasta2UShER
 
-We also provide a tool, Fasta2UShER.py, that converts SARS-CoV-2 genomic data in fasta format into a merged VCF viable for input to UShER. Fasta2UShER.py can take one or many multiple sequence alignment files as input (including standard multiple sequence alignment output from the SARS-CoV-2 ARTIC Network protocol, see https://artic.network/ncov-2019). ARTIC-2-UShER.py also possesses an input option for unalifgned SARS-CoV-2 data. In this case ARTIC-2-UShER.py employs multiple alignment using fast Fourier transform (MAFFT, see https://mafft.cbrc.jp/alignment/software/) to construct an alignment for each user specified sequence with the SARS-CoV-2 reference. In addition, Fasta2UShER.py considers missing data and can automatically filter variants at problematic sites (see https://virological.org/t/issues-with-sars-cov-2-sequencing-data/473/12 and https://www.biorxiv.org/content/biorxiv/early/2020/06/09/2020.06.08.141127.full.pdf).
+We also provide a tool, Fasta2UShER.py, that converts SARS-CoV-2 genomic data in fasta format into a merged VCF viable for input to UShER. Fasta2UShER.py can take one or many multiple sequence alignment files as input (including standard multiple sequence alignment output from the SARS-CoV-2 ARTIC Network protocol, see https://artic.network/ncov-2019). Fasta2UShER.py also possesses an input option for unalifgned SARS-CoV-2 data. In this case Fasta2UShER.py employs multiple alignment using fast Fourier transform (MAFFT, see https://mafft.cbrc.jp/alignment/software/) to construct an alignment for each user specified sequence with the SARS-CoV-2 reference. In addition, Fasta2UShER.py considers missing data and can automatically filter variants at problematic sites (see https://virological.org/t/issues-with-sars-cov-2-sequencing-data/473/12 and https://www.biorxiv.org/content/biorxiv/early/2020/06/09/2020.06.08.141127.full.pdf).
 
 ### Input
 
-
-ARTIC Network multiple sequence alignment output file(s)
+Multiple sequence alignment file(s) (suchlike ARTIC Network multiple sequence alignment output) or unaligned full SARS-CoV-2 genomic sequence(s) in fasta format
 
 ### Options
 
-**-inpath**: Path to directory containing ONLY multiple sequence alignment files in fasta format (make sure no other files exist in this directory).
+**-inpath**: Path to directory containing ONLY multiple sequence alignment or unaligned files in fasta format (make sure no other files exist in this directory).
 
 **-outfile**: Output VCF file name
+
+**-unaligned**: Specifies unaligned input files
+
+**-mask_problematic_sites**: Ignore problematic sites per masking recomendations
 
 ### Usage
 
 Please ensure sequenceAnalyzer.py is in your current working directory. 
 
 ```
-python3 scripts/ARTIC2UShER.py -inpath ./test/ARTIC2UShER -outfile ./test/test_merged.vcf
+python3 scripts/Fasta2UShER.py -inpath ./test/Fasta2UShER -outfile ./test/test_merged.vcf
 ```
 
 ### Output
 
-Merged VCF without problematic sites and with missing data for a particular sample denoted as "." in the corresponding genotype column.
+Merged VCF with missing data for a particular sample denoted as "." in the corresponding genotype column.
 
 For the example above, a new VCF *test/test_merged.vcf* is generated (identical to the one already provided), which can be used by UShER to place the new samples. 
 
