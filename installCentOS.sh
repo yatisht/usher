@@ -1,6 +1,7 @@
 sudo yum group install -y  "Development Tools"                                                                                                                                                                  
 sudo yum install -y wget
 sudo yum install -y boost-devel
+sudo yum install -y python3
 
 # install cmake-3.18
 wget https://github.com/Kitware/CMake/releases/download/v3.18.2/cmake-3.18.2.tar.gz

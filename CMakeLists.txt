@@ -23,7 +23,7 @@ include(${TBB_DIR}/cmake/TBBBuild.cmake)
 tbb_build(TBB_ROOT ${TBB_DIR} CONFIG_DIR TBB_DIR MAKE_ARGS tbb_cpf=1)
 find_package(TBB REQUIRED tbbmalloc tbbmalloc_proxy tbb_preview)
 
-FIND_PACKAGE(Boost COMPONENTS program_options iostreams REQUIRED)
+FIND_PACKAGE(Boost COMPONENTS program_options iostreams filesystem REQUIRED)
 
 find_package(OpenMP REQUIRED)
 
