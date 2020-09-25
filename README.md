@@ -149,7 +149,6 @@ Multiple sequence alignment file(s) (suchlike ARTIC Network multiple sequence al
 
 ### Usage
 
-Please ensure sequenceAnalyzer.py is in your current working directory. 
 
 ```
 python3 scripts/Fasta2UShER.py -inpath ./test/Fasta2UShER -outfile ./test/test_merged.vcf
