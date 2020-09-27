@@ -158,9 +158,13 @@ Multiple sequence alignment file(s) (suchlike ARTIC Network multiple sequence al
 
 **-unaligned**: Specifies unaligned input files
 
-**-mask_problematic_sites**: Ignore problematic sites per masking recomendations
+**-auto_mask**: Ignore problematic sites per masking recomendations
+
+**-user_specified_mask**: Path to VCF fle containing custom masking recomendations (please ensure VCF format is consistent with https://raw.githubusercontent.com/W-L/ProblematicSites_SARS-CoV2/master/problematic_sites_sarsCov2.vcf)
 
 ### Usage
+
+Please ensure that MAFFT (see https://mafft.cbrc.jp/alignment/software/ ) is in your system path.
 
 ```
 python3 scripts/Fasta2UShER.py -inpath ./test/Fasta2UShER -outfile ./test/test_merged.vcf
