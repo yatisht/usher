@@ -12,6 +12,19 @@ UShER is a program that rapidly places new samples onto an existing phylogeny us
 
 UShER is much faster than existing tools with similar functionality and has now also been integrated in the [UCSC SARS-CoV-2 Genome Browser](https://genome.ucsc.edu/cgi-bin/hgPhyloPlace), which does not require UShER installation and usage know-how as described below for SARS-CoV-2 applications. Please follow the steps below if you wish to use UShER in a standalone fashion.
 
+## Contents
+* [Installing UShER](#installing-usher)
+	- [Using Docker](#using-docker)
+  - [Using installation scripts](#using-installation-scripts)
+* [How UShER works?](#how-usher-works)
+* [Using UShER](#using-usher)
+	- [Displaying help message](#displaying-help-message)
+  - [Pre-processing global phylogeny](#pre-processing-global-phylogeny)
+  - [Placing new samples](#placing-new-samples)
+  - [Uncertainty in placing new samples](#uncertainty-in-placing-new-samples)
+* [Fasta2UShER](#fasta2usher)
+* [Reference](#reference)
+
 ## Installing UShER
 
 First, clone the UShER repository using the commands below.
@@ -79,7 +92,7 @@ To familiarize with the different command-line options of UShER, it would be use
 
 ### Pre-processing global phylogeny
 
-The following example command pre-processes the existing phylogeny (global_phylo.nh) and using the genotypes (global_samples.vcf) and generates the mutation-annotated tree object that gets stored in a protobuf file (global_assignments.pb). Note that UShER would automatically place onto the input global phylogeny any samples in the VCF that are missing in the input global phylogeny using its parsimony-optimal placement algorithm. This final tree is written to a file named final-tree.nh in the folder specified by *--outdir* (if not specified, default uses current directory). 
+The following example command pre-processes the existing phylogeny (global_phylo.nh) and using the genotypes (global_samples.vcf) and generates the mutation-annotated tree object that gets stored in a protobuf file (global_assignments.pb). Note that UShER would automatically place onto the input global phylogeny any samples in the VCF (to convert a fasta sequence to VCF, consider using [Fasta2USHER](#fasta2usher)) that are missing in the input global phylogeny using its parsimony-optimal placement algorithm. This final tree is written to a file named final-tree.nh in the folder specified by *--outdir* (if not specified, default uses current directory). 
 ```
 ./build/usher --tree test/global_phylo.nh --vcf test/global_samples.vcf --save-mutation-annotated-tree global_assignments.pb --outdir output/
 ```
@@ -149,8 +162,6 @@ Multiple sequence alignment file(s) (suchlike ARTIC Network multiple sequence al
 
 ### Usage
 
-Please ensure sequenceAnalyzer.py is in your current working directory. 
-
 ```
 python3 scripts/Fasta2UShER.py -inpath ./test/Fasta2UShER -outfile ./test/test_merged.vcf
 ```
@@ -165,5 +176,5 @@ For the example above, a new VCF *test/test_merged.vcf* is generated (identical 
 **UShER:**
 * Coming soon
 
-**For ARTIC-2-UShER, please also cite:**
+**For Fasta2UShER, please also cite:**
 * Yatish Turakhia, Bryan Thornlow, Landen Gozashti, Angie S. Hinrichs, Jason D. Fernandes, David Haussler, and Russell Corbett-Detig, "Stability of SARS-CoV-2 Phylogenies", bioRxiv [pre-print](https://www.biorxiv.org/content/10.1101/2020.06.08.141127v1) 2020.
