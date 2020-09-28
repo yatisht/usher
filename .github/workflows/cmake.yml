@@ -20,6 +20,7 @@ jobs:
       run: |
         ./build/usher --help
         python3 scripts/Fasta2UShER.py -h
+        mafft --help
   
   ubuntu-20-04:
     runs-on: ubuntu-20.04
@@ -31,6 +32,7 @@ jobs:
       run: |
         ./build/usher --help
         python3 scripts/Fasta2UShER.py -h
+        mafft --help
 
   macOS-10-14:
     runs-on: macOS-10.14
@@ -42,6 +44,7 @@ jobs:
       run: |
         ./build/usher --help
         python3 scripts/Fasta2UShER.py -h
+        mafft --help
 
   macOS-10-15:
     runs-on: macOS-10.15
@@ -53,3 +56,4 @@ jobs:
       run: |
         ./build/usher --help
         python3 scripts/Fasta2UShER.py -h
+        mafft --help
