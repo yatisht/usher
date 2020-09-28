@@ -1066,14 +1066,18 @@ int main(int argc, char** argv) {
                     newick = TreeLib::get_newick_string(new_T, true, true);
                 }
 
-//#pragma omp parallel for
-                for (size_t j = i+1; j < missing_samples.size(); j++) {
-                    if (!displayed_mising_sample[j]) {
-                        if (new_T.get_node(missing_samples[j]) != NULL) {
-                            displayed_mising_sample[j] = true;
-                        }
+                tbb::parallel_for (tbb::blocked_range<size_t>(i+1, missing_samples.size(), 100),
+                    [&](tbb::blocked_range<size_t> r) {
+                    for (size_t j=r.begin(); j<r.end(); ++j){
+                       for (size_t j = i+1; j < missing_samples.size(); j++) {
+                           if (!displayed_mising_sample[j]) {
+                               if (new_T.get_node(missing_samples[j]) != NULL) {
+                                   displayed_mising_sample[j] = true;
+                               }
+                           }
+                       }
                     }
-                }
+                });
                 
                 auto subtree_filename = outdir + "/subtree-" + std::to_string(++num_subtrees) + ".nh";
                 FILE* subtree_file = fopen(subtree_filename.c_str(), "w");
