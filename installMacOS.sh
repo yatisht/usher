@@ -12,6 +12,5 @@ cd ..
 wget https://mafft.cbrc.jp/alignment/software/mafft-7.471-mac.zip
 unzip mafft-7.471-mac.zip
 cd mafft-mac/
-mv mafft.bat mafft
-export PATH="${PATH}:${PWD}"
+mv mafft.bat /usr/local/bin/mafft; mv mafftdir /usr/local/bin/
 cd ..
