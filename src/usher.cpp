@@ -616,7 +616,7 @@ int main(int argc, char** argv) {
                         if (node_set_difference[k] == 0) {
                             fprintf(parsimony_scores_file, "*");
                         }
-                        for (size_t idx = 0; idx < node_set_difference[k]; idx++) {
+                        for (size_t idx = 0; idx < static_cast<size_t>(node_set_difference[k]); idx++) {
                             auto m = node_excess_mutations[k][idx];
                             fprintf(parsimony_scores_file, "%s", (get_nuc_char(m.par_nuc) + std::to_string(m.position)).c_str());
                             for (size_t c_size =0; c_size < m.mut_nuc.size(); c_size++) {
@@ -625,7 +625,7 @@ int main(int argc, char** argv) {
                                     fprintf(parsimony_scores_file, "/");
                                 }
                             }
-                            if (idx+1 < node_set_difference[k]) {
+                            if (idx+1 < static_cast<size_t>(node_set_difference[k])) {
                                 fprintf(parsimony_scores_file, ",");
                             }
                         }
