@@ -1066,7 +1066,7 @@ int main(int argc, char** argv) {
                     newick = TreeLib::get_newick_string(new_T, true, true);
                 }
 
-#pragma omp parallel for
+//#pragma omp parallel for
                 for (size_t j = i+1; j < missing_samples.size(); j++) {
                     if (!displayed_mising_sample[j]) {
                         if (new_T.get_node(missing_samples[j]) != NULL) {
