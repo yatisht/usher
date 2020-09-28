@@ -11,6 +11,7 @@ make clean
 make
 su
 make install
+cd ../../
 
 # install cmake-3.18
 wget https://github.com/Kitware/CMake/releases/download/v3.18.2/cmake-3.18.2.tar.gz
