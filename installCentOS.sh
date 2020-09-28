@@ -14,8 +14,9 @@ make install
 cd ..
 
 # install mafft
-wget wget https://mafft.cbrc.jp/alignment/software/mafft-7.471-gcc_fc6.x86_64.rpm
+wget https://mafft.cbrc.jp/alignment/software/mafft-7.471-gcc_fc6.x86_64.rpm
 sudo rpm -Uvh mafft-7.471-gcc_fc6.x86_64.rpm
+rm mafft-7.471-gcc_fc6.x86_64.rpm
 
 # setup protobuf
 wget https://github.com/protocolbuffers/protobuf/releases/download/v3.12.3/protobuf-cpp-3.12.3.tar.gz
