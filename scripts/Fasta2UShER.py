@@ -13,8 +13,10 @@ parser.add_argument('-inpath', nargs='?', required=True,
                      help='Path to a directory containing all input multiple sequence alignments you wish to consider')
 parser.add_argument('-unaligned', nargs='?',const='T', default=None,
                     help='Signifies that user provided fasta files have not been aligned to the reference. If specified, fasta2vcf uses mafft to perform multiple sequence alignments.')
-parser.add_argument('-mask_problematic_sites', nargs='?',const='T', default=None,
-                    help='Ignore problematic sites per masking recomendations')
+parser.add_argument('-auto_mask', nargs='?',const='T', default=None,
+                    help='Ignore problematic sites per our masking recomendations')
+parser.add_argument('-user_specified_mask', nargs='?', default=None,
+                    help='Path to VCF fle containing custom masking recomendations (please ensure VCF format is consistent with https://raw.githubusercontent.com/W-L/ProblematicSites_SARS-CoV2/master/problematic_sites_sarsCov2.vcf)')
 parser.add_argument('-outfile', nargs='?', required=True,
                      help='Name of output file')
 
@@ -61,7 +63,7 @@ Retreave problematic sites
 
 """
 probDic = {}
-if args['mask_problematic_sites'] != None:
+if args['auto_mask'] != None:
 
     os.system('rm -r problematic_sites_sarsCov2.vcf')
     os.system('wget https://raw.githubusercontent.com/W-L/ProblematicSites_SARS-CoV2/master/problematic_sites_sarsCov2.vcf')
@@ -78,6 +80,16 @@ if args['mask_problematic_sites'] != None:
                 if cols[6].strip() == 'mask':
                     probDic[str(cols[1].strip())] = ''
 
+elif args['user_specified_mask'] != None:
+    with open(args['user_specified_mask'], 'r') as f:
+        for line in f:
+            if '#' in line:
+                pass
+            else:
+                cols = line.split('\t')
+
+                if cols[6].strip() == 'mask':
+                    probDic[str(cols[1].strip())] = ''
 
 """
 
