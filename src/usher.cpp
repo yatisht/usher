@@ -408,7 +408,7 @@ int main(int argc, char** argv) {
 
     // Timer timer;
 
-    FILE* parsimony_scores_file; 
+    FILE* parsimony_scores_file = NULL; 
         
     if (missing_samples.size() > 0) {
         fprintf(stderr, "Sorting node mutations by positions.\n");  
@@ -787,7 +787,7 @@ int main(int argc, char** argv) {
     }
             
     if (print_parsimony_scores) {
-        if (missing_samples.size() > 0) {
+        if (parsimony_scores_file) {
             fclose(parsimony_scores_file);
         }
         return 0;
