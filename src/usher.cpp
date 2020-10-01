@@ -56,7 +56,6 @@ int main(int argc, char** argv) {
 
     std::string tree_filename;
     std::string din_filename;
-    //bool save_assignments=false;
     std::string dout_filename;
     std::string outdir;
     std::string vcf_filename;
@@ -70,20 +69,20 @@ int main(int argc, char** argv) {
 
     std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
     desc.add_options()
-        ("vcf", po::value<std::string>(&vcf_filename)->required(), "Input VCF file (in uncompressed or gzip-compressed .gz format) [REQUIRED]")
-        ("tree", po::value<std::string>(&tree_filename)->default_value(""), "Input tree file")
-        ("outdir", po::value<std::string>(&outdir)->default_value("."), "Output directory to dump output and log files [DEFAULT uses current directory]")
-        ("load-mutation-annotated-tree", po::value<std::string>(&din_filename)->default_value(""), "Load mutation-annotated tree object")
-        ("save-mutation-annotated-tree", po::value<std::string>(&dout_filename)->default_value(""), "Save output mutation-annotated tree object to the specified filename")
-        ("collapse-final-tree", po::bool_switch(&collapse_tree), \
+        ("vcf,v", po::value<std::string>(&vcf_filename)->required(), "Input VCF file (in uncompressed or gzip-compressed .gz format) [REQUIRED]")
+        ("tree,t", po::value<std::string>(&tree_filename)->default_value(""), "Input tree file")
+        ("outdir,d", po::value<std::string>(&outdir)->default_value("."), "Output directory to dump output and log files [DEFAULT uses current directory]")
+        ("load-mutation-annotated-tree,i", po::value<std::string>(&din_filename)->default_value(""), "Load mutation-annotated tree object")
+        ("save-mutation-annotated-tree,o", po::value<std::string>(&dout_filename)->default_value(""), "Save output mutation-annotated tree object to the specified filename")
+        ("collapse-final-tree,c", po::bool_switch(&collapse_tree), \
          "Collapse internal nodes of the output tree with no mutations and condense identical sequences in polytomies into a single node and the save the tree to file condensed-final-tree.nh in outdir")
-        ("write-uncondensed-final-tree", po::bool_switch(&print_uncondensed_tree), "Write the final tree in uncondensed format and save to file uncondensed-final-tree.nh in outdir")
-        ("write-subtrees-size", po::value<size_t>(&print_subtrees_size)->default_value(0), \
+        ("write-uncondensed-final-tree,u", po::bool_switch(&print_uncondensed_tree), "Write the final tree in uncondensed format and save to file uncondensed-final-tree.nh in outdir")
+        ("write-subtrees-size,k", po::value<size_t>(&print_subtrees_size)->default_value(0), \
          "Write minimum set of subtrees covering the newly added samples of size equal to or larger than this value")
-        ("write-parsimony-scores-per-node", po::bool_switch(&print_parsimony_scores), \
+        ("write-parsimony-scores-per-node,p", po::bool_switch(&print_parsimony_scores), \
          "Write the parsimony scores for adding new samples at each existing node in the tree without modifying the tree in a file names parsimony-scores.tsv in outdir")
-        ("threads", po::value<uint32_t>(&num_threads)->default_value(num_cores), num_threads_message.c_str())
-        ("help", "Print help messages");
+        ("threads,T", po::value<uint32_t>(&num_threads)->default_value(num_cores), num_threads_message.c_str())
+        ("help,h", "Print help messages");
     
     po::options_description all_options;
     all_options.add(desc);
@@ -113,7 +112,6 @@ int main(int argc, char** argv) {
 
     if (print_parsimony_scores) {
         if (collapse_tree || print_uncondensed_tree || (print_subtrees_size > 0) || (dout_filename != "")) {
-        //if (collapse_tree || print_uncondensed_tree || (print_subtrees_size > 0) || save_assignments) {
             fprintf (stderr, "WARNING: --print-parsimony-scores-per-node is set. Will terminate without modifying the original tree.\n");
         }
     }
@@ -131,10 +129,6 @@ int main(int argc, char** argv) {
 
     Timer timer; 
 
-    omp_lock_t omplock;
-    omp_set_num_threads(num_threads);
-    omp_init_lock(&omplock);
-        
     tbb::task_scheduler_init init(num_threads);
 
 #if SAVE_PROFILE == 1
@@ -413,20 +407,28 @@ int main(int argc, char** argv) {
     if (missing_samples.size() > 0) {
         fprintf(stderr, "Sorting node mutations by positions.\n");  
         timer.Start();
-#pragma omp parallel for
-        for (size_t k=0; k<node_mutations.size(); k++) {
-            auto iter = node_mutations.begin();
-            std::advance(iter, k);
-            if (!std::is_sorted(iter->second.begin(), iter->second.end(), compare_by_position)) {
-                std::sort(iter->second.begin(), iter->second.end(), compare_by_position); 
-            }
-        }
-#pragma omp parallel for
-        for (size_t k=0; k<missing_samples.size(); k++) {
-            if (!std::is_sorted(missing_sample_mutations[k].begin(), missing_sample_mutations[k].end(), compare_by_position)) {
-                std::sort(missing_sample_mutations[k].begin(), missing_sample_mutations[k].end(), compare_by_position); 
-            }
-        }
+        
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, node_mutations.size()),
+                [&](tbb::blocked_range<size_t> r) {
+                for (size_t k=r.begin(); k<r.end(); ++k){
+                //for (size_t k=0; k<node_mutations.size(); k++) {
+                    auto iter = node_mutations.begin();
+                    std::advance(iter, k);
+                    if (!std::is_sorted(iter->second.begin(), iter->second.end(), compare_by_position)) {
+                        std::sort(iter->second.begin(), iter->second.end(), compare_by_position); 
+                    }
+                }
+        });
+//#pragma omp parallel for
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, missing_samples.size()),
+                [&](tbb::blocked_range<size_t> r) {
+                for (size_t k=r.begin(); k<r.end(); ++k){
+                //for (size_t k=0; k<missing_samples.size(); k++) {
+                    if (!std::is_sorted(missing_sample_mutations[k].begin(), missing_sample_mutations[k].end(), compare_by_position)) {
+                        std::sort(missing_sample_mutations[k].begin(), missing_sample_mutations[k].end(), compare_by_position); 
+                    }
+                }
+        });
 
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
         
@@ -1165,7 +1167,6 @@ int main(int argc, char** argv) {
     }
 
     if (dout_filename != "") {
-    //if (save_assignments) {
 
         timer.Start();
 

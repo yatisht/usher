@@ -1,5 +1,4 @@
 #include "tree.hpp"
-#include <omp.h>
 #include <set>
 #include <cassert>
 #include <unordered_set>
