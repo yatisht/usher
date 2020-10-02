@@ -162,7 +162,7 @@ void Tree::remove_node_helper (std::string nid, bool move_level) {
             if (curr_parent->parent != NULL) {
                 child->parent = curr_parent->parent;
                 child->level = curr_parent->parent->level + 1;
-                // child->branch_length += curr_parent->branch_length;
+                child->branch_length += curr_parent->branch_length;
 
                 curr_parent->parent->children.push_back(child);
                 
@@ -224,7 +224,7 @@ void Tree::move_node (std::string source_id, std::string dest_id) {
     Node* curr_parent = source->parent;
 
     source->parent = destination;
-    // source->branch_length = -1.0; // Invalidate source branch length
+    source->branch_length = -1.0; // Invalidate source branch length
 
     destination->children.push_back(source);
 
@@ -467,7 +467,7 @@ Tree TreeLib::create_tree_from_newick_string (std::string newick_string) {
                 branch_start = false;
             }
             else if (branch_start) {
-                if (isdigit(c)  || c == '.') {
+                if (isdigit(c)  || c == '.' || c == 'e' || c == 'E' || c == '-' || c == '+') {
                     branch += c;
                 }
             }
