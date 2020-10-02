@@ -1,5 +1,6 @@
 #include <fstream>
 #include <algorithm>
+#include <numeric>
 #include <boost/program_options.hpp> 
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
@@ -61,6 +62,7 @@ int main(int argc, char** argv) {
     std::string vcf_filename;
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
     uint32_t num_threads;
+    bool sort_before_placement = false;
     bool collapse_tree=false;
     bool print_uncondensed_tree = false;
     bool print_parsimony_scores = false;
@@ -74,6 +76,8 @@ int main(int argc, char** argv) {
         ("outdir,d", po::value<std::string>(&outdir)->default_value("."), "Output directory to dump output and log files [DEFAULT uses current directory]")
         ("load-mutation-annotated-tree,i", po::value<std::string>(&din_filename)->default_value(""), "Load mutation-annotated tree object")
         ("save-mutation-annotated-tree,o", po::value<std::string>(&dout_filename)->default_value(""), "Save output mutation-annotated tree object to the specified filename")
+        ("sort-before-placement,s", po::bool_switch(&sort_before_placement), \
+         "Sort new samples based on computed parsimony score before actual placement.")
         ("collapse-final-tree,c", po::bool_switch(&collapse_tree), \
          "Collapse internal nodes of the output tree with no mutations and condense identical sequences in polytomies into a single node and the save the tree to file condensed-final-tree.nh in outdir")
         ("write-uncondensed-final-tree,u", po::bool_switch(&print_uncondensed_tree), "Write the final tree in uncondensed format and save to file uncondensed-final-tree.nh in outdir")
@@ -111,7 +115,7 @@ int main(int argc, char** argv) {
     }
 
     if (print_parsimony_scores) {
-        if (collapse_tree || print_uncondensed_tree || (print_subtrees_size > 0) || (dout_filename != "")) {
+        if (sort_before_placement || collapse_tree || print_uncondensed_tree || (print_subtrees_size > 0) || (dout_filename != "")) {
             fprintf (stderr, "WARNING: --print-parsimony-scores-per-node is set. Will terminate without modifying the original tree.\n");
         }
     }
@@ -411,7 +415,6 @@ int main(int argc, char** argv) {
         tbb::parallel_for(tbb::blocked_range<size_t>(0, node_mutations.size()),
                 [&](tbb::blocked_range<size_t> r) {
                 for (size_t k=r.begin(); k<r.end(); ++k){
-                //for (size_t k=0; k<node_mutations.size(); k++) {
                     auto iter = node_mutations.begin();
                     std::advance(iter, k);
                     if (!std::is_sorted(iter->second.begin(), iter->second.end(), compare_by_position)) {
@@ -419,11 +422,9 @@ int main(int argc, char** argv) {
                     }
                 }
         });
-//#pragma omp parallel for
         tbb::parallel_for(tbb::blocked_range<size_t>(0, missing_samples.size()),
                 [&](tbb::blocked_range<size_t> r) {
                 for (size_t k=r.begin(); k<r.end(); ++k){
-                //for (size_t k=0; k<missing_samples.size(); k++) {
                     if (!std::is_sorted(missing_sample_mutations[k].begin(), missing_sample_mutations[k].end(), compare_by_position)) {
                         std::sort(missing_sample_mutations[k].begin(), missing_sample_mutations[k].end(), compare_by_position); 
                     }
@@ -432,6 +433,8 @@ int main(int argc, char** argv) {
 
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
         
+        std::vector<size_t> indexes(missing_samples.size());
+        std::iota(indexes.begin(), indexes.end(), 0);
         
         if (print_parsimony_scores) {
             auto current_tree_filename = outdir + "/current-tree.nh";
@@ -442,12 +445,81 @@ int main(int argc, char** argv) {
             fclose(current_tree_file);
         } 
         else {
+            if (sort_before_placement) {
+                timer.Start();
+                fprintf(stderr, "Computing parsimony scores for new samples and using it to sort the samples.\n"); 
+
+                std::vector<int> best_parsimony_scores;
+
+                for (size_t s=0; s<missing_samples.size(); s++) {
+                    auto dfs = T.depth_first_expansion();
+                    size_t total_nodes = dfs.size();
+
+                    std::vector<std::vector<mutation>> node_excess_mutations(total_nodes);
+                    std::vector<std::vector<mutation>> node_imputed_mutations(total_nodes);
+
+                    std::vector<int> node_set_difference;
+
+                    if (print_parsimony_scores) {
+                        node_set_difference.resize(total_nodes);
+                    }
+
+                    size_t best_node_num_leaves = 0;
+                    int best_set_difference = 1e9;
+                    size_t best_j = 0;
+                    size_t num_best = 1;
+                    bool best_node_has_unique = false;
+                    Node* best_node = T.root;
+
+#if DEBUG == 1
+                    std::vector<bool> node_has_unique(total_nodes, false);
+                    std::vector<size_t> best_j_vec;
+                    best_j_vec.emplace_back(0);
+#endif
+
+                    auto grain_size = 400; 
+                    tbb::parallel_for( tbb::blocked_range<size_t>(0, total_nodes, grain_size),
+                            [&](tbb::blocked_range<size_t> r) {
+                            for (size_t k=r.begin(); k<r.end(); ++k){
+                                mapper2_input inp;
+                                inp.T = &T;
+                                inp.node = dfs[k];
+                                inp.node_mutations = &node_mutations;
+                                inp.missing_sample_mutations = &missing_sample_mutations[s];
+                                inp.excess_mutations = &node_excess_mutations[k];
+                                inp.imputed_mutations = &node_imputed_mutations[k];
+                                inp.best_node_num_leaves = &best_node_num_leaves;
+                                inp.best_set_difference = &best_set_difference;
+                                inp.best_node = &best_node;
+                                inp.best_j =  &best_j;
+                                inp.num_best = &num_best;
+                                inp.j = k;
+                                inp.has_unique = &best_node_has_unique;
+#if DEBUG == 1
+                                inp.best_j_vec = &best_j_vec;
+                                inp.node_has_unique = &(node_has_unique);
+#endif
+
+                                mapper2_body(inp, false);
+                            }       
+                    }); 
+
+                    best_parsimony_scores.push_back(best_set_difference);
+                }
+
+                std::stable_sort(indexes.begin(), indexes.end(),
+                        [&best_parsimony_scores](size_t i1, size_t i2) {return best_parsimony_scores[i1] < best_parsimony_scores[i2];});
+
+                fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+            }
+
             fprintf(stderr, "Adding missing samples to the tree.\n");  
         }
 
-        for (size_t s=0; s<missing_samples.size(); s++) {
+        for (size_t idx=0; idx<indexes.size(); idx++) {
             timer.Start();
             
+            size_t s = indexes[idx];
             auto sample = missing_samples[s];
                 
             if (print_parsimony_scores) {
