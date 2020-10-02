@@ -62,7 +62,8 @@ int main(int argc, char** argv) {
     std::string vcf_filename;
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
     uint32_t num_threads;
-    bool sort_before_placement = false;
+    bool sort_before_placement_1 = false;
+    bool sort_before_placement_2 = false;
     bool collapse_tree=false;
     bool print_uncondensed_tree = false;
     bool print_parsimony_scores = false;
@@ -76,8 +77,10 @@ int main(int argc, char** argv) {
         ("outdir,d", po::value<std::string>(&outdir)->default_value("."), "Output directory to dump output and log files [DEFAULT uses current directory]")
         ("load-mutation-annotated-tree,i", po::value<std::string>(&din_filename)->default_value(""), "Load mutation-annotated tree object")
         ("save-mutation-annotated-tree,o", po::value<std::string>(&dout_filename)->default_value(""), "Save output mutation-annotated tree object to the specified filename")
-        ("sort-before-placement,s", po::bool_switch(&sort_before_placement), \
-         "Sort new samples based on computed parsimony score before actual placement.")
+        ("sort-before-placement-1,s", po::bool_switch(&sort_before_placement_1), \
+         "Sort new samples based on computed parsimony score and then number of optimal placements before the actual placement [EXPERIMENTAL].")
+        ("sort-before-placement-2,S", po::bool_switch(&sort_before_placement_2), \
+         "Sort new samples based on the number of optimal placements and then the parsimony score before the actual placement [EXPERIMENTAL].")
         ("collapse-final-tree,c", po::bool_switch(&collapse_tree), \
          "Collapse internal nodes of the output tree with no mutations and condense identical sequences in polytomies into a single node and the save the tree to file condensed-final-tree.nh in outdir")
         ("write-uncondensed-final-tree,u", po::bool_switch(&print_uncondensed_tree), "Write the final tree in uncondensed format and save to file uncondensed-final-tree.nh in outdir")
@@ -113,9 +116,15 @@ int main(int argc, char** argv) {
         std::cerr << "ERROR: cannot load assignments and collapse tree simulaneously.\n";
         return 1;
     }
+    
+    if (sort_before_placement_1 && sort_before_placement_2) {
+        std::cerr << "ERROR: Can't use sort-before-placement-1 and sort-before-placement-2 simultaneously. Please specify only one.\n";
+        return 1;
+    }
+
 
     if (print_parsimony_scores) {
-        if (sort_before_placement || collapse_tree || print_uncondensed_tree || (print_subtrees_size > 0) || (dout_filename != "")) {
+        if (sort_before_placement_1 || sort_before_placement_2 || collapse_tree || print_uncondensed_tree || (print_subtrees_size > 0) || (dout_filename != "")) {
             fprintf (stderr, "WARNING: --print-parsimony-scores-per-node is set. Will terminate without modifying the original tree.\n");
         }
     }
@@ -445,11 +454,12 @@ int main(int argc, char** argv) {
             fclose(current_tree_file);
         } 
         else {
-            if (sort_before_placement) {
+            if (sort_before_placement_1 || sort_before_placement_2) {
                 timer.Start();
                 fprintf(stderr, "Computing parsimony scores for new samples and using it to sort the samples.\n"); 
 
                 std::vector<int> best_parsimony_scores;
+                std::vector<size_t> num_best_placements;
 
                 for (size_t s=0; s<missing_samples.size(); s++) {
                     auto dfs = T.depth_first_expansion();
@@ -505,10 +515,21 @@ int main(int argc, char** argv) {
                     }); 
 
                     best_parsimony_scores.push_back(best_set_difference);
+                    num_best_placements.push_back(num_best);
                 }
 
-                std::stable_sort(indexes.begin(), indexes.end(),
-                        [&best_parsimony_scores](size_t i1, size_t i2) {return best_parsimony_scores[i1] < best_parsimony_scores[i2];});
+                if (sort_before_placement_1) {
+                    std::stable_sort(indexes.begin(), indexes.end(),
+                            [&num_best_placements, &best_parsimony_scores](size_t i1, size_t i2) 
+                            {return ((best_parsimony_scores[i1] < best_parsimony_scores[i2]) || \
+                                    ((best_parsimony_scores[i1] == best_parsimony_scores[i2]) && (num_best_placements[i1] < num_best_placements[i2])));});
+                }
+                else if (sort_before_placement_2) {
+                    std::stable_sort(indexes.begin(), indexes.end(),
+                            [&num_best_placements, &best_parsimony_scores](size_t i1, size_t i2) 
+                            {return ((num_best_placements[i1] < num_best_placements[i2]) || \
+                                    ((num_best_placements[i1] == num_best_placements[i2]) && (best_parsimony_scores[i1] < best_parsimony_scores[i2])));});
+                }
 
                 fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
             }
