@@ -122,6 +122,16 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    if (sort_before_placement_1 || sort_before_placement_2) {
+        std::cerr << "WARNING: Using experimental option ";
+        if (sort_before_placement_1) {
+            std::cerr << "sort-before-placement-1\n";
+        }
+        if (sort_before_placement_2) {
+            std::cerr << "sort-before-placement-2\n";
+        }
+    }
+
 
     if (print_parsimony_scores) {
         if (sort_before_placement_1 || sort_before_placement_2 || collapse_tree || print_uncondensed_tree || (print_subtrees_size > 0) || (dout_filename != "")) {
