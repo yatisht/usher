@@ -31,12 +31,12 @@ make -j2
 cd ../../../
 
 # get TBB
-wget https://github.com/oneapi-src/oneTBB/releases/download/2019_U9/tbb2019_20191006oss_lin.tgz
-tar -xvzf tbb2019_20191006oss_lin.tgz
+wget https://github.com/oneapi-src/oneTBB/archive/2019_U9.tar.gz 
+tar -xvzf 2019_U9.tar.gz
 
 # build programs
 mkdir -p build
 cd build
-../cmake-3.18.2/bin/cmake  -DTBB_DIR=${PWD}/../tbb2019_20191006oss -DTBB_ROOT=${PWD}/../tbb2019_20191006oss -DCMAKE_PREFIX_PATH=${PWD}/../tbb2019_20191006oss/cmake  -DProtobuf_INCLUDE_DIRS=${PWD}/../protobuf-3.12.3/install/include/ -DProtobuf_LIBRARIES=${PWD}/../protobuf-3.12.3/cmake/build/libprotobuf.a -DProtobuf_PATH=${PWD}/../protobuf-3.12.3/cmake/build/lib64/cmake/protobuf ..
+../cmake-3.18.2/bin/cmake  -DTBB_DIR=${PWD}/../oneTBB-2019_U9 -DTBB_ROOT=${PWD}/../oneTBB-2019_U9 -DCMAKE_PREFIX_PATH=${PWD}/../oneTBB-2019_U9/cmake  -DProtobuf_INCLUDE_DIRS=${PWD}/../protobuf-3.12.3/install/include/ -DProtobuf_LIBRARIES=${PWD}/../protobuf-3.12.3/cmake/build/libprotobuf.a -DProtobuf_PATH=${PWD}/../protobuf-3.12.3/cmake/build/lib64/cmake/protobuf ..
 make -j
 cd ..

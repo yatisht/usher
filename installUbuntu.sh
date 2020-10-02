@@ -7,11 +7,11 @@ sudo apt-get --yes install libprotoc-dev libprotoc-dev protobuf-compiler
 sudo apt-get --yes install python python3-setuptools python3-pip 
 sudo apt-get install -y mafft
 
-wget https://github.com/oneapi-src/oneTBB/releases/download/2019_U9/tbb2019_20191006oss_lin.tgz
-tar -xvzf tbb2019_20191006oss_lin.tgz
+wget https://github.com/oneapi-src/oneTBB/archive/2019_U9.tar.gz 
+tar -xvzf 2019_U9.tar.gz
 mkdir -p build
 cd build
-cmake  -DTBB_DIR=${PWD}/../tbb2019_20191006oss  -DCMAKE_PREFIX_PATH=${PWD}/../tbb2019_20191006oss/cmake ..
+cmake  -DTBB_DIR=${PWD}/../oneTBB-2019_U9  -DCMAKE_PREFIX_PATH=${PWD}/../oneTBB-2019_U9/cmake ..
 make -j
 cd ..
     
