@@ -464,7 +464,7 @@ int main(int argc, char** argv) {
             fclose(current_tree_file);
         } 
         else {
-            if (sort_before_placement_1 || sort_before_placement_2) {
+            if ((sort_before_placement_1 || sort_before_placement_2) && (missing_samples.size() > 1)) {
                 timer.Start();
                 fprintf(stderr, "Computing parsimony scores for new samples and using it to sort the samples.\n"); 
 
