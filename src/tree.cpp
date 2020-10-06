@@ -1,4 +1,5 @@
 #include "tree.hpp"
+#include <iomanip>
 
 bool Node::is_leaf () {
     return (children.size() == 0);
@@ -329,7 +330,9 @@ std::string TreeLib::get_newick_string (Tree& T, Node* node, bool print_internal
             if (n->is_leaf()) {
                 newick_string += n->identifier;
                 if ((print_branch_len) && (branch_length >= 0)) {
-                    newick_string += ":" + std::to_string(branch_length);
+                    std::stringstream ss;
+                    ss << branch_length;
+                    newick_string += ":" + ss.str();
                 }
                 prev_open = false;
             }
@@ -346,7 +349,9 @@ std::string TreeLib::get_newick_string (Tree& T, Node* node, bool print_internal
                     newick_string += node_stack.top();
                 }
                 if ((print_branch_len) && (branch_length_stack.top() >= 0)) {
-                    newick_string += ":" + std::to_string(branch_length_stack.top());
+                    std::stringstream ss;
+                    ss << branch_length_stack.top();
+                    newick_string += ":" + ss.str();
                 }
                 node_stack.pop();
                 branch_length_stack.pop();
@@ -354,7 +359,9 @@ std::string TreeLib::get_newick_string (Tree& T, Node* node, bool print_internal
             if (n->is_leaf()) {
                 newick_string += "," + n->identifier;
                 if ((print_branch_len) && (branch_length >= 0)) {
-                    newick_string += ":" + std::to_string(branch_length);
+                    std::stringstream ss;
+                    ss << branch_length;
+                    newick_string += ":" + ss.str(); 
                 }
             }
             else {
@@ -367,7 +374,9 @@ std::string TreeLib::get_newick_string (Tree& T, Node* node, bool print_internal
             if (n->is_leaf()) {
                 newick_string += "," + n->identifier;
                 if ((print_branch_len) && (branch_length >= 0)) {
-                    newick_string += ":" + std::to_string(branch_length);
+                    std::stringstream ss;
+                    ss << branch_length;
+                    newick_string += ":" + ss.str();
                 }
             }
             else {
@@ -384,7 +393,9 @@ std::string TreeLib::get_newick_string (Tree& T, Node* node, bool print_internal
             newick_string += node_stack.top();
         }
         if ((print_branch_len) && (branch_length_stack.top() >= 0)) {
-            newick_string += ":" + std::to_string(branch_length_stack.top());
+            std::stringstream ss;
+            ss << branch_length_stack.top();
+            newick_string += ":" + ss.str(); 
         }
         node_stack.pop();
         branch_length_stack.pop();
