@@ -125,10 +125,10 @@ int main(int argc, char** argv) {
     if (sort_before_placement_1 || sort_before_placement_2) {
         std::cerr << "WARNING: Using experimental option ";
         if (sort_before_placement_1) {
-            std::cerr << "sort-before-placement-1\n";
+            std::cerr << "--sort-before-placement-1 (-s)\n";
         }
         if (sort_before_placement_2) {
-            std::cerr << "sort-before-placement-2\n";
+            std::cerr << "--sort-before-placement-2 (-S)\n";
         }
     }
 
@@ -466,7 +466,7 @@ int main(int argc, char** argv) {
         else {
             if ((sort_before_placement_1 || sort_before_placement_2) && (missing_samples.size() > 1)) {
                 timer.Start();
-                fprintf(stderr, "Computing parsimony scores for new samples and using it to sort the samples.\n"); 
+                fprintf(stderr, "Computing parsimony scores and number of parsimony-optimal placements for new samples and using them to sort the samples.\n"); 
 
                 std::vector<int> best_parsimony_scores;
                 std::vector<size_t> num_best_placements;
