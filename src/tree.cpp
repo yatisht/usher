@@ -1,4 +1,5 @@
 #include "tree.hpp"
+#include <iomanip>
 
 bool Node::is_leaf () {
     return (children.size() == 0);
@@ -162,7 +163,7 @@ void Tree::remove_node_helper (std::string nid, bool move_level) {
             if (curr_parent->parent != NULL) {
                 child->parent = curr_parent->parent;
                 child->level = curr_parent->parent->level + 1;
-                // child->branch_length += curr_parent->branch_length;
+                child->branch_length += curr_parent->branch_length;
 
                 curr_parent->parent->children.push_back(child);
                 
@@ -224,7 +225,7 @@ void Tree::move_node (std::string source_id, std::string dest_id) {
     Node* curr_parent = source->parent;
 
     source->parent = destination;
-    // source->branch_length = -1.0; // Invalidate source branch length
+    source->branch_length = -1.0; // Invalidate source branch length
 
     destination->children.push_back(source);
 
@@ -329,7 +330,9 @@ std::string TreeLib::get_newick_string (Tree& T, Node* node, bool print_internal
             if (n->is_leaf()) {
                 newick_string += n->identifier;
                 if ((print_branch_len) && (branch_length >= 0)) {
-                    newick_string += ":" + std::to_string(branch_length);
+                    std::stringstream ss;
+                    ss << branch_length;
+                    newick_string += ":" + ss.str();
                 }
                 prev_open = false;
             }
@@ -346,7 +349,9 @@ std::string TreeLib::get_newick_string (Tree& T, Node* node, bool print_internal
                     newick_string += node_stack.top();
                 }
                 if ((print_branch_len) && (branch_length_stack.top() >= 0)) {
-                    newick_string += ":" + std::to_string(branch_length_stack.top());
+                    std::stringstream ss;
+                    ss << branch_length_stack.top();
+                    newick_string += ":" + ss.str();
                 }
                 node_stack.pop();
                 branch_length_stack.pop();
@@ -354,7 +359,9 @@ std::string TreeLib::get_newick_string (Tree& T, Node* node, bool print_internal
             if (n->is_leaf()) {
                 newick_string += "," + n->identifier;
                 if ((print_branch_len) && (branch_length >= 0)) {
-                    newick_string += ":" + std::to_string(branch_length);
+                    std::stringstream ss;
+                    ss << branch_length;
+                    newick_string += ":" + ss.str(); 
                 }
             }
             else {
@@ -367,7 +374,9 @@ std::string TreeLib::get_newick_string (Tree& T, Node* node, bool print_internal
             if (n->is_leaf()) {
                 newick_string += "," + n->identifier;
                 if ((print_branch_len) && (branch_length >= 0)) {
-                    newick_string += ":" + std::to_string(branch_length);
+                    std::stringstream ss;
+                    ss << branch_length;
+                    newick_string += ":" + ss.str();
                 }
             }
             else {
@@ -384,7 +393,9 @@ std::string TreeLib::get_newick_string (Tree& T, Node* node, bool print_internal
             newick_string += node_stack.top();
         }
         if ((print_branch_len) && (branch_length_stack.top() >= 0)) {
-            newick_string += ":" + std::to_string(branch_length_stack.top());
+            std::stringstream ss;
+            ss << branch_length_stack.top();
+            newick_string += ":" + ss.str(); 
         }
         node_stack.pop();
         branch_length_stack.pop();
@@ -467,7 +478,7 @@ Tree TreeLib::create_tree_from_newick_string (std::string newick_string) {
                 branch_start = false;
             }
             else if (branch_start) {
-                if (isdigit(c)  || c == '.') {
+                if (isdigit(c)  || c == '.' || c == 'e' || c == 'E' || c == '-' || c == '+') {
                     branch += c;
                 }
             }

@@ -25,7 +25,7 @@ find_package(TBB REQUIRED tbbmalloc tbbmalloc_proxy tbb_preview)
 
 FIND_PACKAGE(Boost COMPONENTS program_options iostreams filesystem REQUIRED)
 
-find_package(OpenMP REQUIRED)
+#find_package(OpenMP REQUIRED)
 
 INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIRS})
 
@@ -68,5 +68,5 @@ else(SAVE_PROFILE)
     endif(DEBUG)
 endif(SAVE_PROFILE)
 
-TARGET_LINK_LIBRARIES(usher PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} OpenMP::OpenMP_CXX)
+TARGET_LINK_LIBRARIES(usher PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
 
