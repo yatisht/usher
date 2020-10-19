@@ -15,3 +15,7 @@ cmake  -DTBB_DIR=${PWD}/../oneTBB-2019_U9  -DCMAKE_PREFIX_PATH=${PWD}/../oneTBB-
 make -j
 cd ..
     
+# install faToVcf
+wget https://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64/faToVcf
+chmod 777 ./faToVcf
+mv ./faToVcf ./scripts/faToVcf
