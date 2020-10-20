@@ -23,7 +23,7 @@ class FastAreader :
             
     def doOpen (self):
         ''' Handle file opens, allowing STDIN.'''
-        if self.fname == '':
+        if self.fname is '':
             return sys.stdin
         else:
             return open(self.fname)
