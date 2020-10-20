@@ -144,7 +144,7 @@ The above command writes a file `parsimony-scores.tsv` containing branch parsimo
 
 The figure below shows how branch parsimony score could be useful for uncertainty analysis. The figure shows color-coded parsimony score of placing a new sample at different branches of the tree with black arrow pointing to the branch where the placement is optimal. As can be seen from the color codes, the parsimony scores are low (implying good alternative placement) for several neighboring branches of the optimal branch. 
 
-![BPS](/images/branch-parsimony-score.png)
+<img src="/images/branch-parsimony-score.png" width="400">
 
 ## Fasta2UShER
 
