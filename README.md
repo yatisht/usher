@@ -160,7 +160,7 @@ MSA file (suchlike ARTIC Network multiple sequence alignment output) or unaligne
 
 **-output**: Output VCF file name
 
-**-reference**: Reference genome fasta file
+**-reference**: Reference genome fasta file with identical reference header to that of the input MSA (if MSA is used as input)
 
 **-unaligned**: Specifies unaligned input files
 
