@@ -16,6 +16,6 @@ make -j
 cd ..
     
 # install faToVcf
-wget --no-check-certificate --secure-protocol=TLSv1_1 https://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64/faToVcf
+wget http://public.gi.ucsc.edu/~yatisht/data/binaries/faToVcf
 chmod 777 ./faToVcf
 mv ./faToVcf ./scripts/faToVcf
