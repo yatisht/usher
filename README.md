@@ -158,13 +158,17 @@ MSA file(s) (suchlike ARTIC Network multiple sequence alignment output) or unali
 
 **-inpath**: Path to directory containing ONLY multiple sequence alignment or unaligned files in fasta format (make sure no other files exist in this directory).
 
-**-outfile**: Output VCF file name
+**-output**: Output VCF file name
+
+**-reference**: Reference genome fasta file
 
 **-unaligned**: Specifies unaligned input files
 
 **-auto_mask**: Ignore problematic sites per masking recomendations
 
 **-user_specified_mask**: Path to VCF fle containing custom masking recomendations (please ensure VCF format is consistent with [this](https://raw.githubusercontent.com/W-L/ProblematicSites_SARS-CoV2/master/problematic_sites_sarsCov2.vcf))
+
+**-thread**: Number of threads to use for MSA (Default = 1)
 
 ### Usage
 
