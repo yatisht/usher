@@ -30,25 +30,25 @@ FIND_PACKAGE(Boost COMPONENTS program_options iostreams filesystem REQUIRED)
 INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIRS})
 
 if(DEFINED Protobuf_PATH)
-    add_executable(usher
-        src/tree.cpp
-        src/usher_mapper.cpp
-        src/usher.cpp
+    add_executable(usher_2
+        src/mutation_annotated_tree.cpp
+        src/usher_mapper_2.cpp
+        src/usher_2.cpp
         )
 
     protobuf_generate(
         LANGUAGE cpp
-        TARGET usher 
+        TARGET usher_2 
         PROTOS parsimony.proto)
 else()
     protobuf_generate_cpp(
         PROTO_SRCS PROTO_HDRS
         parsimony.proto)
 
-    add_executable(usher
-        src/tree.cpp
-        src/usher_mapper.cpp
-        src/usher.cpp
+    add_executable(usher_2
+        src/mutation_annotated_tree.cpp
+        src/usher_mapper_2.cpp
+        src/usher_2.cpp
         ${PROTO_SRCS}
         ${PROTO_HDRS}
         )
@@ -56,17 +56,17 @@ endif()
 
 if(SAVE_PROFILE)
     if(DEBUG)
-        TARGET_COMPILE_OPTIONS(usher PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES -DSAVE_PROFILE=1 -DDEBUG=1)
+        TARGET_COMPILE_OPTIONS(usher_2 PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES -DSAVE_PROFILE=1 -DDEBUG=1)
     else(DEBUG)
-        TARGET_COMPILE_OPTIONS(usher PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES -DSAVE_PROFILE=1)
+        TARGET_COMPILE_OPTIONS(usher_2 PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES -DSAVE_PROFILE=1)
     endif(DEBUG)
 else(SAVE_PROFILE)
     if(DEBUG)
-        TARGET_COMPILE_OPTIONS(usher PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES -DDEBUG=1)
+        TARGET_COMPILE_OPTIONS(usher_2 PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES -DDEBUG=1)
     else(DEBUG)
-        TARGET_COMPILE_OPTIONS(usher PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
+        TARGET_COMPILE_OPTIONS(usher_2 PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
     endif(DEBUG)
 endif(SAVE_PROFILE)
 
-TARGET_LINK_LIBRARIES(usher PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
+TARGET_LINK_LIBRARIES(usher_2 PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
 
