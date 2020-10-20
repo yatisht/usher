@@ -160,6 +160,8 @@ MSA file(s) (suchlike ARTIC Network multiple sequence alignment output) or unali
 
 **-outfile**: Output VCF file name
 
+**-reference**: Reference genome fasta file
+
 **-unaligned**: Specifies unaligned input files
 
 **-auto_mask**: Ignore problematic sites per masking recomendations
