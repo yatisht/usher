@@ -168,6 +168,8 @@ MSA file(s) (suchlike ARTIC Network multiple sequence alignment output) or unali
 
 **-user_specified_mask**: Path to VCF fle containing custom masking recomendations (please ensure VCF format is consistent with [this](https://raw.githubusercontent.com/W-L/ProblematicSites_SARS-CoV2/master/problematic_sites_sarsCov2.vcf))
 
+**-thread**: Number of threads to use for MSA (Default = 1)
+
 ### Usage
 
 ```
