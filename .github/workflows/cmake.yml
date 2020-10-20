@@ -19,7 +19,7 @@ jobs:
     - name: test
       run: |
         ./build/usher --help
-        python3 scripts/Fasta2UShER.py -h
+        python3 scripts/Fasta2UShER_2.py -h
         command -v mafft
   
   ubuntu-20-04:
@@ -31,7 +31,7 @@ jobs:
     - name: test
       run: |
         ./build/usher --help
-        python3 scripts/Fasta2UShER.py -h
+        python3 scripts/Fasta2UShER_2.py -h
         command -v mafft
 
   macOS-10-14:
@@ -43,7 +43,7 @@ jobs:
     - name: test
       run: |
         ./build/usher --help
-        python3 scripts/Fasta2UShER.py -h
+        python3 scripts/Fasta2UShER_2.py -h
         command -v mafft
 
   macOS-10-15:
@@ -55,5 +55,5 @@ jobs:
     - name: test
       run: |
         ./build/usher --help
-        python3 scripts/Fasta2UShER.py -h
+        python3 scripts/Fasta2UShER_2.py -h
         command -v mafft
