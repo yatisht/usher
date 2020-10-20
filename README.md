@@ -158,7 +158,7 @@ MSA file(s) (suchlike ARTIC Network multiple sequence alignment output) or unali
 
 **-inpath**: Path to directory containing ONLY multiple sequence alignment or unaligned files in fasta format (make sure no other files exist in this directory).
 
-**-outfile**: Output VCF file name
+**-output**: Output VCF file name
 
 **-reference**: Reference genome fasta file
 
