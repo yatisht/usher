@@ -1,4 +1,5 @@
 #include "tree.hpp"
+#include "mutation_annotated_tree.hpp"
 #include <set>
 #include <cassert>
 #include <unordered_set>
