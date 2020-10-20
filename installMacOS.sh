@@ -11,6 +11,11 @@ cmake -DTBB_DIR=${PWD}/../tbb2019_20191006oss -DCMAKE_PREFIX_PATH=${PWD}/../tbb2
 make -j
 cd ..
 
+# install faToVcf
+wget https://hgdownload.soe.ucsc.edu/admin/exe/macOSX.x86_64/faToVcf
+chmod 777 ./faToVcf
+mv ./faToVcf ./scripts/faToVcf
+
 # install mafft
 if ! command -v mafft &> /dev/null; then 
 wget https://mafft.cbrc.jp/alignment/software/mafft-7.471-mac.zip
