@@ -152,7 +152,7 @@ We also provide a tool, Fasta2UShER.py, that converts SARS-CoV-2 genomic data in
 
 ### Input
 
-MSA file(s) (suchlike ARTIC Network multiple sequence alignment output) or unaligned full SARS-CoV-2 genomic sequence(s) in fasta format
+MSA file (suchlike ARTIC Network multiple sequence alignment output) or unaligned full SARS-CoV-2 genomic sequence(s) in fasta format
 
 ### Options
 
@@ -160,7 +160,7 @@ MSA file(s) (suchlike ARTIC Network multiple sequence alignment output) or unali
 
 **-output**: Output VCF file name
 
-**-reference**: Reference genome fasta file
+**-reference**: Reference genome fasta file with identical reference header to that of the input MSA (if MSA is used as input)
 
 **-unaligned**: Specifies unaligned input files
 
