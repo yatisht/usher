@@ -142,13 +142,17 @@ UShER also allows quantifying the uncertainty in placing new samples by reportin
 ```
 The above command writes a file `parsimony-scores.tsv` containing branch parsimony scores to the output directoy. Note that because the above command does not perform the sequential placement on the tree, the number of parsimony-optimal placements reported for the second and later samples could differ from those reported with actual placements.
 
+The figure below shows how branch parsimony score could be useful for uncertainty analysis. The figure shows color-coded parsimony score of placing a new sample at different branches of the tree with black arrow pointing to the branch where the placement is optimal. As can be seen from the color codes, the parsimony scores are low (implying good alternative placement) for several neighboring branches of the optimal branch. 
+
+<img src="/images/branch-parsimony-score.png" width="400">
+
 ## Fasta2UShER
 
-We also provide a tool, Fasta2UShER.py, that converts SARS-CoV-2 genomic data in fasta format into a merged VCF viable for input to UShER. Fasta2UShER.py can take one or many multiple sequence alignment files as input (including standard multiple sequence alignment output from the SARS-CoV-2 ARTIC Network protocol, see https://artic.network/ncov-2019). Fasta2UShER.py also possesses an input option for unalifgned SARS-CoV-2 data. In this case Fasta2UShER.py employs multiple alignment using fast Fourier transform (MAFFT, see https://mafft.cbrc.jp/alignment/software/) to construct an alignment for each user specified sequence with the SARS-CoV-2 reference. In addition, Fasta2UShER.py considers missing data and can automatically filter variants at problematic sites (see https://virological.org/t/issues-with-sars-cov-2-sequencing-data/473/12 and https://www.biorxiv.org/content/biorxiv/early/2020/06/09/2020.06.08.141127.full.pdf).
+We also provide a tool, Fasta2UShER.py, that converts SARS-CoV-2 genomic data in fasta format into a merged VCF viable for input to UShER. Fasta2UShER.py can take one or many multiple sequence alignment (MSA) files as input (including standard MSA output from the [SARS-CoV-2 ARTIC Network protocol](https://artic.network/ncov-2019)). Fasta2UShER.py also possesses an input option for unalifgned SARS-CoV-2 data. In this case Fasta2UShER.py employs multiple alignment using Fast Fourier Transform ([MAFFT](https://mafft.cbrc.jp/alignment/software/)) to construct an alignment for each user specified sequence with the SARS-CoV-2 reference. In addition, Fasta2UShER.py considers missing data and can automatically filter variants at [problematic sites](https://virological.org/t/issues-with-sars-cov-2-sequencing-data/473/12) (also see this [pre-print](https://www.biorxiv.org/content/biorxiv/early/2020/06/09/2020.06.08.141127.full.pdf)).
 
 ### Input
 
-Multiple sequence alignment file(s) (suchlike ARTIC Network multiple sequence alignment output) or unaligned full SARS-CoV-2 genomic sequence(s) in fasta format
+MSA file(s) (suchlike ARTIC Network multiple sequence alignment output) or unaligned full SARS-CoV-2 genomic sequence(s) in fasta format
 
 ### Options
 
@@ -160,7 +164,7 @@ Multiple sequence alignment file(s) (suchlike ARTIC Network multiple sequence al
 
 **-auto_mask**: Ignore problematic sites per masking recomendations
 
-**-user_specified_mask**: Path to VCF fle containing custom masking recomendations (please ensure VCF format is consistent with https://raw.githubusercontent.com/W-L/ProblematicSites_SARS-CoV2/master/problematic_sites_sarsCov2.vcf)
+**-user_specified_mask**: Path to VCF fle containing custom masking recomendations (please ensure VCF format is consistent with [this](https://raw.githubusercontent.com/W-L/ProblematicSites_SARS-CoV2/master/problematic_sites_sarsCov2.vcf))
 
 ### Usage
 
