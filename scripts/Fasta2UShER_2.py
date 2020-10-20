@@ -29,14 +29,21 @@ parser.add_argument('-thread', nargs='?', required=False, default=1,
 varDic = {}
 gDic = {}
 msaList = []
-
+headDic = {}
 args = vars(parser.parse_args())
 
 
 if args['unaligned'] != None:
     
     os.system('rm -r temp.fa')
-    os.system('cat {0} > temp.fa'.format(' '.join(glob.glob('{0}/*'.format(args['inpath'])))))
+    with open('temp.fa','w') as f:
+        for name in glob.glob('{0}/*'.format(args['inpath'])): 
+            myReaderRef= FastAreader(name)
+            for header, sequence in myReaderRef.readFasta():
+                if header not in headDic:
+                    headDic[header] = ''
+                    f.write('>{0}\n{1}\n'.format(header,sequence))
+
     os.system('mafft --thread {1} --auto --keeplength --addfragments temp.fa {0} > inputMsa.fa'.format(args['reference'],args['thread']))
     msaName = 'inputMsa.fa'
     
