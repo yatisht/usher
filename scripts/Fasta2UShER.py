@@ -2,9 +2,8 @@ import glob
 import os 
 import argparse 
 import re
-from sequenceAnalyzer import FastAreader
 import time
-
+from Bio import SeqIO
 
 
 parser = argparse.ArgumentParser(description='Generates merged VCF that ignores indels and problematic sites and recognizes missing data in addition to genotypes.')
@@ -31,20 +30,27 @@ gDic = {}
 msaList = []
 headDic = {}
 args = vars(parser.parse_args())
+filePath = '/'.join(os.path.realpath(__file__).split('/')[0:-1])
+if os.path.isfile('{0}/faToVcf'.format(filePath)) == False:
+    raise Exception("faToVcf must be in the same directory as Fasta2UShER")
+     
 
+os.system('chmod 777 {0}/faToVcf'.format(filePath))
 
 if args['unaligned'] != None:
     
-    os.system('rm -r temp.fa')
-    with open('temp.fa','w') as f:
-        for name in glob.glob('{0}/*'.format(args['inpath'])): 
+    os.system('rm -r {0}/temp.fa'.format(filePath))
+    with open('{0}/temp.fa'.format(filePath),'w') as f:
+        for name in glob.glob('{0}/*'.format(args['inpath'])):
+            fasta_sequences = SeqIO.parse(open(name),'fasta') 
             myReaderRef= FastAreader(name)
-            for header, sequence in myReaderRef.readFasta():
+            for fasta in fasta_sequences:
+                header, sequence = fasta.id, str(fasta.seq)
                 if header not in headDic:
                     headDic[header] = ''
                     f.write('>{0}\n{1}\n'.format(header,sequence))
 
-    os.system('mafft --thread {1} --auto --keeplength --addfragments temp.fa {0} > inputMsa.fa'.format(args['reference'],args['thread']))
+    os.system('mafft --thread {1} --auto --keeplength --addfragments {2}/temp.fa {0} > {2}/inputMsa.fa'.format(args['reference'],args['thread'],filePath))
     msaName = 'inputMsa.fa'
     
 
@@ -63,22 +69,40 @@ Retreave problematic sites
 with open(args['reference'],'r') as f:
     for line in f:
         head = line.strip('>').strip()
-        print(head)
         break
 
 
 probDic = {}
 if args['auto_mask'] != None:
 
-    os.system('rm -r problematic_sites_sarsCov2.vcf')
+    os.system('rm -r {0}/problematic_sites_sarsCov2.vcf'.format(filePath))
     os.system('wget https://raw.githubusercontent.com/W-L/ProblematicSites_SARS-CoV2/master/problematic_sites_sarsCov2.vcf')
-    os.system('./faToVcf -maskSites=problematic_sites_sarsCov2.vcf -ref=\"{0}\" {1} {2}.vcf'.format(head,msaName,args['output'].strip()))
-
+    if '.vcf' in args['output']: 
+        os.system('{3}/faToVcf -maskSites={3}/problematic_sites_sarsCov2.vcf -ref=\"{0}\" {1} {2}'.format(head,msaName,args['output'].strip()))
+    else:
+        os.system('{3}/faToVcf -maskSites={3}/problematic_sites_sarsCov2.vcf -ref=\"{0}\" {1} {2}.vcf'.format(head,msaName,args['output'].strip()))
 
 
 
 elif args['user_specified_mask'] != None:
+    if '.vcf' in args['output']:
+        os.system('{3}/faToVcf -maskSites={3}/{0} -ref=\"{1}\" {2} {3}'.format(args['user_specified_mask'],head,msaName,args['output'],filePath))
+
+    else:
      
 
-    os.system('./faToVcf -maskSites={0} -ref=\"{1}\" {2} {3}.vcf'.format(args['user_specified_mask'],head,msaName,args['output']))
+        os.system('{3}/faToVcf -maskSites={3}/{0} -ref=\"{1}\" {2} {3}.vcf'.format(args['user_specified_mask'],head,msaName,args['output'],filePath))
 
+else:
+
+    if '.vcf' in args['output']:
+        os.system('{3}/faToVcf  -ref=\"{0}\" {1} {2}'.format(head,msaName,args['output'],filePath))
+
+    else:
+
+        os.system('{3}/faToVcf  -ref=\"{0}\" {1} {2}.vcf'.format(head,msaName,args['output'],filePath))
+
+
+if os.path.isfile('{0}/problematic_sites_sarsCov2.vcf'.format(filePath)) == True:
+
+    os.system('rm -r {0}/problematic_sites_sarsCov2.vcf'.format(filePath))
