@@ -4,7 +4,7 @@ import argparse
 import re
 import time
 from Bio import SeqIO
-
+from Bio import AlignIO
 
 parser = argparse.ArgumentParser(description='Generates merged VCF that ignores indels and problematic sites and recognizes missing data in addition to genotypes.')
 
@@ -33,7 +33,10 @@ args = vars(parser.parse_args())
 filePath = '/'.join(os.path.realpath(__file__).split('/')[0:-1])
 if os.path.isfile('{0}/faToVcf'.format(filePath)) == False:
     raise Exception("faToVcf must be in the same directory as Fasta2UShER")
-     
+
+
+
+
 
 os.system('chmod 777 {0}/faToVcf'.format(filePath))
 
@@ -43,7 +46,6 @@ if args['unaligned'] != None:
     with open('{0}/temp.fa'.format(filePath),'w') as f:
         for name in glob.glob('{0}/*'.format(args['inpath'])):
             fasta_sequences = SeqIO.parse(open(name),'fasta') 
-            myReaderRef= FastAreader(name)
             for fasta in fasta_sequences:
                 header, sequence = fasta.id, str(fasta.seq)
                 if header not in headDic:
@@ -52,7 +54,7 @@ if args['unaligned'] != None:
 
     os.system('mafft --thread {1} --auto --keeplength --addfragments {2}/temp.fa {0} > {2}/inputMsa.fa'.format(args['reference'],args['thread'],filePath))
     msaName = 'inputMsa.fa'
-    
+
 
 else:
     msaName = ''.join(glob.glob('{0}/*'.format(args['inpath'])))
