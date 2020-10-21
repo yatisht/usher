@@ -19,3 +19,6 @@ cd ..
 wget http://public.gi.ucsc.edu/~yatisht/data/binaries/faToVcf
 chmod 777 ./faToVcf
 mv ./faToVcf ./scripts/faToVcf
+
+#install biopython
+pip3 install biopython
