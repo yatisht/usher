@@ -382,15 +382,11 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores) {
             *input.best_j = input.j;
             *input.num_best = 1;
             *input.has_unique = has_unique;
-#if DEBUG == 1
             (*input.node_has_unique)[input.j] = has_unique;
             input.best_j_vec->clear();
             input.best_j_vec->emplace_back(input.j);
-#endif
         }
         else if (set_difference == *input.best_set_difference) {
-            //bool is_best_node_ancestor = (*input.best_j > input.j) ? input.T->is_ancestor((*input.best_node)->identifier, input.node->identifier) : false;
-            //bool is_best_node_descendant = (*input.best_j < input.j) ? input.T->is_ancestor(input.node->identifier, (*input.best_node)->identifier) : false;
             bool is_best_node_ancestor = (input.node->parent == (*input.best_node)); 
             bool is_best_node_descendant = ((*input.best_node)->parent == input.node); 
             
@@ -406,10 +402,8 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores) {
                 *input.has_unique = has_unique;
             }
             *input.num_best += 1;
-#if DEBUG == 1
             (*input.node_has_unique)[input.j] = has_unique;
             input.best_j_vec->emplace_back(input.j);
-#endif
         }
         data_lock.unlock();
     }
