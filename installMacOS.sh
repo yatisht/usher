@@ -16,6 +16,9 @@ wget https://hgdownload.soe.ucsc.edu/admin/exe/macOSX.x86_64/faToVcf
 chmod 777 ./faToVcf
 mv ./faToVcf ./scripts/faToVcf
 
+#install biopython
+pip3 install biopython
+
 # install mafft
 if ! command -v mafft &> /dev/null; then 
 wget https://mafft.cbrc.jp/alignment/software/mafft-7.471-mac.zip
