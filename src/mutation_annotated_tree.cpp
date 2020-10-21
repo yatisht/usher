@@ -386,7 +386,7 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
             m.is_missing = false;
             std::vector<int8_t> nuc_vec;
             for (int n = 0; n < mut.mut_nuc_size(); n++) {
-                nuc_vec.emplace_back(mut.mut_nuc(n));
+                nuc_vec.push_back(mut.mut_nuc(n));
             }
             m.mut_nuc = get_nuc_id(nuc_vec);
             node->add_mutation(m);
@@ -855,6 +855,23 @@ void Mutation_Annotated_Tree::Tree::collapse_tree() {
 
 Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_tree_copy(Mutation_Annotated_Tree::Tree tree) {
     Tree copy = create_tree_from_newick_string (get_newick_string(tree, true, true));
+
+    auto dfs1 = tree.depth_first_expansion();
+    auto dfs2 = copy.depth_first_expansion();
+
+    for (size_t k = 0; k < dfs1.size(); k++) {
+        auto n1 = dfs1[k];
+        auto n2 = dfs2[k];
+        for (auto m: n1->mutations) {
+            Mutation m2;
+            m2.position = m.position;
+            m2.ref_nuc = m.ref_nuc;
+            m2.par_nuc = m.par_nuc;
+            m2.mut_nuc = m.mut_nuc;
+            m2.is_missing = m.is_missing;
+            n2->add_mutation(m2);
+        }
+    }
 
     for (auto cn: tree.condensed_nodes) {
         copy.condensed_nodes.insert(std::pair<std::string, std::vector<std::string>>(cn.first, std::vector<std::string>(cn.second.size())));
