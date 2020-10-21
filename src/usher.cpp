@@ -1140,7 +1140,7 @@ int main(int argc, char** argv) {
                     ++num_subtrees;
                     auto subtree_filename = outdir + "/subtree-" + std::to_string(num_subtrees) + ".nh";
                     if (num_trees > 1) {
-                        subtree_filename = outdir + "/" + "tree-" + std::to_string(t_idx+1) + "subtree-" + std::to_string(num_subtrees) + ".nh";
+                        subtree_filename = outdir + "/" + "tree-" + std::to_string(t_idx+1) + "-subtree-" + std::to_string(num_subtrees) + ".nh";
                     }
                     fprintf(stderr, "Writing subtree %d to file %s.\n", num_subtrees, subtree_filename.c_str());
                     FILE* subtree_file = fopen(subtree_filename.c_str(), "w");
@@ -1149,7 +1149,7 @@ int main(int argc, char** argv) {
 
                     auto subtree_mutations_filename = outdir + "/subtree-" + std::to_string(num_subtrees) + "-mutations.txt";
                     if (num_trees > 1) {
-                        subtree_mutations_filename = outdir + "/" + "tree-" + std::to_string(t_idx+1) + "subtree-" + std::to_string(num_subtrees) + "-mutations.txt";;
+                        subtree_mutations_filename = outdir + "/" + "tree-" + std::to_string(t_idx+1) + "-subtree-" + std::to_string(num_subtrees) + "-mutations.txt";;
                     }
                     fprintf(stderr, "Writing list of mutations at the nodes of subtree %d to file %s\n", num_subtrees, subtree_mutations_filename.c_str());
                     FILE* subtree_mutations_file = fopen(subtree_mutations_filename.c_str(), "w");
@@ -1187,7 +1187,7 @@ int main(int argc, char** argv) {
                             if (!has_condensed) {
                                 auto subtree_expanded_filename = outdir + "/subtree-" + std::to_string(num_subtrees) + "-expanded.txt";
                                 if (num_trees > 1) {
-                                    subtree_expanded_filename = outdir + "/tree-" + std::to_string(1+t_idx) + "subtree-" + std::to_string(num_subtrees) + "-expanded.txt";
+                                    subtree_expanded_filename = outdir + "/tree-" + std::to_string(1+t_idx) + "-subtree-" + std::to_string(num_subtrees) + "-expanded.txt";
                                 }
                                 fprintf(stderr, "Subtree %d has condensed nodes.\nExpanding the condensed nodes for subtree %d in file %s\n", num_subtrees, num_subtrees, subtree_expanded_filename.c_str());
                                 subtree_expanded_file = fopen(subtree_expanded_filename.c_str(), "w");
