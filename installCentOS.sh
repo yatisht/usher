@@ -23,6 +23,9 @@ wget https://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64/faToVcf
 chmod 777 ./faToVcf
 mv ./faToVcf ./scripts/faToVcf
 
+#install biopython
+pip3 install biopython
+
 # setup protobuf
 wget https://github.com/protocolbuffers/protobuf/releases/download/v3.12.3/protobuf-cpp-3.12.3.tar.gz
 tar -xvzf protobuf-cpp-3.12.3.tar.gz
