@@ -5,6 +5,7 @@
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
 #include <iostream>
+#include <memory>
 #include <tbb/flow_graph.h>
 #include <tbb/reader_writer_lock.h>
 #include <tbb/scalable_allocator.h>
@@ -16,42 +17,7 @@
 #include "parsimony.pb.h"
 
 namespace po = boost::program_options;
-
-std::vector<int8_t> get_nuc_id (char c) {
-    switch (c) {
-        case 'a':
-        case 'A': return std::vector<int8_t>{0};
-        case 'c':
-        case 'C': return std::vector<int8_t>{1};
-        case 'g':
-        case 'G': return std::vector<int8_t>{2};
-        case 't':
-        case 'T': return std::vector<int8_t>{3};
-        case 'R': return std::vector<int8_t>{0,2};
-        case 'Y': return std::vector<int8_t>{1,3};
-        case 'S': return std::vector<int8_t>{1,2};
-        case 'W': return std::vector<int8_t>{0,3};
-        case 'K': return std::vector<int8_t>{2,3};
-        case 'M': return std::vector<int8_t>{0,1};
-        case 'B': return std::vector<int8_t>{1,2,3};
-        case 'D': return std::vector<int8_t>{0,2,3};
-        case 'H': return std::vector<int8_t>{0,1,3};
-        case 'V': return std::vector<int8_t>{0,1,2};
-        case 'n':
-        case 'N': return std::vector<int8_t>{0,1,2,3};
-        default: return std::vector<int8_t>{0,1,2,3};
-    }
-}
-
-char get_nuc_char (int8_t nuc_id) {
-    switch (nuc_id) {
-        case 0: return 'A';
-        case 1: return 'C';
-        case 2: return 'G';
-        case 3: return 'T';
-        default : return 'N'; 
-    }
-}
+namespace MAT = Mutation_Annotated_Tree;
 
 int main(int argc, char** argv) {
 
@@ -158,27 +124,29 @@ int main(int argc, char** argv) {
     Instrumentor::Get().BeginSession("test-main", "p1.json");
 #endif
 
-    Tree T;
+    std::vector<MAT::Tree> optimal_trees;
+    MAT::Tree* T;
+    MAT::Tree condensed_T;
 
     bool header_found = false;
     std::vector<std::string> variant_ids;
     std::vector<std::string> missing_samples;
-    std::unordered_map<Node*, std::vector<mutation>> node_mutations;
-    std::vector<std::vector<mutation>> missing_sample_mutations;
+    std::vector<std::vector<MAT::Mutation>> missing_sample_mutations;
     size_t num_missing = 0;
 
-    std::unordered_map<std::string, std::vector<std::string>> condensed_nodes;
-    Tree condensed_T; 
-    std::unordered_map<Node*, std::vector<mutation>> condensed_node_mutations;
-    
-    std::vector<Node*> bfs;
+    std::vector<MAT::Node*> bfs;
     std::unordered_map<std::string, size_t> bfs_idx;
     
     std::vector<std::string> low_confidence_samples;
 
     if (tree_filename != "") {
-        T = TreeLib::create_tree_from_newick(tree_filename);
-        bfs = T.breadth_first_expansion();
+        auto tmp_T = MAT::create_tree_from_newick(tree_filename);
+
+        optimal_trees.emplace_back(std::move(tmp_T));
+
+        T = &optimal_trees[0];
+
+        bfs = T->breadth_first_expansion();
 
         for (size_t idx = 0; idx < bfs.size(); idx++) {
             bfs_idx[bfs[idx]->identifier] = idx;
@@ -211,20 +179,21 @@ int main(int argc, char** argv) {
                 std::string s;
                 std::getline(instream, s);
                 std::vector<std::string> words;
-                TreeLib::split(s, words);
+                MAT::string_split(s, words);
                 inp.variant_pos = -1;
+
                 if ((not header_found) && (words.size() > 1)) {
-                if (words[1] == "POS") {
-                for (size_t j=9; j < words.size(); j++) {
-                variant_ids.emplace_back(words[j]);
-                if (bfs_idx.find(words[j]) == bfs_idx.end()) {
-                missing_samples.emplace_back(words[j]);
-                num_missing++;
-                }
-                }
-                missing_sample_mutations.resize(num_missing);
-                header_found = true;
-                }
+                  if (words[1] == "POS") {
+                    for (size_t j=9; j < words.size(); j++) {
+                      variant_ids.emplace_back(words[j]);
+                      if (bfs_idx.find(words[j]) == bfs_idx.end()) {
+                        missing_samples.emplace_back(words[j]);
+                        num_missing++;
+                      }
+                    }
+                    missing_sample_mutations.resize(num_missing);
+                    header_found = true;
+                  }
                 }
                 else if (header_found) {
                     if (words.size() != 9+variant_ids.size()) {
@@ -234,38 +203,38 @@ int main(int argc, char** argv) {
                     std::vector<std::string> alleles;
                     alleles.clear();
                     inp.variant_pos = std::stoi(words[1]); 
-                    TreeLib::split(words[4], ',', alleles);
-                    inp.T = &T;
+                    MAT::string_split(words[4], ',', alleles);
+                    inp.T = T;
                     inp.chrom = words[0];
                     inp.bfs = &bfs;
                     inp.bfs_idx = &bfs_idx;
                     inp.variant_ids = &variant_ids;
                     inp.missing_samples = &missing_samples;
-                    inp.node_mutations = &node_mutations;
+                    //inp.node_mutations = &node_mutations;
                     inp.missing_sample_mutations = &missing_sample_mutations;
-                    auto ref_nucs = get_nuc_id(words[3][0]);
-                    assert(ref_nucs.size() == 1);
-                    inp.ref_nuc = ref_nucs[0]; 
+                    inp.ref_nuc = MAT::get_nuc_id(words[3][0]);
+                    assert((inp.ref_nuc & (inp.ref_nuc-1)) == 0); //check if it is power of 2
                     inp.variants.clear();
                     for (size_t j=9; j < words.size(); j++) {
                         if (isdigit(words[j][0])) {
                             int allele_id = std::stoi(words[j]);
                             if (allele_id > 0) { 
                                 std::string allele = alleles[allele_id-1];
-                                inp.variants.emplace_back(std::make_tuple(j-9, get_nuc_id(allele[0])));
+                                inp.variants.emplace_back(std::make_tuple(j-9, MAT::get_nuc_id(allele[0])));
                             }
                         }
                         else {
-                            inp.variants.emplace_back(std::make_tuple(j-9, get_nuc_id('N')));
+                            inp.variants.emplace_back(std::make_tuple(j-9, MAT::get_nuc_id('N')));
                         }
                     }
                 }
-        //check if reached end-of-file
-        int curr_char = instream.peek();
-        if(curr_char == EOF)
-            return false;
-        else
-            return true;
+
+                //check if reached end-of-file
+                int curr_char = instream.peek();
+                if(curr_char == EOF)
+                    return false;
+                else
+                    return true;
                 }, true );
         tbb::flow::make_edge(reader, mapper);
         mapper_graph.wait_for_all();
@@ -276,52 +245,12 @@ int main(int argc, char** argv) {
         timer.Start();
 
         fprintf(stderr, "Loading existing mutation-annotated tree object from file %s\n", din_filename.c_str());
-        
-        Parsimony::data data;
-
-        std::ifstream inpfile(din_filename, std::ios::in | std::ios::binary);
-        if (!inpfile) {
-            fprintf(stderr, "ERROR: Could not load the mutation-annotated tree object from file: %s!\n", din_filename.c_str());
-            exit(1);
-        }
-        data.ParseFromIstream(&inpfile);
-        inpfile.close();
-
-        T = TreeLib::create_tree_from_newick_string(data.newick());
-
-        auto dfs = T.depth_first_expansion();
-        std::unordered_set<std::string> condensed_leaves;
-
-        for (size_t idx = 0; idx < dfs.size(); idx++) {
-            auto mutation_list = data.node_mutations(idx);
-            auto node = dfs[idx];
-            node_mutations.insert(std::pair<Node*, std::vector<mutation>>(node, std::vector<mutation>()));  
-            for (int k = 0; k < mutation_list.mutation_size(); k++) {
-                auto mut = mutation_list.mutation(k);
-                mutation m;
-                m.chrom = mut.chromosome();
-                m.position = mut.position();
-                m.ref_nuc = mut.ref_nuc();
-                m.par_nuc = mut.par_nuc();
-                for (int n = 0; n < mut.mut_nuc_size(); n++) {
-                    m.mut_nuc.emplace_back(mut.mut_nuc(n));
-                }
-                node_mutations[node].emplace_back(m);
-            }
-        }
-        
-        size_t num_condensed_nodes = static_cast<size_t>(data.condensed_nodes_size());
-        for (size_t idx = 0; idx < num_condensed_nodes; idx++) {
-            auto cn = data.condensed_nodes(idx);
-            condensed_nodes.insert(std::pair<std::string, std::vector<std::string>>(cn.node_name(), std::vector<std::string>(cn.condensed_leaves_size())));
-            for (int k = 0; k < cn.condensed_leaves_size(); k++) {
-                condensed_nodes[cn.node_name()][k] =cn.condensed_leaves(k);
-                condensed_leaves.insert(cn.condensed_leaves(k));
-            }
-        }
+       
+        auto tmp_T = MAT::load_mutation_annotated_tree(din_filename);
+        optimal_trees.emplace_back(std::move(tmp_T));
+        T = &optimal_trees[0];
         
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
-        
         
         fprintf(stderr, "Loading VCF file\n");
         timer.Start();
@@ -346,12 +275,12 @@ int main(int argc, char** argv) {
         while (instream.peek() != EOF) {
             std::getline(instream, s);
             std::vector<std::string> words;
-            TreeLib::split(s, words);
+            MAT::string_split(s, words);
             if ((not header_found) && (words.size() > 1)) {
                 if (words[1] == "POS") {
                     for (size_t j=9; j < words.size(); j++) {
                         variant_ids.emplace_back(words[j]);
-                        if ((T.get_node(words[j]) == NULL) && (condensed_leaves.find(words[j]) == condensed_leaves.end())) {
+                        if ((T->get_node(words[j]) == NULL) && (T->condensed_leaves.find(words[j]) == T->condensed_leaves.end())) {
                             missing_samples.emplace_back(words[j]);
                             num_missing++;
                             missing_idx.emplace_back(j);
@@ -371,43 +300,42 @@ int main(int argc, char** argv) {
                 }
                 std::vector<std::string> alleles;
                 alleles.clear();
-                TreeLib::split(words[4], ',', alleles);
+                MAT::string_split(words[4], ',', alleles);
                 for (size_t k = 0; k < missing_idx.size(); k++) {
                     size_t j = missing_idx[k];
                     auto iter = missing_samples.begin();
                     std::advance(iter, k);
                     if (iter != missing_samples.end()) {
                         auto mutations_iter = missing_sample_mutations.begin() + (iter - missing_samples.begin());
-                        mutation m;
+                        MAT::Mutation m;
                         m.position = std::stoi(words[1]);
-                        auto ref_nucs = get_nuc_id(words[3][0]);
-                        assert(ref_nucs.size() == 1);
-                        m.ref_nuc = ref_nucs[0];
-                        m.par_nuc = ref_nucs[0];
+                        m.ref_nuc = MAT::get_nuc_id(words[3][0]);
+                        assert((m.ref_nuc & (m.ref_nuc-1)) == 0); //check if it is power of 2
+                        m.par_nuc = m.ref_nuc;
                         if (isdigit(words[j][0])) {
                             int allele_id = std::stoi(words[j]);
                             if (allele_id > 0) { 
                                 std::string allele = alleles[allele_id-1];
                                 if (allele[0] == 'N') {
                                     m.is_missing = true;
+                                    m.mut_nuc = MAT::get_nuc_id('N');
                                 }
                                 else {
-                                    auto nucs = get_nuc_id(allele[0]);
-                                    if (nucs.size() == 4) {
+                                    auto nuc = MAT::get_nuc_id(allele[0]);
+                                    if (nuc == MAT::get_nuc_id('N')) {
                                         m.is_missing = true;
                                     }
                                     else {
                                         m.is_missing = false;
-                                        for (auto n: nucs) {
-                                            m.mut_nuc.emplace_back(n);
-                                        }
                                     }
+                                    m.mut_nuc = nuc;
                                 }
                                 (*mutations_iter).emplace_back(m);
                             }
                         }
                         else {
                             m.is_missing = true;
+                            m.mut_nuc = MAT::get_nuc_id('N');
                             (*mutations_iter).emplace_back(m);
                         }
                     }
@@ -421,9 +349,8 @@ int main(int argc, char** argv) {
         exit(1);
     }
 
-    fprintf(stderr, "Found %zu missing samples.\n\n", missing_samples.size()); 
 
-    // Timer timer;
+    fprintf(stderr, "Found %zu missing samples.\n\n", missing_samples.size()); 
 
     FILE* parsimony_scores_file = NULL; 
         
@@ -431,21 +358,13 @@ int main(int argc, char** argv) {
         fprintf(stderr, "Sorting node mutations by positions.\n");  
         timer.Start();
         
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, node_mutations.size()),
-                [&](tbb::blocked_range<size_t> r) {
-                for (size_t k=r.begin(); k<r.end(); ++k){
-                    auto iter = node_mutations.begin();
-                    std::advance(iter, k);
-                    if (!std::is_sorted(iter->second.begin(), iter->second.end(), compare_by_position)) {
-                        std::sort(iter->second.begin(), iter->second.end(), compare_by_position); 
-                    }
-                }
-        });
+        T = &optimal_trees[0];
+        
         tbb::parallel_for(tbb::blocked_range<size_t>(0, missing_samples.size()),
                 [&](tbb::blocked_range<size_t> r) {
                 for (size_t k=r.begin(); k<r.end(); ++k){
-                    if (!std::is_sorted(missing_sample_mutations[k].begin(), missing_sample_mutations[k].end(), compare_by_position)) {
-                        std::sort(missing_sample_mutations[k].begin(), missing_sample_mutations[k].end(), compare_by_position); 
+                    if (!std::is_sorted(missing_sample_mutations[k].begin(), missing_sample_mutations[k].end())) {
+                        std::sort(missing_sample_mutations[k].begin(), missing_sample_mutations[k].end()); 
                     }
                 }
         });
@@ -460,7 +379,7 @@ int main(int argc, char** argv) {
             
             fprintf(stderr, "Writing current tree with internal nodes labelled to file %s \n", current_tree_filename.c_str());
             FILE* current_tree_file = fopen(current_tree_filename.c_str(), "w");
-            fprintf(current_tree_file, "%s\n", TreeLib::get_newick_string(T, true, true).c_str());
+            fprintf(current_tree_file, "%s\n", MAT::get_newick_string(*T, true, true).c_str());
             fclose(current_tree_file);
         } 
         else {
@@ -472,11 +391,11 @@ int main(int argc, char** argv) {
                 std::vector<size_t> num_best_placements;
 
                 for (size_t s=0; s<missing_samples.size(); s++) {
-                    auto dfs = T.depth_first_expansion();
+                    auto dfs = T->depth_first_expansion();
                     size_t total_nodes = dfs.size();
 
-                    std::vector<std::vector<mutation>> node_excess_mutations(total_nodes);
-                    std::vector<std::vector<mutation>> node_imputed_mutations(total_nodes);
+                    std::vector<std::vector<MAT::Mutation>> node_excess_mutations(total_nodes);
+                    std::vector<std::vector<MAT::Mutation>> node_imputed_mutations(total_nodes);
 
                     std::vector<int> node_set_difference;
 
@@ -489,7 +408,7 @@ int main(int argc, char** argv) {
                     size_t best_j = 0;
                     size_t num_best = 1;
                     bool best_node_has_unique = false;
-                    Node* best_node = T.root;
+                    MAT::Node* best_node = T->root;
 
 #if DEBUG == 1
                     std::vector<bool> node_has_unique(total_nodes, false);
@@ -502,9 +421,8 @@ int main(int argc, char** argv) {
                             [&](tbb::blocked_range<size_t> r) {
                             for (size_t k=r.begin(); k<r.end(); ++k){
                                 mapper2_input inp;
-                                inp.T = &T;
+                                inp.T = T;
                                 inp.node = dfs[k];
-                                inp.node_mutations = &node_mutations;
                                 inp.missing_sample_mutations = &missing_sample_mutations[s];
                                 inp.excess_mutations = &node_excess_mutations[k];
                                 inp.imputed_mutations = &node_imputed_mutations[k];
@@ -549,26 +467,26 @@ int main(int argc, char** argv) {
 
         for (size_t idx=0; idx<indexes.size(); idx++) {
             timer.Start();
-            
+
             size_t s = indexes[idx];
             auto sample = missing_samples[s];
-                
+
             if (print_parsimony_scores) {
                 auto parsimony_scores_filename = outdir + "/parsimony-scores.tsv";
                 if (s==0) {
-                    fprintf(stderr, "\nNow computing branch parsimony scores for adding the missing samples at each of the %zu nodes in the existing tree without modifying the tree.\n", T.depth_first_expansion().size()); 
+                    fprintf(stderr, "\nNow computing branch parsimony scores for adding the missing samples at each of the %zu nodes in the existing tree without modifying the tree.\n", T->depth_first_expansion().size()); 
                     fprintf(stderr, "The branch parsimony scores will be written to file %s\n\n", parsimony_scores_filename.c_str());
-                    
+
                     parsimony_scores_file = fopen(parsimony_scores_filename.c_str(), "w");
-                    fprintf (parsimony_scores_file, "#Sample\tTree node\tOptimal (y/n)\tParsimony score\tParsimony-increasing mutations (for optimal nodes)\n"); 
+                    fprintf (parsimony_scores_file, "#Sample\tTree node\tParsimony score\tOptimal (y/n)\tParsimony-increasing mutations (for optimal nodes)\n"); 
                 }
             }
 
-            auto dfs = T.depth_first_expansion();
+            auto dfs = T->depth_first_expansion();
             size_t total_nodes = dfs.size();
-            
-            std::vector<std::vector<mutation>> node_excess_mutations(total_nodes);
-            std::vector<std::vector<mutation>> node_imputed_mutations(total_nodes);
+
+            std::vector<std::vector<MAT::Mutation>> node_excess_mutations(total_nodes);
+            std::vector<std::vector<MAT::Mutation>> node_imputed_mutations(total_nodes);
 
             std::vector<int> node_set_difference;
 
@@ -581,7 +499,7 @@ int main(int argc, char** argv) {
             size_t best_j = 0;
             size_t num_best = 1;
             bool best_node_has_unique = false;
-            Node* best_node = T.root;
+            MAT::Node* best_node = T->root;
 #if DEBUG == 1
             std::vector<bool> node_has_unique(total_nodes, false);
             std::vector<size_t> best_j_vec;
@@ -592,32 +510,31 @@ int main(int argc, char** argv) {
             tbb::parallel_for( tbb::blocked_range<size_t>(0, total_nodes, grain_size),
                     [&](tbb::blocked_range<size_t> r) {
                     for (size_t k=r.begin(); k<r.end(); ++k){
-                        mapper2_input inp;
-                        inp.T = &T;
-                        inp.node = dfs[k];
-                        inp.node_mutations = &node_mutations;
-                        inp.missing_sample_mutations = &missing_sample_mutations[s];
-                        inp.excess_mutations = &node_excess_mutations[k];
-                        inp.imputed_mutations = &node_imputed_mutations[k];
-                        inp.best_node_num_leaves = &best_node_num_leaves;
-                        inp.best_set_difference = &best_set_difference;
-                        inp.best_node = &best_node;
-                        inp.best_j =  &best_j;
-                        inp.num_best = &num_best;
-                        inp.j = k;
-                        inp.has_unique = &best_node_has_unique;
+                    mapper2_input inp;
+                    inp.T = T;
+                    inp.node = dfs[k];
+                    inp.missing_sample_mutations = &missing_sample_mutations[s];
+                    inp.excess_mutations = &node_excess_mutations[k];
+                    inp.imputed_mutations = &node_imputed_mutations[k];
+                    inp.best_node_num_leaves = &best_node_num_leaves;
+                    inp.best_set_difference = &best_set_difference;
+                    inp.best_node = &best_node;
+                    inp.best_j =  &best_j;
+                    inp.num_best = &num_best;
+                    inp.j = k;
+                    inp.has_unique = &best_node_has_unique;
 
-                        if (print_parsimony_scores) {
-                           inp.set_difference = &node_set_difference[k];
-                        }
+                    if (print_parsimony_scores) {
+                    inp.set_difference = &node_set_difference[k];
+                    }
 #if DEBUG == 1
-                        inp.best_j_vec = &best_j_vec;
-                        inp.node_has_unique = &(node_has_unique);
+                    inp.best_j_vec = &best_j_vec;
+                    inp.node_has_unique = &(node_has_unique);
 #endif
 
-                        mapper2_body(inp, print_parsimony_scores);
+                    mapper2_body(inp, print_parsimony_scores);
                     }       
-            }); 
+                    }); 
 
             if (!print_parsimony_scores) {
                 fprintf(stderr, "Current tree size (#nodes): %zu\tSample name: %s\tParsimony score: %d\tNumber of parsimony-optimal placements: %zu\n", total_nodes, sample.c_str(), \
@@ -634,20 +551,14 @@ int main(int argc, char** argv) {
             }
 
 #if DEBUG == 1
-            
+
             fprintf (stderr, "Sample mutations:\t");
             if (missing_sample_mutations[s].size() > 0) {
                 for (auto m: missing_sample_mutations[s]) {
                     if (m.is_missing) {
                         continue;
                     }
-                    fprintf(stderr, "|%s", (get_nuc_char(m.par_nuc) + std::to_string(m.position)).c_str());
-                    for (size_t c_size =0; c_size < m.mut_nuc.size(); c_size++) {
-                        fprintf(stderr, "%c", get_nuc_char(m.mut_nuc[c_size]));
-                        if (c_size + 1 < m.mut_nuc.size()) {
-                            fprintf(stderr, ",");
-                        }
-                    }
+                    fprintf(stderr, "|%s", (MAT::get_nuc(m.par_nuc) + std::to_string(m.position) + MAT::get_nuc(m.mut_nuc)).c_str());
                     fprintf(stderr, "| ");
                 }
             }
@@ -659,7 +570,7 @@ int main(int argc, char** argv) {
             if (num_best > 0) {
                 for (auto j: best_j_vec) {
                     auto node = dfs[j];
-                    
+
                     std::vector<std::string> muts;
 
                     fprintf(stderr, "Best node ");
@@ -676,25 +587,25 @@ int main(int argc, char** argv) {
                     else {
                         fprintf(stderr, ": %s\t", node->identifier.c_str());
                     }
-                    
+
                     std::string s = "|";
-                    for (auto m: node_mutations[node]) {
-                        s += get_nuc_char(m.par_nuc) + std::to_string(m.position) + get_nuc_char(m.mut_nuc[0]) + '|';
+                    for (auto m: node->mutations) {
+                        s += MAT::get_nuc(m.par_nuc) + std::to_string(m.position) + MAT::get_nuc(m.mut_nuc) + '|';
                     }
-                    if (node_mutations[node].size() > 0) {
+                    if (node->mutations.size() > 0) {
                         muts.push_back(std::move(s));
                     }
-                    
-                    for (auto anc: T.rsearch(node->identifier)) {
+
+                    for (auto anc: T->rsearch(node->identifier)) {
                         s = "|";
-                        for (auto m: node_mutations[anc]) {
-                            s += get_nuc_char(m.par_nuc) + std::to_string(m.position) + get_nuc_char(m.mut_nuc[0]) + '|';
+                        for (auto m: anc->mutations) {
+                            s += MAT::get_nuc(m.par_nuc) + std::to_string(m.position) + MAT::get_nuc(m.mut_nuc) + '|';
                         }
-                        if (node_mutations[anc].size() > 0) {
+                        if (anc->mutations.size() > 0) {
                             muts.push_back(std::move(s));
                         }
                     }
-                    
+
 
                     std::reverse(muts.begin(), muts.end());
 
@@ -709,7 +620,7 @@ int main(int argc, char** argv) {
                 }
                 fprintf(stderr, "\n"); 
             }
-            
+
             assert(std::find(best_j_vec.begin(), best_j_vec.end(), best_j) != best_j_vec.end());
 #endif
 
@@ -723,13 +634,8 @@ int main(int argc, char** argv) {
                         }
                         for (size_t idx = 0; idx < static_cast<size_t>(node_set_difference[k]); idx++) {
                             auto m = node_excess_mutations[k][idx];
-                            fprintf(parsimony_scores_file, "%s", (get_nuc_char(m.par_nuc) + std::to_string(m.position)).c_str());
-                            for (size_t c_size =0; c_size < m.mut_nuc.size(); c_size++) {
-                                fprintf(parsimony_scores_file, "%c", get_nuc_char(m.mut_nuc[c_size]));
-                                if (c_size + 1 < m.mut_nuc.size()) {
-                                    fprintf(parsimony_scores_file, "/");
-                                }
-                            }
+                            assert ((m.mut_nuc & (m.mut_nuc-1)) == 0);
+                            fprintf(parsimony_scores_file, "%s", (MAT::get_nuc(m.par_nuc) + std::to_string(m.position) + MAT::get_nuc(m.mut_nuc)).c_str());
                             if (idx+1 < static_cast<size_t>(node_set_difference[k])) {
                                 fprintf(parsimony_scores_file, ",");
                             }
@@ -742,43 +648,42 @@ int main(int argc, char** argv) {
                 }
             }
             else {
-                if (T.get_node(sample) == NULL) {
+                if (T->get_node(sample) == NULL) {
                     if (best_node->is_leaf() || best_node_has_unique) {
-                        std::string nid = std::to_string(++T.curr_internal_node);
-                        T.create_node(nid, best_node->parent->identifier);
-                        T.create_node(sample, nid);
-                        T.move_node(best_node->identifier, nid);
-                        std::vector<mutation> common_mut, l1_mut, l2_mut;
-                        std::vector<mutation> curr_l1_mut;
+                        std::string nid = std::to_string(++T->curr_internal_node);
+                        T->create_node(nid, best_node->parent->identifier);
+                        T->create_node(sample, nid);
+                        T->move_node(best_node->identifier, nid);
+                        std::vector<MAT::Mutation> common_mut, l1_mut, l2_mut;
+                        std::vector<MAT::Mutation> curr_l1_mut;
 
-                        if (node_mutations.find(best_node) != node_mutations.end()) {
-                            for (auto m1: node_mutations[best_node]) {
-                                mutation m;
-                                m.position = m1.position;
-                                m.ref_nuc = m1.ref_nuc;
-                                m.par_nuc = m1.par_nuc;
-                                m.mut_nuc.emplace_back(m1.mut_nuc[0]);
-                                curr_l1_mut.emplace_back(m);
-                            }
-                            node_mutations.erase(best_node);
+                        for (auto m1: best_node->mutations) {
+                            MAT::Mutation m;
+                            m.position = m1.position;
+                            m.ref_nuc = m1.ref_nuc;
+                            m.par_nuc = m1.par_nuc;
+                            m.mut_nuc = m1.mut_nuc;
+                            curr_l1_mut.emplace_back(m);
                         }
+                        best_node->clear_mutations();
+                        //node_mutations.erase(best_node);
 
                         for (auto m1: curr_l1_mut) {
                             bool found = false;
                             for (auto m2: node_excess_mutations[best_j]) {
                                 if (m1.position == m2.position) {
-                                    if (m1.mut_nuc[0] == m2.mut_nuc[0]) {
+                                    if (m1.mut_nuc == m2.mut_nuc) {
                                         found = true;
                                         break;
                                     }
                                 }
                             }
                             if (!found) {
-                                mutation m;
+                                MAT::Mutation m;
                                 m.position = m1.position;
                                 m.ref_nuc = m1.ref_nuc;
                                 m.par_nuc = m1.par_nuc;
-                                m.mut_nuc.emplace_back(m1.mut_nuc[0]);
+                                m.mut_nuc = m1.mut_nuc;
                                 l1_mut.emplace_back(m);
                             }
                         }
@@ -786,88 +691,76 @@ int main(int argc, char** argv) {
                             bool found = false;
                             for (auto m2: curr_l1_mut) {
                                 if (m1.position == m2.position) {
-                                    if (m1.mut_nuc[0] == m2.mut_nuc[0]) {
+                                    if (m1.mut_nuc == m2.mut_nuc) {
                                         found = true;
-                                        mutation m;
+                                        MAT::Mutation m;
                                         m.position = m1.position;
                                         m.ref_nuc = m1.ref_nuc;
                                         m.par_nuc = m1.par_nuc;
-                                        m.mut_nuc.emplace_back(m1.mut_nuc[0]);
+                                        m.mut_nuc = m1.mut_nuc;
                                         common_mut.emplace_back(m);
                                         break;
                                     }
                                 }
                             }
                             if (!found) {
-                                mutation m;
+                                MAT::Mutation m;
                                 m.position = m1.position;
                                 m.ref_nuc = m1.ref_nuc;
                                 m.par_nuc = m1.par_nuc;
-                                m.mut_nuc.emplace_back(m1.mut_nuc[0]);
+                                m.mut_nuc = m1.mut_nuc;
                                 l2_mut.emplace_back(m);
                             }
                         }
 
-                        if (common_mut.size() > 0) {
-                            if (!std::is_sorted(common_mut.begin(), common_mut.end(), compare_by_position)) {
-                                std::sort(common_mut.begin(), common_mut.end(), compare_by_position);
-                            }
-                            node_mutations[T.get_node(nid)] = common_mut;
+                        for (auto m: common_mut) {
+                            T->get_node(nid)->add_mutation(m);
                         }
-                        if (l1_mut.size() > 0) {
-                            if (!std::is_sorted(l1_mut.begin(), l1_mut.end(),compare_by_position)) {
-                                std::sort(l1_mut.begin(), l1_mut.end(),compare_by_position); 
-                            }
-                            node_mutations[T.get_node(best_node->identifier)] = l1_mut;
+                        for (auto m: l1_mut) {
+                            T->get_node(best_node->identifier)->add_mutation(m);
                         }
-                        if (l2_mut.size() > 0) {
-                            if (!std::is_sorted(l2_mut.begin(), l2_mut.end(), compare_by_position)) {
-                                std::sort(l2_mut.begin(), l2_mut.end(), compare_by_position); 
-                            }
-                            node_mutations[T.get_node(sample)] = l2_mut;
+                        for (auto m: l2_mut) {
+                            T->get_node(sample)->add_mutation(m);
                         }
                     }
                     else {
-                        T.create_node(sample, best_node->identifier);
-                        Node* node = T.get_node(sample);
-                        std::vector<mutation> node_mut;
+                        T->create_node(sample, best_node->identifier);
+                        MAT::Node* node = T->get_node(sample);
+                        std::vector<MAT::Mutation> node_mut;
 
-                        std::vector<mutation> curr_l1_mut;
+                        std::vector<MAT::Mutation> curr_l1_mut;
 
-                        if (node_mutations.find(best_node) != node_mutations.end()) {
-                            for (auto m1: node_mutations[best_node]) {
-                                mutation m;
-                                m.position = m1.position;
-                                m.ref_nuc = m1.ref_nuc;
-                                m.par_nuc = m1.par_nuc;
-                                m.mut_nuc.emplace_back(m1.mut_nuc[0]);
-                                curr_l1_mut.emplace_back(m);
-                            }
+                        for (auto m1: best_node->mutations) {
+                            MAT::Mutation m;
+                            m.position = m1.position;
+                            m.ref_nuc = m1.ref_nuc;
+                            m.par_nuc = m1.par_nuc;
+                            m.mut_nuc = m1.mut_nuc;
+                            curr_l1_mut.emplace_back(m);
                         }
 
                         for (auto m1: node_excess_mutations[best_j]) {
                             bool found = false;
                             for (auto m2: curr_l1_mut) {
                                 if (m1.position == m2.position) {
-                                    if (m1.mut_nuc[0] == m2.mut_nuc[0]) {
+                                    if (m1.mut_nuc == m2.mut_nuc) {
                                         found = true;
                                         break;
                                     }
                                 }
                             }
                             if (!found) {
-                                mutation m;
+                                MAT::Mutation m;
                                 m.position = m1.position;
                                 m.ref_nuc = m1.ref_nuc;
                                 m.par_nuc = m1.par_nuc;
-                                for (auto nuc: m1.mut_nuc) {
-                                    m.mut_nuc.emplace_back(nuc);
-                                }
+                                m.mut_nuc = m1.mut_nuc;
                                 node_mut.emplace_back(m);
                             }
                         }
-                        std::sort(node_mut.begin(), node_mut.end(), compare_by_position); 
-                        node_mutations[node] = node_mut;
+                        for (auto m: node_mut) {
+                            node->add_mutation(m);
+                        }
                     }
 
                     if (node_imputed_mutations[best_j].size() > 0) {
@@ -875,10 +768,10 @@ int main(int argc, char** argv) {
                         size_t tot = node_imputed_mutations[best_j].size();
                         for (size_t curr = 0; curr < tot; curr++) {
                             if (curr < tot-1) {
-                                fprintf (stderr, "%i:%c;", node_imputed_mutations[best_j][curr].position, get_nuc_char(node_imputed_mutations[best_j][curr].mut_nuc[0]));
+                                fprintf (stderr, "%i:%c;", node_imputed_mutations[best_j][curr].position, MAT::get_nuc(node_imputed_mutations[best_j][curr].mut_nuc));
                             }
                             else {
-                                fprintf (stderr, "%i:%c", node_imputed_mutations[best_j][curr].position, get_nuc_char(node_imputed_mutations[best_j][curr].mut_nuc[0]));
+                                fprintf (stderr, "%i:%c", node_imputed_mutations[best_j][curr].position, MAT::get_nuc(node_imputed_mutations[best_j][curr].mut_nuc));
                             }
                         }
                         fprintf(stderr, "\n");
@@ -902,86 +795,20 @@ int main(int argc, char** argv) {
         fprintf(stderr, "Collapsing final tree. \n");
         timer.Start();
 
-        bfs.clear();
-        bfs = T.breadth_first_expansion();
-        
-        for (size_t idx = 1; idx < bfs.size(); idx++) {
-            auto mutations = node_mutations[bfs[idx]];
-            if (mutations.size() == 0) {
-                auto node = bfs[idx];
-                auto parent = node->parent;
-                auto children = node->children;
-                for (auto child: children) {
-                    T.move_node(child->identifier, parent->identifier);
-                }
-            }
-        }
-        
-        condensed_T = TreeLib::create_tree_from_newick_string(TreeLib::get_newick_string(T, false, true));
+        condensed_T = MAT::get_tree_copy(*T);
+        condensed_T.collapse_tree();
         
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
         
         fprintf(stderr, "Condensing identical sequences. \n");
+        
         timer.Start();
-
-        bfs.clear();
-        bfs = T.breadth_first_expansion();
-        auto condensed_bfs = condensed_T.breadth_first_expansion();
-
-        assert(condensed_bfs.size() == bfs.size());
-
-        condensed_nodes.clear();
-
-        for (size_t it = 0; it < condensed_bfs.size(); it++) {
-            auto condensed_node = condensed_bfs[it];
-            condensed_node_mutations.insert(std::pair<Node*, std::vector<mutation>>(condensed_node, std::vector<mutation>(node_mutations[bfs[it]].size())));
-            for (size_t k = 0; k < node_mutations[bfs[it]].size(); k++) {
-                condensed_node_mutations[condensed_node][k] = node_mutations[bfs[it]][k];
-            }
-        }
-
-        auto tree_leaves = T.get_leaves();
-        for (auto l1: tree_leaves) {
-            std::vector<std::string> polytomy_nodes;
-
-            if (std::find(missing_samples.begin(), missing_samples.end(), l1->identifier) != missing_samples.end()) {
-                continue;
-            }
-            if (node_mutations[l1].size() > 0) {
-                continue;
-            }
-            if (condensed_T.get_node(l1->identifier) == NULL) {
-                continue;
-            }
-
-            for (auto l2: l1->parent->children) {
-                if (std::find(missing_samples.begin(), missing_samples.end(), l2->identifier) != missing_samples.end()) {
-                    continue;
-                }
-                if (l2->is_leaf() && (condensed_T.get_node(l2->identifier) != NULL) && (node_mutations[l2].size() == 0)) {
-                    polytomy_nodes.push_back(l2->identifier);
-                }
-            }
-
-            if (polytomy_nodes.size() > 1) {
-                std::string new_node_name = "node_" + std::to_string(1+condensed_nodes.size()) + "_condensed_" + std::to_string(polytomy_nodes.size()) + "_leaves";
-                auto curr_node = condensed_T.get_node(l1->identifier);
-                condensed_T.create_node(new_node_name, curr_node->parent->identifier, l1->branch_length);
-                auto new_node = condensed_T.get_node(new_node_name);
-                condensed_node_mutations.insert(std::pair<Node*, std::vector<mutation>>(new_node, std::vector<mutation>(0)));
-                condensed_nodes[new_node_name] = std::vector<std::string>(polytomy_nodes.size());
-
-                for (size_t it = 0; it < polytomy_nodes.size(); it++) {
-                    condensed_nodes[new_node_name][it] = polytomy_nodes[it];
-                    condensed_T.remove_node(polytomy_nodes[it], false);
-                }
-            }
-        }
+        condensed_T.collapse_tree();
         
         auto condensed_tree_filename = outdir + "/condensed-final-tree.nh";
         FILE* condensed_tree_file = fopen(condensed_tree_filename.c_str(), "w");
         fprintf(stderr, "Writing condensed final tree to file %s\n", condensed_tree_filename.c_str());
-        fprintf(condensed_tree_file, "%s\n", TreeLib::get_newick_string(condensed_T, true, true).c_str());
+        fprintf(condensed_tree_file, "%s\n", MAT::get_newick_string(condensed_T, true, true).c_str());
         fclose(condensed_tree_file);
         
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
@@ -991,7 +818,7 @@ int main(int argc, char** argv) {
     auto final_tree_filename = outdir + "/final-tree.nh";
     FILE* final_tree_file = fopen(final_tree_filename.c_str(), "w");
     fprintf(stderr, "Writing final tree to file %s \n", final_tree_filename.c_str());
-    fprintf(final_tree_file, "%s\n", TreeLib::get_newick_string(T, true, true).c_str());
+    fprintf(final_tree_file, "%s\n", MAT::get_newick_string(*T, true, true).c_str());
     fclose(final_tree_file);
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 
@@ -1003,29 +830,13 @@ int main(int argc, char** argv) {
         FILE* uncondensed_final_tree_file = fopen(uncondensed_final_tree_filename.c_str(), "w");
         fprintf(stderr, "Writing uncondensed final tree to file %s \n", uncondensed_final_tree_filename.c_str());
         
-        if (!collapse_tree && (condensed_nodes.size() > 0)) {
-            Tree T_to_print = TreeLib::create_tree_from_newick_string(TreeLib::get_newick_string(T, false, true)); 
-            for (size_t it = 0; it < condensed_nodes.size(); it++) {
-                auto cn = condensed_nodes.begin();
-                std::advance(cn, it);
-
-                auto n = T_to_print.get_node(cn->first);
-                auto par = (n->parent != NULL) ? n->parent : n;
-
-                size_t num_samples = cn->second.size();
-
-                if (num_samples > 0) {
-                    T_to_print.rename_node(n->identifier, cn->second[0]);
-                }
-                
-                for (size_t s = 1; s < num_samples; s++) {
-                    T_to_print.create_node(cn->second[s], par->identifier, n->branch_length);
-                }
-            }
-            fprintf(uncondensed_final_tree_file, "%s\n", TreeLib::get_newick_string(T_to_print, true, true).c_str());
+        if (!collapse_tree && (T->condensed_nodes.size() > 0)) {
+            MAT::Tree T_to_print = MAT::get_tree_copy(*T);
+            T_to_print.uncondense_leaves();
+            fprintf(uncondensed_final_tree_file, "%s\n", MAT::get_newick_string(T_to_print, true, true).c_str());
         }
         else {
-            fprintf(uncondensed_final_tree_file, "%s\n", TreeLib::get_newick_string(T, true, true).c_str());
+            fprintf(uncondensed_final_tree_file, "%s\n", MAT::get_newick_string(*T, true, true).c_str());
         }
         fclose(uncondensed_final_tree_file);
         
@@ -1042,16 +853,16 @@ int main(int argc, char** argv) {
         
         for (size_t s=0; s<missing_samples.size(); s++) {
             auto sample = missing_samples[s];
-            auto sample_node = T.get_node(sample);
+            auto sample_node = T->get_node(sample);
             std::stack<std::string> mutation_stack;
             std::string curr_node_mutation_string;
 
-            auto curr_node_mutations = node_mutations[sample_node];
+            auto curr_node_mutations = sample_node->mutations;
             if (curr_node_mutations.size() > 0) {
                 curr_node_mutation_string = sample + ":";
                 size_t num_mutations = curr_node_mutations.size();
                 for (size_t k = 0; k < num_mutations; k++) {
-                    curr_node_mutation_string += get_nuc_char(curr_node_mutations[k].par_nuc) + std::to_string(curr_node_mutations[k].position) + get_nuc_char(curr_node_mutations[k].mut_nuc[0]); 
+                    curr_node_mutation_string += MAT::get_nuc(curr_node_mutations[k].par_nuc) + std::to_string(curr_node_mutations[k].position) + MAT::get_nuc(curr_node_mutations[k].mut_nuc); 
                     if (k < num_mutations-1) {
                         curr_node_mutation_string += ',';
                     }
@@ -1062,13 +873,13 @@ int main(int argc, char** argv) {
                 mutation_stack.push(curr_node_mutation_string);
             }
 
-            for (auto anc_node: T.rsearch(sample)) {
-                curr_node_mutations = node_mutations[anc_node];
+            for (auto anc_node: T->rsearch(sample)) {
+                curr_node_mutations = anc_node->mutations;
                 if (curr_node_mutations.size() > 0) {
                     curr_node_mutation_string = anc_node->identifier + ":";
                     size_t num_mutations = curr_node_mutations.size();
                     for (size_t k = 0; k < num_mutations; k++) {
-                        curr_node_mutation_string += get_nuc_char(curr_node_mutations[k].par_nuc) + std::to_string(curr_node_mutations[k].position) + get_nuc_char(curr_node_mutations[k].mut_nuc[0]); 
+                        curr_node_mutation_string += MAT::get_nuc(curr_node_mutations[k].par_nuc) + std::to_string(curr_node_mutations[k].position) + MAT::get_nuc(curr_node_mutations[k].mut_nuc); 
                         if (k < num_mutations-1) {
                             curr_node_mutation_string += ',';
                         }
@@ -1107,18 +918,18 @@ int main(int argc, char** argv) {
                 continue;
             }
             
-            for (auto anc: T.rsearch(missing_samples[i])) {
-                size_t num_leaves = T.get_num_leaves(anc);
+            for (auto anc: T->rsearch(missing_samples[i])) {
+                size_t num_leaves = T->get_num_leaves(anc);
                 if (num_leaves < print_subtrees_size) {
                     continue;
                 }
 
-                std::string newick = TreeLib::get_newick_string(T, anc, false, true);
-                Tree new_T = TreeLib::create_tree_from_newick_string(newick);
+                std::string newick = MAT::get_newick_string(*T, anc, false, true);
+                MAT::Tree new_T = MAT::create_tree_from_newick_string(newick);
 
-                std::unordered_map<Node*, std::vector<mutation>> subtree_node_mutations;
-                std::vector<mutation> subtree_root_mutations;
-                auto dfs1 = T.depth_first_expansion(anc);
+                std::unordered_map<MAT::Node*, std::vector<MAT::Mutation>> subtree_node_mutations;
+                std::vector<MAT::Mutation> subtree_root_mutations;
+                auto dfs1 = T->depth_first_expansion(anc);
                 auto dfs2 = new_T.depth_first_expansion();
 
                 assert(dfs1.size() == dfs2.size());
@@ -1126,11 +937,11 @@ int main(int argc, char** argv) {
                 for (size_t k = 0; k < dfs1.size(); k++) {
                     auto n1 = dfs1[k];
                     auto n2 = dfs2[k];
-                    subtree_node_mutations[n2] = node_mutations[n1];
+                    subtree_node_mutations[n2] = n1->mutations;
 
                     if (k == 0) {
-                        for (auto p: T.rsearch(n1->identifier)) {
-                            for (auto m: node_mutations[p]) {
+                        for (auto p: T->rsearch(n1->identifier)) {
+                            for (auto m: p->mutations) {
                                 subtree_root_mutations.push_back(m);
                             }
                         }
@@ -1144,7 +955,7 @@ int main(int argc, char** argv) {
                     if (ancestors.size() > 1) {
                         last_anc = ancestors[ancestors.size()-2];
                     }
-                    std::vector<Node*> siblings;
+                    std::vector<MAT::Node*> siblings;
                     for (auto child: new_T.root->children) {
                         if (child->identifier != last_anc->identifier) {
                             siblings.push_back(child);
@@ -1168,7 +979,7 @@ int main(int argc, char** argv) {
                         }
                     }
 
-                    newick = TreeLib::get_newick_string(new_T, true, true);
+                    newick = MAT::get_newick_string(new_T, true, true);
                 }
 
                 tbb::parallel_for (tbb::blocked_range<size_t>(i+1, missing_samples.size(), 100),
@@ -1194,43 +1005,28 @@ int main(int argc, char** argv) {
                 FILE* subtree_mutations_file = fopen(subtree_mutations_filename.c_str(), "w");
                 fprintf(stderr, "Writing list of mutations at the nodes of subtree %d to file %s\n", num_subtrees, subtree_mutations_filename.c_str());
 
-                //if (subtree_root_mutations.size() > 0) {
-                    fprintf(subtree_mutations_file, "ROOT->%s: ", new_T.root->identifier.c_str());
-                    size_t tot_mutations = subtree_root_mutations.size();
+                fprintf(subtree_mutations_file, "ROOT->%s: ", new_T.root->identifier.c_str());
+                size_t tot_mutations = subtree_root_mutations.size();
+                for (size_t idx = 0; idx < tot_mutations; idx++) {
+                    auto m = subtree_root_mutations[idx];
+                    fprintf(subtree_mutations_file, "%s", (MAT::get_nuc(m.par_nuc) + std::to_string(m.position) + MAT::get_nuc(m.mut_nuc)).c_str());
+                    if (idx+1 <tot_mutations) {
+                        fprintf(subtree_mutations_file, ",");
+                    }
+                }
+                fprintf(subtree_mutations_file, "\n");
+                
+                for (auto n: new_T.depth_first_expansion()) {
+                    size_t tot_mutations = subtree_node_mutations[n].size();
+                    fprintf(subtree_mutations_file, "%s: ", n->identifier.c_str());
                     for (size_t idx = 0; idx < tot_mutations; idx++) {
-                        auto m = subtree_root_mutations[idx];
-                        fprintf(subtree_mutations_file, "%s", (get_nuc_char(m.par_nuc) + std::to_string(m.position)).c_str());
-                        for (size_t c_size =0; c_size < m.mut_nuc.size(); c_size++) {
-                            fprintf(subtree_mutations_file, "%c", get_nuc_char(m.mut_nuc[c_size]));
-                            if (c_size + 1 < m.mut_nuc.size()) {
-                                fprintf(subtree_mutations_file, "/");
-                            }
-                        }
+                        auto m = subtree_node_mutations[n][idx];
+                        fprintf(subtree_mutations_file, "%s", (MAT::get_nuc(m.par_nuc) + std::to_string(m.position) + MAT::get_nuc(m.mut_nuc)).c_str());
                         if (idx+1 <tot_mutations) {
                             fprintf(subtree_mutations_file, ",");
                         }
                     }
                     fprintf(subtree_mutations_file, "\n");
-                //}
-                for (auto n: new_T.depth_first_expansion()) {
-                    size_t tot_mutations = subtree_node_mutations[n].size();
-                    //if (tot_mutations > 0) {
-                        fprintf(subtree_mutations_file, "%s: ", n->identifier.c_str());
-                        for (size_t idx = 0; idx < tot_mutations; idx++) {
-                            auto m = subtree_node_mutations[n][idx];
-                            fprintf(subtree_mutations_file, "%s", (get_nuc_char(m.par_nuc) + std::to_string(m.position)).c_str());
-                            for (size_t c_size =0; c_size < m.mut_nuc.size(); c_size++) {
-                                fprintf(subtree_mutations_file, "%c", get_nuc_char(m.mut_nuc[c_size]));
-                                if (c_size + 1 < m.mut_nuc.size()) {
-                                    fprintf(subtree_mutations_file, "/");
-                                }
-                            }
-                            if (idx+1 <tot_mutations) {
-                                fprintf(subtree_mutations_file, ",");
-                            }
-                        }
-                        fprintf(subtree_mutations_file, "\n");
-                    //}
                 }
 
                 fclose(subtree_mutations_file);
@@ -1238,7 +1034,7 @@ int main(int argc, char** argv) {
                 bool has_condensed = false;
                 FILE* subtree_expanded_file;
                 for (auto l: new_T.get_leaves()) {
-                    if (condensed_nodes.find(l->identifier) != condensed_nodes.end()) {
+                    if (T->condensed_nodes.find(l->identifier) != T->condensed_nodes.end()) {
                         if (!has_condensed) {
                             auto subtree_expanded_filename = outdir + "/subtree-" + std::to_string(num_subtrees) + "-expanded.txt";
                             subtree_expanded_file = fopen(subtree_expanded_filename.c_str(), "w");
@@ -1246,7 +1042,7 @@ int main(int argc, char** argv) {
                             has_condensed = true;
                         }
                         fprintf(subtree_expanded_file, "%s: ", l->identifier.c_str());
-                        for (auto n: condensed_nodes[l->identifier]) {
+                        for (auto n: T->condensed_nodes[l->identifier]) {
                             fprintf(subtree_expanded_file, "%s ", n.c_str());
                         }
                         fprintf(subtree_expanded_file, "\n");
@@ -1273,67 +1069,17 @@ int main(int argc, char** argv) {
 
         timer.Start();
 
-        //std::string dout_filename = outdir + "/assignments.pb";
-
         fprintf(stderr, "Saving mutation-annotated tree object to file %s\n", dout_filename.c_str());
+
 
         Parsimony::data data;
 
         if (!collapse_tree) {
-            data.set_newick(TreeLib::get_newick_string(T, false, true));
-
-            auto dfs = T.depth_first_expansion();
-
-            for (size_t idx = 0; idx < dfs.size(); idx++) {
-                auto mutation_list = data.add_node_mutations();
-                auto mutations = node_mutations[dfs[idx]];
-                for (auto m: mutations) {
-                    auto mut = mutation_list->add_mutation();
-                    mut->set_chromosome(m.chrom);
-                    mut->set_position(m.position);
-                    mut->set_ref_nuc(m.ref_nuc);
-                    mut->set_par_nuc(m.par_nuc);
-                    mut->clear_mut_nuc();
-                    for (auto nuc: m.mut_nuc) {
-                        mut->add_mut_nuc(nuc);
-                    }
-                }
-            }
+            MAT::save_mutation_annotated_tree(*T, dout_filename);
         }
         else {
-            data.set_newick(TreeLib::get_newick_string(condensed_T, false, true));
-
-            auto dfs = condensed_T.depth_first_expansion();
-
-            for (size_t idx = 0; idx < dfs.size(); idx++) {
-                auto mutation_list = data.add_node_mutations();
-                auto mutations = condensed_node_mutations[dfs[idx]];
-                for (auto m: mutations) {
-                    auto mut = mutation_list->add_mutation();
-                    mut->set_chromosome(m.chrom);
-                    mut->set_position(m.position);
-                    mut->set_ref_nuc(m.ref_nuc);
-                    mut->set_par_nuc(m.par_nuc);
-                    mut->clear_mut_nuc();
-                    for (auto nuc: m.mut_nuc) {
-                        mut->add_mut_nuc(nuc);
-                    }
-                }
-            }
-
-            // Add condensed nodes
-            for (auto cn: condensed_nodes) {
-                auto cn_ptr = data.add_condensed_nodes();
-                cn_ptr->set_node_name(cn.first);
-                for (auto l: cn.second) {
-                    cn_ptr->add_condensed_leaves(l);
-                }
-            }
+            MAT::save_mutation_annotated_tree(condensed_T, dout_filename);
         }
-
-        std::ofstream outfile(dout_filename, std::ios::out | std::ios::binary);
-        data.SerializeToOstream(&outfile);
-        outfile.close();
         
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
