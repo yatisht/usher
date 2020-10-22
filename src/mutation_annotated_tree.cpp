@@ -856,26 +856,42 @@ void Mutation_Annotated_Tree::Tree::collapse_tree() {
 Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_tree_copy(Mutation_Annotated_Tree::Tree tree) {
     Tree copy = create_tree_from_newick_string (get_newick_string(tree, true, true));
 
-    auto dfs1 = tree.depth_first_expansion();
-    auto dfs2 = copy.depth_first_expansion();
+    std::vector<Node*> dfs1;
+    std::vector<Node*> dfs2;
 
-    for (size_t k = 0; k < dfs1.size(); k++) {
-        auto n1 = dfs1[k];
-        auto n2 = dfs2[k];
-        for (auto m: n1->mutations) {
-            Mutation m2;
-            m2.position = m.position;
-            m2.ref_nuc = m.ref_nuc;
-            m2.par_nuc = m.par_nuc;
-            m2.mut_nuc = m.mut_nuc;
-            m2.is_missing = m.is_missing;
-            n2->add_mutation(m2);
-        }
-    }
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, 2),
+            [&](tbb::blocked_range<size_t> r) {
+            for (size_t k=r.begin(); k<r.end(); ++k){
+              if (k==0) {
+                dfs1 = tree.depth_first_expansion();
+              }
+              else {
+                dfs2 = copy.depth_first_expansion();
+              }
+            }
+            });
+            
+
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, dfs1.size(), 500),
+            [&](tbb::blocked_range<size_t> r) {
+            for (size_t k=r.begin(); k<r.end(); ++k){
+              auto n1 = dfs1[k];
+              auto n2 = dfs2[k];
+              for (auto m: n1->mutations) {
+                Mutation m2;
+                m2.position = m.position;
+                m2.ref_nuc = m.ref_nuc;
+                m2.par_nuc = m.par_nuc;
+                m2.mut_nuc = m.mut_nuc;
+                m2.is_missing = m.is_missing;
+                n2->add_mutation(m2);
+                }
+              }
+            });
 
     for (auto cn: tree.condensed_nodes) {
         copy.condensed_nodes.insert(std::pair<std::string, std::vector<std::string>>(cn.first, std::vector<std::string>(cn.second.size())));
-        for (int k = 0; k < cn.second.size(); k++) {
+        for (size_t k = 0; k < cn.second.size(); k++) {
             copy.condensed_nodes[cn.first][k] = cn.second[k];
             copy.condensed_leaves.insert(cn.second[k]);
         }
