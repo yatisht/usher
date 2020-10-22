@@ -6,12 +6,6 @@
 #include <boost/iostreams/filter/gzip.hpp>
 #include <iostream>
 #include <memory>
-#include <tbb/flow_graph.h>
-#include <tbb/reader_writer_lock.h>
-#include <tbb/scalable_allocator.h>
-#include <tbb/task_scheduler_init.h>
-#include <tbb/blocked_range.h>
-#include <tbb/tbb.h>
 #include "boost/filesystem.hpp"
 #include "usher_graph.hpp"
 #include "parsimony.pb.h"
@@ -490,11 +484,6 @@ int main(int argc, char** argv) {
                 timer.Start();
                 
                 T = &optimal_trees[t_idx];
-                
-                MAT::Tree curr_tree;
-                if (multiple_placements) {
-                    curr_tree = MAT::get_tree_copy(*T);
-                }
 
                 if (num_trees > 1) {
                     fprintf(stderr, "==Tree %zu=== \n", t_idx+1);
@@ -656,6 +645,11 @@ int main(int argc, char** argv) {
 
                 assert(std::find(best_j_vec.begin(), best_j_vec.end(), best_j) != best_j_vec.end());
 #endif
+                
+                MAT::Tree curr_tree;
+                if ((multiple_placements) && (num_best > 1) && (num_trees < MAX_TREES)) {
+                    curr_tree = MAT::get_tree_copy(*T);
+                }
 
                 if (print_parsimony_scores) {
                     for (size_t k = 0; k < total_nodes; k++) {
@@ -1181,7 +1175,7 @@ int main(int argc, char** argv) {
                     fclose(subtree_mutations_file);
 
                     bool has_condensed = false;
-                    FILE* subtree_expanded_file;
+                    FILE* subtree_expanded_file = NULL;
                     for (auto l: new_T.get_leaves()) {
                         if (T->condensed_nodes.find(l->identifier) != T->condensed_nodes.end()) {
                             if (!has_condensed) {
