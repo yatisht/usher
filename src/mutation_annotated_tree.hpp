@@ -5,6 +5,7 @@
 #include <vector>
 #include <queue>
 #include <stack>
+#include <unordered_set>
 #include <algorithm>
 #include <cassert>
 #include <tbb/flow_graph.h>
