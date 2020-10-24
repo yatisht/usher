@@ -825,13 +825,22 @@ void Mutation_Annotated_Tree::Tree::condense_leaves(std::vector<std::string> mis
 }
 
 void Mutation_Annotated_Tree::Tree::uncondense_leaves() {
-    for (auto cn: condensed_nodes) {
-        auto node = get_node(cn.first);
-        auto parent = node->parent;
-        for (auto child: cn.second) {
-            create_node(child, parent->identifier, node->branch_length);
+    for (size_t it = 0; it < condensed_nodes.size(); it++) {
+        auto cn = condensed_nodes.begin();
+        std::advance(cn, it);
+
+        auto n = get_node(cn->first);
+        auto par = (n->parent != NULL) ? n->parent : n;
+
+        size_t num_samples = cn->second.size();
+
+        if (num_samples > 0) {
+            rename_node(n->identifier, cn->second[0]);
         }
-        remove_node(cn.first, true);
+
+        for (size_t s = 1; s < num_samples; s++) {
+            create_node(cn->second[s], par->identifier, n->branch_length);
+        }
     }
     condensed_nodes.clear();
     condensed_leaves.clear();
