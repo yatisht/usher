@@ -26,6 +26,7 @@ int main(int argc, char** argv) {
     uint32_t num_threads;
     bool sort_before_placement_1 = false;
     bool sort_before_placement_2 = false;
+    bool reverse_sort = false;
     bool collapse_tree=false;
     bool print_uncondensed_tree = false;
     bool print_parsimony_scores = false;
@@ -44,6 +45,8 @@ int main(int argc, char** argv) {
          "Sort new samples based on computed parsimony score and then number of optimal placements before the actual placement [EXPERIMENTAL].")
         ("sort-before-placement-2,S", po::bool_switch(&sort_before_placement_2), \
          "Sort new samples based on the number of optimal placements and then the parsimony score before the actual placement [EXPERIMENTAL].")
+        ("reverse-sort,r", po::bool_switch(&reverse_sort), \
+         "Reverse the sorting order of sorting options (sort-before-placement-1 or sort-before-placement-2) [EXPERIMENTAL]")
         ("collapse-final-tree,c", po::bool_switch(&collapse_tree), \
          "Collapse internal nodes of the output tree with no mutations and condense identical sequences in polytomies into a single node and the save the tree to file condensed-final-tree.nh in outdir")
         ("write-uncondensed-final-tree,u", po::bool_switch(&print_uncondensed_tree), "Write the final tree in uncondensed format and save to file uncondensed-final-tree.nh in outdir")
@@ -87,7 +90,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    if (sort_before_placement_1 || sort_before_placement_2) {
+    if (sort_before_placement_1 || sort_before_placement_2) { 
         std::cerr << "WARNING: Using experimental option ";
         if (sort_before_placement_1) {
             std::cerr << "--sort-before-placement-1 (-s)\n";
@@ -95,6 +98,10 @@ int main(int argc, char** argv) {
         if (sort_before_placement_2) {
             std::cerr << "--sort-before-placement-2 (-S)\n";
         }
+    }
+    else if (reverse_sort) {
+        std::cerr << "ERROR: Can't use reverse-sort without sorting options (sort-before-placement-1 or sort-before-placement-2)\n";
+        return 1;
     }
 
 
@@ -458,16 +465,28 @@ int main(int argc, char** argv) {
                 }
 
                 if (sort_before_placement_1) {
-                    std::stable_sort(indexes.begin(), indexes.end(),
-                            [&num_best_placements, &best_parsimony_scores](size_t i1, size_t i2) 
-                            {return ((best_parsimony_scores[i1] < best_parsimony_scores[i2]) || \
-                                    ((best_parsimony_scores[i1] == best_parsimony_scores[i2]) && (num_best_placements[i1] < num_best_placements[i2])));});
+                    if (!reverse_sort)
+                        std::stable_sort(indexes.begin(), indexes.end(),
+                                [&num_best_placements, &best_parsimony_scores](size_t i1, size_t i2) 
+                                {return ((best_parsimony_scores[i1] < best_parsimony_scores[i2]) || \
+                                        ((best_parsimony_scores[i1] == best_parsimony_scores[i2]) && (num_best_placements[i1] < num_best_placements[i2])));});
+                    else
+                        std::stable_sort(indexes.begin(), indexes.end(),
+                                [&num_best_placements, &best_parsimony_scores](size_t i1, size_t i2) 
+                                {return ((best_parsimony_scores[i1] > best_parsimony_scores[i2]) || \
+                                        ((best_parsimony_scores[i1] == best_parsimony_scores[i2]) && (num_best_placements[i1] > num_best_placements[i2])));});
                 }
                 else if (sort_before_placement_2) {
-                    std::stable_sort(indexes.begin(), indexes.end(),
-                            [&num_best_placements, &best_parsimony_scores](size_t i1, size_t i2) 
-                            {return ((num_best_placements[i1] < num_best_placements[i2]) || \
-                                    ((num_best_placements[i1] == num_best_placements[i2]) && (best_parsimony_scores[i1] < best_parsimony_scores[i2])));});
+                    if (!reverse_sort)
+                        std::stable_sort(indexes.begin(), indexes.end(),
+                                [&num_best_placements, &best_parsimony_scores](size_t i1, size_t i2) 
+                                {return ((num_best_placements[i1] < num_best_placements[i2]) || \
+                                        ((num_best_placements[i1] == num_best_placements[i2]) && (best_parsimony_scores[i1] < best_parsimony_scores[i2])));});
+                    else 
+                        std::stable_sort(indexes.begin(), indexes.end(),
+                                [&num_best_placements, &best_parsimony_scores](size_t i1, size_t i2) 
+                                {return ((num_best_placements[i1] > num_best_placements[i2]) || \
+                                        ((num_best_placements[i1] == num_best_placements[i2]) && (best_parsimony_scores[i1] > best_parsimony_scores[i2])));});
                 }
 
                 fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
