@@ -5,8 +5,15 @@
 #include <vector>
 #include <queue>
 #include <stack>
+#include <unordered_set>
 #include <algorithm>
 #include <cassert>
+#include <tbb/flow_graph.h>
+#include <tbb/reader_writer_lock.h>
+#include <tbb/scalable_allocator.h>
+#include <tbb/task_scheduler_init.h>
+#include <tbb/blocked_range.h>
+#include <tbb/tbb.h>
 #include "parsimony.pb.h"
 
 namespace Mutation_Annotated_Tree {
