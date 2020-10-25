@@ -20,10 +20,9 @@ int mapper_body::operator()(mapper_input input) {
 
         for (auto l: input.T->get_leaves()) {
             size_t node_idx = (*input.bfs_idx)[l->identifier];
-            for (int j=0; j<4; j++) {
-                if ((1 << j) != input.ref_nuc) 
-                    scores[node_idx][j] = (int) num_nodes;
-            }
+            int8_t j = MAT::get_nt(input.ref_nuc);
+            assert (j >= 0);
+            scores[node_idx][j] = (int) num_nodes;
         }
 
         for (auto v: input.variants) {
@@ -102,12 +101,8 @@ int mapper_body::operator()(mapper_input input) {
                 par_state = states[par_idx];
             }
             else {
-                for (int j=0; j<4; j++) {
-                    if ((1 << j) == input.ref_nuc) { 
-                        par_state = j;
-                        break;
-                    }
-                }
+                par_state = MAT::get_nt(input.ref_nuc);
+                assert (par_state >= 0);
             }
 
             int8_t state = par_state;
@@ -149,8 +144,8 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores) {
     //    TIMEIT();
 
     int set_difference = 0;
-    int best_set_difference = *input.best_set_difference;
 
+    int best_set_difference = *input.best_set_difference;
 
     std::vector<int> anc_positions;
     std::vector<MAT::Mutation> ancestral_mutations;
@@ -367,8 +362,8 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores) {
 
     // if sibling of internal node or leaf, ensure it is not equivalent to placing under parent
     // if child of internal node, ensure all internal node mutations are present in the sample
-    if ((has_unique && !input.node->is_leaf() && (num_common_mut > 0) && (node_num_mut != num_common_mut)) || \
-            (input.node->is_leaf() && (num_common_mut > 0)) || (!has_unique && !input.node->is_leaf() && (node_num_mut == num_common_mut))) { 
+    if (input.node->is_root() || ((has_unique && !input.node->is_leaf() && (num_common_mut > 0) && (node_num_mut != num_common_mut)) || \
+            (input.node->is_leaf() && (num_common_mut > 0)) || (!has_unique && !input.node->is_leaf() && (node_num_mut == num_common_mut)))) { 
         data_lock.lock();
         if (set_difference > *input.best_set_difference) {
             data_lock.unlock();

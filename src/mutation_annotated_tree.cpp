@@ -91,6 +91,23 @@ char Mutation_Annotated_Tree::get_nuc (int8_t nuc_id) {
     return ret;
 }
 
+int8_t Mutation_Annotated_Tree::get_nt (int8_t nuc_id) {
+    int8_t ret = 0;
+    switch(nuc_id) {
+        case 1: ret = 0;
+                break;
+        case 2: ret = 1;
+                break;
+        case 4: ret = 2;
+                break;
+        case 8: ret = 3;
+                break;
+        default: ret = -1;
+                 break;
+    }
+    return ret;
+}
+
 std::vector<int8_t> Mutation_Annotated_Tree::get_nuc_vec (char c) {
     switch (c) {
         case 'a':
@@ -418,14 +435,15 @@ void Mutation_Annotated_Tree::save_mutation_annotated_tree (Mutation_Annotated_T
             auto mut = mutation_list->add_mutation();
             mut->set_chromosome(m.chrom);
             mut->set_position(m.position);
-            for (int8_t j=0; j<4; j++) {
-                if ((1<<j) == m.ref_nuc) {
-                    mut->set_ref_nuc(j);
-                }
-                if ((1<<j) == m.par_nuc) {
-                    mut->set_par_nuc(j);
-                }
-            }
+            
+            int8_t j = get_nt(m.ref_nuc);
+            assert (j >= 0);
+            mut->set_ref_nuc(j);
+            
+            j = get_nt(m.par_nuc);
+            assert (j >= 0);
+            mut->set_par_nuc(j);
+            
             mut->clear_mut_nuc();
             for (auto nuc: get_nuc_vec_from_id(m.mut_nuc)) {
                 mut->add_mut_nuc(nuc);
@@ -689,6 +707,7 @@ void Mutation_Annotated_Tree::Tree::remove_node (std::string nid, bool move_leve
         }
     }
     max_level = new_max_level;
+
 }
 
 void Mutation_Annotated_Tree::Tree::move_node (std::string source_id, std::string dest_id) {
