@@ -20,6 +20,7 @@ namespace Mutation_Annotated_Tree {
     int8_t get_nuc_id (char nuc);
     int8_t get_nuc_id (std::vector<int8_t> nuc_vec);
     char get_nuc (int8_t nuc_id);
+    int8_t get_nt (int8_t nuc_id);
     std::vector<int8_t> get_nuc_vec (char nuc);
     std::vector<int8_t> get_nuc_vec_from_id (int8_t nuc_id);
 

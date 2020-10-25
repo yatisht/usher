@@ -465,28 +465,20 @@ int main(int argc, char** argv) {
                 }
 
                 if (sort_before_placement_1) {
-                    if (!reverse_sort)
-                        std::stable_sort(indexes.begin(), indexes.end(),
-                                [&num_best_placements, &best_parsimony_scores](size_t i1, size_t i2) 
-                                {return ((best_parsimony_scores[i1] < best_parsimony_scores[i2]) || \
-                                        ((best_parsimony_scores[i1] == best_parsimony_scores[i2]) && (num_best_placements[i1] < num_best_placements[i2])));});
-                    else
-                        std::stable_sort(indexes.begin(), indexes.end(),
-                                [&num_best_placements, &best_parsimony_scores](size_t i1, size_t i2) 
-                                {return ((best_parsimony_scores[i1] > best_parsimony_scores[i2]) || \
-                                        ((best_parsimony_scores[i1] == best_parsimony_scores[i2]) && (num_best_placements[i1] > num_best_placements[i2])));});
+                    std::stable_sort(indexes.begin(), indexes.end(),
+                            [&num_best_placements, &best_parsimony_scores](size_t i1, size_t i2) 
+                            {return ((best_parsimony_scores[i1] < best_parsimony_scores[i2]) || \
+                                    ((best_parsimony_scores[i1] == best_parsimony_scores[i2]) && (num_best_placements[i1] < num_best_placements[i2])));});
                 }
                 else if (sort_before_placement_2) {
-                    if (!reverse_sort)
-                        std::stable_sort(indexes.begin(), indexes.end(),
-                                [&num_best_placements, &best_parsimony_scores](size_t i1, size_t i2) 
-                                {return ((num_best_placements[i1] < num_best_placements[i2]) || \
-                                        ((num_best_placements[i1] == num_best_placements[i2]) && (best_parsimony_scores[i1] < best_parsimony_scores[i2])));});
-                    else 
-                        std::stable_sort(indexes.begin(), indexes.end(),
-                                [&num_best_placements, &best_parsimony_scores](size_t i1, size_t i2) 
-                                {return ((num_best_placements[i1] > num_best_placements[i2]) || \
-                                        ((num_best_placements[i1] == num_best_placements[i2]) && (best_parsimony_scores[i1] > best_parsimony_scores[i2])));});
+                    std::stable_sort(indexes.begin(), indexes.end(),
+                            [&num_best_placements, &best_parsimony_scores](size_t i1, size_t i2) 
+                            {return ((num_best_placements[i1] < num_best_placements[i2]) || \
+                                    ((num_best_placements[i1] == num_best_placements[i2]) && (best_parsimony_scores[i1] < best_parsimony_scores[i2])));});
+                }
+                
+                if (reverse_sort) {
+                    std::reverse(indexes.begin(), indexes.end());
                 }
 
                 fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
