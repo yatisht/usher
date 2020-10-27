@@ -722,7 +722,7 @@ int main(int argc, char** argv) {
                         }
 
                         if ((optimal_trees.size() <= max_trees) && (num_best + optimal_trees.size() > max_trees)) {
-                            if (num_best + optimal_trees.size() > max_trees+1)
+                            if ((num_best + optimal_trees.size() > max_trees+1) && (max_trees > 1))
                                 fprintf (stderr, "%zu parsimony-optimal placements found but total trees has already exceed the max possible value (%i)!\n", num_best, max_trees);
                             num_best = 1 + max_trees - optimal_trees.size();
                         }
