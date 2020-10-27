@@ -10,8 +10,6 @@
 #include "usher_graph.hpp"
 #include "parsimony.pb.h"
 
-#define MAX_TREES 100
-
 namespace po = boost::program_options;
 namespace MAT = Mutation_Annotated_Tree;
 
@@ -24,13 +22,13 @@ int main(int argc, char** argv) {
     std::string vcf_filename;
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
     uint32_t num_threads;
+    uint8_t max_trees;
     bool sort_before_placement_1 = false;
     bool sort_before_placement_2 = false;
     bool reverse_sort = false;
     bool collapse_tree=false;
     bool print_uncondensed_tree = false;
     bool print_parsimony_scores = false;
-    bool multiple_placements = false;
     size_t print_subtrees_size=0;
     po::options_description desc{"Options"};
 
@@ -47,15 +45,15 @@ int main(int argc, char** argv) {
          "Sort new samples based on the number of optimal placements and then the parsimony score before the actual placement [EXPERIMENTAL].")
         ("reverse-sort,r", po::bool_switch(&reverse_sort), \
          "Reverse the sorting order of sorting options (sort-before-placement-1 or sort-before-placement-2) [EXPERIMENTAL]")
-        ("collapse-final-tree,c", po::bool_switch(&collapse_tree), \
-         "Collapse internal nodes of the output tree with no mutations and condense identical sequences in polytomies into a single node and the save the tree to file condensed-final-tree.nh in outdir")
+        ("collapse-tree,c", po::bool_switch(&collapse_tree), \
+         "Collapse internal nodes of the input tree with no mutations and condense identical sequences in polytomies into a single node and the save the tree to file condensed-tree.nh in outdir")
         ("write-uncondensed-final-tree,u", po::bool_switch(&print_uncondensed_tree), "Write the final tree in uncondensed format and save to file uncondensed-final-tree.nh in outdir")
         ("write-subtrees-size,k", po::value<size_t>(&print_subtrees_size)->default_value(0), \
          "Write minimum set of subtrees covering the newly added samples of size equal to or larger than this value")
         ("write-parsimony-scores-per-node,p", po::bool_switch(&print_parsimony_scores), \
          "Write the parsimony scores for adding new samples at each existing node in the tree without modifying the tree in a file names parsimony-scores.tsv in outdir")
-        ("multiple-placements,M", po::bool_switch(&multiple_placements), \
-         "Allow multiple parsimony-optimal placements on the tree (creates a tree for each possibility)")
+        ("multiple-placements,M", po::value<uint8_t>(&max_trees)->default_value(1), \
+         "Create a new tree up to this limit for each possibility of parsimony-optimal placement (range <= 255) [EXPERIMENTAL]")
         ("threads,T", po::value<uint32_t>(&num_threads)->default_value(num_cores), num_threads_message.c_str())
         ("help,h", "Print help messages");
     
@@ -80,11 +78,6 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    if ((din_filename != "") && collapse_tree) {
-        std::cerr << "ERROR: cannot load assignments and collapse tree simulaneously.\n";
-        return 1;
-    }
-    
     if (sort_before_placement_1 && sort_before_placement_2) {
         std::cerr << "ERROR: Can't use sort-before-placement-1 and sort-before-placement-2 simultaneously. Please specify only one.\n";
         return 1;
@@ -106,7 +99,7 @@ int main(int argc, char** argv) {
 
 
     if (print_parsimony_scores) {
-        if (multiple_placements) {
+        if (max_trees > 1) {
             std::cerr << "ERROR: cannot use --multiple-placements (-M) and --print_parsimony_scores (-p) options simulaneously.\n";
             return 1;
         }
@@ -114,6 +107,14 @@ int main(int argc, char** argv) {
         if (sort_before_placement_1 || sort_before_placement_2 || collapse_tree || print_uncondensed_tree || (print_subtrees_size > 0) || (dout_filename != "")) {
             fprintf (stderr, "WARNING: --print-parsimony-scores-per-node is set. Will terminate without modifying the original tree.\n");
         }
+    }
+
+    if (max_trees == 0) {
+        std::cerr << "ERROR: Number of trees specified by --multiple-placements (-M) should be >= 1\n";
+        return 1;
+    }
+    if (max_trees > 1) {
+        std::cerr << "WARNING: Using experimental option --multiple-placements (-M)\n";
     }
 
     boost::filesystem::path path(outdir);
@@ -367,45 +368,74 @@ int main(int argc, char** argv) {
         exit(1);
     }
 
+    if (collapse_tree) {
+        timer.Start();
+        
+        fprintf(stderr, "Collapsing input tree. \n");
+
+        assert(num_trees == 0);
+
+        for (size_t t_idx = 0; t_idx < num_trees; t_idx++) {
+            if (num_trees > 1) {
+                fprintf(stderr, "==Tree %zu=== \n", t_idx+1);
+            }
+
+            T = &optimal_trees[t_idx];
+
+            auto tmp_T =  MAT::get_tree_copy(*T);
+            condensed_trees.emplace_back(std::move(tmp_T));
+
+            condensed_T = &condensed_trees[t_idx];
+            condensed_T->collapse_tree();
+
+            fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+
+            fprintf(stderr, "Condensing identical sequences. \n");
+
+            timer.Start();
+            condensed_T->collapse_tree();
+
+            auto condensed_tree_filename = outdir + "/condensed-tree.nh";
+            if (num_trees > 1) {
+                condensed_tree_filename =  outdir + "/condensed-tree" + std::to_string(t_idx+1) + ".nh";
+                fprintf(stderr, "Writing condensed input tree %zu to file %s\n", t_idx+1, condensed_tree_filename.c_str());
+            }
+            else {
+                fprintf(stderr, "Writing condensed input tree to file %s\n", condensed_tree_filename.c_str());
+            }
+            FILE* condensed_tree_file = fopen(condensed_tree_filename.c_str(), "w");
+            fprintf(condensed_tree_file, "%s\n", MAT::get_newick_string(*condensed_T, true, true).c_str());
+            fclose(condensed_tree_file);
+
+            fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+        }
+    }
 
     fprintf(stderr, "Found %zu missing samples.\n\n", missing_samples.size()); 
 
     FILE* parsimony_scores_file = NULL; 
         
     if (missing_samples.size() > 0) {
-        timer.Start();
-        
-        fprintf(stderr, "Sorting node mutations by positions.\n");  
-
-        T = &optimal_trees[0];
-        
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, missing_samples.size()),
-                [&](tbb::blocked_range<size_t> r) {
-                for (size_t k=r.begin(); k<r.end(); ++k){
-                    if (!std::is_sorted(missing_sample_mutations[k].begin(), missing_sample_mutations[k].end())) {
-                        std::sort(missing_sample_mutations[k].begin(), missing_sample_mutations[k].end()); 
-                    }
-                }
-        });
-
-        fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
         
         std::vector<size_t> indexes(missing_samples.size());
         std::iota(indexes.begin(), indexes.end(), 0);
         
         if (print_parsimony_scores) {
+            timer.Start();
             auto current_tree_filename = outdir + "/current-tree.nh";
             
             fprintf(stderr, "Writing current tree with internal nodes labelled to file %s \n", current_tree_filename.c_str());
             FILE* current_tree_file = fopen(current_tree_filename.c_str(), "w");
             fprintf(current_tree_file, "%s\n", MAT::get_newick_string(*T, true, true).c_str());
             fclose(current_tree_file);
+            
+            fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
         } 
         else {
             if ((sort_before_placement_1 || sort_before_placement_2) && (missing_samples.size() > 1)) {
                 timer.Start();
                 fprintf(stderr, "Computing parsimony scores and number of parsimony-optimal placements for new samples and using them to sort the samples.\n"); 
-                if (multiple_placements) {
+                if (max_trees > 1) {
                     fprintf(stderr, "WARNING: --multiple-placements option is used but note that the samples will be sorted only once using the parsimony scores on input tree (without actual placements).\n"); 
                 }
 
@@ -571,7 +601,7 @@ int main(int argc, char** argv) {
                     fprintf(stderr, "Current tree size (#nodes): %zu\tSample name: %s\tParsimony score: %d\tNumber of parsimony-optimal placements: %zu\n", total_nodes, sample.c_str(), \
                             best_set_difference, num_best);
                     if (num_best > 3) {
-                        if (!multiple_placements) {
+                        if (max_trees == 1) {
                             low_confidence_samples.emplace_back(sample);
                         }
                         fprintf(stderr, "WARNING: Too many parsimony-optimal placements found. Placement done without high confidence.\n");
@@ -658,7 +688,7 @@ int main(int argc, char** argv) {
 #endif
                 
                 MAT::Tree curr_tree;
-                if ((multiple_placements) && (num_best > 1) && (num_trees < MAX_TREES)) {
+                if ((max_trees > 1) && (num_best > 1) && (num_trees < max_trees)) {
                     curr_tree = MAT::get_tree_copy(*T);
                 }
 
@@ -687,20 +717,20 @@ int main(int argc, char** argv) {
                 }
                 else {
                     if (num_best > 1) {
-                        if (multiple_placements) {
+                        if (max_trees > 1) {
                             std::sort(best_j_vec.begin(), best_j_vec.end());
                         }
 
-                        if ((optimal_trees.size() <= MAX_TREES) && (num_best + optimal_trees.size() > MAX_TREES)) {
-                            if (num_best + optimal_trees.size() > MAX_TREES+1)
-                                fprintf (stderr, "%zu parsimony-optimal placements found but total trees has already exceed the max possible value (%i)!\n", num_best, MAX_TREES);
-                            num_best = 1 + MAX_TREES - optimal_trees.size();
+                        if ((optimal_trees.size() <= max_trees) && (num_best + optimal_trees.size() > max_trees)) {
+                            if (num_best + optimal_trees.size() > max_trees+1)
+                                fprintf (stderr, "%zu parsimony-optimal placements found but total trees has already exceed the max possible value (%i)!\n", num_best, max_trees);
+                            num_best = 1 + max_trees - optimal_trees.size();
                         }
                     }
 
                     for (size_t k = 0; k < num_best; k++) {
 
-                        if ((multiple_placements) && (num_best > 1)) {
+                        if ((max_trees > 1) && (num_best > 1)) {
                             best_j = best_j_vec[k];
                             best_node_has_unique = node_has_unique[k];
                             best_node = dfs[best_j];
@@ -845,7 +875,7 @@ int main(int argc, char** argv) {
                             }
                         }
                         
-                        if (!multiple_placements) {
+                        if (max_trees == 1) {
                             break;
                         }
                     }
@@ -866,51 +896,6 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-    if (collapse_tree) {
-        timer.Start();
-        
-        if (num_trees == 1) {
-            fprintf(stderr, "Collapsing final tree. \n");
-        }
-        else {
-            fprintf(stderr, "Collapsing final trees. \n");
-        }
-
-        for (size_t t_idx = 0; t_idx < num_trees; t_idx++) {
-            if (num_trees > 1) {
-                fprintf(stderr, "==Tree %zu=== \n", t_idx+1);
-            }
-
-            T = &optimal_trees[t_idx];
-
-            auto tmp_T =  MAT::get_tree_copy(*T);
-            condensed_trees.emplace_back(std::move(tmp_T));
-
-            condensed_T = &condensed_trees[t_idx];
-            condensed_T->collapse_tree();
-
-            fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
-
-            fprintf(stderr, "Condensing identical sequences. \n");
-
-            timer.Start();
-            condensed_T->collapse_tree();
-
-            auto condensed_tree_filename = outdir + "/condensed-final-tree.nh";
-            if (num_trees > 1) {
-                condensed_tree_filename =  outdir + "/condensed-final-tree" + std::to_string(t_idx+1) + ".nh";
-                fprintf(stderr, "Writing condensed final tree %zu to file %s\n", t_idx+1, condensed_tree_filename.c_str());
-            }
-            else {
-                fprintf(stderr, "Writing condensed final tree to file %s\n", condensed_tree_filename.c_str());
-            }
-            FILE* condensed_tree_file = fopen(condensed_tree_filename.c_str(), "w");
-            fprintf(condensed_tree_file, "%s\n", MAT::get_newick_string(*condensed_T, true, true).c_str());
-            fclose(condensed_tree_file);
-
-            fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
-        }
-    }
 
     for (size_t t_idx = 0; t_idx < num_trees; t_idx++) {
         timer.Start();
@@ -1245,7 +1230,7 @@ int main(int argc, char** argv) {
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
     
-    if (multiple_placements) {
+    if (max_trees > 1) {
         if (optimal_trees.size() > 1) {
             fprintf(stderr, "Best final tree found during multiple placements is tree-%zu with a parsimony score of %zu\n\n", best_tree_index+1, best_tree_parsimony);
         }
