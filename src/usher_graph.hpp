@@ -1,4 +1,5 @@
-#include "tree.hpp"
+//#include "tree.hpp"
+#include "mutation_annotated_tree.hpp"
 #include <set>
 #include <cassert>
 #include <unordered_set>
@@ -14,6 +15,8 @@
 #endif
 
 //extern std::mutex data_lock;
+
+namespace MAT = Mutation_Annotated_Tree;
 
 class Timer {
     private:
@@ -33,32 +36,18 @@ class Timer {
         
 };
 
-struct mutation {
-    std::string chrom;
-    int position;
-    int8_t ref_nuc;
-    int8_t par_nuc;
-    bool is_missing;
-    std::vector<int8_t> mut_nuc;
-};
-
-static inline bool compare_by_position (const mutation & a, const mutation& b) { 
-    return a.position < b.position; 
-}
-
 struct mapper_input {
-    Tree* T;
+    MAT::Tree* T;
     std::string chrom;
     int8_t ref_nuc;
     int variant_pos;
-    std::vector<Node*>* bfs;
+    std::vector<MAT::Node*>* bfs;
     std::unordered_map<std::string, size_t>* bfs_idx;
-    std::vector<std::tuple<size_t, std::vector<int8_t>>> variants;
+    std::vector<std::tuple<size_t, int8_t>> variants;
     std::vector<std::string>* variant_ids;
     
     std::vector<std::string>* missing_samples;
-    std::unordered_map<Node*, std::vector<mutation>>* node_mutations;
-    std::vector<std::vector<mutation>>* missing_sample_mutations;
+    std::vector<std::vector<MAT::Mutation>>* missing_sample_mutations;
 };
 
 struct mapper_body {
@@ -67,10 +56,9 @@ struct mapper_body {
 
 struct mapper2_input {
     std::string missing_sample;
-    Tree* T;
-    Node* node;
-    std::unordered_map<Node*, std::vector<mutation>>* node_mutations;
-    std::vector<mutation>* missing_sample_mutations;
+    MAT::Tree* T;
+    MAT::Node* node;
+    std::vector<MAT::Mutation>* missing_sample_mutations;
     
     int* best_set_difference;
     int* set_difference;
@@ -78,17 +66,15 @@ struct mapper2_input {
     size_t j;
     size_t* best_j;
     size_t* num_best;
-    Node** best_node;
+    MAT::Node** best_node;
 
-#if DEBUG == 1
     std::vector<bool>* node_has_unique;
     std::vector<size_t>* best_j_vec;
-#endif
     
     bool* has_unique;
 
-    std::vector<mutation>* excess_mutations;
-    std::vector<mutation>* imputed_mutations;
+    std::vector<MAT::Mutation>* excess_mutations;
+    std::vector<MAT::Mutation>* imputed_mutations;
 };
 
 void mapper2_body(mapper2_input& inp, bool compute_parsimony_scores);
