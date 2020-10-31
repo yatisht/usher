@@ -1,6 +1,8 @@
 #include "mutation_annotated_tree.hpp"
 #include <iomanip>
 
+// Uses one-hot encoding if base is unambiguous
+// A:1,C:2,G:4,T:8
 int8_t Mutation_Annotated_Tree::get_nuc_id (char nuc) {
     int8_t ret = 0b1111;
     switch(nuc) {
@@ -43,6 +45,7 @@ int8_t Mutation_Annotated_Tree::get_nuc_id (char nuc) {
     return ret;
 }
 
+// Sets bits at positions specified by nuc_vec to 1 in int8
 int8_t Mutation_Annotated_Tree::get_nuc_id (std::vector<int8_t> nuc_vec) {
     int8_t ret = 0;
     int8_t one = 1;
@@ -53,6 +56,7 @@ int8_t Mutation_Annotated_Tree::get_nuc_id (std::vector<int8_t> nuc_vec) {
     return ret;
 }
 
+// Convert nuc_id back to IUPAC base 
 char Mutation_Annotated_Tree::get_nuc (int8_t nuc_id) {
     char ret = 'N';
     //assert ((nuc_id >= 1) && (nuc_id <= 15));
@@ -91,6 +95,7 @@ char Mutation_Annotated_Tree::get_nuc (int8_t nuc_id) {
     return ret;
 }
 
+// A:0, C:1, G:2, T:3 
 int8_t Mutation_Annotated_Tree::get_nt (int8_t nuc_id) {
     int8_t ret = 0;
     switch(nuc_id) {
@@ -138,6 +143,11 @@ std::vector<int8_t> Mutation_Annotated_Tree::get_nuc_vec_from_id (int8_t nuc_id)
     return get_nuc_vec(get_nuc(nuc_id));
 }
 
+// Get newick string for the input subtree rooted at some node (node) in the 
+// input tree T. Boolean arguments decide whether
+// internal node ids and branch lengths are printed. If last boolean argument is
+// set, branch lengths from input tree are retained, otherwise, branch length
+// for a branch is equal to the number of mutations annotated on that branch 
 std::string Mutation_Annotated_Tree::get_newick_string (Mutation_Annotated_Tree::Tree& T, Mutation_Annotated_Tree::Node* node, bool print_internal, bool print_branch_len, bool retain_original_branch_len) {
     std::string newick_string = "";
 
@@ -249,6 +259,7 @@ std::string Mutation_Annotated_Tree::get_newick_string (Tree& T, bool print_inte
     return get_newick_string(T, T.root, print_internal, print_branch_len, retain_original_branch_len);
 }
 
+// Split string into words for a specific delimiter delim
 void Mutation_Annotated_Tree::string_split (std::string s, char delim, std::vector<std::string>& words) {
     std::string curr = "";
     for (auto c: s) {
@@ -265,6 +276,7 @@ void Mutation_Annotated_Tree::string_split (std::string s, char delim, std::vect
     }
 }
 
+// Split string into words (delimited by space, tabs etc.)
 void Mutation_Annotated_Tree::string_split (std::string s, std::vector<std::string>& words) {
     std::string curr = "";
     std::vector<std::string> ret;
