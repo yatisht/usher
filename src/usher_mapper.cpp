@@ -20,9 +20,13 @@ int mapper_body::operator()(mapper_input input) {
 
         for (auto l: input.T->get_leaves()) {
             size_t node_idx = (*input.bfs_idx)[l->identifier];
-            int8_t j = MAT::get_nt(input.ref_nuc);
-            assert (j >= 0);
-            scores[node_idx][j] = (int) num_nodes;
+            int8_t ref_nuc_id = MAT::get_nt(input.ref_nuc);
+            assert (ref_nuc_id >= 0);
+            for (int j=0; j<4; j++) {
+                if (j != ref_nuc_id) {
+                    scores[node_idx][j] = (int) num_nodes;
+                }
+            }
         }
 
         for (auto v: input.variants) {

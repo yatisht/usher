@@ -137,9 +137,7 @@ int main(int argc, char** argv) {
 #endif
 
     std::vector<MAT::Tree> optimal_trees;
-    std::vector<MAT::Tree> condensed_trees;
     MAT::Tree* T;
-    MAT::Tree* condensed_T;
 
     size_t best_tree_index = 0;
     size_t best_tree_parsimony = (1 << 30);
@@ -371,44 +369,26 @@ int main(int argc, char** argv) {
     if (collapse_tree) {
         timer.Start();
         
-        fprintf(stderr, "Collapsing input tree. \n");
+        fprintf(stderr, "Collapsing input tree.\n");
+        
+        assert (optimal_trees.size() == 1);
 
-        num_trees = optimal_trees.size();
+        T->collapse_tree();
 
-        for (size_t t_idx = 0; t_idx < num_trees; t_idx++) {
-            if (num_trees > 1) {
-                fprintf(stderr, "==Tree %zu=== \n", t_idx+1);
-            }
+        fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 
-            T = &optimal_trees[t_idx];
+        fprintf(stderr, "Condensing identical sequences. \n");
 
-            auto tmp_T =  MAT::get_tree_copy(*T);
-            condensed_trees.emplace_back(std::move(tmp_T));
+        T->condense_leaves();
 
-            condensed_T = &condensed_trees[t_idx];
-            condensed_T->collapse_tree();
+        auto condensed_tree_filename = outdir + "/condensed-tree.nh";
+        fprintf(stderr, "Writing condensed input tree to file %s\n", condensed_tree_filename.c_str());
+        
+        FILE* condensed_tree_file = fopen(condensed_tree_filename.c_str(), "w");
+        fprintf(condensed_tree_file, "%s\n", MAT::get_newick_string(*T, true, true).c_str());
+        fclose(condensed_tree_file);
 
-            fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
-
-            fprintf(stderr, "Condensing identical sequences. \n");
-
-            timer.Start();
-            condensed_T->collapse_tree();
-
-            auto condensed_tree_filename = outdir + "/condensed-tree.nh";
-            if (num_trees > 1) {
-                condensed_tree_filename =  outdir + "/condensed-tree" + std::to_string(t_idx+1) + ".nh";
-                fprintf(stderr, "Writing condensed input tree %zu to file %s\n", t_idx+1, condensed_tree_filename.c_str());
-            }
-            else {
-                fprintf(stderr, "Writing condensed input tree to file %s\n", condensed_tree_filename.c_str());
-            }
-            FILE* condensed_tree_file = fopen(condensed_tree_filename.c_str(), "w");
-            fprintf(condensed_tree_file, "%s\n", MAT::get_newick_string(*condensed_T, true, true).c_str());
-            fclose(condensed_tree_file);
-
-            fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
-        }
+        fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
 
     fprintf(stderr, "Found %zu missing samples.\n\n", missing_samples.size()); 
@@ -1218,14 +1198,8 @@ int main(int argc, char** argv) {
 
         Parsimony::data data;
 
-        if (!collapse_tree) {
-            T = &optimal_trees[0];
-            MAT::save_mutation_annotated_tree(*T, dout_filename);
-        }
-        else {
-            condensed_T = &condensed_trees[0];
-            MAT::save_mutation_annotated_tree(*condensed_T, dout_filename);
-        }
+        T = &optimal_trees[0];
+        MAT::save_mutation_annotated_tree(*T, dout_filename);
         
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
