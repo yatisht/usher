@@ -97,8 +97,8 @@ namespace Mutation_Annotated_Tree {
             void collapse_tree();
     };
     
-    std::string get_newick_string(Tree& T, bool b1, bool b2);
-    std::string get_newick_string(Tree& T, Node* node, bool b1, bool b2);
+    std::string get_newick_string(Tree& T, bool b1, bool b2, bool b3=false);
+    std::string get_newick_string(Tree& T, Node* node, bool b1, bool b2, bool b3=false);
     Tree create_tree_from_newick (std::string filename);
     Tree create_tree_from_newick_string (std::string newick_string);
     void string_split(std::string s, char delim, std::vector<std::string>& words);
