@@ -373,7 +373,7 @@ int main(int argc, char** argv) {
         
         fprintf(stderr, "Collapsing input tree. \n");
 
-        assert(num_trees == 0);
+        num_trees = optimal_trees.size();
 
         for (size_t t_idx = 0; t_idx < num_trees; t_idx++) {
             if (num_trees > 1) {
