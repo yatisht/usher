@@ -138,7 +138,7 @@ std::vector<int8_t> Mutation_Annotated_Tree::get_nuc_vec_from_id (int8_t nuc_id)
     return get_nuc_vec(get_nuc(nuc_id));
 }
 
-std::string Mutation_Annotated_Tree::get_newick_string (Mutation_Annotated_Tree::Tree& T, Mutation_Annotated_Tree::Node* node, bool print_internal, bool print_branch_len) {
+std::string Mutation_Annotated_Tree::get_newick_string (Mutation_Annotated_Tree::Tree& T, Mutation_Annotated_Tree::Node* node, bool print_internal, bool print_branch_len, bool retain_original_branch_len) {
     std::string newick_string = "";
 
     std::vector<Node*> traversal = T.depth_first_expansion(node);
@@ -152,6 +152,9 @@ std::string Mutation_Annotated_Tree::get_newick_string (Mutation_Annotated_Tree:
     for (auto n: traversal) {
         size_t level = n->level-level_offset;
         float branch_length = n->branch_length;
+        if (!retain_original_branch_len) {
+            branch_length = static_cast<float>(n->mutations.size());
+        }
         if (curr_level < level) {
             if (!prev_open) {
                 newick_string += ",";
@@ -242,8 +245,8 @@ std::string Mutation_Annotated_Tree::get_newick_string (Mutation_Annotated_Tree:
     return newick_string;
 }
 
-std::string Mutation_Annotated_Tree::get_newick_string (Tree& T, bool print_internal, bool print_branch_len) {
-    return get_newick_string(T, T.root, print_internal, print_branch_len);
+std::string Mutation_Annotated_Tree::get_newick_string (Tree& T, bool print_internal, bool print_branch_len, bool retain_original_branch_len) {
+    return get_newick_string(T, T.root, print_internal, print_branch_len, retain_original_branch_len);
 }
 
 void Mutation_Annotated_Tree::string_split (std::string s, char delim, std::vector<std::string>& words) {

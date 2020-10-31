@@ -29,6 +29,7 @@ int main(int argc, char** argv) {
     bool collapse_tree=false;
     bool print_uncondensed_tree = false;
     bool print_parsimony_scores = false;
+    bool retain_original_branch_len = false;
     size_t print_subtrees_size=0;
     po::options_description desc{"Options"};
 
@@ -54,6 +55,8 @@ int main(int argc, char** argv) {
          "Write the parsimony scores for adding new samples at each existing node in the tree without modifying the tree in a file names parsimony-scores.tsv in outdir")
         ("multiple-placements,M", po::value<uint8_t>(&max_trees)->default_value(1), \
          "Create a new tree up to this limit for each possibility of parsimony-optimal placement (range <= 255) [EXPERIMENTAL]")
+        ("retain-input-branch-len,l", po::bool_switch(&retain_original_branch_len), \
+         "Write the parsimony scores for adding new samples at each existing node in the tree without modifying the tree in a file names parsimony-scores.tsv in outdir")
         ("threads,T", po::value<uint32_t>(&num_threads)->default_value(num_cores), num_threads_message.c_str())
         ("help,h", "Print help messages");
     
@@ -115,6 +118,13 @@ int main(int argc, char** argv) {
     }
     if (max_trees > 1) {
         std::cerr << "WARNING: Using experimental option --multiple-placements (-M)\n";
+    }
+
+    if (retain_original_branch_len) {
+        fprintf(stderr, "Output newick files will retain branch lengths from the input tree (unspecified at branches modified during the placement).\n\n");
+    }
+    else {
+        fprintf(stderr, "Output newick files will have branch lengths equal to the number of mutations of that branch.\n\n");
     }
 
     boost::filesystem::path path(outdir);
@@ -385,7 +395,7 @@ int main(int argc, char** argv) {
         fprintf(stderr, "Writing condensed input tree to file %s\n", condensed_tree_filename.c_str());
         
         FILE* condensed_tree_file = fopen(condensed_tree_filename.c_str(), "w");
-        fprintf(condensed_tree_file, "%s\n", MAT::get_newick_string(*T, true, true).c_str());
+        fprintf(condensed_tree_file, "%s\n", MAT::get_newick_string(*T, true, true, retain_original_branch_len).c_str());
         fclose(condensed_tree_file);
 
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
@@ -406,7 +416,7 @@ int main(int argc, char** argv) {
             
             fprintf(stderr, "Writing current tree with internal nodes labelled to file %s \n", current_tree_filename.c_str());
             FILE* current_tree_file = fopen(current_tree_filename.c_str(), "w");
-            fprintf(current_tree_file, "%s\n", MAT::get_newick_string(*T, true, true).c_str());
+            fprintf(current_tree_file, "%s\n", MAT::get_newick_string(*T, true, true, retain_original_branch_len).c_str());
             fclose(current_tree_file);
             
             fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
@@ -893,7 +903,7 @@ int main(int argc, char** argv) {
         auto parsimony_score = T->get_parsimony_score();
         fprintf(stderr, "The parsimony score for this tree is: %zu \n", parsimony_score);
         FILE* final_tree_file = fopen(final_tree_filename.c_str(), "w");
-        fprintf(final_tree_file, "%s\n", MAT::get_newick_string(*T, true, true).c_str());
+        fprintf(final_tree_file, "%s\n", MAT::get_newick_string(*T, true, true, retain_original_branch_len).c_str());
         fclose(final_tree_file);
 
         if (parsimony_score < best_tree_parsimony) {
@@ -925,10 +935,10 @@ int main(int argc, char** argv) {
             if (!collapse_tree && (T->condensed_nodes.size() > 0)) {
                 MAT::Tree T_to_print = MAT::get_tree_copy(*T);
                 T_to_print.uncondense_leaves();
-                fprintf(uncondensed_final_tree_file, "%s\n", MAT::get_newick_string(T_to_print, true, true).c_str());
+                fprintf(uncondensed_final_tree_file, "%s\n", MAT::get_newick_string(T_to_print, true, true, retain_original_branch_len).c_str());
             }
             else {
-                fprintf(uncondensed_final_tree_file, "%s\n", MAT::get_newick_string(*T, true, true).c_str());
+                fprintf(uncondensed_final_tree_file, "%s\n", MAT::get_newick_string(*T, true, true, retain_original_branch_len).c_str());
             }
             fclose(uncondensed_final_tree_file);
 
@@ -1036,7 +1046,7 @@ int main(int argc, char** argv) {
                         continue;
                     }
 
-                    std::string newick = MAT::get_newick_string(*T, anc, false, true);
+                    std::string newick = MAT::get_newick_string(*T, anc, false, true, retain_original_branch_len);
                     MAT::Tree new_T = MAT::create_tree_from_newick_string(newick);
 
                     std::unordered_map<MAT::Node*, std::vector<MAT::Mutation>> subtree_node_mutations;
@@ -1091,7 +1101,7 @@ int main(int argc, char** argv) {
                             }
                         }
 
-                        newick = MAT::get_newick_string(new_T, true, true);
+                        newick = MAT::get_newick_string(new_T, true, true, retain_original_branch_len);
                     }
 
                     tbb::parallel_for (tbb::blocked_range<size_t>(i+1, missing_samples.size(), 100),
