@@ -31,7 +31,7 @@ INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIRS})
 
 if(DEFINED Protobuf_PATH)
     add_executable(usher
-        src/tree.cpp
+        src/mutation_annotated_tree.cpp
         src/usher_mapper.cpp
         src/usher.cpp
         )
@@ -46,7 +46,7 @@ else()
         parsimony.proto)
 
     add_executable(usher
-        src/tree.cpp
+        src/mutation_annotated_tree.cpp
         src/usher_mapper.cpp
         src/usher.cpp
         ${PROTO_SRCS}
