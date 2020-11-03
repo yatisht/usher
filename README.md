@@ -25,6 +25,7 @@ UShER is much faster than existing tools with similar functionality and has now 
   - [Placing new samples](#placing-new-samples)
   - [Uncertainty in placing new samples](#uncertainty-in-placing-new-samples)
 * [Fasta2UShER](#fasta2usher)
+* [Acknowledgement](#acknowledgement)
 * [Reference](#reference)
 
 ## Installing UShER
@@ -184,7 +185,11 @@ python3 scripts/Fasta2UShER.py -inpath ./test/Fasta2UShER -outfile ./test/test_m
 
 Merged VCF with missing data for a particular sample denoted as "." in the corresponding genotype column.
 
-For the example above, a new VCF *test/test_merged.vcf* is generated (identical to the one already provided), which can be used by UShER to place the new samples. 
+For the example above, a new VCF *test/test_merged.vcf* is generated (identical to the one already provided), which can be used by UShER to place the new samples.
+
+## Acknowledgement
+
+We thank Jim Kent and the UCSC Genome Browser team for allowing us to download the `faToVcf` utility (from http://hgdownload.soe.ucsc.edu/admin/exe/) for `Fasta2UShER`.
 
 ## Reference
 **UShER:**
