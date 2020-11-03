@@ -16,7 +16,8 @@ make -j
 cd ..
     
 # install faToVcf
-wget http://public.gi.ucsc.edu/~yatisht/data/binaries/faToVcf
+#wget http://public.gi.ucsc.edu/~yatisht/data/binaries/faToVcf
+rsync -aP rsync://hgdownload-sd.soe.ucsc.edu/genome/admin/exe/linux.x86_64/faToVcf .
 chmod 777 ./faToVcf
 mv ./faToVcf ./scripts/faToVcf
 
