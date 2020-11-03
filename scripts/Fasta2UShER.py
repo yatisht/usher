@@ -7,8 +7,9 @@ import tempfile
 import subprocess
 
 parser = argparse.ArgumentParser(
-    description='Generates merged VCF that ignores indels and problematic sites and \
-recognizes missing data in addition to genotypes.')
+    description='Generates merged VCF that ignores indels \
+                 and problematic sites and \
+                 recognizes missing data in addition to genotypes.')
 
 print('\n\nFor more information on problematic sites see:\n\nNicola De Maio, \
 Landen Gozashti, Yatish Turakhia, Conor Walker, Robert Lanfear, \
@@ -32,8 +33,9 @@ parser.add_argument(
     nargs='?',
     const='T',
     default=None,
-    help='Signifies that user provided fasta files have not been aligned to the reference. \
-                    If specified, faToVcf uses mafft to perform multiple sequence alignments.')
+    help='Signifies that user provided fasta files have not been \
+                    aligned to the reference. If specified, faToVcf \
+                    uses mafft to perform multiple sequence alignments.')
 parser.add_argument(
     '-auto_mask',
     nargs='?',
@@ -49,7 +51,9 @@ parser.add_argument(
                     https://raw.githubusercontent.com/W-L/ProblematicSites_SARS-CoV2/master/problematic_sites_sarsCov2.vcf)')
 parser.add_argument('-reference', nargs='?', required=True,
                     help='Path to reference fasta file. \
-                     The reference sequence header should be identical to the reference sequence header in the input msa file')
+                     The reference sequence header should be \
+                     identical to the reference sequence header \
+                     in the input msa file')
 parser.add_argument('-output', nargs='?', required=True,
                     help='Name of output vcf file')
 parser.add_argument('-thread', nargs='?', required=False, default=1,
