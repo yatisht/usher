@@ -12,7 +12,7 @@ parser = argparse.ArgumentParser(
 
 print('\n\nFor more information on problematic sites see:\n\nNicola De Maio, Landen Gozashti, Yatish Turakhia, Conor Walker, Robert Lanfear, Russell Corbett-Detig, and Nick Goldman, Issues with SARS-Cov-2 sequencing data: Updated analysis with data from 12th June 2020, Virological post 2020. https://virological.org/t/issues-with-sars-cov-2-sequencing-data/473/12 \n    and \nYatish Turakhia, Bryan Thornlow, Landen Gozashti, Angie S. Hinrichs, Jason D. Fernandes, David Haussler, and Russell Corbett-Detig, "Stability of SARS-CoV-2 Phylogenies", bioRxiv pre-print 2020.\n\n')
 
-#Add argparse arguments
+# Add argparse arguments
 parser.add_argument(
     '-inpath',
     nargs='?',
@@ -57,7 +57,7 @@ if os.path.isfile('{0}/faToVcf'.format(filePath)) == False:
     raise Exception("faToVcf must be in the same directory as Fasta2UShER")
 
 # Change permissions to faToVcf
-subprocess.call('chmod 777 {0}/faToVcf'.format(filePath),shell=True)
+subprocess.call('chmod 777 {0}/faToVcf'.format(filePath), shell=True)
 
 
 """
@@ -68,7 +68,8 @@ Otherwise, read the name of the provided msa file
 """
 if args['unaligned'] is not None:
 
-    temp = tempfile.NamedTemporaryFile(mode='wt', delete=False) #create temporary file to harbor input sequences to MSA
+    # create temporary file to harbor input sequences to MSA
+    temp = tempfile.NamedTemporaryFile(mode='wt', delete=False)
     for name in glob.glob('{0}/*'.format(args['inpath'])):
         fasta_sequences = SeqIO.parse(open(name), 'fasta')
         for fasta in fasta_sequences:
@@ -76,13 +77,14 @@ if args['unaligned'] is not None:
             if header not in headDic:
                 headDic[header] = ''
                 temp.write('>{0}\n{1}\n'.format(header, sequence))
-    #Perform MSA
+    # Perform MSA
     subprocess.call(
         'mafft --thread {1} --auto --keeplength --addfragments {3}  {0} > {2}/inputMsa.fa'.format(
             args['reference'],
             args['thread'],
             filePath,
-            temp.name),shell=True)
+            temp.name),
+        shell=True)
     msaName = 'inputMsa.fa'
     temp.close()
 
@@ -116,44 +118,60 @@ probDic = {}
 
 if args['auto_mask'] is not None:
 
-    subprocess.call('wget https://raw.githubusercontent.com/W-L/ProblematicSites_SARS-CoV2/master/problematic_sites_sarsCov2.vcf',shell=True) #download masking recomendations
-    if '.vcf' in args['output']: #if the user specified ".vcf" in the output file name, do not add ".vcf" extention
+    subprocess.call(
+        'wget https://raw.githubusercontent.com/W-L/ProblematicSites_SARS-CoV2/master/problematic_sites_sarsCov2.vcf',
+        shell=True)  # download masking recomendations
+    # if the user specified ".vcf" in the output file name, do not add ".vcf"
+    # extention
+    if '.vcf' in args['output']:
         subprocess.call(
             '{3}/faToVcf -maskSites={3}/problematic_sites_sarsCov2.vcf -ref=\"{0}\" {1} {2}'.format(
-                head, msaName, args['output'].strip()),shell=True)
-        
-    else: #else add ".vcf" extention
+                head, msaName, args['output'].strip()), shell=True)
+    # else add ".vcf" extention
+    else:  
         subprocess.call(
             '{3}/faToVcf -maskSites={3}/problematic_sites_sarsCov2.vcf -ref=\"{0}\" {1} {2}.vcf'.format(
-                head, msaName, args['output'].strip()),shell=True)
+                head, msaName, args['output'].strip()), shell=True)
 
 
 # Retrieve user provided problematic sites if the user specied and run
 # fastaToVcf
 
 elif args['user_specified_mask'] is not None:
-    if '.vcf' in args['output']: #if the user specified ".vcf" in the output file name, do not add ".vcf" extention
-        subprocess.call('{3}/faToVcf -maskSites={3}/{0} -ref=\"{1}\" {2} {3}'.format(
-            args['user_specified_mask'], head, msaName, args['output'], filePath),shell=True)
-
-    else: #else add ".vcf" extention
+    # if the user specified ".vcf" in the output file name, do not add ".vcf"
+    # extention
+    if '.vcf' in args['output']:
+        subprocess.call(
+            '{3}/faToVcf -maskSites={3}/{0} -ref=\"{1}\" {2} {3}'.format(
+                args['user_specified_mask'],
+                head,
+                msaName,
+                args['output'],
+                filePath),
+            shell=True)
+    # else add ".vcf" extention
+    else:  
         subprocess.call('{3}/faToVcf -maskSites={3}/{0} -ref=\"{1}\" {2} {3}.vcf'.format(
-            args['user_specified_mask'], head, msaName, args['output'], filePath),shell=True)
+            args['user_specified_mask'], head, msaName, args['output'], filePath), shell=True)
 
 
 # Else run fastaToVcf without masking
 
 else:
 
-    if '.vcf' in args['output']: #if the user specified ".vcf" in the output file name, do not add ".vcf" extention
+    # if the user specified ".vcf" in the output file name, do not add ".vcf"
+    # extention
+    if '.vcf' in args['output']:
         subprocess.call('{3}/faToVcf  -ref=\"{0}\" {1} {2}'.format(head,
-                                                             msaName, args['output'], filePath),shell=True)
-
-    else: #else add ".vcf" extention
+                                                                   msaName, args['output'], filePath), shell=True)
+    # else add ".vcf" extention
+    else:
         subprocess.call('{3}/faToVcf  -ref=\"{0}\" {1} {2}.vcf'.format(head,
-                                                                 msaName, args['output'], filePath),shell=True)
+                                                                       msaName, args['output'], filePath), shell=True)
 
-#remove masking recomendations file if it was downloaded
-if os.path.isfile('{0}/problematic_sites_sarsCov2.vcf'.format(filePath)): 
+# remove masking recomendations file if it was downloaded
+if os.path.isfile('{0}/problematic_sites_sarsCov2.vcf'.format(filePath)):
 
-    subprocess.call('rm -r {0}/problematic_sites_sarsCov2.vcf'.format(filePath),shell=True)
+    subprocess.call(
+        'rm -r {0}/problematic_sites_sarsCov2.vcf'.format(filePath),
+        shell=True)
