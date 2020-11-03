@@ -10,7 +10,16 @@ parser = argparse.ArgumentParser(
     description='Generates merged VCF that ignores indels and problematic sites and \
                                               recognizes missing data in addition to genotypes.')
 
-print('\n\nFor more information on problematic sites see:\n\nNicola De Maio, Landen Gozashti, Yatish Turakhia, Conor Walker, Robert Lanfear, Russell Corbett-Detig, and Nick Goldman, Issues with SARS-Cov-2 sequencing data: Updated analysis with data from 12th June 2020, Virological post 2020. https://virological.org/t/issues-with-sars-cov-2-sequencing-data/473/12 \n    and \nYatish Turakhia, Bryan Thornlow, Landen Gozashti, Angie S. Hinrichs, Jason D. Fernandes, David Haussler, and Russell Corbett-Detig, "Stability of SARS-CoV-2 Phylogenies", bioRxiv pre-print 2020.\n\n')
+print('\n\nFor more information on problematic sites see:\n\nNicola De Maio, \
+Landen Gozashti, Yatish Turakhia, Conor Walker, Robert Lanfear, \
+Russell Corbett-Detig, and Nick Goldman, Issues with SARS-Cov-2 \
+sequencing data: Updated analysis with data from 12th June 2020, \
+Virological post 2020. \
+https://virological.org/t/issues-with-sars-cov-2-sequencing-data/473/12 \
+\n    and \nYatish Turakhia, Bryan Thornlow, Landen Gozashti, Angie \
+S. Hinrichs, Jason D. Fernandes, David Haussler, and Russell \
+Corbett-Detig, "Stability of SARS-CoV-2 Phylogenies", bioRxiv pre-print \
+2020.\n\n') 
 
 # Add argparse arguments
 parser.add_argument(
@@ -24,7 +33,7 @@ parser.add_argument(
     const='T',
     default=None,
     help='Signifies that user provided fasta files have not been aligned to the reference. \
-                    If specified, fasta2vcf uses mafft to perform multiple sequence alignments.')
+                    If specified, faToVcf uses mafft to perform multiple sequence alignments.')
 parser.add_argument(
     '-auto_mask',
     nargs='?',
@@ -52,13 +61,9 @@ msaList = []
 headDic = {}
 args = vars(parser.parse_args())
 filePath = '/'.join(os.path.realpath(__file__).split('/')[0:-1])
-# Check that fastaToVcf is in the same directory as Fasta2UShER
+# Check that faToVcf is in the same directory as Fasta2UShER
 if os.path.isfile('{0}/faToVcf'.format(filePath)) == False:
     raise Exception("faToVcf must be in the same directory as Fasta2UShER")
-
-# Change permissions to faToVcf
-subprocess.call('chmod 777 {0}/faToVcf'.format(filePath), shell=True)
-
 
 """
 
@@ -108,13 +113,13 @@ with open(args['reference'], 'r') as f:
 
 """
 
-Run fastaToVcf
+Run faToVcf
 
 """
 
 probDic = {}
 
-# Retrieve recomended problematic sites if the user specied and run fastaToVcf
+# Retrieve recomended problematic sites if the user specied and run faToVcf
 
 if args['auto_mask'] is not None:
 
@@ -122,12 +127,12 @@ if args['auto_mask'] is not None:
         'wget https://raw.githubusercontent.com/W-L/ProblematicSites_SARS-CoV2/master/problematic_sites_sarsCov2.vcf',
         shell=True)  # download masking recomendations
     # if the user specified ".vcf" in the output file name, do not add ".vcf"
-    # extention
+    # extension
     if '.vcf' in args['output']:
         subprocess.call(
             '{3}/faToVcf -maskSites={3}/problematic_sites_sarsCov2.vcf -ref=\"{0}\" {1} {2}'.format(
                 head, msaName, args['output'].strip()), shell=True)
-    # else add ".vcf" extention
+    # else add ".vcf" extension
     else:  
         subprocess.call(
             '{3}/faToVcf -maskSites={3}/problematic_sites_sarsCov2.vcf -ref=\"{0}\" {1} {2}.vcf'.format(
@@ -135,11 +140,11 @@ if args['auto_mask'] is not None:
 
 
 # Retrieve user provided problematic sites if the user specied and run
-# fastaToVcf
+# faToVcf
 
 elif args['user_specified_mask'] is not None:
     # if the user specified ".vcf" in the output file name, do not add ".vcf"
-    # extention
+    # extension
     if '.vcf' in args['output']:
         subprocess.call(
             '{3}/faToVcf -maskSites={3}/{0} -ref=\"{1}\" {2} {3}'.format(
@@ -149,13 +154,13 @@ elif args['user_specified_mask'] is not None:
                 args['output'],
                 filePath),
             shell=True)
-    # else add ".vcf" extention
+    # else add ".vcf" extension
     else:  
         subprocess.call('{3}/faToVcf -maskSites={3}/{0} -ref=\"{1}\" {2} {3}.vcf'.format(
             args['user_specified_mask'], head, msaName, args['output'], filePath), shell=True)
 
 
-# Else run fastaToVcf without masking
+# Else run faToVcf without masking
 
 else:
 
