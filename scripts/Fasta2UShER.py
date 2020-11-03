@@ -11,16 +11,16 @@ parser = argparse.ArgumentParser(
                  and problematic sites and \
                  recognizes missing data in addition to genotypes.')
 
-print('\n\nFor more information on problematic sites see:\n\nNicola De Maio, '
-'Landen Gozashti, Yatish Turakhia, Conor Walker, Robert Lanfear, '
-'Russell Corbett-Detig, and Nick Goldman, Issues with SARS-Cov-2 '
-'sequencing data: Updated analysis with data from 12th June 2020, '
-'Virological post 2020. '
-'https://virological.org/t/issues-with-sars-cov-2-sequencing-data/473/12 '
-'\n    and \nYatish Turakhia, Bryan Thornlow, Landen Gozashti, Angie '
-'S. Hinrichs, Jason D. Fernandes, David Haussler, and Russell '
-'Corbett-Detig, "Stability of SARS-CoV-2 Phylogenies", bioRxiv pre-print '
-'2020.\n\n') 
+print('\n\nFor more information on problematic sites see:\n\nNicola De Maio, '                                                                                                                                  
+      'Landen Gozashti, Yatish Turakhia, Conor Walker, Robert Lanfear, '
+      'Russell Corbett-Detig, and Nick Goldman, Issues with SARS-Cov-2 '
+      'sequencing data: Updated analysis with data from 12th June 2020, '
+      'Virological post 2020. '
+      'https://virological.org/t/issues-with-sars-cov-2-sequencing-data/473/12 '
+      '\n    and \nYatish Turakhia, Bryan Thornlow, Landen Gozashti, Angie '
+      'S. Hinrichs, Jason D. Fernandes, David Haussler, and Russell '
+      'Corbett-Detig, "Stability of SARS-CoV-2 Phylogenies", bioRxiv pre-print '
+      '2020.\n\n')
 
 # Add argparse arguments
 parser.add_argument(
