@@ -4,7 +4,7 @@ import argparse
 import re
 from Bio import SeqIO
 import tempfile
-
+import subprocess
 
 parser = argparse.ArgumentParser(
     description='Generates merged VCF that ignores indels and problematic sites and \
@@ -56,7 +56,7 @@ if os.path.isfile('{0}/faToVcf'.format(filePath)) == False:
     raise Exception("faToVcf must be in the same directory as Fasta2UShER")
 
 # Change permissions to faToVcf
-os.system('chmod 777 {0}/faToVcf'.format(filePath))
+subprocess.call('chmod 777 {0}/faToVcf'.format(filePath),shell=True)
 
 
 """
@@ -75,12 +75,12 @@ if args['unaligned'] is not None:
             if header not in headDic:
                 headDic[header] = ''
                 temp.write('>{0}\n{1}\n'.format(header, sequence))
-    os.system(
+    subprocess.call(
         'mafft --thread {1} --auto --keeplength --addfragments {3}  {0} > {2}/inputMsa.fa'.format(
             args['reference'],
             args['thread'],
             filePath,
-            temp.name))
+            temp.name),shell=True)
     msaName = 'inputMsa.fa'
     temp.close()
 
@@ -114,16 +114,16 @@ probDic = {}
 
 if args['auto_mask'] is not None:
 
-    os.system('rm -r {0}/problematic_sites_sarsCov2.vcf'.format(filePath))
-    os.system('wget https://raw.githubusercontent.com/W-L/ProblematicSites_SARS-CoV2/master/problematic_sites_sarsCov2.vcf')
+    subprocess.call('rm -r {0}/problematic_sites_sarsCov2.vcf'.format(filePath),shell=True)
+    subprocess.call('wget https://raw.githubusercontent.com/W-L/ProblematicSites_SARS-CoV2/master/problematic_sites_sarsCov2.vcf',shell=True)
     if '.vcf' in args['output']:
-        os.system(
+        subprocess.call(
             '{3}/faToVcf -maskSites={3}/problematic_sites_sarsCov2.vcf -ref=\"{0}\" {1} {2}'.format(
-                head, msaName, args['output'].strip()))
+                head, msaName, args['output'].strip()),shell=True)
     else:
-        os.system(
+        subprocess.call(
             '{3}/faToVcf -maskSites={3}/problematic_sites_sarsCov2.vcf -ref=\"{0}\" {1} {2}.vcf'.format(
-                head, msaName, args['output'].strip()))
+                head, msaName, args['output'].strip()),shell=True)
 
 
 # Retrieve user provided problematic sites if the user specied and run
@@ -131,13 +131,13 @@ if args['auto_mask'] is not None:
 
 elif args['user_specified_mask'] is not None:
     if '.vcf' in args['output']:
-        os.system('{3}/faToVcf -maskSites={3}/{0} -ref=\"{1}\" {2} {3}'.format(
-            args['user_specified_mask'], head, msaName, args['output'], filePath))
+        subprocess.call('{3}/faToVcf -maskSites={3}/{0} -ref=\"{1}\" {2} {3}'.format(
+            args['user_specified_mask'], head, msaName, args['output'], filePath),shell=True)
 
     else:
 
-        os.system('{3}/faToVcf -maskSites={3}/{0} -ref=\"{1}\" {2} {3}.vcf'.format(
-            args['user_specified_mask'], head, msaName, args['output'], filePath))
+        subprocess.call('{3}/faToVcf -maskSites={3}/{0} -ref=\"{1}\" {2} {3}.vcf'.format(
+            args['user_specified_mask'], head, msaName, args['output'], filePath),shell=True)
 
 
 # Else run fastaToVcf without masking
@@ -145,15 +145,15 @@ elif args['user_specified_mask'] is not None:
 else:
 
     if '.vcf' in args['output']:
-        os.system('{3}/faToVcf  -ref=\"{0}\" {1} {2}'.format(head,
-                                                             msaName, args['output'], filePath))
+        subprocess.call('{3}/faToVcf  -ref=\"{0}\" {1} {2}'.format(head,
+                                                             msaName, args['output'], filePath),shell=True)
 
     else:
 
-        os.system('{3}/faToVcf  -ref=\"{0}\" {1} {2}.vcf'.format(head,
-                                                                 msaName, args['output'], filePath))
+        subprocess.call('{3}/faToVcf  -ref=\"{0}\" {1} {2}.vcf'.format(head,
+                                                                 msaName, args['output'], filePath),shell=True)
 
 
 if os.path.isfile('{0}/problematic_sites_sarsCov2.vcf'.format(filePath)):
 
-    os.system('rm -r {0}/problematic_sites_sarsCov2.vcf'.format(filePath))
+    subprocess.call('rm -r {0}/problematic_sites_sarsCov2.vcf'.format(filePath),shell=True)
