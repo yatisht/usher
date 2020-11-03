@@ -8,7 +8,7 @@ import subprocess
 
 parser = argparse.ArgumentParser(
     description='Generates merged VCF that ignores indels and problematic sites and \
-                                              recognizes missing data in addition to genotypes.')
+recognizes missing data in addition to genotypes.')
 
 print('\n\nFor more information on problematic sites see:\n\nNicola De Maio, \
 Landen Gozashti, Yatish Turakhia, Conor Walker, Robert Lanfear, \
