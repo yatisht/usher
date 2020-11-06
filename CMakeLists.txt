@@ -36,9 +36,19 @@ if(DEFINED Protobuf_PATH)
         src/usher.cpp
         )
 
+    add_executable(matToVcf
+        src/mutation_annotated_tree.cpp
+        src/matToVcf.cpp
+        )
+
     protobuf_generate(
         LANGUAGE cpp
         TARGET usher 
+        PROTOS parsimony.proto)
+
+    protobuf_generate(
+        LANGUAGE cpp
+        TARGET matToVcf
         PROTOS parsimony.proto)
 else()
     protobuf_generate_cpp(
@@ -49,6 +59,13 @@ else()
         src/mutation_annotated_tree.cpp
         src/usher_mapper.cpp
         src/usher.cpp
+        ${PROTO_SRCS}
+        ${PROTO_HDRS}
+        )
+
+    add_executable(matToVcf
+        src/mutation_annotated_tree.cpp
+        src/matToVcf.cpp
         ${PROTO_SRCS}
         ${PROTO_HDRS}
         )
@@ -69,4 +86,5 @@ else(SAVE_PROFILE)
 endif(SAVE_PROFILE)
 
 TARGET_LINK_LIBRARIES(usher PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
+TARGET_LINK_LIBRARIES(matToVcf PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
 
