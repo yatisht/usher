@@ -406,8 +406,8 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
     auto dfs = tree.depth_first_expansion();
 
     for (size_t idx = 0; idx < dfs.size(); idx++) {
-        auto mutation_list = data.node_mutations(idx);
         auto node = dfs[idx];
+        auto mutation_list = data.node_mutations(idx);
         for (int k = 0; k < mutation_list.mutation_size(); k++) {
             auto mut = mutation_list.mutation(k);
             Mutation m;
@@ -922,6 +922,7 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_tree_copy(Mutation_An
               auto n2 = dfs2[k];
               for (auto m: n1->mutations) {
                 Mutation m2;
+                m2.chrom = m.chrom;
                 m2.position = m.position;
                 m2.ref_nuc = m.ref_nuc;
                 m2.par_nuc = m.par_nuc;
