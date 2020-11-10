@@ -35,6 +35,10 @@ namespace Mutation_Annotated_Tree {
         inline bool operator< (const Mutation& m) const {
             return ((*this).position < m.position);
         }
+        Mutation () {
+            chrom = "";
+            is_missing = false;
+        }
     };
 
     class Node {

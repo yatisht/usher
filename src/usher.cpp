@@ -388,6 +388,7 @@ int main(int argc, char** argv) {
                     if (iter != missing_samples.end()) {
                         auto mutations_iter = missing_sample_mutations.begin() + (iter - missing_samples.begin());
                         MAT::Mutation m;
+                        m.chrom = words[0];
                         m.position = std::stoi(words[1]);
                         m.ref_nuc = MAT::get_nuc_id(words[3][0]);
                         assert((m.ref_nuc & (m.ref_nuc-1)) == 0); //check if it is power of 2

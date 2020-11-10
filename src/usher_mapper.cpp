@@ -236,6 +236,7 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores) {
                 if (!found_pos && (anc_nuc == m1.ref_nuc)) {
                     MAT::Mutation m;
                     m.position = m1.position;
+                    m.chrom = m1.chrom;
                     m.ref_nuc = m1.ref_nuc;
                     m.par_nuc = m1.par_nuc;
                     m.mut_nuc = anc_nuc;
