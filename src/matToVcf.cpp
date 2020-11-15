@@ -28,9 +28,13 @@ po::variables_map check_options(int argc, char** argv) {
     
     po::options_description all_options;
     all_options.add(desc);
+    po::positional_options_description p;
     po::variables_map vm;
     try{
-        po::store(po::command_line_parser(argc, argv).options(all_options).run(), vm);
+        po::store(po::command_line_parser(argc, argv)
+                  .options(all_options)
+                  .positional(p)
+                  .run(), vm);
         po::notify(vm);
     }
     catch(exception &e){
@@ -95,6 +99,10 @@ uint r_add_genotypes(MAT::Node *node,
         for (auto mut: mut_stack) {
             string chrom = mut->chrom;
             uint pos = (uint)mut->position;
+            if (chrom.empty()) {
+              fprintf(stderr, "mut->chrom is empty string at node '%s', position %u\n",
+                      node->identifier.c_str(), pos);
+            }
             if (chrom_pos_genotypes.find(chrom) == chrom_pos_genotypes.end()) {
                 // First variant on chrom: initialize a vector mapping position to genotype.
                 // Assume a genome size similar to SARS-CoV-2, resize if necessary.
