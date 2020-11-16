@@ -921,13 +921,7 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_tree_copy(Mutation_An
               auto n1 = dfs1[k];
               auto n2 = dfs2[k];
               for (auto m: n1->mutations) {
-                Mutation m2;
-                m2.chrom = m.chrom;
-                m2.position = m.position;
-                m2.ref_nuc = m.ref_nuc;
-                m2.par_nuc = m.par_nuc;
-                m2.mut_nuc = m.mut_nuc;
-                m2.is_missing = m.is_missing;
+                Mutation m2 = m.copy();
                 n2->add_mutation(m2);
                 }
               }
