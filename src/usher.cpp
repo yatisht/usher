@@ -883,11 +883,7 @@ int main(int argc, char** argv) {
 
                                 // Compute current best node branch mutations
                                 for (auto m1: best_node->mutations) {
-                                    MAT::Mutation m;
-                                    m.position = m1.position;
-                                    m.ref_nuc = m1.ref_nuc;
-                                    m.par_nuc = m1.par_nuc;
-                                    m.mut_nuc = m1.mut_nuc;
+                                    MAT::Mutation m = m1.copy();
                                     curr_l1_mut.emplace_back(m);
                                 }
                                 // Clear mutations on the best node branch which
@@ -906,11 +902,7 @@ int main(int argc, char** argv) {
                                         }
                                     }
                                     if (!found) {
-                                        MAT::Mutation m;
-                                        m.position = m1.position;
-                                        m.ref_nuc = m1.ref_nuc;
-                                        m.par_nuc = m1.par_nuc;
-                                        m.mut_nuc = m1.mut_nuc;
+                                        MAT::Mutation m = m1.copy();
                                         l1_mut.emplace_back(m);
                                     }
                                 }
@@ -921,22 +913,14 @@ int main(int argc, char** argv) {
                                         if (m1.position == m2.position) {
                                             if (m1.mut_nuc == m2.mut_nuc) {
                                                 found = true;
-                                                MAT::Mutation m;
-                                                m.position = m1.position;
-                                                m.ref_nuc = m1.ref_nuc;
-                                                m.par_nuc = m1.par_nuc;
-                                                m.mut_nuc = m1.mut_nuc;
+                                                MAT::Mutation m = m1.copy();
                                                 common_mut.emplace_back(m);
                                                 break;
                                             }
                                         }
                                     }
                                     if (!found) {
-                                        MAT::Mutation m;
-                                        m.position = m1.position;
-                                        m.ref_nuc = m1.ref_nuc;
-                                        m.par_nuc = m1.par_nuc;
-                                        m.mut_nuc = m1.mut_nuc;
+                                        MAT::Mutation m = m1.copy();
                                         l2_mut.emplace_back(m);
                                     }
                                 }
@@ -963,11 +947,7 @@ int main(int argc, char** argv) {
                                 std::vector<MAT::Mutation> curr_l1_mut;
 
                                 for (auto m1: best_node->mutations) {
-                                    MAT::Mutation m;
-                                    m.position = m1.position;
-                                    m.ref_nuc = m1.ref_nuc;
-                                    m.par_nuc = m1.par_nuc;
-                                    m.mut_nuc = m1.mut_nuc;
+                                    MAT::Mutation m = m1.copy();
                                     curr_l1_mut.emplace_back(m);
                                 }
 
@@ -982,11 +962,7 @@ int main(int argc, char** argv) {
                                         }
                                     }
                                     if (!found) {
-                                        MAT::Mutation m;
-                                        m.position = m1.position;
-                                        m.ref_nuc = m1.ref_nuc;
-                                        m.par_nuc = m1.par_nuc;
-                                        m.mut_nuc = m1.mut_nuc;
+                                        MAT::Mutation m = m1.copy();
                                         node_mut.emplace_back(m);
                                     }
                                 }
