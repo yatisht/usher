@@ -35,6 +35,16 @@ namespace Mutation_Annotated_Tree {
         inline bool operator< (const Mutation& m) const {
             return ((*this).position < m.position);
         }
+        inline Mutation copy() const {
+            Mutation m;
+            m.chrom = chrom;
+            m.position = position;
+            m.ref_nuc = ref_nuc;
+            m.par_nuc = par_nuc;
+            m.mut_nuc = mut_nuc;
+            m.is_missing = is_missing;
+            return m;
+        }
         Mutation () {
             chrom = "";
             is_missing = false;
