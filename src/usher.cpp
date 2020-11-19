@@ -1018,7 +1018,7 @@ int main(int argc, char** argv) {
         
         auto final_tree_filename = outdir + "/final-tree.nh";
         if (num_trees > 1) {
-            final_tree_filename = outdir + "/final-tree" + std::to_string(t_idx+1) + ".nh";
+            final_tree_filename = outdir + "/final-tree-" + std::to_string(t_idx+1) + ".nh";
             fprintf(stderr, "Writing final tree %zu to file %s \n", t_idx+1, final_tree_filename.c_str());
         }
         else {
@@ -1045,7 +1045,7 @@ int main(int argc, char** argv) {
 
             auto uncondensed_final_tree_filename = outdir + "/uncondensed-final-tree.nh";
             if (num_trees > 1) {
-                uncondensed_final_tree_filename = outdir + "/uncondensed-final-tree" + std::to_string(t_idx+1) + ".nh"; 
+                uncondensed_final_tree_filename = outdir + "/uncondensed-final-tree-" + std::to_string(t_idx+1) + ".nh"; 
                 fprintf(stderr, "Writing uncondensed final tree %zu to file %s \n", (t_idx+1), uncondensed_final_tree_filename.c_str());
             }
             else {
