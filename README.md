@@ -25,6 +25,7 @@ UShER is much faster than existing tools with similar functionality and has now 
   - [Placing new samples](#placing-new-samples)
   - [Uncertainty in placing new samples](#uncertainty-in-placing-new-samples)
 * [Fasta2UShER](#fasta2usher)
+* [MatToVcf](#mattovcf)
 * [Acknowledgement](#acknowledgement)
 * [Reference](#reference)
 
@@ -186,6 +187,38 @@ python3 scripts/Fasta2UShER.py -inpath ./test/Fasta2UShER -outfile ./test/test_m
 Merged VCF with missing data for a particular sample denoted as "." in the corresponding genotype column.
 
 For the example above, a new VCF *test/test_merged.vcf* is generated (identical to the one already provided), which can be used by UShER to place the new samples.
+
+## MatToVcf
+
+We also provide a tool, `matToVcf`, that generates a VCF corresponding to UShER's mutation-annotated tree. It can also also output the tree in Newick format corresponding to the mutation-annotated tree.
+
+### Input
+
+Mutation-annotated tree file generated using UShER.
+
+### Options
+
+**-i**: Mutation-annotated tree file to convert to VCF (REQUIRED) 
+
+**-v**: Output VCF file (REQUIRED)
+
+**--t**: Output tree file
+
+**-d**: Output directory to dump output and log files (current directory by default)
+
+**-n**: Do not include sample genotype columns in VCF output
+
+**-h**: Print help messages
+
+### Usage example
+
+```
+./build/matToVcf -i global_assignments.pb -v global_assignments.vcf -t global_assignments.nh
+```
+
+### Output
+
+The above example command generates a VCF file named `global_assignments.vcf` and the output tree named `global_assignments.nh`.
 
 ## Acknowledgement
 
