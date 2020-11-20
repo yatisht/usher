@@ -846,25 +846,26 @@ int main(int argc, char** argv) {
                         // default tie-breaking strategy used in mapper2_body has
                         // already chosen a single best_j
                         if ((max_trees > 1) && (num_best > 1)) {
-                            best_j = best_j_vec[k];
-                            best_node_has_unique = node_has_unique[k];
-                            best_node = dfs[best_j];
                             if ((k==0) && (num_best > 1)) {
                                 fprintf (stderr, "Creating %zu additional tree(s) for %zu parsimony-optimal placements.\n", num_best-1, num_best);
                             }
-                        }
+                            // If at second placement or higher, a new tree needs to
+                            // be added to optimal_trees and T needs to point to its
+                            // last element. If not, T is already pointing to the
+                            // last element of optimal_trees on which placement will
+                            // be carried out
+                            if (k > 0) {
+                                auto tmp_T = MAT::get_tree_copy(curr_tree);
+                                optimal_trees.emplace_back(std::move(tmp_T));
+                                T = &optimal_trees[optimal_trees.size()-1];
+                                dfs = T->depth_first_expansion();
+                            }
 
-                        // If at second placement or higher, a new tree needs to
-                        // be added to optimal_trees and T needs to point to its
-                        // last element. If not, T is already pointing to the
-                        // last element of optimal_trees on which placement will
-                        // be carried out
-                        if (k > 0) {
-                            auto tmp_T = MAT::get_tree_copy(curr_tree);
-                            optimal_trees.emplace_back(std::move(tmp_T));
-                            T = &optimal_trees[optimal_trees.size()-1];
+                            best_j = best_j_vec[k];                                                                                                                                                             
+                            best_node_has_unique = node_has_unique[k];
+                            best_node = dfs[best_j];
                         }
-
+                        
                         // Ensure sample not already in the tree
                         if (T->get_node(sample) == NULL) {
                             // Is placement as sibling
@@ -1359,6 +1360,7 @@ int main(int argc, char** argv) {
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
     
+    /*
     // When multiple placements was used, print the tree names with lowest total
     // parsimony scores
     if (max_trees > 1) {
@@ -1376,6 +1378,7 @@ int main(int argc, char** argv) {
             fprintf(stderr, "Single best tree with a parsimony score of %zu was found during multiple placements.\n\n", min_parsimony_score);;
         }
     }
+    */
 
     google::protobuf::ShutdownProtobufLibrary();
 
