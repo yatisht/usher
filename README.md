@@ -190,7 +190,7 @@ For the example above, a new VCF *test/test_merged.vcf* is generated (identical 
 
 ## MatToVcf
 
-We also provide a tool, `matToVcf`, that generates a VCF corresponding to UShER's mutation-annotated tree. It can also also output the tree in Newick format corresponding to the mutation-annotated tree.
+We also provide a tool, `matToVcf`, that generates a parsimony-resolved VCF file corresponding to UShER's mutation-annotated tree. It can also also output the tree in Newick format corresponding to the mutation-annotated tree.
 
 ### Input
 
