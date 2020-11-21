@@ -118,6 +118,7 @@ int main(int argc, char** argv) {
         std::cerr << "ERROR: Number of trees specified by --multiple-placements (-M) should be >= 1\n";
         return 1;
     }
+    /*
     if (max_trees > 1) {
         if (max_trees < 256) {
             std::cerr << "WARNING: Using experimental option --multiple-placements (-M)\n";
@@ -127,6 +128,7 @@ int main(int argc, char** argv) {
             return 1; 
         }
     }
+    */
 
     if (retain_original_branch_len) {
         fprintf(stderr, "Output newick files will retain branch lengths from the input tree (unspecified at branches modified during the placement).\n\n");
