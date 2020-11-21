@@ -202,7 +202,7 @@ Mutation-annotated tree file generated using UShER.
 
 **-v**: Output VCF file (REQUIRED)
 
-**--t**: Output tree file
+**-t**: Output tree file
 
 **-d**: Output directory to dump output and log files (current directory by default)
 
