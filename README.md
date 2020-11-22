@@ -144,11 +144,28 @@ UShER also allows quantifying the uncertainty in placing new samples by reportin
 ```
 ./build/usher -i global_assignments.pb -v test/new_samples.vcf -p -d output/
 ```
-The above command writes a file `parsimony-scores.tsv` containing branch parsimony scores to the output directoy. Note that because the above command does not perform the sequential placement on the tree, the number of parsimony-optimal placements reported for the second and later samples could differ from those reported with actual placements.
+The above command writes a file `parsimony-scores.tsv` containing branch parsimony scores to the output directory. Note that because the above command does not perform the sequential placement on the tree, the number of parsimony-optimal placements reported for the second and later samples could differ from those reported with actual placements.
 
 The figure below shows how branch parsimony score could be useful for uncertainty analysis. The figure shows color-coded parsimony score of placing a new sample at different branches of the tree with black arrow pointing to the branch where the placement is optimal. As can be seen from the color codes, the parsimony scores are low (implying good alternative placement) for several neighboring branches of the optimal branch. 
 
 <img src="/images/branch-parsimony-score.png" width="400">
+
+To further aid the user to quantify phylogenetic uncertainty in placement, UShER has an ability to enumerate all possible topologies resulting from equally parsimonious sample placements. UShER does this by maintaining a list of mutation-annotated trees (starting with a single mutation-annotated tree corresponding to the input tree of existing samples) and sequentially adds new samples to each tree in the list while increasing the size of the list as needed to accommodate multiple equally parsimonious placements for a new sample. This feature is available using the `--multiple-placements` or `-M` option in which the user specifies the maximum number of topologies that UShER should maintain before it reverts back to using the default tie-breaking strategy for multiple parsimony-optimal placements in order to keep the runtime and memory usage of UShER reasonable. 
+
+```
+./build/usher -i global_assignments.pb -v <USER_PROVIDED_VCF> -M -d output/
+```
+
+Note that if the number of equally parsimonious placements for the initial samples is large, the tree space can get too large too quickly and slow down the placement for the subsequent samples. Therefore, UShER also provides an option to sort the samples first based on the number of equally parsimonious placements using the `-S` option. 
+
+
+```
+./build/usher -i global_assignments.pb -v <USER_PROVIDED_VCF> -M -S -d output/
+```
+
+There are many ways to interpret and visualize the forrest of trees produced by multiple placements. One method is to use DensiTree, as shown using an example figure (generated using the [phangorn](https://cran.r-project.org/web/packages/phangorn/) package) below:
+
+<img src="/images/phangorn.png" width="380">
 
 ## Fasta2UShER
 
