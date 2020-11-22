@@ -25,6 +25,7 @@ UShER is much faster than existing tools with similar functionality and has now 
   - [Placing new samples](#placing-new-samples)
   - [Uncertainty in placing new samples](#uncertainty-in-placing-new-samples)
 * [Fasta2UShER](#fasta2usher)
+* [MatToVcf](#mattovcf)
 * [Acknowledgement](#acknowledgement)
 * [Reference](#reference)
 
@@ -143,11 +144,28 @@ UShER also allows quantifying the uncertainty in placing new samples by reportin
 ```
 ./build/usher -i global_assignments.pb -v test/new_samples.vcf -p -d output/
 ```
-The above command writes a file `parsimony-scores.tsv` containing branch parsimony scores to the output directoy. Note that because the above command does not perform the sequential placement on the tree, the number of parsimony-optimal placements reported for the second and later samples could differ from those reported with actual placements.
+The above command writes a file `parsimony-scores.tsv` containing branch parsimony scores to the output directory. Note that because the above command does not perform the sequential placement on the tree, the number of parsimony-optimal placements reported for the second and later samples could differ from those reported with actual placements.
 
 The figure below shows how branch parsimony score could be useful for uncertainty analysis. The figure shows color-coded parsimony score of placing a new sample at different branches of the tree with black arrow pointing to the branch where the placement is optimal. As can be seen from the color codes, the parsimony scores are low (implying good alternative placement) for several neighboring branches of the optimal branch. 
 
 <img src="/images/branch-parsimony-score.png" width="400">
+
+To further aid the user to quantify phylogenetic uncertainty in placement, UShER has an ability to enumerate all possible topologies resulting from equally parsimonious sample placements. UShER does this by maintaining a list of mutation-annotated trees (starting with a single mutation-annotated tree corresponding to the input tree of existing samples) and sequentially adds new samples to each tree in the list while increasing the size of the list as needed to accommodate multiple equally parsimonious placements for a new sample. This feature is available using the `--multiple-placements` or `-M` option in which the user specifies the maximum number of topologies that UShER should maintain before it reverts back to using the default tie-breaking strategy for multiple parsimony-optimal placements in order to keep the runtime and memory usage of UShER reasonable. 
+
+```
+./build/usher -i global_assignments.pb -v <USER_PROVIDED_VCF> -M -d output/
+```
+
+Note that if the number of equally parsimonious placements for the initial samples is large, the tree space can get too large too quickly and slow down the placement for the subsequent samples. Therefore, UShER also provides an option to sort the samples first based on the number of equally parsimonious placements using the `-S` option. 
+
+
+```
+./build/usher -i global_assignments.pb -v <USER_PROVIDED_VCF> -M -S -d output/
+```
+
+There are many ways to interpret and visualize the forest of trees produced by multiple placements. One method is to use DensiTree, as shown using an example figure (generated using the [phangorn](https://cran.r-project.org/web/packages/phangorn/) package) below:
+
+<img src="/images/phangorn.png" width="380">
 
 ## Fasta2UShER
 
@@ -187,6 +205,38 @@ Merged VCF with missing data for a particular sample denoted as "." in the corre
 
 For the example above, a new VCF *test/test_merged.vcf* is generated (identical to the one already provided), which can be used by UShER to place the new samples.
 
+## MatToVcf
+
+We also provide a tool, `matToVcf`, that generates a parsimony-resolved VCF file corresponding to UShER's mutation-annotated tree. It can also also output the tree in Newick format corresponding to the mutation-annotated tree.
+
+### Input
+
+Mutation-annotated tree file generated using UShER.
+
+### Options
+
+**-i**: Mutation-annotated tree file to convert to VCF (REQUIRED) 
+
+**-v**: Output VCF file (REQUIRED)
+
+**-t**: Output tree file
+
+**-d**: Output directory to dump output and log files (current directory by default)
+
+**-n**: Do not include sample genotype columns in VCF output
+
+**-h**: Print help messages
+
+### Usage example
+
+```
+./build/matToVcf -i global_assignments.pb -v global_assignments.vcf -t global_assignments.nh
+```
+
+### Output
+
+The above example command generates a VCF file named `global_assignments.vcf` and the output tree named `global_assignments.nh`.
+
 ## Acknowledgement
 
 We thank Jim Kent and the UCSC Genome Browser team for allowing us to download the `faToVcf` utility (from http://hgdownload.soe.ucsc.edu/admin/exe/) for `Fasta2UShER`. Please read the license terms for `faToVcf` here: https://github.com/ucscGenomeBrowser/kent/blob/master/src/LICENSE.
@@ -196,4 +246,4 @@ We thank Jim Kent and the UCSC Genome Browser team for allowing us to download t
 * Yatish Turakhia, Bryan Thornlow, Angie S Hinrichs, Nicola de Maio, Landen Gozashti, Robert Lanfear, David Haussler, and Russ Corbett-Detig, "Ultrafast Sample Placement on Existing Trees (UShER) Empowers Real-Time Phylogenetics for the SARS-CoV-2 Pandemic", bioRxiv [pre-print](https://www.biorxiv.org/content/10.1101/2020.09.26.314971v1) 2020.
 
 **For Fasta2UShER, please also cite:**
-* Yatish Turakhia, Bryan Thornlow, Landen Gozashti, Angie S. Hinrichs, Jason D. Fernandes, David Haussler, and Russell Corbett-Detig, "Stability of SARS-CoV-2 Phylogenies", bioRxiv [pre-print](https://www.biorxiv.org/content/10.1101/2020.06.08.141127v1) 2020.
+* Yatish Turakhia, Nicola De Maio, Bryan Thornlow, Landen Gozashti, Robert Lanfear, Conor R. Walker, Angie S. Hinrichs, Jason D. Fernandes, Rui Borges, Greg Slodkowicz, Lukas Weilguny, David Haussler, Nick Goldman and Russell Corbett-Detig, "Stability of SARS-CoV-2 Phylogenies", PLOS Genetics 2020 (https://doi.org/10.1371/journal.pgen.1009175).

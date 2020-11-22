@@ -59,7 +59,7 @@ int main(int argc, char** argv) {
         ("write-parsimony-scores-per-node,p", po::bool_switch(&print_parsimony_scores), \
          "Write the parsimony scores for adding new samples at each existing node in the tree without modifying the tree in a file names parsimony-scores.tsv in outdir")
         ("multiple-placements,M", po::value<uint32_t>(&max_trees)->default_value(1), \
-         "Create a new tree up to this limit for each possibility of parsimony-optimal placement (range <= 255) [EXPERIMENTAL]")
+         "Create a new tree up to this limit for each possibility of parsimony-optimal placement")
         ("retain-input-branch-lengths,l", po::bool_switch(&retain_original_branch_len), \
          "Retain the branch lengths from the input tree in out newick files instead of using number of mutations for the branch lengths.")
         ("threads,T", po::value<uint32_t>(&num_threads)->default_value(num_cores), num_threads_message.c_str())
@@ -121,6 +121,7 @@ int main(int argc, char** argv) {
         std::cerr << "ERROR: Number of trees specified by --multiple-placements (-M) should be >= 1\n";
         return 1;
     }
+    /*
     if (max_trees > 1) {
         if (max_trees < 256) {
             std::cerr << "WARNING: Using experimental option --multiple-placements (-M)\n";
@@ -130,6 +131,7 @@ int main(int argc, char** argv) {
             return 1; 
         }
     }
+    */
 
     if (retain_original_branch_len) {
         fprintf(stderr, "Output newick files will retain branch lengths from the input tree (unspecified at branches modified during the placement).\n\n");
