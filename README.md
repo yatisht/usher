@@ -163,7 +163,7 @@ Note that if the number of equally parsimonious placements for the initial sampl
 ./build/usher -i global_assignments.pb -v <USER_PROVIDED_VCF> -M -S -d output/
 ```
 
-There are many ways to interpret and visualize the forrest of trees produced by multiple placements. One method is to use DensiTree, as shown using an example figure (generated using the [phangorn](https://cran.r-project.org/web/packages/phangorn/) package) below:
+There are many ways to interpret and visualize the forest of trees produced by multiple placements. One method is to use DensiTree, as shown using an example figure (generated using the [phangorn](https://cran.r-project.org/web/packages/phangorn/) package) below:
 
 <img src="/images/phangorn.png" width="380">
 
