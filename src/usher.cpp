@@ -25,6 +25,7 @@ int main(int argc, char** argv) {
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
     uint32_t num_threads;
     uint32_t max_trees;
+    uint32_t max_uncertainty;
     bool sort_before_placement_1 = false;
     bool sort_before_placement_2 = false;
     bool reverse_sort = false;
@@ -50,6 +51,8 @@ int main(int argc, char** argv) {
          "Reverse the sorting order of sorting options (sort-before-placement-1 or sort-before-placement-2) [EXPERIMENTAL]")
         ("collapse-tree,c", po::bool_switch(&collapse_tree), \
          "Collapse internal nodes of the input tree with no mutations and condense identical sequences in polytomies into a single node and the save the tree to file condensed-tree.nh in outdir")
+        ("max-uncertainty-per-sample,e", po::value<uint32_t>(&max_uncertainty)->default_value(1e6), \
+         "Maximum number of equally parsimonious placements allowed per sample beyond which the sample is ignored")
         ("write-uncondensed-final-tree,u", po::bool_switch(&print_uncondensed_tree), "Write the final tree in uncondensed format and save to file uncondensed-final-tree.nh in outdir")
         ("write-subtrees-size,k", po::value<size_t>(&print_subtrees_size)->default_value(0), \
          "Write minimum set of subtrees covering the newly added samples of size equal to or larger than this value")
@@ -697,13 +700,18 @@ int main(int argc, char** argv) {
                 if (!print_parsimony_scores) {
                     fprintf(stderr, "Current tree size (#nodes): %zu\tSample name: %s\tParsimony score: %d\tNumber of parsimony-optimal placements: %zu\n", total_nodes, sample.c_str(), \
                             best_set_difference, num_best);
-                    // Prints a warning message if 4 (empirical) or more
+                    // Prints a warning message if 2 or more
                     // parsimony-optimal placements found
-                    if (num_best > 3) {
+                    if (num_best > 1) {
                         if (max_trees == 1) {
                             low_confidence_samples.emplace_back(sample);
                         }
-                        fprintf(stderr, "WARNING: Too many parsimony-optimal placements found. Placement done without high confidence.\n");
+                        if (num_best > max_uncertainty) {
+                            fprintf(stderr, "WARNING: Number of parsimony-optimal placements exceeds maximum allowed value (%u). Ignoring sample %s.\n", max_uncertainty, sample.c_str());
+                        }
+                        else {
+                            fprintf(stderr, "WARNING: Too many parsimony-optimal placements found. Placement done without high confidence.\n");
+                        }
                     }
                 }
                 else {
@@ -731,7 +739,7 @@ int main(int argc, char** argv) {
                 assert(num_best > 0);
 
                 //best_node_vec.emplace_back(best_node);
-                if (num_best > 0) {
+                if ((num_best > 0) && (num_best < max_uncertainty)) {
                     for (auto j: best_j_vec) {
                         auto node = dfs[j];
 
@@ -785,7 +793,6 @@ int main(int argc, char** argv) {
                     fprintf(stderr, "\n"); 
                 }
 
-                assert(std::find(best_j_vec.begin(), best_j_vec.end(), best_j) != best_j_vec.end());
 #endif
                 
                 // If number of parsimony-optimal trees is more than 1 and if
@@ -819,7 +826,9 @@ int main(int argc, char** argv) {
                         fprintf(parsimony_scores_file, "\n");
                     }
                 }
-                else {
+                // Do placement only if number of parsimony-optimal placements
+                // does not exceed the maximum allowed value
+                else if (num_best < max_uncertainty) {
                     if (num_best > 1) {
                         if (max_trees > 1) {
                             // Sorting by dfs order ensures reproducible results
@@ -1091,6 +1100,12 @@ int main(int argc, char** argv) {
             for (size_t s=0; s<missing_samples.size(); s++) {
                 auto sample = missing_samples[s];
                 auto sample_node = T->get_node(sample);
+                
+                // If the missing sample is not found in the tree, it was not placed
+                // because of max_uncertainty.  
+                if (T->get_node(sample) == NULL) {
+                    continue; 
+                }
 
                 // Stack for last-in first-out ordering
                 std::stack<std::string> mutation_stack;
@@ -1163,6 +1178,15 @@ int main(int argc, char** argv) {
             // Bool vector to mark which newly placed samples have already been
             // displayed in a subtree (initialized to false)
             std::vector<bool> displayed_mising_sample (missing_samples.size(), false);
+
+            // If the missing sample is not found in the tree, it was not placed
+            // because of max_uncertainty. Mark those samples as already
+            // displayed. 
+            for (size_t ms_idx = 0; ms_idx < missing_samples.size(); ms_idx++) {
+                if (T->get_node(missing_samples[ms_idx]) == NULL) {
+                    displayed_mising_sample[ms_idx] = true;
+                }
+            }
 
             int num_subtrees = 0;
             for (size_t i = 0; i < missing_samples.size(); i++) {
@@ -1336,7 +1360,7 @@ int main(int argc, char** argv) {
     // Print warning message with a list of all samples placed with low
     // confidence (>=4 parsimony-optimal placements
     if (low_confidence_samples.size() > 0) {
-        fprintf(stderr, "WARNING: Following samples had several possibilities of parsimony-optimal placements:\n");
+        fprintf(stderr, "WARNING: Following samples had multiple possibilities of parsimony-optimal placements:\n");
         for (auto lcs: low_confidence_samples) { 
             fprintf(stderr, "%s\n", lcs.c_str());
         }
