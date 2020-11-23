@@ -2,7 +2,7 @@ sudo apt update
 sudo apt-get --yes install build-essential \
  wget cmake  libboost-all-dev \
  libprotoc-dev libprotoc-dev protobuf-compiler \
- python python3-setuptools python3-pip mafft
+ python python3-setuptools python3-pip mafft rsync
  
 #install python library biopython
 pip3 install biopython
