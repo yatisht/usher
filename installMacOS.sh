@@ -1,4 +1,4 @@
-brew install cmake boost protobuf wget python@3
+brew install cmake boost protobuf wget python@3 rsync
 
 # TBB
 wget https://github.com/oneapi-src/oneTBB/releases/download/2019_U9/tbb2019_20191006oss_mac.tgz
