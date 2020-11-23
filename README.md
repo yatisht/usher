@@ -44,7 +44,7 @@ Next, you may install UShER either using [Docker](https://www.docker.com/) (**re
 Perhaps the simplest method to install this package irrespective of the platform (Windows, Linux or MacOS) is using [Docker](https://www.docker.com/) (see installation instructions [here](https://docs.docker.com/get-docker/)). Once Docker is installed (which takes a few minutes typically), use the following command to build and install UShER.
 
 ```
-docker build -t usher .
+docker build --no-cache -t usher .
 ```
 Once installed, you may start a new bash in a Ubuntu 18.04 container using the Docker command below, following which the remaining commands on this page should work smoothly.
 ```
