@@ -24,6 +24,7 @@ UShER is much faster than existing tools with similar functionality and has now 
   - [Pre-processing global phylogeny](#pre-processing-global-phylogeny)
   - [Placing new samples](#placing-new-samples)
   - [Uncertainty in placing new samples](#uncertainty-in-placing-new-samples)
+  - [Updating multiple input trees](#updating-multiple-input-trees)
 * [Fasta2UShER](#fasta2usher)
 * [MatToVcf](#mattovcf)
 * [Acknowledgement](#acknowledgement)
@@ -166,6 +167,10 @@ Note that if the number of equally parsimonious placements for the initial sampl
 There are many ways to interpret and visualize the forest of trees produced by multiple placements. One method is to use DensiTree, as shown using an example figure (generated using the [phangorn](https://cran.r-project.org/web/packages/phangorn/) package) below:
 
 <img src="/images/phangorn.png" width="380">
+
+### Updating multiple input trees
+
+UShER is also fast enough to allow users to update multiple input trees incorporating uncertainty in tree resonstruction, such as multiple bootstrap trees. While we do not provide an explicit option to input multiple trees at once, UShER can be run independently for each input tree and place new samples. We recommend the user to use the [GNU parallel utility](https://www.gnu.org/software/parallel/) to do so in parallel using multiple CPU cores while setting `-T 1` for each UShER task.
 
 ## Fasta2UShER
 
