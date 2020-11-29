@@ -20,11 +20,13 @@ UShER is much faster than existing tools with similar functionality and has now 
   - [Using installation scripts](#using-installation-scripts)
 * [How UShER works?](#how-usher-works)
 * [Using UShER](#using-usher)
-	- [Displaying help message](#displaying-help-message)
+  - [Displaying help message](#displaying-help-message)
   - [Pre-processing global phylogeny](#pre-processing-global-phylogeny)
   - [Placing new samples](#placing-new-samples)
   - [Uncertainty in placing new samples](#uncertainty-in-placing-new-samples)
-  - [Updating multiple input trees](#updating-multiple-input-trees)
+      * [Branch Parsimony Score](#branch-parsimony-score)
+      * [Multiple parsimony-optimal placements](#multiple-parsimony-optimal-placements)
+      * [Updating multiple input trees](#updating-multiple-input-trees)
 * [Fasta2UShER](#fasta2usher)
 * [MatToVcf](#mattovcf)
 * [Acknowledgement](#acknowledgement)
@@ -141,6 +143,8 @@ Finally, the new mutation-annotated tree object can be stored again using `--sav
 
 ### Uncertainty in placing new samples
 
+#### Branch Parsimony Score
+
 UShER also allows quantifying the uncertainty in placing new samples by reporting the parsimony scores of adding new samples to all possible nodes in the tree **without** actually modifying the tree (this is because the tree structure, as well as number of possible optimal placements could change with each new sequential placement). In particular, this can help the user explore which nodes of the tree result in a small and optimal or near-optimal parsimony score. This can be done by setting the `--write-parsimony-scores-per-node` or `-p` option, for example, as follows:
 ```
 ./build/usher -i global_assignments.pb -v test/new_samples.vcf -p -d output/
@@ -150,6 +154,8 @@ The above command writes a file `parsimony-scores.tsv` containing branch parsimo
 The figure below shows how branch parsimony score could be useful for uncertainty analysis. The figure shows color-coded parsimony score of placing a new sample at different branches of the tree with black arrow pointing to the branch where the placement is optimal. As can be seen from the color codes, the parsimony scores are low (implying good alternative placement) for several neighboring branches of the optimal branch. 
 
 <img src="/images/branch-parsimony-score.png" width="400">
+
+#### Multiple parsimony-optimal placements
 
 To further aid the user to quantify phylogenetic uncertainty in placement, UShER has an ability to enumerate all possible topologies resulting from equally parsimonious sample placements. UShER does this by maintaining a list of mutation-annotated trees (starting with a single mutation-annotated tree corresponding to the input tree of existing samples) and sequentially adds new samples to each tree in the list while increasing the size of the list as needed to accommodate multiple equally parsimonious placements for a new sample. This feature is available using the `--multiple-placements` or `-M` option in which the user specifies the maximum number of topologies that UShER should maintain before it reverts back to using the default tie-breaking strategy for multiple parsimony-optimal placements in order to keep the runtime and memory usage of UShER reasonable. 
 
@@ -168,7 +174,7 @@ There are many ways to interpret and visualize the forest of trees produced by m
 
 <img src="/images/phangorn.png" width="380">
 
-### Updating multiple input trees
+#### Updating multiple input trees
 
 UShER is also fast enough to allow users to update multiple input trees incorporating uncertainty in tree resonstruction, such as multiple bootstrap trees. While we do not provide an explicit option to input multiple trees at once, UShER can be run independently for each input tree and place new samples. We recommend the user to use the [GNU parallel utility](https://www.gnu.org/software/parallel/) to do so in parallel using multiple CPU cores while setting `-T 1` for each UShER task.
 
