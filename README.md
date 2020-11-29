@@ -16,8 +16,10 @@ UShER is much faster than existing tools with similar functionality and has now 
 
 ## Contents
 * [Installing UShER](#installing-usher)
-	- [Using Docker](#using-docker)
-  - [Using installation scripts](#using-installation-scripts)
+    - [Using Docker](#using-docker)
+        - [Local build and install](#local-build-and-install)
+        - [Using pre-built Docker image](#using-pre-built-docker-image)
+    - [Using installation scripts](#using-installation-scripts)
 * [How UShER works?](#how-usher-works)
 * [Using UShER](#using-usher)
   - [Displaying help message](#displaying-help-message)
@@ -44,14 +46,27 @@ Next, you may install UShER either using [Docker](https://www.docker.com/) (**re
 
 ### Using Docker
 
-Perhaps the simplest method to install this package irrespective of the platform (Windows, Linux or MacOS) is using [Docker](https://www.docker.com/) (see installation instructions [here](https://docs.docker.com/get-docker/)). Once Docker is installed (which takes a few minutes typically), use the following command to build and install UShER.
+Perhaps the simplest method to install this package irrespective of the platform (Windows, Linux or MacOS) is using [Docker](https://www.docker.com/) (see Docker installation instructions [here](https://docs.docker.com/get-docker/)). 
+
+#### Local build and install
+
+The following command to build and generate your own UShER image locally.
 
 ```
 docker build --no-cache -t usher .
 ```
-Once installed, you may start a new bash in a Ubuntu 18.04 container using the Docker command below, following which the remaining commands on this page should work smoothly.
+Once the image is generated, you may start a new bash in a Ubuntu 18.04 container using the Docker command below, following which the remaining commands on this page should work smoothly.
 ```
 docker run -t -i usher /bin/bash
+```
+
+#### Using pre-built Docker image
+
+Alternatively, you can also use a pre-built Docker image shared by us using the following commands.
+
+```
+docker pull yatisht/usher:0.1.3
+docker run -t -i yatisht/usher:0.1.3 /bin/bash
 ```
 
 ### Using installation scripts
