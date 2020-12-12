@@ -19,6 +19,7 @@ UShER is much faster than existing tools with similar functionality and has now 
     - [Using Docker](#using-docker)
         - [Local build and install](#local-build-and-install)
         - [Using pre-built Docker image](#using-pre-built-docker-image)
+    - [Using Conda](#using-conda)
     - [Using installation scripts](#using-installation-scripts)
 * [How UShER works?](#how-usher-works)
 * [Using UShER](#using-usher)
@@ -69,9 +70,39 @@ docker pull yatisht/usher:0.1.3
 docker run -t -i yatisht/usher:0.1.3 /bin/bash
 ```
 
+#### Using Conda
+Installing UShER:
+```
+conda env create -f environment.yml
+conda activate usher
+git clone https://github.com/oneapi-src/oneTBB
+cd oneTBB
+git checkout cc2c04e2f5363fb8b34c10718ce406814810d1e6
+cd ..
+mkdir build
+cd build
+cmake  -DTBB_DIR=${PWD}/../oneTBB  -DCMAKE_PREFIX_PATH=${PWD}/../oneTBB/cmake ..
+make -j
+cd ..
+``` 
+[Fasta2UShER](#fasta2usher) requires the faToVcf utility that can be obtained as follows.
+
+* MacOS
+```
+rsync -aP rsync://hgdownload.soe.ucsc.edu/genome/admin/exe/macOSX.x86_64/faToVcf .
+chmod +x faToVcf
+mv faToVcf scripts/
+```
+* Linux
+```
+rsync -aP rsync://hgdownload.soe.ucsc.edu/genome/admin/exe/linux.x86_64/faToVcf .
+chmod +x faToVcf
+mv faToVcf scripts/
+```
+
 ### Using installation scripts
 
-If you don't have Docker or prefer not to use it for some reason, you may use one of our installation scripts below to install UShER.
+If you don't have Docker/Conda or prefer not to use it for some reason, you may use one of our installation scripts below to install UShER.
 
 * For MacOS 10.14 and above: 
 ```
