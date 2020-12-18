@@ -741,7 +741,7 @@ int main(int argc, char** argv) {
                 assert(num_best > 0);
 
                 //best_node_vec.emplace_back(best_node);
-                if ((num_best > 0) && (num_best < max_uncertainty)) {
+                if ((num_best > 0) && (num_best <= max_uncertainty)) {
                     for (auto j: best_j_vec) {
                         auto node = dfs[j];
 
@@ -830,7 +830,7 @@ int main(int argc, char** argv) {
                 }
                 // Do placement only if number of parsimony-optimal placements
                 // does not exceed the maximum allowed value
-                else if (num_best < max_uncertainty) {
+                else if (num_best <= max_uncertainty) {
                     if (num_best > 1) {
                         if (max_trees > 1) {
                             // Sorting by dfs order ensures reproducible results
