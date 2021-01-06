@@ -1,11 +1,14 @@
+#ifndef USHER_GRAPH
+#define USHER_GRAPH
 //#include "tree.hpp"
 #include "mutation_annotated_tree.hpp"
+#include <cstddef>
 #include <set>
 #include <cassert>
 #include <unordered_set>
-#include <mutex>
 #include <sys/time.h>
 #include <tbb/mutex.h>
+#include <vector>
 #include "Instrumentor.h"
 
 #if SAVE_PROFILE == 1
@@ -78,3 +81,21 @@ struct mapper2_input {
 };
 
 void mapper2_body(mapper2_input& inp, bool compute_parsimony_scores);
+
+struct Interchange_Op{
+    Mutation_Annotated_Tree::Node node_closer_to_root;
+    Mutation_Annotated_Tree::Node node_further_to_root;
+    unsigned int parsimony_gain;
+};
+
+struct Interchanges_On_Same_Node{
+    tbb::mutex lock; // mutex guarding queue of interchanges on the same node 
+    std::vector<Interchange_Op> interchanges;
+    Interchanges_On_Same_Node(size_t n_nodes):interchanges(n_nodes){}
+};
+
+void parallel_NNI(const size_t idx, Mutation_Annotated_Tree::Node* this_node,std::vector<Interchanges_On_Same_Node>& interchange_queues);
+bool parallel_NNI_post_process(std::vector<Interchanges_On_Same_Node>& interchange_queues);
+bool serial_NNI(Mutation_Annotated_Tree::Node* this_node);
+
+#endif

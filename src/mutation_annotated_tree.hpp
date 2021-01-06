@@ -1,3 +1,5 @@
+#ifndef MUTATION_ANNOTATED_TREE
+#define MUTATION_ANNOTATED_TREE
 #include <fstream>
 #include <unordered_map>
 #include <string>
@@ -59,6 +61,7 @@ namespace Mutation_Annotated_Tree {
             Node* parent;
             std::vector<Node*> children;
             std::vector<Mutation> mutations;
+            bool is_new; //whether this node is a new sample
 
             bool is_leaf();
             bool is_root();
@@ -96,7 +99,7 @@ namespace Mutation_Annotated_Tree {
             std::vector<Node*> get_leaves(std::string nid="");
             size_t get_num_leaves(Node* node=NULL);
             void create_node (std::string identifier, float branch_length = -1.0);
-            void create_node (std::string identifier, std::string parent_id, float branch_length = -1.0);
+            Node* create_node (std::string identifier, std::string parent_id, float branch_length = -1.0);
             Node* get_node (std::string identifier);
             bool is_ancestor (std::string anc_id, std::string nid);
             std::vector<Node*> rsearch (std::string nid);
@@ -122,5 +125,8 @@ namespace Mutation_Annotated_Tree {
     void save_mutation_annotated_tree (Tree tree, std::string filename);
 
     Tree get_tree_copy(Tree tree);
+    // Exchange 2 branches of the same tree that are not root (not checked to be the same tree)
+    void exchange(Node*  branch1, Node* branch2);
 }
 
+#endif

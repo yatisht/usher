@@ -1,6 +1,7 @@
 #include "mutation_annotated_tree.hpp"
+#include <algorithm>
 #include <iomanip>
-
+#include <cassert>
 // Uses one-hot encoding if base is unambiguous
 // A:1,C:2,G:4,T:8
 int8_t Mutation_Annotated_Tree::get_nuc_id (char nuc) {
@@ -496,9 +497,10 @@ Mutation_Annotated_Tree::Node::Node() {
     parent = NULL;
     branch_length = -1.0;
     mutations.clear();
+    is_new=false;
 }
 
-Mutation_Annotated_Tree::Node::Node (std::string id, float len) {
+Mutation_Annotated_Tree::Node::Node (std::string id, float len) :is_new(0){
     identifier = id;
     parent = NULL;
     level = 1;
@@ -506,7 +508,7 @@ Mutation_Annotated_Tree::Node::Node (std::string id, float len) {
     mutations.clear();
 }
 
-Mutation_Annotated_Tree::Node::Node (std::string id, Node* p, float len) {
+Mutation_Annotated_Tree::Node::Node (std::string id, Node* p, float len):is_new(0) {
     identifier = id;
     parent = p;
     level = p->level + 1;
@@ -588,7 +590,7 @@ void Mutation_Annotated_Tree::Tree::create_node (std::string identifier, float b
     all_nodes[identifier] = root;
 }
 
-void Mutation_Annotated_Tree::Tree::create_node (std::string identifier, std::string parent_id, float branch_len) {
+Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Tree::create_node (std::string identifier, std::string parent_id, float branch_len) {
     Node* par = all_nodes[parent_id];
     Node* n = new Node(identifier, par, branch_len);
     if (all_nodes.find(identifier) != all_nodes.end()) {
@@ -600,6 +602,7 @@ void Mutation_Annotated_Tree::Tree::create_node (std::string identifier, std::st
     if (n->level > max_level) {
         max_level = n->level;
     }
+    return n;
 }
 
 Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Tree::get_node (std::string nid) {
@@ -834,6 +837,7 @@ void Mutation_Annotated_Tree::Tree::condense_leaves(std::vector<std::string> mis
                 if (std::find(missing_samples.begin(), missing_samples.end(), l2->identifier) != missing_samples.end()) {
                     continue;
                 }
+                //not sure why it is no mutation rather than have the same mutations
             if (l2->is_leaf() && (get_node(l2->identifier) != NULL) && (l2->mutations.size() == 0)) {
                 polytomy_nodes.push_back(l2->identifier);
             }
@@ -879,7 +883,7 @@ void Mutation_Annotated_Tree::Tree::uncondense_leaves() {
     condensed_nodes.clear();
     condensed_leaves.clear();
 }
-
+// Merge nodes that have no mutations comparing to parent into parent node 
 void Mutation_Annotated_Tree::Tree::collapse_tree() {
     auto bfs = breadth_first_expansion();
 
@@ -938,3 +942,23 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_tree_copy(Mutation_An
     return copy;
 }
 
+void Mutation_Annotated_Tree::exchange(Node *branch1, Node *branch2){
+    //Make sure they are not root
+    assert(!branch1->is_root());
+    assert(!branch2->is_root());
+    Node* const branch1_old_parent=branch1->parent;
+    Node* const branch2_old_parent=branch2->parent;
+
+    //locate branch 1 among the children of branch 1, and replace it with branch2
+    auto iter=std::find(branch1_old_parent->children.begin(),branch1_old_parent->children.end(),branch1);
+    assert(iter!=branch1_old_parent->children.end());//ehh, why not here...
+    *iter=branch2;
+    //change its parent
+    branch2->parent=branch1_old_parent;
+
+    //the same for branch2
+    iter=std::find(branch2_old_parent->children.begin(),branch2_old_parent->children.end(),branch2);
+    assert(iter!=branch2_old_parent->children.end());
+    *iter=branch1;
+    branch1->parent=branch2_old_parent;
+}
