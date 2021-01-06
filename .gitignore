@@ -5,3 +5,5 @@ scripts/__pycache__
 cmake-3*
 oneTBB-*
 protobuf-*
+.vscode
+.cache
