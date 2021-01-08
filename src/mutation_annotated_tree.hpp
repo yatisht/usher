@@ -94,6 +94,7 @@ namespace Mutation_Annotated_Tree {
             size_t get_max_level ();
             void rename_node(std::string old_nid, std::string new_nid);
             std::vector<Node*> get_leaves(std::string nid="");
+            std::vector<std::string> get_leaves_ids(std::string nid="");
             size_t get_num_leaves(Node* node=NULL);
             void create_node (std::string identifier, float branch_length = -1.0);
             void create_node (std::string identifier, std::string parent_id, float branch_length = -1.0);
