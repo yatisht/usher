@@ -1360,7 +1360,7 @@ int main(int argc, char** argv) {
     }
 
     // Print warning message with a list of all samples placed with low
-    // confidence (>=2) parsimony-optimal placements
+    // confidence (>=2 parsimony-optimal placements)
     if (low_confidence_samples.size() > 0) {
         fprintf(stderr, "WARNING: Following samples had multiple possibilities of parsimony-optimal placements:\n");
         for (auto lcs: low_confidence_samples) { 
