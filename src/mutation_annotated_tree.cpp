@@ -565,6 +565,30 @@ std::vector<Mutation_Annotated_Tree::Node*> Mutation_Annotated_Tree::Tree::get_l
     return leaves;
 }
 
+std::vector<std::string> Mutation_Annotated_Tree::Tree::get_leaves_ids(std::string nid) {
+    std::vector<std::string> leaves_ids;
+    if (nid == "") {
+        if (root == NULL) {
+            return leaves_ids;
+        }
+        nid = root->identifier;
+    }
+    Node* node = all_nodes[nid];
+
+    std::queue<Node*> remaining_nodes;
+    remaining_nodes.push(node);
+    while (remaining_nodes.size() > 0) {
+        Node* curr_node = remaining_nodes.front();
+        if (curr_node->children.size() == 0)
+            leaves_ids.push_back(curr_node->identifier);
+        remaining_nodes.pop();
+        for (auto c: curr_node->children) {
+            remaining_nodes.push(c);
+        }
+    }
+    return leaves_ids;
+}
+
 size_t Mutation_Annotated_Tree::Tree::get_num_leaves(Node* node) {
     if (node == NULL) {
         node = root;
@@ -816,17 +840,18 @@ size_t Mutation_Annotated_Tree::Tree::get_parsimony_score() {
 }
 
 void Mutation_Annotated_Tree::Tree::condense_leaves(std::vector<std::string> missing_samples) {
-    auto tree_leaves = get_leaves();
-    for (auto l1: tree_leaves) {
+    auto tree_leaves = get_leaves_ids();
+    for (auto l1_id: tree_leaves) {
         std::vector<std::string> polytomy_nodes;
 
+        auto l1 = get_node(l1_id);
+        if (l1 == NULL) {
+            continue;
+        }
         if (std::find(missing_samples.begin(), missing_samples.end(), l1->identifier) != missing_samples.end()) {
             continue;
         }
         if (l1->mutations.size() > 0) {
-            continue;
-        }
-        if (get_node(l1->identifier) == NULL) {
             continue;
         }
 
