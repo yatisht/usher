@@ -1,5 +1,6 @@
 #ifndef MUTATION_ANNOTATED_TREE
 #define MUTATION_ANNOTATED_TREE
+#include <cstddef>
 #include <fstream>
 #include <unordered_map>
 #include <string>
@@ -17,7 +18,6 @@
 #include <tbb/blocked_range.h>
 #include <tbb/tbb.h>
 #include "parsimony.pb.h"
-
 namespace Mutation_Annotated_Tree {
     int8_t get_nuc_id (char nuc);
     int8_t get_nuc_id (std::vector<int8_t> nuc_vec);
@@ -53,6 +53,106 @@ namespace Mutation_Annotated_Tree {
         }
     };
 
+#ifndef matToVCF
+    class Mutations_Collection{
+        std::vector<Mutation> mutations;
+        public:
+        size_t size() const {return mutations.size();}
+        std::vector<Mutation>::const_iterator begin() const {
+            return mutations.begin();
+        }
+        std::vector<Mutation>::const_iterator end() const{
+            return mutations.end();
+        }
+        void clear(){
+            mutations.clear();
+        }
+        std::vector<Mutation>::const_iterator find_next(const int pos) const{
+            #ifndef NDEBUG
+            int lastPos=0;
+            #endif
+            for(auto iter=mutations.begin();iter<mutations.end();iter++){
+                //check sorting in debug mode
+                #ifndef NDEBUG
+                assert(lastPos<iter->position);
+                lastPos=iter->position;
+                #endif
+                if (iter->position>=pos) {
+                    return iter;
+                }
+            }
+            return mutations.end();
+        }
+        std::vector<Mutation>::const_iterator find(const Mutation& mut) const{
+            auto iter=find_next(mut.position);
+            if(iter!=mutations.end()&&iter->position>mut.position){
+                return mutations.end();
+            }
+            return iter;
+        }
+
+        /**
+         * @brief Merge other mutations into this mutation set
+         * 
+         * @param other sorted vector of mutations to merge in
+         * @param keep_self if two mutations are at the same position 0: keep other, 1: keep self, -1: impossible, throw an error.
+         */
+        void merge(const Mutations_Collection other, char keep_self){
+//used for checking whether the two vectors are sorted while merging
+#ifndef NDEBUG
+#define mutation_vector_check_order(newly_inserted) \
+assert(last_pos_inserted<(newly_inserted));\
+last_pos_inserted=(newly_inserted);
+            int last_pos_inserted=-1; 
+#else
+#define mutation_vector_check_order(newly_inserted)
+#endif
+            std::vector<Mutation> new_set;
+            new_set.reserve(other.mutations.size()+mutations.size());
+            auto other_iter=other.mutations.begin();
+            for(auto this_mutation:mutations){
+                while (other_iter->position<this_mutation.position) {
+                    mutation_vector_check_order(other_iter->position);
+                    new_set.push_back(*other_iter);
+                    other_iter++;
+                }
+                if (other_iter==other.mutations.end()||
+                    this_mutation.position<other_iter->position) {
+                    mutation_vector_check_order(this_mutation.position);
+                    new_set.push_back(this_mutation);
+                }else{
+                    mutation_vector_check_order(this_mutation.position);
+
+                    assert(this_mutation.position==other_iter->position);
+                    assert(keep_self!=-1);
+                    if (keep_self) {
+                        new_set.push_back(this_mutation);
+                    }else {
+                        new_set.push_back(*other_iter);
+                    }
+                    other_iter++;
+                }
+            }
+            while (other_iter<other.mutations.end()) {
+                mutation_vector_check_order(other_iter->position);
+                new_set.push_back(*other_iter);
+            }
+            mutations.swap(new_set);
+        }
+
+        void insert(const Mutation& mut){
+            auto iter=find_next(mut.position);
+            //Not supposed to insert 2 mutations at the same position
+            assert(iter==mutations.end()||iter->position>mut.position);
+            mutations.insert(iter,mut);
+        }
+        void finalize(){
+            mutations.shrink_to_fit();
+        }
+    };
+#else
+    typedef std::vector<Mutation> Mutations_Collection;
+#endif
     class Node {
         public:
             size_t level;
@@ -60,7 +160,7 @@ namespace Mutation_Annotated_Tree {
             std::string identifier;
             Node* parent;
             std::vector<Node*> children;
-            std::vector<Mutation> mutations;
+            Mutations_Collection mutations;
             bool is_new; //whether this node is a new sample
 
             bool is_leaf();
@@ -69,9 +169,14 @@ namespace Mutation_Annotated_Tree {
             Node();
             Node(std::string id, float l);
             Node(std::string id, Node* p, float l);
-            
-            void add_mutation(Mutation mut);
-            void clear_mutations();
+#ifndef matToVCF   
+            void add_mutation(Mutation& mut){
+                mutations.insert(mut);
+            }
+            void clear_mutations(){
+                mutations.clear();
+            }
+#endif
     };
 
     class Tree {
