@@ -91,7 +91,6 @@ struct Interchange_Op{
 struct Interchanges_On_Same_Node{
     tbb::mutex lock; // mutex guarding queue of interchanges on the same node 
     std::vector<Interchange_Op> interchanges;
-    Interchanges_On_Same_Node(size_t n_nodes):interchanges(n_nodes){}
 };
 
 void parallel_NNI(const size_t idx, Mutation_Annotated_Tree::Node* this_node,std::vector<Interchanges_On_Same_Node>& interchange_queues);

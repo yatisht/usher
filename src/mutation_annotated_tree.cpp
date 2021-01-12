@@ -516,15 +516,6 @@ Mutation_Annotated_Tree::Node::Node (std::string id, Node* p, float len):is_new(
     mutations.clear();
 }
 
-void Mutation_Annotated_Tree::Node::add_mutation (Mutation mut) {
-    mutations.insert(std::upper_bound(mutations.begin(), mutations.end(), mut),
-            mut);
-}
-
-void Mutation_Annotated_Tree::Node::clear_mutations() {
-    mutations.clear();
-}
-
 /* === Tree === */
 size_t Mutation_Annotated_Tree::Tree::get_max_level () {
     return max_level;
@@ -657,21 +648,7 @@ void Mutation_Annotated_Tree::Tree::remove_node_helper (std::string nid, bool mo
                 child->level = curr_parent->parent->level + 1;
                 child->branch_length += curr_parent->branch_length;
 
-                for (auto m1: curr_parent->mutations) {
-                    bool found_pos = false;
-                    for (auto m2: child->mutations) {
-                        if (m1.position == m2.position) {
-                            found_pos = true;
-                            break;
-                        }
-                        if (m2.position > m1.position) {
-                            break;
-                        }
-                    }
-                    if (!found_pos) {
-                        child->add_mutation(m1);
-                    }
-                }
+                child->mutations.merge(curr_parent->mutations, 1);
 
                 curr_parent->parent->children.push_back(child);
                 
