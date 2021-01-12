@@ -1,0 +1,11 @@
+##fileformat=VCFv4.2				
+##reference=stdin:hCoV-19/Wuhan/Hu-1/2019|EPI_ISL_402125|2019-12-31				
+##source=faToVcf stdin rob-11-7-20.unfiltered.vcf				
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	S1	S2	S3	S4	S5  S6  S7  S8
+NC_045512v2	1	G1440A	G	A	.	.	AC=482;AN=1	GT	0	0	0	0	1   1   1   1
+NC_045512v2	2	G1440A	G	A	.	.	AC=482;AN=1	GT	0	1	1	1	1   1   1   1
+NC_045512v2	3	G1440A	G	A	.	.	AC=482;AN=1	GT	0	1	1	1	1   1   1   0
+NC_045512v2	4	G1440A	G	A	.	.	AC=482;AN=1	GT	0	1	1	1	0   1   1   0
+NC_045512v2	5	G1440A	G	A	.	.	AC=482;AN=1	GT	0	1	1	1	0   0   1   0
+NC_045512v2	6	G1440A	G	A	.	.	AC=482;AN=1	GT	0	0	1	0	0   0   0   0
+NC_045512v2	6	G1440A	G	A	.	.	AC=482;AN=1	GT	0	0	0	1	0   0   0   0
