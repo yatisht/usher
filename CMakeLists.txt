@@ -57,6 +57,11 @@ if(DEFINED Protobuf_PATH)
         LANGUAGE cpp
         TARGET matToVcf
         PROTOS parsimony.proto)
+
+    protobuf_generate(
+        LANGUAGE cpp
+        TARGET matUtils
+        PROTOS parsimony.proto)
 else()
     protobuf_generate_cpp(
         PROTO_SRCS PROTO_HDRS
@@ -102,7 +107,11 @@ else(SAVE_PROFILE)
 endif(SAVE_PROFILE)
 
 TARGET_LINK_LIBRARIES(usher PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
+
+TARGET_COMPILE_OPTIONS(matToVcf PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
 TARGET_LINK_LIBRARIES(matToVcf PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
+
 if(COMPILE_UTILS)
+    TARGET_COMPILE_OPTIONS(matUtils PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
     TARGET_LINK_LIBRARIES(matUtils PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
 endif(COMPILE_UTILS)
