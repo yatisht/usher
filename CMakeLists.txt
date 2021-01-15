@@ -41,6 +41,13 @@ if(DEFINED Protobuf_PATH)
         src/matToVcf.cpp
         )
 
+    if(COMPILE_UTILS)
+        add_executable(matUtils
+            src/mutation_annotated_tree.cpp
+            src/matUtils.cpp
+            )
+    endif(COMPILE_UTILS)
+
     protobuf_generate(
         LANGUAGE cpp
         TARGET usher 
@@ -69,6 +76,15 @@ else()
         ${PROTO_SRCS}
         ${PROTO_HDRS}
         )
+
+    if(COMPILE_UTILS)
+        add_executable(matUtils
+            src/mutation_annotated_tree.cpp
+            src/matUtils.cpp
+            ${PROTO_SRCS}
+            ${PROTO_HDRS}
+            )
+    endif(COMPILE_UTILS)
 endif()
 
 if(SAVE_PROFILE)
@@ -87,4 +103,6 @@ endif(SAVE_PROFILE)
 
 TARGET_LINK_LIBRARIES(usher PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(matToVcf PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
-
+if(COMPILE_UTILS)
+    TARGET_LINK_LIBRARIES(matUtils PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
+endif(COMPILE_UTILS)

@@ -25,6 +25,8 @@ namespace Mutation_Annotated_Tree {
     std::vector<int8_t> get_nuc_vec_from_id (int8_t nuc_id);
 
     // WARNING: chrom is currently ignored!
+    // position < 0 implies masked mutations i.e. mutations that exist but
+    // details are unknown
     struct Mutation {
         std::string chrom;
         int position;
@@ -48,6 +50,17 @@ namespace Mutation_Annotated_Tree {
         Mutation () {
             chrom = "";
             is_missing = false;
+        }
+        inline bool is_masked() const {
+            return (position < 0);
+        }
+        inline std::string get_string() const {
+            if (is_masked()) {
+                return "MASKED";
+            }
+            else {
+                return get_nuc(par_nuc) + std::to_string(position) + get_nuc(mut_nuc);
+            }
         }
     };
 
