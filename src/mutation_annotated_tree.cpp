@@ -413,14 +413,22 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
             Mutation m;
             m.chrom = mut.chromosome();
             m.position = mut.position();
-            m.ref_nuc = (1 << mut.ref_nuc());
-            m.par_nuc = (1 << mut.par_nuc());
-            m.is_missing = false;
-            std::vector<int8_t> nuc_vec;
-            for (int n = 0; n < mut.mut_nuc_size(); n++) {
-                nuc_vec.push_back(mut.mut_nuc(n));
+            if (!m.is_masked()) {
+                m.ref_nuc = (1 << mut.ref_nuc());
+                m.par_nuc = (1 << mut.par_nuc());
+                m.is_missing = false;
+                std::vector<int8_t> nuc_vec;
+                for (int n = 0; n < mut.mut_nuc_size(); n++) {
+                    nuc_vec.push_back(mut.mut_nuc(n));
+                }
+                m.mut_nuc = get_nuc_id(nuc_vec);
             }
-            m.mut_nuc = get_nuc_id(nuc_vec);
+            else {
+                // Mutation masked
+                m.ref_nuc = 0;
+                m.par_nuc = 0;
+                m.mut_nuc = 0;
+            }
             node->add_mutation(m);
         }
     }
@@ -451,17 +459,23 @@ void Mutation_Annotated_Tree::save_mutation_annotated_tree (Mutation_Annotated_T
             mut->set_chromosome(m.chrom);
             mut->set_position(m.position);
             
-            int8_t j = get_nt(m.ref_nuc);
-            assert (j >= 0);
-            mut->set_ref_nuc(j);
-            
-            j = get_nt(m.par_nuc);
-            assert (j >= 0);
-            mut->set_par_nuc(j);
-            
-            mut->clear_mut_nuc();
-            for (auto nuc: get_nuc_vec_from_id(m.mut_nuc)) {
-                mut->add_mut_nuc(nuc);
+            if (m.is_masked()) {
+                mut->set_ref_nuc(-1);
+                mut->set_par_nuc(-1);
+            }
+            else {
+                int8_t j = get_nt(m.ref_nuc);
+                assert (j >= 0);
+                mut->set_ref_nuc(j);
+
+                j = get_nt(m.par_nuc);
+                assert(j >= 0);
+                mut->set_par_nuc(j);
+
+                mut->clear_mut_nuc();
+                for (auto nuc: get_nuc_vec_from_id(m.mut_nuc)) {
+                    mut->add_mut_nuc(nuc);
+                }
             }
         }
     }

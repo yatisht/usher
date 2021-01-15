@@ -712,7 +712,7 @@ int main(int argc, char** argv) {
                             fprintf(stderr, "WARNING: Number of parsimony-optimal placements exceeds maximum allowed value (%u). Ignoring sample %s.\n", max_uncertainty, sample.c_str());
                         }
                         else {
-                            fprintf(stderr, "WARNING: Too many parsimony-optimal placements found. Placement done without high confidence.\n");
+                            fprintf(stderr, "WARNING: Multiple parsimony-optimal placements found. Placement done without high confidence.\n");
                         }
                     }
                 }
@@ -815,8 +815,8 @@ int main(int argc, char** argv) {
                             }
                             for (size_t idx = 0; idx < static_cast<size_t>(node_set_difference[k]); idx++) {
                                 auto m = node_excess_mutations[k][idx];
-                                assert ((m.mut_nuc & (m.mut_nuc-1)) == 0);
-                                fprintf(parsimony_scores_file, "%s", (MAT::get_nuc(m.par_nuc) + std::to_string(m.position) + MAT::get_nuc(m.mut_nuc)).c_str());
+                                assert (m.is_masked() || ((m.mut_nuc & (m.mut_nuc-1)) == 0));
+                                fprintf(parsimony_scores_file, "%s", m.get_string().c_str());
                                 if (idx+1 < static_cast<size_t>(node_set_difference[k])) {
                                     fprintf(parsimony_scores_file, ",");
                                 }
@@ -906,6 +906,9 @@ int main(int argc, char** argv) {
                                 for (auto m1: curr_l1_mut) {
                                     bool found = false;
                                     for (auto m2: node_excess_mutations[best_j]) {
+                                        if (m1.is_masked()) {
+                                            break;
+                                        }
                                         if (m1.position == m2.position) {
                                             if (m1.mut_nuc == m2.mut_nuc) {
                                                 found = true;
@@ -922,6 +925,9 @@ int main(int argc, char** argv) {
                                 for (auto m1: node_excess_mutations[best_j]) {
                                     bool found = false;
                                     for (auto m2: curr_l1_mut) {
+                                        if (m1.is_masked()) {
+                                            break;
+                                        }
                                         if (m1.position == m2.position) {
                                             if (m1.mut_nuc == m2.mut_nuc) {
                                                 found = true;
@@ -966,6 +972,9 @@ int main(int argc, char** argv) {
                                 for (auto m1: node_excess_mutations[best_j]) {
                                     bool found = false;
                                     for (auto m2: curr_l1_mut) {
+                                        if (m1.is_masked()) {
+                                            break;
+                                        }
                                         if (m1.position == m2.position) {
                                             if (m1.mut_nuc == m2.mut_nuc) {
                                                 found = true;
@@ -1119,7 +1128,7 @@ int main(int argc, char** argv) {
                     curr_node_mutation_string = sample + ":";
                     size_t num_mutations = curr_node_mutations.size();
                     for (size_t k = 0; k < num_mutations; k++) {
-                        curr_node_mutation_string += MAT::get_nuc(curr_node_mutations[k].par_nuc) + std::to_string(curr_node_mutations[k].position) + MAT::get_nuc(curr_node_mutations[k].mut_nuc); 
+                        curr_node_mutation_string += curr_node_mutations[k].get_string();
                         if (k < num_mutations-1) {
                             curr_node_mutation_string += ',';
                         }
@@ -1137,7 +1146,7 @@ int main(int argc, char** argv) {
                         curr_node_mutation_string = anc_node->identifier + ":";
                         size_t num_mutations = curr_node_mutations.size();
                         for (size_t k = 0; k < num_mutations; k++) {
-                            curr_node_mutation_string += MAT::get_nuc(curr_node_mutations[k].par_nuc) + std::to_string(curr_node_mutations[k].position) + MAT::get_nuc(curr_node_mutations[k].mut_nuc); 
+                            curr_node_mutation_string += curr_node_mutations[k].get_string(); 
                             if (k < num_mutations-1) {
                                 curr_node_mutation_string += ',';
                             }
@@ -1305,7 +1314,7 @@ int main(int argc, char** argv) {
                     size_t tot_mutations = subtree_root_mutations.size();
                     for (size_t idx = 0; idx < tot_mutations; idx++) {
                         auto m = subtree_root_mutations[idx];
-                        fprintf(subtree_mutations_file, "%s", (MAT::get_nuc(m.par_nuc) + std::to_string(m.position) + MAT::get_nuc(m.mut_nuc)).c_str());
+                        fprintf(subtree_mutations_file, "%s", m.get_string().c_str());
                         if (idx+1 <tot_mutations) {
                             fprintf(subtree_mutations_file, ",");
                         }
@@ -1318,7 +1327,7 @@ int main(int argc, char** argv) {
                         fprintf(subtree_mutations_file, "%s: ", n->identifier.c_str());
                         for (size_t idx = 0; idx < tot_mutations; idx++) {
                             auto m = subtree_node_mutations[n][idx];
-                            fprintf(subtree_mutations_file, "%s", (MAT::get_nuc(m.par_nuc) + std::to_string(m.position) + MAT::get_nuc(m.mut_nuc)).c_str());
+                            fprintf(subtree_mutations_file, "%s", m.get_string().c_str());
                             if (idx+1 <tot_mutations) {
                                 fprintf(subtree_mutations_file, ",");
                             }
