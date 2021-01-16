@@ -1,9 +1,13 @@
+#include "Fitch_Sankoff.hpp"
 #include "src/mutation_annotated_tree.hpp"
+#include "tree_rearrangement.hpp"
 #include "usher_graph.hpp"
 #include <algorithm>
+#include <cctype>
+#include <string>
 #include <utility>
 #include <vector>
-/*
+/* This is for non-adjacent moves
 class Merged_Mutation_Iterator {
     class range {
         std::vector<MAT::Mutation>::const_iterator start;
@@ -62,163 +66,221 @@ class Merged_Mutation_Iterator {
     operator bool() { return !heap.empty(); }
 };
 */
+typedef std::pair<int, std::vector<Fitch_Sankoff::States_Type>>
+    pending_change_type;
 static MAT::Mutation reverse_mutation(MAT::Mutation to_reverse) {
     auto old_par_nuc = to_reverse.par_nuc;
     to_reverse.par_nuc = to_reverse.mut_nuc;
     to_reverse.mut_nuc = old_par_nuc;
     return to_reverse;
 }
+template <bool move_to_parent>
+static void
+set_mutation_iterator(MAT::Node *this_node, MAT::Node *new_parent,
+                      MAT::Mutations_Collection::iterator &mutations_begin,
+                      MAT::Mutations_Collection::iterator &mutations_end) {
+    if (move_to_parent) {
+        assert(new_parent == this_node->parent->parent);
+        auto parent_of_parent = this_node->parent->parent;
+        mutations_begin = parent_of_parent->mutations.begin();
+        mutations_end = parent_of_parent->mutations.end();
+    } else {
+        assert(new_parent->parent == this_node->parent);
+        mutations_begin = new_parent->mutations.begin();
+        mutations_end = new_parent->mutations.end();
+    }
+}
+
+// HACK: try to identify whether a node is a sample from name
+static bool not_sample(MAT::Node *node) {
+    for (auto c : node->identifier) {
+        if (!std::isdigit(c))
+            return false;
+    }
+    return true;
+}
+
+static void insert_node(MAT::Node *parent, MAT::Node *to_insert,
+                        MAT::Tree &tree) {
+    std::vector<MAT::Mutation> best_common;
+    std::vector<MAT::Mutation> best_sibling_unique;
+    std::vector<MAT::Mutation> best_insert_unique;
+    MAT::Node *best_sibling;
+    for (auto child : parent->children) {
+        std::vector<MAT::Mutation> this_common;
+        std::vector<MAT::Mutation> this_sibling_unique;
+        std::vector<MAT::Mutation> this_insert_unique;
+        child->mutations.set_difference(to_insert->mutations,
+                                        this_sibling_unique, this_insert_unique,
+                                        this_common);
+        if (this_common.size() > best_common.size()) {
+            best_sibling = child;
+            best_common.swap(this_common);
+            best_sibling_unique.swap(this_sibling_unique);
+            best_insert_unique.swap(this_insert_unique);
+        }
+    }
+
+    auto &parent_children = parent->children;
+    if (best_common.size() == 0) {
+        parent_children.push_back(to_insert);
+    } else {
+        auto iter = std::find(parent_children.begin(), parent_children.end(),
+                              best_sibling);
+        parent_children.erase(iter);
+
+        auto new_node = tree.create_node(
+            std::to_string(tree.curr_internal_node++), parent->identifier);
+        new_node->mutations.swap(best_common);
+
+        to_insert->mutations.swap(best_insert_unique);
+        new_node->children.push_back(to_insert);
+
+        best_sibling->mutations.swap(best_sibling_unique);
+        new_node->children.push_back(best_sibling);
+
+        parent_children.push_back(new_node);
+    }
+}
+
+template <bool move_to_parent>
+static void
+apply_move(MAT::Node *this_node, const std::pair<size_t, size_t> &range,
+           MAT::Node *new_parent, std::vector<MAT::Node *> &dfs_ordered_nodes,
+           std::vector<Fitch_Sankoff::States_Type> states_all_pos,
+           MAT::Tree &tree) {
+    MAT::Mutations_Collection::iterator mutations_begin;
+    MAT::Mutations_Collection::iterator mutations_end;
+    set_mutation_iterator<move_to_parent>(this_node, new_parent,
+                                          mutations_begin, mutations_end);
+    // apply adjustment
+    for (auto states : states_all_pos) {
+        Fitch_Sankoff::sankoff_forward_pass(range, states, dfs_ordered_nodes,
+                                            *mutations_begin);
+        mutations_begin++;
+    }
+    assert(mutations_begin == mutations_end);
+    // start moving
+    auto parent = this_node->parent;
+    auto &parent_children = parent->children;
+    auto iter =
+        std::find(parent_children.begin(), parent_children.end(), this_node);
+    parent_children.erase(iter);
+    if (parent->children.size() <= 1 && not_sample(parent)) {
+        tree.remove_node(parent->identifier, false);
+    }
+    // Try merging with sibling in the new location
+}
+
+template <bool move_to_parent>
+static pending_change_type check_move_profitable(
+    MAT::Node *this_node, const std::pair<size_t, size_t> &range,
+    MAT::Node *new_parent, const std::vector<MAT::Node *> &dfs_ordered_nodes) {
+    std::vector<Fitch_Sankoff::States_Type> states_all_pos;
+
+    MAT::Mutations_Collection::iterator mutations_begin;
+    MAT::Mutations_Collection::iterator mutations_end;
+    set_mutation_iterator<move_to_parent>(this_node, new_parent,
+                                          mutations_begin, mutations_end);
+
+    states_all_pos.reserve(mutations_end - mutations_begin);
+    int score_change = 0; // change in parsimony score if moved to new location
+    for (; mutations_begin < mutations_end; mutations_begin++) {
+        Fitch_Sankoff::Scores_Type scores;
+        scores.reserve(range.second - range.first);
+        Fitch_Sankoff::States_Type states;
+        states.reserve(range.second - range.first);
+        Fitch_Sankoff::sankoff_backward_pass(range, *mutations_begin,
+                                             dfs_ordered_nodes, scores, states);
+        char cur_parent_nuc = move_to_parent ? mutations_begin->mut_nuc
+                                             : mutations_begin->par_nuc;
+        char new_parent_nuc = move_to_parent ? mutations_begin->par_nuc
+                                             : mutations_begin->mut_nuc;
+        // score for current parent
+        auto curr_result = Fitch_Sankoff::get_child_score_on_par_nuc(
+            cur_parent_nuc, scores.back());
+        auto new_result = Fitch_Sankoff::get_child_score_on_par_nuc(
+            new_parent_nuc, scores.back());
+        // always prepare states for new parent, as nothing will be done if
+        // there is no improvement and this_node stay with its original parent.
+        states.back() = new_result.second;
+        score_change += (new_result.first - curr_result.first);
+        states_all_pos.push_back(states);
+    }
+    if (score_change >= 0) {
+        states_all_pos.clear();
+    }
+    return std::make_pair(score_change, states_all_pos);
+}
 
 /**
- * @brief Merge a set of new mutations into a set of old mutations
- *
- * @param older set of mutations happended earlier sorted in increasing order of
- * position
- * @param newer set of mutations happended later sorted in increasing order of
- * position
- * @return std::vector<MAT::Mutation> Merged set of mutations sorted in
- * increasing order of position
+ * @brief See whether there will be any improvement by moving current node as a
+ * child of parent of parent of a child of its sibling. NNI can be achieved with
+ * such moves:
+ *       parent of parent
+ *          /       \
+ *         A        parent
+ *                   /  \
+ *                  B   this_node
+ * Move this_node to parent of parent (parent and B fused):
+ *      parent of parent
+ *          /    |      \
+ *         A     B      this_node
+ * Make a new parent for A and B if they share mutations:
+ *      parent of parent
+ *         /      \
+ *        *      this_node
+ *       / \
+ *      B   A
+ * Finish a NNI of A and this_node
+ * Moving under siblings unlikely be NNI
+ *          parent
+ *      /      |    \
+ * this_node   B     sibling
+ *                      \
+ *                        A
+ * Move this under sibling
+ *    parent
+ *  /       \
+ *  B     sibling
+ *        /    \
+ *       A   this_node
+ * @param this_node
+ * @return bool Whether there is an improvement from moving this_node
  */
-static std::vector<MAT::Mutation>
-merge_mutations(const std::vector<MAT::Mutation> &older,
-                const std::vector<MAT::Mutation> &newer) {
-    std::vector<MAT::Mutation> output;
-    output.reserve(newer.size() + older.size());
-
-    auto newer_iter = newer.begin();
-    // basically merge sort
-    for (auto old_mutations : older) {
-        while (newer_iter != newer.end() &&
-               old_mutations.position > newer_iter->position) {
-            output.push_back(*newer_iter);
-            newer_iter++;
-        }
-        if (newer_iter == newer.end() ||
-            old_mutations.position < newer_iter->position) {
-            output.push_back(old_mutations);
-        } else {
-            assert(newer_iter->position == old_mutations.position);
-            assert(newer_iter->par_nuc == old_mutations.mut_nuc);
-
-            if (newer_iter->mut_nuc != old_mutations.par_nuc) {
-                MAT::Mutation temp(old_mutations);
-                temp.mut_nuc = newer_iter->mut_nuc;
-                output.push_back(temp);
-            }
-        }
+bool Tree_Rearrangement::move_nearest(
+    MAT::Node *this_node, std::vector<MAT::Node *> &dfs_ordered_nodes,
+    MAT::Tree &tree) {
+    if (!this_node->parent || !this_node->parent->parent) {
+        return false;
     }
-    return output;
-}
-
-static std::vector<MAT::Mutation>
-get_mutations_after_moving_to_child(MAT::Node *to_move, MAT::Node *dest) {
-    assert(dest->parent == to_move->parent);
-    std::vector<MAT::Mutation> reversed_parent_mutations;
-    reversed_parent_mutations.reserve(to_move->mutations.size());
-    for (auto mutation : to_move->mutations) {
-        reversed_parent_mutations.push_back(reverse_mutation(mutation));
-    }
-    return merge_mutations(reversed_parent_mutations, to_move->mutations);
-}
-/*
-static unsigned int min_pos(Merged_Mutation_Iterator &in1,
-                            Merged_Mutation_Iterator &in2) {
-    if (!in1)
-        return in2 ? in2->position : 0x7fffffff;
-    if (!in2)
-        return in1 ? in1->position : 0x7fffffff;
-    return in1->position < in2->position ? in1->position : in2->position;
-}
-
-static std::pair<unsigned int,unsigned int> count_mutations(Merged_Mutation_Iterator &iter,
-                                    int8_t nuc_to_count) {
-    auto old_pos = iter->position;
-    unsigned int count = 0;
-    unsigned int other_count = 0;
-    while (old_pos == iter->position) {
-        if (iter->mut_nuc == nuc_to_count) {
-            count++;
-        } else {
-            other_count++;
-        }
-        iter++;
-    }
-    return std::make_pair(count, other_count);
-}
-
-static int reassign_state(Merged_Mutation_Iterator &added,
-                          Merged_Mutation_Iterator &removed,
-                          Merged_Mutation_Iterator &rest,int num_chlidren,
-                          std::vector<MAT::Mutation>& may_remove,
-                          std::vector<MAT::Mutation>& may_add,
-                          std::vector<MAT::Mutation>& add) {
-    int parsimony_score = 0;
-    while (rest) {
-        if (rest->position < min_pos(added, removed))
+    auto range = Fitch_Sankoff::dfs_range(this_node);
+    // moving to parent
+    auto best_new_parent = this_node->parent->parent;
+    pending_change_type pending_change = check_move_profitable<true>(
+        this_node, range, best_new_parent, dfs_ordered_nodes);
+    auto best_score = pending_change.first;
+    std::vector<Fitch_Sankoff::States_Type> best_states = pending_change.second;
+    for (auto child : this_node->parent->children) {
+        if (child == this_node)
             continue;
-        while (added && rest->position > added->position) {
-            added++;
-            parsimony_score++;
-        }
-
-        while (removed && rest->position > removed->position) {
-            removed++;
-            parsimony_score--;
-        }
-        if (removed && removed->position == rest->position) {
-            auto changes=count_mutations(rest, removed->mut_nuc);
-            //parsimony score change if this mutation is removed from the node
-            int parsimony_change=changes.first //parsimony score increase from pushing this mutation to children
-            -(num_chlidren-changes.first-changes.second);
-            //just fast forward removed to a new position
-            count_mutations(removed, removed->mut_nuc);
-
+        pending_change = check_move_profitable<false>(this_node, range, child,
+                                                      dfs_ordered_nodes);
+        if (pending_change.first <= best_score) {
+            best_score = pending_change.first;
+            best_new_parent = this_node;
+            best_states.swap(pending_change.second);
         }
     }
-    return parsimony_score;
-}
-*/
-static int check_exchange_improvement_after_move_to_parent_of_parent(
-    MAT::Node *to_check, const MAT::Node *exchanger,
-    std::vector<MAT::Node *> &mutation_wrt_cur_parent_of_parent) {
-    // parsimony score change accumulator
-    int parsimony_change = 0;
-    std::vector<MAT::Mutation> to_check_mutation_wrt_parent =
-        get_mutations_after_moving_to_child(to_check, exchanger->parent);
-
-    // Do sankoff on parent and see whether its state need to be changed
-    // Only mutations in exchanger(originally a child of parent) may be removed,
-    // and mutations in to_check_mutation_wrt_parent (a new child of parent) may
-    // be added
-    Merged_Mutation_Iterator other_children_mutations(exchanger->parent,
-                                                      exchanger);
-
-}
-/*
-        parent_of_parent
-        /           \
-    to_check        parent
-                        \
-                        this_node
-*/
-static std::pair<MAT::Node *, int>
-check_children_of_parent_of_parent(MAT::Node *this_node) {
-    unsigned int improvement = 0;
-    MAT::Node *replacer = nullptr;
-    std::vector<MAT::Mutation> mutations_wrt_parent_of_parent_before_move =
-        merge_mutations(this_node->parent->mutations, this_node->mutations);
-    for (MAT::Node *to_check : this_node->parent->children) {
-        // Not particularly interesting to exchange this_node with itself
-        if (to_check == this_node) {
-            continue;
-        }
-        int this_improvement = check_exchange_improvement(
-            to_check, this_node, mutations_wrt_parent_of_parent_before_move);
-        if (this_improvement > improvement) {
-            improvement = this_improvement;
-            replacer = to_check;
-        }
+    if (best_score >= 0) {
+        return false;
     }
-    return std::make_pair(replacer, improvement);
+    if (best_new_parent == this_node->parent->parent) {
+        apply_move<true>(this_node, range, best_new_parent, dfs_ordered_nodes,
+                         best_states, tree);
+    } else {
+        apply_move<false>(this_node, range, best_new_parent, dfs_ordered_nodes,
+                          best_states, tree);
+    }
+    return true;
 }
-bool serial_NNI(MAT::Node *this_node) {}

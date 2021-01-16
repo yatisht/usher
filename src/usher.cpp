@@ -9,6 +9,8 @@
 #include <memory>
 #include <limits>
 #include <string>
+#include <unordered_set>
+#include "tree_rearrangement.hpp"
 #include <vector>
 #include "boost/filesystem.hpp"
 #include "src/mutation_annotated_tree.hpp"
@@ -289,13 +291,13 @@ static MAT::Node* place_one_sample_on_one_tree(
         assert(node==new_sample_node);
         std::vector<MAT::Mutation> node_mut;
 
-        const std::vector<MAT::Mutation>& curr_l1_mut=best_node->mutations;
+        MAT::Mutations_Collection& curr_l1_mut=best_node->mutations;
 
         for (auto m1 : node_excess_mutations) {
             bool found = false;
             // Finding whether a mutation in sample not in parent of best_node
             // (m1) is in mutations in best_node
-            for (const MAT::Mutation& m2 : curr_l1_mut) {
+            for (MAT::Mutation& m2 : curr_l1_mut) {
                 if (m1.position == m2.position) {
                     if (m1.mut_nuc == m2.mut_nuc) {
                         found = true;
@@ -432,10 +434,29 @@ static void place_sample(
 
 void refine_trees(std::vector<MAT::Tree>& optimal_trees,  std::vector<std::vector<MAT::Node*>>& new_nodes_in_each_tree){
     
+    auto iter=new_nodes_in_each_tree.begin();
+    for(auto this_tree:optimal_trees){
+        std::unordered_set<MAT::Node*> tried;
+        auto dfs_ordered_nodes=this_tree.depth_first_expansion();
+        auto& nodes=*iter;
+        for(MAT::Node*& node:nodes){
+            if(node->parent){
+                node=node->parent;
+                auto result=tried.find(node);
+                if(result==tried.end()){
+                    if(Tree_Rearrangement::move_nearest(node, dfs_ordered_nodes, this_tree)){
+                        dfs_ordered_nodes=this_tree.depth_first_expansion();
+                    }
+                }
+                tried.insert(node);
+            }
+        }
+    }
+    /*
     for(auto curr_tree_new_nodes:new_nodes_in_each_tree){
         auto num_new_nodes=curr_tree_new_nodes.size();
         std::vector<Interchanges_On_Same_Node> interchange_queues(num_new_nodes);
-        /*auto grain_size = 400; 
+        auto grain_size = 400; 
         if (num_new_nodes>grain_size){
         while (true) {
         tbb::parallel_for(tbb::blocked_range<size_t>(0, num_new_nodes, grain_size),[&](tbb::blocked_range<size_t> range){
@@ -445,16 +466,16 @@ void refine_trees(std::vector<MAT::Tree>& optimal_trees,  std::vector<std::vecto
         });
         if (!parallel_NNI_post_process(interchange_queues)) break;
         }
-        }else{*/
+        }else{
             bool have_improvement;
             do{
                 have_improvement=false;
                 for(auto this_node:curr_tree_new_nodes){
-                    have_improvement|=serial_NNI(this_node);
+                    //have_improvement|=serial_NNI(this_node);
                 }
             }while(have_improvement);
         //}
-    }
+    }*/
 }
 
 int main(int argc, char **argv) {
@@ -1169,10 +1190,9 @@ int main(int argc, char **argv) {
                 curr_new_nodes++;
             }
         }
-        
+        refine_trees(optimal_trees, all_new_nodes);
     }
     
-
     num_trees = optimal_trees.size();
             
     // If user specified print_parsimony_scores, close corresponding file and
@@ -1281,14 +1301,16 @@ int main(int argc, char **argv) {
                 if (curr_node_mutations.size() > 0) {
                     curr_node_mutation_string = sample + ":";
                     size_t num_mutations = curr_node_mutations.size();
-                    for (size_t k = 0; k < num_mutations; k++) {
-                        curr_node_mutation_string += MAT::get_nuc(curr_node_mutations[k].par_nuc) + std::to_string(curr_node_mutations[k].position) + MAT::get_nuc(curr_node_mutations[k].mut_nuc); 
+                    size_t k = 0;
+                    for ( auto m:curr_node_mutations ) {
+                        curr_node_mutation_string += MAT::get_nuc(m.par_nuc) + std::to_string(m.position) + MAT::get_nuc(m.mut_nuc); 
                         if (k < num_mutations-1) {
                             curr_node_mutation_string += ',';
                         }
                         else {
                             curr_node_mutation_string += ' ';    
                         }
+                        k++;
                     }
                     mutation_stack.push(curr_node_mutation_string);
                 }
@@ -1299,14 +1321,16 @@ int main(int argc, char **argv) {
                     if (curr_node_mutations.size() > 0) {
                         curr_node_mutation_string = anc_node->identifier + ":";
                         size_t num_mutations = curr_node_mutations.size();
-                        for (size_t k = 0; k < num_mutations; k++) {
-                            curr_node_mutation_string += MAT::get_nuc(curr_node_mutations[k].par_nuc) + std::to_string(curr_node_mutations[k].position) + MAT::get_nuc(curr_node_mutations[k].mut_nuc); 
+                        size_t k=0;
+                        for (auto m:curr_node_mutations) {
+                            curr_node_mutation_string += MAT::get_nuc(m.par_nuc) + std::to_string(m.position) + MAT::get_nuc(m.mut_nuc); 
                             if (k < num_mutations-1) {
                                 curr_node_mutation_string += ',';
                             }
                             else {
                                 curr_node_mutation_string += ' ';    
                             }
+                            k++;
                         }
                         mutation_stack.push(curr_node_mutation_string);
                     }
@@ -1374,7 +1398,7 @@ int main(int argc, char **argv) {
                     MAT::Tree new_T = MAT::create_tree_from_newick_string(newick);
 
                     // Map to store mutations for individual tree nodes in new_T
-                    std::unordered_map<MAT::Node*, std::vector<MAT::Mutation>> subtree_node_mutations;
+                    std::unordered_map<MAT::Node*, MAT::Mutations_Collection> subtree_node_mutations;
                     std::vector<MAT::Mutation> subtree_root_mutations;
                     auto dfs1 = T->depth_first_expansion(anc);
                     auto dfs2 = new_T.depth_first_expansion();
@@ -1479,12 +1503,13 @@ int main(int argc, char **argv) {
                     for (auto n: new_T.depth_first_expansion()) {
                         size_t tot_mutations = subtree_node_mutations[n].size();
                         fprintf(subtree_mutations_file, "%s: ", n->identifier.c_str());
-                        for (size_t idx = 0; idx < tot_mutations; idx++) {
-                            auto m = subtree_node_mutations[n][idx];
+                        size_t idx = 0; 
+                        for (auto m:subtree_node_mutations[n]) {
                             fprintf(subtree_mutations_file, "%s", (MAT::get_nuc(m.par_nuc) + std::to_string(m.position) + MAT::get_nuc(m.mut_nuc)).c_str());
                             if (idx+1 <tot_mutations) {
                                 fprintf(subtree_mutations_file, ",");
                             }
+                            idx++;
                         }
                         fprintf(subtree_mutations_file, "\n");
                     }

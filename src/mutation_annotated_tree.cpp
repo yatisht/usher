@@ -1,5 +1,6 @@
 #include "mutation_annotated_tree.hpp"
 #include <algorithm>
+#include <cstddef>
 #include <iomanip>
 #include <cassert>
 // Uses one-hot encoding if base is unambiguous
@@ -770,10 +771,12 @@ std::vector<Mutation_Annotated_Tree::Node*> Mutation_Annotated_Tree::Tree::bread
     return traversal;
 }
 
-void Mutation_Annotated_Tree::Tree::depth_first_expansion_helper(Mutation_Annotated_Tree::Node* node, std::vector<Mutation_Annotated_Tree::Node*>& vec) {
+static void depth_first_expansion_helper(Mutation_Annotated_Tree::Node* node, std::vector<Mutation_Annotated_Tree::Node*>& vec, size_t& index) {
     vec.push_back(node);
+    node->index=index;
+    index++;
     for (auto c: node->children) {
-        depth_first_expansion_helper(c, vec);
+        depth_first_expansion_helper(c, vec,index);
     }
 }
 
@@ -782,7 +785,8 @@ std::vector<Mutation_Annotated_Tree::Node*> Mutation_Annotated_Tree::Tree::depth
         node = root;
     }
     std::vector<Node*> traversal;
-    depth_first_expansion_helper(node, traversal);
+    size_t index=0;
+    depth_first_expansion_helper(node, traversal,index);
     return traversal;
 }
 
@@ -814,7 +818,6 @@ void Mutation_Annotated_Tree::Tree::condense_leaves(std::vector<std::string> mis
                 if (std::find(missing_samples.begin(), missing_samples.end(), l2->identifier) != missing_samples.end()) {
                     continue;
                 }
-                //not sure why it is no mutation rather than have the same mutations
             if (l2->is_leaf() && (get_node(l2->identifier) != NULL) && (l2->mutations.size() == 0)) {
                 polytomy_nodes.push_back(l2->identifier);
             }
