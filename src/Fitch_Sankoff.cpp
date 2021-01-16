@@ -22,6 +22,7 @@ static void fill_nuc(char nuc, Score_Type &out) {
 }
 static void set_leaf_score(MAT::Node &this_node, const MAT::Mutation &pos,
                            Score_Type &out) {
+    assert(out.node==&this_node);
     auto found = this_node.mutations.find(pos);
     if (found == this_node.mutations.end()) {
         fill_nuc(pos.ref_nuc, out);
@@ -100,7 +101,8 @@ void Fitch_Sankoff::sankoff_backward_pass(const std::pair<size_t, size_t> &range
                            const MAT::Mutation &mutation,
                            const std::vector<MAT::Node *> &dfs_ordered_nodes,
                            Scores_Type &scores, States_Type &states) {
-    size_t start_idx = range.first;
+    //Going from the end to start
+    size_t start_idx = range.second-1;
     assert(scores.empty());
     assert(states.empty());
     for (auto iter = dfs_ordered_nodes.begin() + range.second-1;
@@ -117,7 +119,7 @@ void Fitch_Sankoff::sankoff_backward_pass(const std::pair<size_t, size_t> &range
         states.emplace_back(0);
 #endif
 
-        auto score_array = scores.back();
+        Score_Type& score_array = scores.back();
         if ((*iter)->is_leaf()) {
             set_leaf_score(**iter, mutation, score_array);
         } else {

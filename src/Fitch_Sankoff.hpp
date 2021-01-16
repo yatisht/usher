@@ -9,7 +9,9 @@ namespace Fitch_Sankoff {
 struct State_Type {
     char state;
     const MAT::Node *const node;
-    State_Type(const MAT::Node *n) : node(n) {}
+    State_Type(const MAT::Node *n) : node(n) {
+        state=0;
+    }
     State_Type() : State_Type(nullptr) {}
     operator char &() { return state; }
     char operator=(char a) { return (state = a); }
