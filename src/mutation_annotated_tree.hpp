@@ -99,7 +99,14 @@ namespace Mutation_Annotated_Tree {
         iterator find(const Mutation& mut) {
             return find_next(mut.position);
         }
-
+        bool remove(int pos){
+            auto iter=find(pos);
+            if(iter==mutations.end()){
+                return false;
+            }
+            mutations.erase(iter);
+            return true;
+        }
         /**
          * @brief Merge other mutations into this mutation set
          * 
@@ -236,6 +243,14 @@ last_pos_inserted=(newly_inserted);
             void add_mutation(Mutation& mut){
                 mutations.insert(mut);
             }
+            // HACK: try to identify whether a node is a sample from name
+            bool not_sample() {
+                for (auto c : this->identifier) {
+                    if (!std::isdigit(c))
+                        return false;
+                }
+                return true;
+            }
             void clear_mutations(){
                 mutations.clear();
             }
@@ -260,7 +275,7 @@ last_pos_inserted=(newly_inserted);
             Node* root;
             std::unordered_map<std::string, std::vector<std::string>> condensed_nodes;
             std::unordered_set<std::string> condensed_leaves;
-
+            void check_samples(std::unordered_map<Node*,std::unordered_set<Mutation>>& samples);
             size_t curr_internal_node;
             size_t get_max_level ();
             void rename_node(std::string old_nid, std::string new_nid);

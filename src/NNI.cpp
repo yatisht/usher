@@ -91,14 +91,7 @@ set_mutation_iterator(MAT::Node *this_node, MAT::Node *new_parent,
     }
 }
 
-// HACK: try to identify whether a node is a sample from name
-static bool not_sample(MAT::Node *node) {
-    for (auto c : node->identifier) {
-        if (!std::isdigit(c))
-            return false;
-    }
-    return true;
-}
+
 
 static void insert_node(MAT::Node *parent, MAT::Node *to_insert,
                         MAT::Tree &tree) {
@@ -154,7 +147,9 @@ apply_move(MAT::Node *this_node, const std::pair<size_t, size_t> &range,
     set_mutation_iterator<move_to_parent>(this_node, new_parent,
                                           mutations_begin, mutations_end);
     // apply adjustment
+    assert(states_all_pos.size()==mutations_end-mutations_begin);
     for (auto states : states_all_pos) {
+        assert(states.back().node==this_node);
         Fitch_Sankoff::sankoff_forward_pass(range, states, dfs_ordered_nodes,
                                             *mutations_begin);
         mutations_begin++;
@@ -166,7 +161,7 @@ apply_move(MAT::Node *this_node, const std::pair<size_t, size_t> &range,
     auto iter =
         std::find(parent_children.begin(), parent_children.end(), this_node);
     parent_children.erase(iter);
-    if (parent->children.size() <= 1 && not_sample(parent)) {
+    if (parent->children.size() <= 1 && parent->not_sample()) {
         tree.remove_node(parent->identifier, false);
     }
     // Try merging with sibling in the new location
@@ -185,17 +180,17 @@ static pending_change_type check_move_profitable(
 
     states_all_pos.reserve(mutations_end - mutations_begin);
     int score_change = 0; // change in parsimony score if moved to new location
-    for (; mutations_begin < mutations_end; mutations_begin++) {
+    for (auto iter=mutations_begin; iter < mutations_end; iter++) {
         Fitch_Sankoff::Scores_Type scores;
         scores.reserve(range.second - range.first);
         Fitch_Sankoff::States_Type states;
         states.reserve(range.second - range.first);
-        Fitch_Sankoff::sankoff_backward_pass(range, *mutations_begin,
+        Fitch_Sankoff::sankoff_backward_pass(range, *iter,
                                              dfs_ordered_nodes, scores, states);
-        char cur_parent_nuc = move_to_parent ? mutations_begin->mut_nuc
-                                             : mutations_begin->par_nuc;
-        char new_parent_nuc = move_to_parent ? mutations_begin->par_nuc
-                                             : mutations_begin->mut_nuc;
+        char cur_parent_nuc = move_to_parent ? iter->mut_nuc
+                                             : iter->par_nuc;
+        char new_parent_nuc = move_to_parent ? iter->par_nuc
+                                             : iter->mut_nuc;
         // score for current parent
         auto curr_result = Fitch_Sankoff::get_child_score_on_par_nuc(
             cur_parent_nuc, scores.back());
@@ -207,6 +202,7 @@ static pending_change_type check_move_profitable(
         score_change += (new_result.first - curr_result.first);
         states_all_pos.push_back(states);
     }
+    assert(states_all_pos.size()==mutations_end-mutations_begin);
     if (score_change >= 0) {
         states_all_pos.clear();
     }
@@ -261,14 +257,14 @@ bool Tree_Rearrangement::move_nearest(
         this_node, range, best_new_parent, dfs_ordered_nodes);
     auto best_score = pending_change.first;
     std::vector<Fitch_Sankoff::States_Type> best_states = pending_change.second;
-    for (auto child : this_node->parent->children) {
-        if (child == this_node)
+    for (auto sibling : this_node->parent->children) {
+        if (sibling == this_node)
             continue;
-        pending_change = check_move_profitable<false>(this_node, range, child,
+        pending_change = check_move_profitable<false>(this_node, range, sibling,
                                                       dfs_ordered_nodes);
         if (pending_change.first <= best_score) {
             best_score = pending_change.first;
-            best_new_parent = this_node;
+            best_new_parent = sibling;
             best_states.swap(pending_change.second);
         }
     }
