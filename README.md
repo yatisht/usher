@@ -66,8 +66,8 @@ docker run -t -i usher /bin/bash
 Alternatively, you can also use a pre-built Docker image shared by us using the following commands.
 
 ```
-docker pull yatisht/usher:0.1.3
-docker run -t -i yatisht/usher:0.1.3 /bin/bash
+docker pull yatisht/usher:latest
+docker run -t -i yatisht/usher:latest /bin/bash
 ```
 
 #### Using Conda
