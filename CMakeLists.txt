@@ -62,6 +62,7 @@ else()
         src/mutation_annotated_tree.cpp
         src/usher_mapper.cpp
         src/Fitch_Sankoff.cpp
+        src/check_samples.cpp
         src/NNI.cpp
         src/usher.cpp
         ${PROTO_SRCS}

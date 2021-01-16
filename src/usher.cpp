@@ -436,6 +436,7 @@ void refine_trees(std::vector<MAT::Tree>& optimal_trees,  std::vector<std::vecto
     
     auto iter=new_nodes_in_each_tree.begin();
     for(auto this_tree:optimal_trees){
+        fprintf(stderr, "Before refinement: %zu \n", this_tree.get_parsimony_score());
         std::unordered_set<MAT::Node*> tried;
         auto dfs_ordered_nodes=this_tree.depth_first_expansion();
         auto& nodes=*iter;
@@ -451,6 +452,7 @@ void refine_trees(std::vector<MAT::Tree>& optimal_trees,  std::vector<std::vecto
                 tried.insert(node);
             }
         }
+        fprintf(stderr, "After refinement: %zu \n", this_tree.get_parsimony_score());
     }
     /*
     for(auto curr_tree_new_nodes:new_nodes_in_each_tree){
