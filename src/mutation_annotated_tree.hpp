@@ -57,17 +57,21 @@ namespace Mutation_Annotated_Tree {
     class Mutations_Collection{
         std::vector<Mutation> mutations;
         public:
+        typedef std::vector<Mutation>::iterator iterator;
         size_t size() const {return mutations.size();}
-        std::vector<Mutation>::const_iterator begin() const {
+        void swap(std::vector<Mutation>& in){
+            mutations.swap(in);
+        }
+        iterator begin()  {
             return mutations.begin();
         }
-        std::vector<Mutation>::const_iterator end() const{
+        iterator end(){
             return mutations.end();
         }
         void clear(){
             mutations.clear();
         }
-        std::vector<Mutation>::const_iterator find_next(const int pos) const{
+        iterator find_next( int pos) {
             #ifndef NDEBUG
             int lastPos=0;
             #endif
@@ -83,12 +87,17 @@ namespace Mutation_Annotated_Tree {
             }
             return mutations.end();
         }
-        std::vector<Mutation>::const_iterator find(const Mutation& mut) const{
-            auto iter=find_next(mut.position);
-            if(iter!=mutations.end()&&iter->position>mut.position){
+
+        iterator find(int position) {
+            auto iter=find_next(position);
+            if(iter!=mutations.end()&&iter->position>position){
                 return mutations.end();
             }
             return iter;
+        }
+
+        iterator find(const Mutation& mut) {
+            return find_next(mut.position);
         }
 
         /**
@@ -97,7 +106,7 @@ namespace Mutation_Annotated_Tree {
          * @param other sorted vector of mutations to merge in
          * @param keep_self if two mutations are at the same position 0: keep other, 1: keep self, -1: impossible, throw an error.
          */
-        void merge(const Mutations_Collection other, char keep_self){
+        void merge_out(const Mutations_Collection& other,std::vector<Mutation>& out, char keep_self) const{
 //used for checking whether the two vectors are sorted while merging
 #ifndef NDEBUG
 #define mutation_vector_check_order(newly_inserted) \
@@ -107,43 +116,97 @@ last_pos_inserted=(newly_inserted);
 #else
 #define mutation_vector_check_order(newly_inserted)
 #endif
-            std::vector<Mutation> new_set;
-            new_set.reserve(other.mutations.size()+mutations.size());
+            out.reserve(other.mutations.size()+mutations.size());
             auto other_iter=other.mutations.begin();
             for(auto this_mutation:mutations){
                 while (other_iter->position<this_mutation.position) {
                     mutation_vector_check_order(other_iter->position);
-                    new_set.push_back(*other_iter);
+                    out.push_back(*other_iter);
                     other_iter++;
                 }
                 if (other_iter==other.mutations.end()||
                     this_mutation.position<other_iter->position) {
                     mutation_vector_check_order(this_mutation.position);
-                    new_set.push_back(this_mutation);
+                    out.push_back(this_mutation);
                 }else{
                     mutation_vector_check_order(this_mutation.position);
 
                     assert(this_mutation.position==other_iter->position);
                     assert(keep_self!=-1);
                     if (keep_self) {
-                        new_set.push_back(this_mutation);
+                        out.push_back(this_mutation);
                     }else {
-                        new_set.push_back(*other_iter);
+                        out.push_back(*other_iter);
                     }
                     other_iter++;
                 }
             }
             while (other_iter<other.mutations.end()) {
                 mutation_vector_check_order(other_iter->position);
-                new_set.push_back(*other_iter);
+                out.push_back(*other_iter);
             }
+        }
+
+        void merge(const Mutations_Collection& other, char keep_self){
+            std::vector<Mutation> new_set;
+            merge_out(other, new_set, keep_self);
             mutations.swap(new_set);
         }
 
-        void insert(const Mutation& mut){
+        void set_difference(const Mutations_Collection &other,
+                            std::vector<Mutation> &this_unique,
+                            std::vector<Mutation> &other_unique,
+                            std::vector<Mutation> &common) {
+            this_unique.reserve(mutations.size());
+            other_unique.reserve(other.mutations.size());
+            common.reserve(std::min(mutations.size(), other.mutations.size()));
+            auto other_iter = other.mutations.begin();
+#ifndef NDEBUG
+            int last_pos_inserted = -1;
+#endif
+            // merge sort again
+            for (auto this_mutation : mutations) {
+                while (other_iter->position < this_mutation.position) {
+                    mutation_vector_check_order(other_iter->position);
+                    other_unique.push_back(*other_iter);
+                    other_iter++;
+                }
+                if (other_iter == other.mutations.end() ||
+                    this_mutation.position < other_iter->position) {
+                    mutation_vector_check_order(this_mutation.position);
+                    this_unique.push_back(this_mutation);
+                } else {
+                    mutation_vector_check_order(this_mutation.position);
+                    assert(this_mutation.position == other_iter->position);
+
+                    if (other_iter->mut_nuc == this_mutation.mut_nuc) {
+                        assert(other_iter->par_nuc == this_mutation.par_nuc);
+                        common.push_back(this_mutation);
+                    } else {
+                        this_unique.push_back(this_mutation);
+                        other_unique.push_back(*other_iter);
+                    }
+                    other_iter++;
+                }
+            }
+            while (other_iter < other.mutations.end()) {
+                mutation_vector_check_order(other_iter->position);
+                other_unique.push_back(*other_iter);
+            }
+            assert(this_unique.size() + other_unique.size() +
+                       2 * common.size() ==
+                   mutations.size() + other.mutations.size());
+        }
+
+        void insert(const Mutation& mut,char keep_self=-1){
             auto iter=find_next(mut.position);
-            //Not supposed to insert 2 mutations at the same position
-            assert(iter==mutations.end()||iter->position>mut.position);
+            if(iter!=mutations.end()&&iter->position==mut.position){
+                assert(keep_self!=-1);
+                if(!keep_self){
+                    *iter=mut;
+                }
+                return;
+            }
             mutations.insert(iter,mut);
         }
         void finalize(){
@@ -162,7 +225,7 @@ last_pos_inserted=(newly_inserted);
             std::vector<Node*> children;
             Mutations_Collection mutations;
             bool is_new; //whether this node is a new sample
-
+            size_t index; //index in dfs pre-order
             bool is_leaf();
             bool is_root();
 
@@ -182,7 +245,7 @@ last_pos_inserted=(newly_inserted);
     class Tree {
         private:
             void remove_node_helper (std::string nid, bool move_level);
-            void depth_first_expansion_helper(Node* node, std::vector<Node*>& vec);
+            //void depth_first_expansion_helper(Node* node, std::vector<Node*>& vec);
             std::unordered_map <std::string, Node*> all_nodes;
         public:
             Tree() {
