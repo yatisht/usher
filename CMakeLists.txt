@@ -4,7 +4,7 @@ cmake_minimum_required (VERSION 3.8)
 project(strain_phylogenetics)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -std=c++11 -Wall -ggdb3 -Wno-unused-function")
-set(CMAKE_CXX_FLAGS_DEBUG " -Og -fsanitize=address -fsanitize=leak -fsanitize=undefined")
+set(CMAKE_CXX_FLAGS_DEBUG " -O0 -fsanitize=address -fsanitize=leak -fsanitize=undefined")
 set(CMAKE_INCLUDE_CURRENT_DIR ON) 
 
 if(DEFINED Protobuf_PATH) 
