@@ -7,6 +7,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include "check_samples.hpp"
 /* This is for non-adjacent moves
 class Merged_Mutation_Iterator {
     class range {
@@ -66,7 +67,7 @@ class Merged_Mutation_Iterator {
     operator bool() { return !heap.empty(); }
 };
 */
-typedef std::pair<int, std::vector<Fitch_Sankoff::States_Type>>
+typedef std::tuple<int, std::vector<Fitch_Sankoff::States_Type>,std::vector<Fitch_Sankoff::Scores_Type>>
     pending_change_type;
 static MAT::Mutation reverse_mutation(MAT::Mutation to_reverse) {
     auto old_par_nuc = to_reverse.par_nuc;
@@ -141,20 +142,14 @@ static void
 apply_move(MAT::Node *this_node, const std::pair<size_t, size_t> &range,
            MAT::Node *new_parent, std::vector<MAT::Node *> &dfs_ordered_nodes,
            std::vector<Fitch_Sankoff::States_Type> states_all_pos,
-           MAT::Tree &tree) {
+           MAT::Tree &tree,std::vector<Fitch_Sankoff::Scores_Type> scores_all_pos) {
     MAT::Mutations_Collection::iterator mutations_begin;
     MAT::Mutations_Collection::iterator mutations_end;
     set_mutation_iterator<move_to_parent>(this_node, new_parent,
                                           mutations_begin, mutations_end);
-    // apply adjustment
-    assert(states_all_pos.size()==mutations_end-mutations_begin);
-    for (auto states : states_all_pos) {
-        assert(states.back().node==this_node);
-        Fitch_Sankoff::sankoff_forward_pass(range, states, dfs_ordered_nodes,
-                                            *mutations_begin,move_to_parent?mutations_begin->par_nuc:mutations_begin->mut_nuc);
-        mutations_begin++;
-    }
-    assert(mutations_begin == mutations_end);
+    Sample_Mut_Type ori;
+    auto node_check=this_node->parent;
+    check_samples(node_check,ori);
     // start moving
     MAT::Node* parent = this_node->parent;
     std::vector<MAT::Node*>& parent_children = parent->children;
@@ -166,6 +161,19 @@ apply_move(MAT::Node *this_node, const std::pair<size_t, size_t> &range,
     }
     // Try merging with sibling in the new location
     insert_node(new_parent,this_node,tree);
+    this_node->parent=new_parent;
+    // apply adjustment to subtree
+    auto score_iter=scores_all_pos.begin();
+    assert(states_all_pos.size()==mutations_end-mutations_begin);
+    for (auto states : states_all_pos) {
+        assert(states.back().node==this_node);
+        Fitch_Sankoff::sankoff_forward_pass(range, states, dfs_ordered_nodes,
+                                            *mutations_begin,move_to_parent?mutations_begin->par_nuc:mutations_begin->mut_nuc,*score_iter);
+        mutations_begin++;
+        score_iter++;
+    }
+    assert(mutations_begin == mutations_end);
+    check_samples(node_check,ori);
 }
 
 template <bool move_to_parent>
@@ -173,6 +181,7 @@ static pending_change_type check_move_profitable(
     MAT::Node *this_node, const std::pair<size_t, size_t> &range,
     MAT::Node *new_parent, const std::vector<MAT::Node *> &dfs_ordered_nodes) {
     std::vector<Fitch_Sankoff::States_Type> states_all_pos;
+    std::vector<Fitch_Sankoff::Scores_Type> scores_all_pos;
 
     MAT::Mutations_Collection::iterator mutations_begin;
     MAT::Mutations_Collection::iterator mutations_end;
@@ -188,10 +197,10 @@ static pending_change_type check_move_profitable(
         states.reserve(range.second - range.first);
         Fitch_Sankoff::sankoff_backward_pass(range, *iter,
                                              dfs_ordered_nodes, scores, states);
-        char cur_parent_nuc = move_to_parent ? iter->mut_nuc
-                                             : iter->par_nuc;
-        char new_parent_nuc = move_to_parent ? iter->par_nuc
-                                             : iter->mut_nuc;
+        char cur_parent_nuc = 31-__builtin_clz((unsigned int)(move_to_parent ? iter->mut_nuc
+                                             : iter->par_nuc));
+        char new_parent_nuc = 31-__builtin_clz((unsigned int)(move_to_parent ? iter->par_nuc
+                                             : iter->mut_nuc));
         // score for current parent
         auto curr_result = Fitch_Sankoff::get_child_score_on_par_nuc(
             cur_parent_nuc, scores.back());
@@ -202,12 +211,14 @@ static pending_change_type check_move_profitable(
         states.back() = new_result.second;
         score_change += (new_result.first - curr_result.first);
         states_all_pos.push_back(states);
+        scores_all_pos.push_back(scores);
     }
     assert(states_all_pos.size()==mutations_end-mutations_begin);
     if (score_change >= 0) {
         states_all_pos.clear();
+        scores_all_pos.clear();
     }
-    return std::make_pair(score_change, states_all_pos);
+    return std::make_tuple(score_change, states_all_pos,scores_all_pos);
 }
 
 /**
@@ -256,17 +267,19 @@ bool Tree_Rearrangement::move_nearest(
     auto best_new_parent = this_node->parent->parent;
     pending_change_type pending_change = check_move_profitable<true>(
         this_node, range, best_new_parent, dfs_ordered_nodes);
-    auto best_score = pending_change.first;
-    std::vector<Fitch_Sankoff::States_Type> best_states = pending_change.second;
+    auto best_score = std::get<0>(pending_change); 
+    std::vector<Fitch_Sankoff::States_Type> best_states = std::get<1>(pending_change);
+    std::vector<Fitch_Sankoff::Scores_Type> best_scores = std::get<2>(pending_change);
     for (auto sibling : this_node->parent->children) {
         if (sibling == this_node)
             continue;
         pending_change = check_move_profitable<false>(this_node, range, sibling,
                                                       dfs_ordered_nodes);
-        if (pending_change.first <= best_score) {
-            best_score = pending_change.first;
+        if (std::get<0>(pending_change) < best_score) {
+            best_score = std::get<0>(pending_change);
             best_new_parent = sibling;
-            best_states.swap(pending_change.second);
+            best_states.swap(std::get<1>(pending_change));
+            best_scores.swap(std::get<2>(pending_change));
         }
     }
     if (best_score >= 0) {
@@ -274,10 +287,10 @@ bool Tree_Rearrangement::move_nearest(
     }
     if (best_new_parent == this_node->parent->parent) {
         apply_move<true>(this_node, range, best_new_parent, dfs_ordered_nodes,
-                         best_states, tree);
+                         best_states, tree,best_scores);
     } else {
         apply_move<false>(this_node, range, best_new_parent, dfs_ordered_nodes,
-                          best_states, tree);
+                          best_states, tree,best_scores);
     }
     return true;
 }
