@@ -95,14 +95,14 @@ set_mutation_iterator(MAT::Node *this_node, MAT::Node *new_parent,
 
 static void insert_node(MAT::Node *parent, MAT::Node *to_insert,
                         MAT::Tree &tree) {
-    std::vector<MAT::Mutation> best_common;
-    std::vector<MAT::Mutation> best_sibling_unique;
-    std::vector<MAT::Mutation> best_insert_unique;
+    Mutation_Annotated_Tree::Mutations_Collection best_common;
+    Mutation_Annotated_Tree::Mutations_Collection best_sibling_unique;
+    Mutation_Annotated_Tree::Mutations_Collection best_insert_unique;
     MAT::Node *best_sibling;
     for (auto child : parent->children) {
-        std::vector<MAT::Mutation> this_common;
-        std::vector<MAT::Mutation> this_sibling_unique;
-        std::vector<MAT::Mutation> this_insert_unique;
+        Mutation_Annotated_Tree::Mutations_Collection this_common;
+        Mutation_Annotated_Tree::Mutations_Collection this_sibling_unique;
+        Mutation_Annotated_Tree::Mutations_Collection this_insert_unique;
         child->mutations.set_difference(to_insert->mutations,
                                         this_sibling_unique, this_insert_unique,
                                         this_common);
@@ -123,7 +123,7 @@ static void insert_node(MAT::Node *parent, MAT::Node *to_insert,
         parent_children.erase(iter);
 
         auto new_node = tree.create_node(
-            std::to_string(tree.curr_internal_node++), parent->identifier);
+            std::to_string(++tree.curr_internal_node), parent->identifier);
         new_node->mutations.swap(best_common);
 
         to_insert->mutations.swap(best_insert_unique);
@@ -151,13 +151,13 @@ apply_move(MAT::Node *this_node, const std::pair<size_t, size_t> &range,
     for (auto states : states_all_pos) {
         assert(states.back().node==this_node);
         Fitch_Sankoff::sankoff_forward_pass(range, states, dfs_ordered_nodes,
-                                            *mutations_begin);
+                                            *mutations_begin,move_to_parent?mutations_begin->par_nuc:mutations_begin->mut_nuc);
         mutations_begin++;
     }
     assert(mutations_begin == mutations_end);
     // start moving
-    auto parent = this_node->parent;
-    auto &parent_children = parent->children;
+    MAT::Node* parent = this_node->parent;
+    std::vector<MAT::Node*>& parent_children = parent->children;
     auto iter =
         std::find(parent_children.begin(), parent_children.end(), this_node);
     parent_children.erase(iter);
@@ -165,6 +165,7 @@ apply_move(MAT::Node *this_node, const std::pair<size_t, size_t> &range,
         tree.remove_node(parent->identifier, false);
     }
     // Try merging with sibling in the new location
+    insert_node(new_parent,this_node,tree);
 }
 
 template <bool move_to_parent>

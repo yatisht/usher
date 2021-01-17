@@ -43,7 +43,7 @@ void sankoff_backward_pass(const std::pair<size_t, size_t> &range,
 void sankoff_forward_pass(const std::pair<size_t, size_t> &range,
                           States_Type &states,
                           std::vector<MAT::Node *> &dfs_ordered_nodes,
-                          const MAT::Mutation &mutation);
+                          const MAT::Mutation &mutation,char ancestor_state);
 std::pair<int, char>
 get_child_score_on_par_nuc(char par_nuc,
                            Score_Type &child_scores);
