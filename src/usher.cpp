@@ -16,6 +16,7 @@
 #include "src/mutation_annotated_tree.hpp"
 #include "usher_graph.hpp"
 #include "parsimony.pb.h"
+#include "check_samples.hpp"
 
 namespace po = boost::program_options;
 namespace MAT = Mutation_Annotated_Tree;
@@ -440,12 +441,16 @@ void refine_trees(std::vector<MAT::Tree>& optimal_trees,  std::vector<std::vecto
         std::unordered_set<MAT::Node*> tried;
         auto dfs_ordered_nodes=this_tree.depth_first_expansion();
         auto& nodes=*iter;
+        Sample_Mut_Type ori;
+        check_samples(this_tree.root, ori);
         for(MAT::Node*& node:nodes){
             if(node->parent){
                 node=node->parent;
                 auto result=tried.find(node);
                 if(result==tried.end()){
                     if(Tree_Rearrangement::move_nearest(node, dfs_ordered_nodes, this_tree)){
+                        Sample_Mut_Type copy(ori);
+                        check_samples(this_tree.root, copy);
                         dfs_ordered_nodes=this_tree.depth_first_expansion();
                     }
                 }

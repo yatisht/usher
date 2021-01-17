@@ -59,8 +59,8 @@ namespace Mutation_Annotated_Tree {
         public:
         typedef std::vector<Mutation>::iterator iterator;
         size_t size() const {return mutations.size();}
-        void swap(std::vector<Mutation>& in){
-            mutations.swap(in);
+        void swap(Mutations_Collection& in){
+            mutations.swap(in.mutations);
         }
         iterator begin()  {
             return mutations.begin();
@@ -75,17 +75,20 @@ namespace Mutation_Annotated_Tree {
             #ifndef NDEBUG
             int lastPos=0;
             #endif
-            for(auto iter=mutations.begin();iter<mutations.end();iter++){
+            auto iter = mutations.begin();
+            for (; iter < mutations.end(); iter++) {
                 //check sorting in debug mode
                 #ifndef NDEBUG
                 assert(lastPos<iter->position);
                 lastPos=iter->position;
                 #endif
                 if (iter->position>=pos) {
-                    return iter;
+                    break;
                 }
             }
-            return mutations.end();
+            assert(iter == mutations.begin()||(iter-1)->position<pos);
+            assert(iter==mutations.end()||(iter)->position>=pos);
+            return iter;
         }
 
         iterator find(int position) {
@@ -113,7 +116,7 @@ namespace Mutation_Annotated_Tree {
          * @param other sorted vector of mutations to merge in
          * @param keep_self if two mutations are at the same position 0: keep other, 1: keep self, -1: impossible, throw an error.
          */
-        void merge_out(const Mutations_Collection& other,std::vector<Mutation>& out, char keep_self) const{
+        void merge_out(const Mutations_Collection& other,Mutations_Collection& out, char keep_self) const{
 //used for checking whether the two vectors are sorted while merging
 #ifndef NDEBUG
 #define mutation_vector_check_order(newly_inserted) \
@@ -123,82 +126,82 @@ last_pos_inserted=(newly_inserted);
 #else
 #define mutation_vector_check_order(newly_inserted)
 #endif
-            out.reserve(other.mutations.size()+mutations.size());
+            out.mutations.reserve(other.mutations.size()+mutations.size());
             auto other_iter=other.mutations.begin();
             for(auto this_mutation:mutations){
                 while (other_iter->position<this_mutation.position) {
                     mutation_vector_check_order(other_iter->position);
-                    out.push_back(*other_iter);
+                    out.mutations.push_back(*other_iter);
                     other_iter++;
                 }
                 if (other_iter==other.mutations.end()||
                     this_mutation.position<other_iter->position) {
                     mutation_vector_check_order(this_mutation.position);
-                    out.push_back(this_mutation);
+                    out.mutations.push_back(this_mutation);
                 }else{
                     mutation_vector_check_order(this_mutation.position);
 
                     assert(this_mutation.position==other_iter->position);
                     assert(keep_self!=-1);
                     if (keep_self) {
-                        out.push_back(this_mutation);
+                        out.mutations.push_back(this_mutation);
                     }else {
-                        out.push_back(*other_iter);
+                        out.mutations.push_back(*other_iter);
                     }
                     other_iter++;
                 }
             }
             while (other_iter<other.mutations.end()) {
                 mutation_vector_check_order(other_iter->position);
-                out.push_back(*other_iter);
+                out.mutations.push_back(*other_iter);
             }
         }
 
         void merge(const Mutations_Collection& other, char keep_self){
-            std::vector<Mutation> new_set;
+            Mutations_Collection new_set;
             merge_out(other, new_set, keep_self);
-            mutations.swap(new_set);
+            mutations.swap(new_set.mutations);
         }
 
         void set_difference(const Mutations_Collection &other,
-                            std::vector<Mutation> &this_unique,
-                            std::vector<Mutation> &other_unique,
-                            std::vector<Mutation> &common) {
-            this_unique.reserve(mutations.size());
-            other_unique.reserve(other.mutations.size());
-            common.reserve(std::min(mutations.size(), other.mutations.size()));
+                            Mutations_Collection &this_unique,
+                            Mutations_Collection &other_unique,
+                            Mutations_Collection &common) {
+            this_unique.mutations.reserve(mutations.size());
+            other_unique.mutations.reserve(other.mutations.size());
+            common.mutations.reserve(std::min(mutations.size(), other.mutations.size()));
             auto other_iter = other.mutations.begin();
 #ifndef NDEBUG
             int last_pos_inserted = -1;
 #endif
             // merge sort again
             for (auto this_mutation : mutations) {
-                while (other_iter->position < this_mutation.position) {
+                while (other_iter != other.mutations.end()&&other_iter->position < this_mutation.position) {
                     mutation_vector_check_order(other_iter->position);
-                    other_unique.push_back(*other_iter);
+                    other_unique.mutations.push_back(*other_iter);
                     other_iter++;
                 }
                 if (other_iter == other.mutations.end() ||
                     this_mutation.position < other_iter->position) {
                     mutation_vector_check_order(this_mutation.position);
-                    this_unique.push_back(this_mutation);
+                    this_unique.mutations.push_back(this_mutation);
                 } else {
                     mutation_vector_check_order(this_mutation.position);
                     assert(this_mutation.position == other_iter->position);
 
                     if (other_iter->mut_nuc == this_mutation.mut_nuc) {
                         assert(other_iter->par_nuc == this_mutation.par_nuc);
-                        common.push_back(this_mutation);
+                        common.mutations.push_back(this_mutation);
                     } else {
-                        this_unique.push_back(this_mutation);
-                        other_unique.push_back(*other_iter);
+                        this_unique.mutations.push_back(this_mutation);
+                        other_unique.mutations.push_back(*other_iter);
                     }
                     other_iter++;
                 }
             }
             while (other_iter < other.mutations.end()) {
                 mutation_vector_check_order(other_iter->position);
-                other_unique.push_back(*other_iter);
+                other_unique.mutations.push_back(*other_iter);
             }
             assert(this_unique.size() + other_unique.size() +
                        2 * common.size() ==
@@ -244,7 +247,7 @@ last_pos_inserted=(newly_inserted);
                 mutations.insert(mut);
             }
             // HACK: try to identify whether a node is a sample from name
-            bool not_sample() {
+            bool not_sample() const{
                 for (auto c : this->identifier) {
                     if (!std::isdigit(c))
                         return false;
@@ -275,7 +278,6 @@ last_pos_inserted=(newly_inserted);
             Node* root;
             std::unordered_map<std::string, std::vector<std::string>> condensed_nodes;
             std::unordered_set<std::string> condensed_leaves;
-            void check_samples(std::unordered_map<Node*,std::unordered_set<Mutation>>& samples);
             size_t curr_internal_node;
             size_t get_max_level ();
             void rename_node(std::string old_nid, std::string new_nid);
