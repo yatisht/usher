@@ -32,7 +32,7 @@ namespace Mutation_Annotated_Tree {
         int position;
         int8_t ref_nuc;
         int8_t par_nuc;
-        int8_t mut_nuc;
+        mutable int8_t mut_nuc;
         bool is_missing;
         inline bool operator< (const Mutation& m) const {
             return ((*this).position < m.position);
@@ -100,7 +100,7 @@ namespace Mutation_Annotated_Tree {
         }
 
         iterator find(const Mutation& mut) {
-            return find_next(mut.position);
+            return find(mut.position);
         }
         bool remove(int pos){
             auto iter=find(pos);
@@ -154,6 +154,7 @@ last_pos_inserted=(newly_inserted);
             while (other_iter<other.mutations.end()) {
                 mutation_vector_check_order(other_iter->position);
                 out.mutations.push_back(*other_iter);
+                other_iter++;
             }
         }
 
@@ -202,6 +203,7 @@ last_pos_inserted=(newly_inserted);
             while (other_iter < other.mutations.end()) {
                 mutation_vector_check_order(other_iter->position);
                 other_unique.mutations.push_back(*other_iter);
+                other_iter++;
             }
             assert(this_unique.size() + other_unique.size() +
                        2 * common.size() ==
@@ -209,6 +211,7 @@ last_pos_inserted=(newly_inserted);
         }
 
         void insert(const Mutation& mut,char keep_self=-1){
+            assert(mut.par_nuc!=mut.mut_nuc);
             auto iter=find_next(mut.position);
             if(iter!=mutations.end()&&iter->position==mut.position){
                 assert(keep_self!=-1);

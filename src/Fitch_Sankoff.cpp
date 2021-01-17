@@ -7,13 +7,25 @@
 
 typedef Fitch_Sankoff::Score_Type Score_Type;
 typedef Fitch_Sankoff::Scores_Type Scores_Type;
+typedef Fitch_Sankoff::State_Type State_Type;
 typedef Fitch_Sankoff::States_Type States_Type;
-typedef Fitch_Sankoff::States_Type States_Type;
-
-static void fill_nuc(char nuc, Score_Type &out) {
+static char get_genotype(MAT::Node* node, const Mutation_Annotated_Tree::Mutation& m){
+    while (node)
+    {
+        auto iter=node->mutations.find(m);
+        if(iter!=node->mutations.end()){
+            return iter->mut_nuc;
+        }
+        node=node->parent;
+    }
+    return m.ref_nuc;
+    
+}
+static void fill_nuc(char nuc, Score_Type &out,State_Type& state) {
     for (auto i = 0; i < 4; i++) {
         if ((1 << i) & nuc) {
             out[i] = 0;
+            state=i;
         } else {
             out[i] =
                 2; // 2 is sufficient for not being chosen, and avoid overflow.
@@ -21,14 +33,10 @@ static void fill_nuc(char nuc, Score_Type &out) {
     }
 }
 static void set_leaf_score(MAT::Node &this_node, const MAT::Mutation &pos,
-                           Score_Type &out) {
+                           Score_Type &out,State_Type& state) {
     assert(out.node==&this_node);
-    auto found = this_node.mutations.find(pos);
-    if (found == this_node.mutations.end()) {
-        fill_nuc(pos.ref_nuc, out);
-    } else {
-        fill_nuc(found->mut_nuc, out);
-    }
+    fill_nuc(get_genotype(&this_node, pos), out,state);
+    
 }
 
 std::pair<int, char>
@@ -68,7 +76,7 @@ static void set_internal_score(const MAT::Node &this_node, Scores_Type &out,
             auto temp =
                 get_child_score_on_par_nuc(par_nuc, out[child_idx]);
             score += temp.first;
-            assert((states[child_idx] &(3<<(2* par_nuc)))==0);
+            assert((states[child_idx] &(3<<(2* par_nuc)))==0||(states[child_idx] &(3<<(2* par_nuc)))==temp.second);
             states[child_idx] |= (temp.second << (2 * par_nuc));
         }
         assert(out.back().node == &this_node);
@@ -121,7 +129,7 @@ void Fitch_Sankoff::sankoff_backward_pass(const std::pair<size_t, size_t> &range
 
         Score_Type& score_array = scores.back();
         if (!(*iter)->not_sample()) {
-            set_leaf_score(**iter, mutation, score_array);
+            set_leaf_score(**iter, mutation, score_array,states.back());
         } else {
             set_internal_score(**iter, scores, start_idx, states);
         }
@@ -131,8 +139,10 @@ void Fitch_Sankoff::sankoff_backward_pass(const std::pair<size_t, size_t> &range
 }
 
 static void set_mutation(MAT::Node *node, char state, char par_state, const MAT::Mutation& mutationOri) {
-    if(par_state != state){
+    assert(par_state==get_genotype(node->parent,mutationOri));
+    if(par_state == state){
         node->mutations.remove(mutationOri.position);
+        return;
     }
     MAT::Mutation mutation(mutationOri);
     mutation.par_nuc=par_state;
@@ -144,13 +154,17 @@ static void set_mutation(MAT::Node *node, char state, char par_state, const MAT:
 
 void Fitch_Sankoff::sankoff_forward_pass(const std::pair<size_t, size_t> &range,
                           States_Type &states,
-                          std::vector<MAT::Node *> &dfs_ordered_nodes,const MAT::Mutation &mutation,char ancestor_state) {
+                          std::vector<MAT::Node *> &dfs_ordered_nodes,const MAT::Mutation &mutation,char ancestor_state 
+#ifndef NDEBUG
+,Scores_Type &child_scores 
+#endif
+) {
     //first node->last element
     //index=size-1-(dfs_index-first_element_index)
     size_t offset=states.size()-1+range.first;
     //set the state of first node
     assert(dfs_ordered_nodes[range.first]==states.back().node);
-    set_mutation(dfs_ordered_nodes[range.first],states.back(),ancestor_state,mutation);
+    set_mutation(dfs_ordered_nodes[range.first],1<<states.back(),ancestor_state,mutation);
     //for the rest
     for (size_t dfs_idx=range.first+1; dfs_idx<range.second; dfs_idx++) {
         auto this_node=dfs_ordered_nodes[dfs_idx];
@@ -165,10 +179,10 @@ void Fitch_Sankoff::sankoff_forward_pass(const std::pair<size_t, size_t> &range,
         assert(parent_state<4);
         
         char this_state=3&(states[state_idx]>>(2*parent_state));
-        //assert(this_state==get_child_score_on_par_nuc(parent_state, child_scores).second);
+        assert(this_state==get_child_score_on_par_nuc(parent_state, child_scores[state_idx]).second);
         
         states[state_idx]=this_state;
-        set_mutation(this_node, this_state, parent_state, mutation);
+        set_mutation(this_node, 1<<this_state, 1<<parent_state, mutation);
     }
 }
 
