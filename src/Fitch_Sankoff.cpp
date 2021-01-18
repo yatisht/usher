@@ -9,7 +9,7 @@ typedef Fitch_Sankoff::Score_Type Score_Type;
 typedef Fitch_Sankoff::Scores_Type Scores_Type;
 typedef Fitch_Sankoff::State_Type State_Type;
 typedef Fitch_Sankoff::States_Type States_Type;
-static char get_genotype(MAT::Node* node, const Mutation_Annotated_Tree::Mutation& m){
+char get_genotype( MAT::Node* node, const Mutation_Annotated_Tree::Mutation& m){
     while (node)
     {
         auto iter=node->mutations.find(m);
@@ -33,10 +33,10 @@ static void fill_nuc(char nuc, Score_Type &out,State_Type& state) {
     }
 }
 static void set_leaf_score(MAT::Node &this_node, const MAT::Mutation &pos,
-                           Score_Type &out,State_Type& state) {
+                           Score_Type &out,State_Type& state,char ori_state) {
     assert(out.node==&this_node);
-    fill_nuc(get_genotype(&this_node, pos), out,state);
-    
+    assert(ori_state==get_genotype(&this_node, pos));
+    fill_nuc(ori_state, out,state);
 }
 
 std::pair<int, char>
@@ -108,11 +108,14 @@ std::pair<size_t, size_t> Fitch_Sankoff::dfs_range(const MAT::Node *start) {
 void Fitch_Sankoff::sankoff_backward_pass(const std::pair<size_t, size_t> &range,
                            const MAT::Mutation &mutation,
                            const std::vector<MAT::Node *> &dfs_ordered_nodes,
-                           Scores_Type &scores, States_Type &states) {
+                           Scores_Type &scores, States_Type &states,std::vector<char> original_state) {
     //Going from the end to start
     size_t start_idx = range.second-1;
     assert(scores.empty());
     assert(states.empty());
+    scores.reserve(range.second - range.first);
+    states.reserve(range.second - range.first);
+    auto ori_state_iter=original_state.rbegin();
     for (auto iter = dfs_ordered_nodes.begin() + range.second-1;
          iter >= dfs_ordered_nodes.begin() + range.first; iter--) {
 #ifndef NDEBUG
@@ -129,10 +132,11 @@ void Fitch_Sankoff::sankoff_backward_pass(const std::pair<size_t, size_t> &range
 
         Score_Type& score_array = scores.back();
         if (!(*iter)->not_sample()) {
-            set_leaf_score(**iter, mutation, score_array,states.back());
+            set_leaf_score(**iter, mutation, score_array,states.back(),*ori_state_iter);
         } else {
             set_internal_score(**iter, scores, start_idx, states);
         }
+        ori_state_iter++;
     }
     assert(scores.size()== (range.second - range.first));
     assert(scores.size() == states.size());
