@@ -7,6 +7,7 @@
 #include <cctype>
 #include <cstddef>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 #include "check_samples.hpp"
@@ -69,10 +70,11 @@ class Merged_Mutation_Iterator {
     operator bool() { return !heap.empty(); }
 };
 */
-
+typedef std::vector<std::vector<char>> Original_States;
 struct change_bundle{
     MAT::Node* new_parent;
     std::vector<Fitch_Sankoff::States_Type> states;
+    Original_States original_states;
 #ifndef NDEBUG
     std::vector<Fitch_Sankoff::Scores_Type> scores;
 #endif
@@ -80,6 +82,7 @@ struct change_bundle{
     void swap(change_bundle& other){
         new_parent=other.new_parent;
         states.swap(other.states);
+        original_states.swap(other.original_states);
 #ifndef NDEBUG
         scores.swap(other.scores);
 #endif        
@@ -103,7 +106,7 @@ static void distribute(MAT::Mutations_Collection& src, std::vector<std::vector<c
 } 
 
 
-std::vector<std::vector<char>> get_original_states(std::vector<MAT::Node*> dfs_ordered_nodes, const std::pair<size_t, size_t> &range,MAT::Mutations_Collection target){
+Original_States get_original_states(std::vector<MAT::Node*> dfs_ordered_nodes, const std::pair<size_t, size_t> &range,MAT::Mutations_Collection target){
     MAT::Node* start_node=dfs_ordered_nodes[range.first];
     std::vector<std::vector<char>> result(target.size());
     
@@ -205,21 +208,25 @@ apply_move(MAT::Node *this_node, const std::pair<size_t, size_t> &range,
     auto score_iter=scores_all_pos.begin();
     #endif
     assert(states_all_pos.size()==mutations_end-mutations_begin);
+    std::unordered_map<MAT::Node*, MAT::Node*> ori_child;
+    auto ori_state_iter=bundle.original_states.begin();
     for (auto states : states_all_pos) {
         assert(states.back().node==this_node);
         Fitch_Sankoff::sankoff_forward_pass(
             range, states, dfs_ordered_nodes, *mutations_begin,
-            move_to_parent ? mutations_begin->par_nuc : mutations_begin->mut_nuc
+            move_to_parent ? mutations_begin->par_nuc : mutations_begin->mut_nuc,*ori_state_iter,ori_child,tree
 #ifndef NDEBUG
             ,*score_iter
 #endif
         );
         mutations_begin++;
+        ori_state_iter++;
     #ifndef NDEBUG
     score_iter++;
     #endif
     }
     assert(mutations_begin == mutations_end);
+    assert(ori_state_iter==bundle.original_states.end());
     check_samples(node_check,ori);
 }
 
@@ -271,6 +278,8 @@ static int check_move_profitable(
         #ifndef NDEBUG
         scores_all_pos.clear();
         #endif
+    }else{
+        out.original_states.swap(original_genotype);
     }
     return score_change;
 }

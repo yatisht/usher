@@ -51,6 +51,15 @@ namespace Mutation_Annotated_Tree {
             chrom = "";
             is_missing = false;
         }
+        bool operator==(const Mutation& other) const{
+            if(other.mut_nuc!=mut_nuc) return false;
+            if(other.par_nuc!=par_nuc) return false;
+            if(other.is_missing!=is_missing) return false;
+            if(other.position!=position) return false;
+            assert(other.chrom==chrom);
+            assert(other.ref_nuc==ref_nuc);
+            return true;
+        }
     };
 
 #ifndef matToVCF
@@ -240,17 +249,21 @@ last_pos_inserted=(newly_inserted);
                 mutation_vector_check_order(target_iter->position);
             }
         }
-        void insert(const Mutation &mut, char keep_self = -1) {
+        bool insert(const Mutation &mut, char keep_self = -1) {
             assert(mut.par_nuc!=mut.mut_nuc);
             auto iter=find_next(mut.position);
             if(iter!=mutations.end()&&iter->position==mut.position){
                 assert(keep_self!=-1);
                 if(!keep_self){
+                    if(*iter==mut){
+                        return false;
+                    }
                     *iter=mut;
                 }
-                return;
+                return false;
             }
             mutations.insert(iter,mut);
+            return true;
         }
         void finalize(){
             mutations.shrink_to_fit();
