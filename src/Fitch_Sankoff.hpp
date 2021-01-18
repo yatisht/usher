@@ -3,7 +3,7 @@
 #include <utility>
 #include <vector>
 namespace MAT = Mutation_Annotated_Tree;
-
+char get_genotype(MAT::Node* node, const Mutation_Annotated_Tree::Mutation& m);
 namespace Fitch_Sankoff {
 #ifndef NDEBUG
 struct State_Type {
@@ -39,7 +39,7 @@ std::pair<size_t, size_t> dfs_range(const MAT::Node *start);
 void sankoff_backward_pass(const std::pair<size_t, size_t> &range,
                            const MAT::Mutation &mutation,
                            const std::vector<MAT::Node *> &dfs_ordered_nodes,
-                           Scores_Type &scores, States_Type &states);
+                           Scores_Type &scores, States_Type &states,std::vector<char> original_state);
 void sankoff_forward_pass(const std::pair<size_t, size_t> &range,
                           States_Type &states,
                           std::vector<MAT::Node *> &dfs_ordered_nodes,

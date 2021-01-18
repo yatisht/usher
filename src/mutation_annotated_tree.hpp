@@ -62,6 +62,7 @@ namespace Mutation_Annotated_Tree {
         void swap(Mutations_Collection& in){
             mutations.swap(in.mutations);
         }
+
         iterator begin()  {
             return mutations.begin();
         }
@@ -98,7 +99,7 @@ namespace Mutation_Annotated_Tree {
             }
             return iter;
         }
-
+        
         iterator find(const Mutation& mut) {
             return find(mut.position);
         }
@@ -129,7 +130,7 @@ last_pos_inserted=(newly_inserted);
             out.mutations.reserve(other.mutations.size()+mutations.size());
             auto other_iter=other.mutations.begin();
             for(auto this_mutation:mutations){
-                while (other_iter->position<this_mutation.position) {
+                while (other_iter != other.mutations.end()&&other_iter->position<this_mutation.position) {
                     mutation_vector_check_order(other_iter->position);
                     out.mutations.push_back(*other_iter);
                     other_iter++;
@@ -209,8 +210,37 @@ last_pos_inserted=(newly_inserted);
                        2 * common.size() ==
                    mutations.size() + other.mutations.size());
         }
-
-        void insert(const Mutation& mut,char keep_self=-1){
+        void batch_find(Mutations_Collection &target) {
+            // yet another merge sort
+#ifndef NDEBUG
+            int last_pos_inserted = -1;
+#endif
+            auto target_iter = target.mutations.begin();
+            for (auto this_mutation : mutations) {
+                if (target_iter == target.mutations.end()) {
+                    return;
+                }
+                while (target_iter->position < this_mutation.position) {
+                    mutation_vector_check_order(target_iter->position);
+                    target_iter++;
+                    if (target_iter == target.mutations.end()) {
+                        return;
+                    }
+                }
+                if (this_mutation.position < target_iter->position) {
+                    mutation_vector_check_order(this_mutation.position);
+                } else {
+                    mutation_vector_check_order(this_mutation.position);
+                    assert(this_mutation.position == target_iter->position);
+                    *target_iter = this_mutation;
+                    target_iter++;
+                }
+            }
+            if (target_iter != target.mutations.end()) {
+                mutation_vector_check_order(target_iter->position);
+            }
+        }
+        void insert(const Mutation &mut, char keep_self = -1) {
             assert(mut.par_nuc!=mut.mut_nuc);
             auto iter=find_next(mut.position);
             if(iter!=mutations.end()&&iter->position==mut.position){
