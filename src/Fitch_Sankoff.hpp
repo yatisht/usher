@@ -1,5 +1,6 @@
 #include "mutation_annotated_tree.hpp"
 #include <array>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 namespace MAT = Mutation_Annotated_Tree;
@@ -41,9 +42,9 @@ void sankoff_backward_pass(const std::pair<size_t, size_t> &range,
                            const std::vector<MAT::Node *> &dfs_ordered_nodes,
                            Scores_Type &scores, States_Type &states,std::vector<char> original_state);
 void sankoff_forward_pass(const std::pair<size_t, size_t> &range,
-                          States_Type &states,
-                          std::vector<MAT::Node *> &dfs_ordered_nodes,
-                          const MAT::Mutation &mutation,char ancestor_state
+                          States_Type &states,std::vector<MAT::Node *> &dfs_ordered_nodes,
+                          const MAT::Mutation &mutation,char ancestor_state,std::vector<char> original_state,
+                          std::unordered_map<MAT::Node*, MAT::Node*>& new_internal_map,MAT::Tree& tree
 #ifndef NDEBUG
 ,Scores_Type &scores 
 #endif
