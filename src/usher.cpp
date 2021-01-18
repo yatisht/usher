@@ -16,7 +16,6 @@
 #include "src/mutation_annotated_tree.hpp"
 #include "usher_graph.hpp"
 #include "parsimony.pb.h"
-#include "check_samples.hpp"
 
 namespace po = boost::program_options;
 namespace MAT = Mutation_Annotated_Tree;
@@ -433,57 +432,6 @@ static void place_sample(
     }
 }
 
-void refine_trees(std::vector<MAT::Tree>& optimal_trees,  std::vector<std::vector<MAT::Node*>>& new_nodes_in_each_tree){
-    
-    auto iter=new_nodes_in_each_tree.begin();
-    for(auto this_tree:optimal_trees){
-        fprintf(stderr, "Before refinement: %zu \n", this_tree.get_parsimony_score());
-        std::unordered_set<MAT::Node*> tried;
-        auto dfs_ordered_nodes=this_tree.depth_first_expansion();
-        auto& nodes=*iter;
-        Sample_Mut_Type ori;
-        check_samples(this_tree.root, ori);
-        for(MAT::Node*& node:nodes){
-            if(node->parent){
-                node=node->parent;
-                auto result=tried.find(node);
-                if(result==tried.end()){
-                    if(Tree_Rearrangement::move_nearest(node, dfs_ordered_nodes, this_tree)){
-                        Sample_Mut_Type copy(ori);
-                        check_samples(this_tree.root, copy);
-                        dfs_ordered_nodes=this_tree.depth_first_expansion();
-                    }
-                }
-                tried.insert(node);
-            }
-        }
-        fprintf(stderr, "After refinement: %zu \n", this_tree.get_parsimony_score());
-    }
-    /*
-    for(auto curr_tree_new_nodes:new_nodes_in_each_tree){
-        auto num_new_nodes=curr_tree_new_nodes.size();
-        std::vector<Interchanges_On_Same_Node> interchange_queues(num_new_nodes);
-        auto grain_size = 400; 
-        if (num_new_nodes>grain_size){
-        while (true) {
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, num_new_nodes, grain_size),[&](tbb::blocked_range<size_t> range){
-            for(size_t node_idx=range.begin();node_idx<range.end();node_idx++){
-            parallel_NNI(node_idx, curr_tree_new_nodes[node_idx], interchange_queues);
-            }
-        });
-        if (!parallel_NNI_post_process(interchange_queues)) break;
-        }
-        }else{
-            bool have_improvement;
-            do{
-                have_improvement=false;
-                for(auto this_node:curr_tree_new_nodes){
-                    //have_improvement|=serial_NNI(this_node);
-                }
-            }while(have_improvement);
-        //}
-    }*/
-}
 
 int main(int argc, char **argv) {
 
@@ -1197,7 +1145,7 @@ int main(int argc, char **argv) {
                 curr_new_nodes++;
             }
         }
-        refine_trees(optimal_trees, all_new_nodes);
+        Tree_Rearrangement::refine_trees(optimal_trees, all_new_nodes);
     }
     
     num_trees = optimal_trees.size();

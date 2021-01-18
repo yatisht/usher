@@ -89,7 +89,7 @@ static void set_internal_score(const MAT::Node &this_node, Scores_Type &out,
     }
 }
 
-std::pair<size_t, size_t> Fitch_Sankoff::dfs_range(const MAT::Node *start) {
+std::pair<size_t, size_t> Fitch_Sankoff::dfs_range(const MAT::Node *start,std::vector<MAT::Node *> &dfs_ordered_nodes) {
     size_t start_idx = start->index;
     size_t stop_idx = INT_MAX;
     if (!start->parent) {
@@ -102,10 +102,13 @@ std::pair<size_t, size_t> Fitch_Sankoff::dfs_range(const MAT::Node *start) {
         }
     }
     if (stop_idx == INT_MAX) {
-        stop_idx = Fitch_Sankoff::dfs_range(start->parent).second;
+        stop_idx = Fitch_Sankoff::dfs_range(start->parent,dfs_ordered_nodes).second;
     }
-    assert(stop_idx !=
-           INT_MAX); // shouldn't be running on last node (which is a leaf node)
+    if (stop_idx == INT_MAX) {
+        stop_idx=dfs_ordered_nodes.size();
+    }
+    assert(check_grand_parent(dfs_ordered_nodes[stop_idx-1], start));
+    assert(stop_idx==dfs_ordered_nodes.size()||!check_grand_parent(dfs_ordered_nodes[stop_idx], start));
     assert(start_idx < stop_idx);
     return std::make_pair(start_idx, stop_idx);
 }
@@ -167,7 +170,7 @@ static void set_mutation(MAT::Node *node, char state, char par_state, const MAT:
         change_made=node->mutations.insert(mutation, 0);
     }
     
-    if(!change_made) return;
+    if(state==ori_state) return;
     MAT::Node *original_child = nullptr;
     if (!node->not_sample()) {
         original_child = splay(node, tree);
@@ -209,12 +212,15 @@ void Fitch_Sankoff::sankoff_forward_pass(const std::pair<size_t, size_t> &range,
         size_t state_idx=offset-dfs_idx;
         assert(this_node==states[state_idx].node);
 
-        if(this_node->is_leaf()) continue;
-
         size_t parent_state_idx=offset-this_node->parent->index;
         assert(states[parent_state_idx].node==this_node->parent);
         char parent_state=states[parent_state_idx];
         assert(parent_state<4);
+        
+        if(this_node->is_leaf()) {
+            set_mutation(this_node, original_state[dfs_idx-range.first], 1<<parent_state, mutation,new_internal_map,tree,original_state[dfs_idx-range.first]);
+            continue;
+        }
         
         char this_state=3&(states[state_idx]>>(2*parent_state));
         assert(this_state==get_child_score_on_par_nuc(parent_state, child_scores[state_idx]).second);
