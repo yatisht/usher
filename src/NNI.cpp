@@ -185,11 +185,11 @@ apply_move(MAT::Node *this_node, const std::pair<size_t, size_t> &range,
     MAT::Node *new_parent=bundle.new_parent;
     std::vector<Fitch_Sankoff::States_Type>& states_all_pos=bundle.states;
     std::vector<Fitch_Sankoff::Scores_Type>& scores_all_pos=bundle.scores;
-    auto& mutations=move_to_parent?this_node->parent->mutations:new_parent->mutations;
+    Mutation_Annotated_Tree::Mutations_Collection mutations(move_to_parent?this_node->parent->mutations:new_parent->mutations);
     auto mutations_begin=mutations.begin();
     auto mutations_end=mutations.end();
     Sample_Mut_Type ori;
-    auto node_check=this_node->parent;
+    auto node_check=this_node->parent->parent;
     check_samples(node_check,ori);
     // start moving
     MAT::Node* parent = this_node->parent;
@@ -197,8 +197,17 @@ apply_move(MAT::Node *this_node, const std::pair<size_t, size_t> &range,
     auto iter =
         std::find(parent_children.begin(), parent_children.end(), this_node);
     parent_children.erase(iter);
-    if (parent->children.size() <= 1 && parent->not_sample()) {
-        tree.remove_node(parent->identifier, false);
+    if (parent_children.size() <= 1 && parent->not_sample()) {
+        auto& grandpa_child=parent->parent->children;
+        if(parent_children.size()==1){
+            Mutation_Annotated_Tree::Mutations_Collection temp;
+            auto child=parent_children[0];
+            parent->mutations.merge_out(child->mutations, temp, 0);
+            child->mutations.swap(temp);
+            grandpa_child.push_back(child);
+        }
+        grandpa_child.erase(std::find(grandpa_child.begin(),grandpa_child.end(),parent));
+
     }
     // Try merging with sibling in the new location
     insert_node(new_parent,this_node,tree);
@@ -326,7 +335,7 @@ bool Tree_Rearrangement::move_nearest(
     if (!this_node->parent || !this_node->parent->parent) {
         return false;
     }
-    auto range = Fitch_Sankoff::dfs_range(this_node);
+    auto range = Fitch_Sankoff::dfs_range(this_node,dfs_ordered_nodes);
     // moving to parent
     change_bundle best;
 

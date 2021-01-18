@@ -34,6 +34,7 @@ if(DEFINED Protobuf_PATH)
     add_executable(usher
         src/mutation_annotated_tree.cpp
         src/usher_mapper.cpp
+        src/tree_rearrangement.cpp
         src/fitch-sankoff.cpp
         src/NNI.cpp
         src/usher.cpp
@@ -63,6 +64,7 @@ else()
         src/usher_mapper.cpp
         src/Fitch_Sankoff.cpp
         src/check_samples.cpp
+        src/tree_rearrangement.cpp
         src/NNI.cpp
         src/usher.cpp
         ${PROTO_SRCS}

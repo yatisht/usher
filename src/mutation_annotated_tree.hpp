@@ -359,5 +359,13 @@ last_pos_inserted=(newly_inserted);
     // Exchange 2 branches of the same tree that are not root (not checked to be the same tree)
     void exchange(Node*  branch1, Node* branch2);
 }
+static bool check_grand_parent(const Mutation_Annotated_Tree::Node* node,const Mutation_Annotated_Tree::Node* grand_parent){
+    const Mutation_Annotated_Tree::Node* cur=node;
+    while (cur) {
+        if(cur==grand_parent) return true;
+        cur=cur->parent;
+    }
+    return false;
+}
 
 #endif
