@@ -205,6 +205,7 @@ apply_move(MAT::Node *this_node, const std::pair<size_t, size_t> &range,
             parent->mutations.merge_out(child->mutations, temp, 0);
             child->mutations.swap(temp);
             grandpa_child.push_back(child);
+            child->parent=parent->parent;
         }
         grandpa_child.erase(std::find(grandpa_child.begin(),grandpa_child.end(),parent));
 

@@ -65,6 +65,7 @@ static void check_samples_worker(Mutation_Annotated_Tree::Node *root,
         }
     }
     for (auto child : root->children) {
+        assert(child->parent=root);
         check_samples_worker(child, parent_mutations, samples);
     }
 }
