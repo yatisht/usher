@@ -76,7 +76,7 @@ static void set_internal_score(const MAT::Node &this_node, Scores_Type &out,
             assert(out[child_idx][0] != -1);
 
             auto temp =
-                get_child_score_on_par_nuc(par_nuc, out[child_idx]);
+                Fitch_Sankoff::get_child_score_on_par_nuc(par_nuc, out[child_idx]);
             score += temp.first;
             assert((states[child_idx] &(3<<(2* par_nuc)))==0||(states[child_idx] &(3<<(2* par_nuc)))==temp.second);
             states[child_idx] |= (temp.second << (2 * par_nuc));
