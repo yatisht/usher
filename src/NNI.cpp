@@ -127,9 +127,11 @@ Original_States get_original_states(std::vector<MAT::Node*> dfs_ordered_nodes, c
             loci_idx++;
         }
         dfs_ordered_nodes[idx]->mutations.batch_find(target);
+        #ifndef NDEBUG
         for(Mutation_Annotated_Tree::Mutation& m : target){
             assert(m.mut_nuc==get_genotype(dfs_ordered_nodes[idx], m));
         }
+        #endif
         distribute(target, result);
     }
     return result;
@@ -184,13 +186,17 @@ apply_move(MAT::Node *this_node, const std::pair<size_t, size_t> &range,
            ) {
     MAT::Node *new_parent=bundle.new_parent;
     std::vector<Fitch_Sankoff::States_Type>& states_all_pos=bundle.states;
+    #ifndef NDEBUG
     std::vector<Fitch_Sankoff::Scores_Type>& scores_all_pos=bundle.scores;
+    #endif
     Mutation_Annotated_Tree::Mutations_Collection mutations(move_to_parent?this_node->parent->mutations:new_parent->mutations);
     auto mutations_begin=mutations.begin();
+    #ifndef NDEBUG
     auto mutations_end=mutations.end();
     Sample_Mut_Type ori;
     auto node_check=this_node->parent->parent;
     check_samples(node_check,ori);
+    #endif
     // start moving
     MAT::Node* parent = this_node->parent;
     std::vector<MAT::Node*>& parent_children = parent->children;
@@ -237,7 +243,9 @@ apply_move(MAT::Node *this_node, const std::pair<size_t, size_t> &range,
     }
     assert(mutations_begin == mutations_end);
     assert(ori_state_iter==bundle.original_states.end());
+    #ifndef NDEBUG
     check_samples(node_check,ori);
+    #endif
 }
 
 template <bool move_to_parent>
