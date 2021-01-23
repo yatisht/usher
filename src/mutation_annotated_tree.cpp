@@ -415,14 +415,22 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
             Mutation m;
             m.chrom = mut.chromosome();
             m.position = mut.position();
-            m.ref_nuc = (1 << mut.ref_nuc());
-            m.par_nuc = (1 << mut.par_nuc());
-            m.is_missing = false;
-            std::vector<int8_t> nuc_vec;
-            for (int n = 0; n < mut.mut_nuc_size(); n++) {
-                nuc_vec.push_back(mut.mut_nuc(n));
+            if (!m.is_masked()) {
+                m.ref_nuc = (1 << mut.ref_nuc());
+                m.par_nuc = (1 << mut.par_nuc());
+                m.is_missing = false;
+                std::vector<int8_t> nuc_vec;
+                for (int n = 0; n < mut.mut_nuc_size(); n++) {
+                    nuc_vec.push_back(mut.mut_nuc(n));
+                }
+                m.mut_nuc = get_nuc_id(nuc_vec);
             }
-            m.mut_nuc = get_nuc_id(nuc_vec);
+            else {
+                // Mutation masked
+                m.ref_nuc = 0;
+                m.par_nuc = 0;
+                m.mut_nuc = 0;
+            }
             node->add_mutation(m);
         }
     }
@@ -453,17 +461,23 @@ void Mutation_Annotated_Tree::save_mutation_annotated_tree (Mutation_Annotated_T
             mut->set_chromosome(m.chrom);
             mut->set_position(m.position);
             
-            int8_t j = get_nt(m.ref_nuc);
-            assert (j >= 0);
-            mut->set_ref_nuc(j);
-            
-            j = get_nt(m.par_nuc);
-            assert (j >= 0);
-            mut->set_par_nuc(j);
-            
-            mut->clear_mut_nuc();
-            for (auto nuc: get_nuc_vec_from_id(m.mut_nuc)) {
-                mut->add_mut_nuc(nuc);
+            if (m.is_masked()) {
+                mut->set_ref_nuc(-1);
+                mut->set_par_nuc(-1);
+            }
+            else {
+                int8_t j = get_nt(m.ref_nuc);
+                assert (j >= 0);
+                mut->set_ref_nuc(j);
+
+                j = get_nt(m.par_nuc);
+                assert(j >= 0);
+                mut->set_par_nuc(j);
+
+                mut->clear_mut_nuc();
+                for (auto nuc: get_nuc_vec_from_id(m.mut_nuc)) {
+                    mut->add_mut_nuc(nuc);
+                }
             }
         }
     }
@@ -557,6 +571,30 @@ std::vector<Mutation_Annotated_Tree::Node*> Mutation_Annotated_Tree::Tree::get_l
         }
     }
     return leaves;
+}
+
+std::vector<std::string> Mutation_Annotated_Tree::Tree::get_leaves_ids(std::string nid) {
+    std::vector<std::string> leaves_ids;
+    if (nid == "") {
+        if (root == NULL) {
+            return leaves_ids;
+        }
+        nid = root->identifier;
+    }
+    Node* node = all_nodes[nid];
+
+    std::queue<Node*> remaining_nodes;
+    remaining_nodes.push(node);
+    while (remaining_nodes.size() > 0) {
+        Node* curr_node = remaining_nodes.front();
+        if (curr_node->children.size() == 0)
+            leaves_ids.push_back(curr_node->identifier);
+        remaining_nodes.pop();
+        for (auto c: curr_node->children) {
+            remaining_nodes.push(c);
+        }
+    }
+    return leaves_ids;
 }
 
 size_t Mutation_Annotated_Tree::Tree::get_num_leaves(Node* node) {
@@ -800,17 +838,18 @@ size_t Mutation_Annotated_Tree::Tree::get_parsimony_score() {
 }
 
 void Mutation_Annotated_Tree::Tree::condense_leaves(std::vector<std::string> missing_samples) {
-    auto tree_leaves = get_leaves();
-    for (auto l1: tree_leaves) {
+    auto tree_leaves = get_leaves_ids();
+    for (auto l1_id: tree_leaves) {
         std::vector<std::string> polytomy_nodes;
 
+        auto l1 = get_node(l1_id);
+        if (l1 == NULL) {
+            continue;
+        }
         if (std::find(missing_samples.begin(), missing_samples.end(), l1->identifier) != missing_samples.end()) {
             continue;
         }
         if (l1->mutations.size() > 0) {
-            continue;
-        }
-        if (get_node(l1->identifier) == NULL) {
             continue;
         }
 

@@ -1119,28 +1119,6 @@ int main(int argc, char **argv) {
                         }       
                         });
 
-                print_placement_stats(max_trees, print_parsimony_scores,
-                        sample, total_nodes,
-                          best_set_difference, num_best);
-                if (max_trees == 1&&num_best>1) {
-                    low_confidence_samples.emplace_back(sample);
-                }
-                // Debugging information to be printed if -DDEBUG compile-time
-                // flag is set. This includes sample mutations, details of the
-                // best node and the list of mutations at the best node
-#if DEBUG == 1
-                print_mutations_dgb(missing_sample_mutations[s],num_best,best_j_vec,dfs,node_has_unique,T,best_node);
-#endif
-                
-                // If number of parsimony-optimal trees is more than 1 and if
-                // the number of trees has not already exceeded the maximum
-                // limit, create a copy of the current tree in curr_tree
-                place_sample(optimal_trees, T,
-                          sample,node_excess_mutations,
-                          node_imputed_mutations, node_set_difference,
-                          best_set_difference, best_j, best_node_has_unique,
-                          node_has_unique, best_j_vec, num_best, best_node,all_new_nodes,curr_new_nodes);
-
                 fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
                 curr_new_nodes++;
             }
@@ -1256,9 +1234,8 @@ int main(int argc, char **argv) {
                 if (curr_node_mutations.size() > 0) {
                     curr_node_mutation_string = sample + ":";
                     size_t num_mutations = curr_node_mutations.size();
-                    size_t k = 0;
-                    for ( auto m:curr_node_mutations ) {
-                        curr_node_mutation_string += MAT::get_nuc(m.par_nuc) + std::to_string(m.position) + MAT::get_nuc(m.mut_nuc); 
+                    for (size_t k = 0; k < num_mutations; k++) {
+                        curr_node_mutation_string += curr_node_mutations[k].get_string();
                         if (k < num_mutations-1) {
                             curr_node_mutation_string += ',';
                         }
@@ -1276,9 +1253,8 @@ int main(int argc, char **argv) {
                     if (curr_node_mutations.size() > 0) {
                         curr_node_mutation_string = anc_node->identifier + ":";
                         size_t num_mutations = curr_node_mutations.size();
-                        size_t k=0;
-                        for (auto m:curr_node_mutations) {
-                            curr_node_mutation_string += MAT::get_nuc(m.par_nuc) + std::to_string(m.position) + MAT::get_nuc(m.mut_nuc); 
+                        for (size_t k = 0; k < num_mutations; k++) {
+                            curr_node_mutation_string += curr_node_mutations[k].get_string(); 
                             if (k < num_mutations-1) {
                                 curr_node_mutation_string += ',';
                             }
@@ -1447,7 +1423,7 @@ int main(int argc, char **argv) {
                     size_t tot_mutations = subtree_root_mutations.size();
                     for (size_t idx = 0; idx < tot_mutations; idx++) {
                         auto m = subtree_root_mutations[idx];
-                        fprintf(subtree_mutations_file, "%s", (MAT::get_nuc(m.par_nuc) + std::to_string(m.position) + MAT::get_nuc(m.mut_nuc)).c_str());
+                        fprintf(subtree_mutations_file, "%s", m.get_string().c_str());
                         if (idx+1 <tot_mutations) {
                             fprintf(subtree_mutations_file, ",");
                         }
@@ -1458,9 +1434,10 @@ int main(int argc, char **argv) {
                     for (auto n: new_T.depth_first_expansion()) {
                         size_t tot_mutations = subtree_node_mutations[n].size();
                         fprintf(subtree_mutations_file, "%s: ", n->identifier.c_str());
-                        size_t idx = 0; 
-                        for (auto m:subtree_node_mutations[n]) {
-                            fprintf(subtree_mutations_file, "%s", (MAT::get_nuc(m.par_nuc) + std::to_string(m.position) + MAT::get_nuc(m.mut_nuc)).c_str());
+
+                        for (size_t idx = 0; idx < tot_mutations; idx++) {
+                            auto m = subtree_node_mutations[n][idx];
+                            fprintf(subtree_mutations_file, "%s", m.get_string().c_str());
                             if (idx+1 <tot_mutations) {
                                 fprintf(subtree_mutations_file, ",");
                             }
@@ -1503,7 +1480,7 @@ int main(int argc, char **argv) {
     }
 
     // Print warning message with a list of all samples placed with low
-    // confidence (>=4 parsimony-optimal placements
+    // confidence (>=2 parsimony-optimal placements)
     if (low_confidence_samples.size() > 0) {
         fprintf(stderr, "WARNING: Following samples had multiple possibilities of parsimony-optimal placements:\n");
         for (auto lcs: low_confidence_samples) { 

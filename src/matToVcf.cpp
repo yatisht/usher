@@ -93,6 +93,9 @@ uint r_add_genotypes(MAT::Node *node,
     // Traverse tree, adding leaf/sample genotypes for mutations annotated on path from root to node
     // to chrom_pos_genotypes (and reference allele to chrom_pos_ref).
     for (auto &mut: node->mutations) {
+      if (mut.is_masked()) {
+          continue;
+      }
       mut_stack.push_back(&mut);
     }
     if (node->is_leaf()) {

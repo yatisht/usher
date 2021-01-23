@@ -27,6 +27,8 @@ namespace Mutation_Annotated_Tree {
     std::vector<int8_t> get_nuc_vec_from_id (int8_t nuc_id);
 
     // WARNING: chrom is currently ignored!
+    // position < 0 implies masked mutations i.e. mutations that exist but
+    // details are unknown
     struct Mutation {
         std::string chrom;
         int position;
@@ -51,6 +53,7 @@ namespace Mutation_Annotated_Tree {
             chrom = "";
             is_missing = false;
         }
+
         bool operator==(const Mutation& other) const{
             if(other.mut_nuc!=mut_nuc) return false;
             if(other.par_nuc!=par_nuc) return false;
@@ -59,6 +62,16 @@ namespace Mutation_Annotated_Tree {
             assert(other.chrom==chrom);
             assert(other.ref_nuc==ref_nuc);
             return true;
+        inline bool is_masked() const {
+            return (position < 0);
+        }
+        inline std::string get_string() const {
+            if (is_masked()) {
+                return "MASKED";
+            }
+            else {
+                return get_nuc(par_nuc) + std::to_string(position) + get_nuc(mut_nuc);
+            }
         }
     };
 
@@ -328,6 +341,7 @@ last_pos_inserted=(newly_inserted);
             size_t get_max_level ();
             void rename_node(std::string old_nid, std::string new_nid);
             std::vector<Node*> get_leaves(std::string nid="");
+            std::vector<std::string> get_leaves_ids(std::string nid="");
             size_t get_num_leaves(Node* node=NULL);
             void create_node (std::string identifier, float branch_length = -1.0);
             Node* create_node (std::string identifier, std::string parent_id, float branch_length = -1.0);
