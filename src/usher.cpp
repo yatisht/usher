@@ -196,6 +196,8 @@ int main(int argc, char** argv) {
     // using the sample variants in the input VCF file. If the VCF contains
     // samples missing in the input tree, they get added to missing_samples
     if (tree_filename != "") {
+        fprintf(stderr, "Loading input tree and vcf file.\n"); 
+        timer.Start();
         // Create a new tree from the input newick file and store it in
         // optimal_trees
         auto tmp_T = MAT::create_tree_from_newick(tree_filename);
@@ -227,6 +229,8 @@ int main(int argc, char** argv) {
         catch(const boost::iostreams::gzip_error& e) {
             std::cout << e.what() << '\n';
         }
+        
+        fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 
         fprintf(stderr, "Computing parsimonious assignments for input variants.\n"); 
         timer.Start();

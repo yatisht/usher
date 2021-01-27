@@ -539,6 +539,12 @@ void Mutation_Annotated_Tree::Node::clear_mutations() {
 
 /* === Tree === */
 size_t Mutation_Annotated_Tree::Tree::get_max_level () {
+    size_t max_level = 0;
+    for (auto x: all_nodes) {
+        if (x.second->level > max_level) {
+            max_level = x.second->level;
+        }
+    }
     return max_level;
 }
         
@@ -618,15 +624,15 @@ size_t Mutation_Annotated_Tree::Tree::get_num_leaves(Node* node) {
     return num_leaves;
 }
 
-void Mutation_Annotated_Tree::Tree::create_node (std::string identifier, float branch_len) {
+Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Tree::create_node (std::string identifier, float branch_len) {
     all_nodes.clear();
-    max_level = 1;
     Node* n = new Node(identifier, branch_len);
     root = n;
     all_nodes[identifier] = root;
+    return n;
 }
 
-void Mutation_Annotated_Tree::Tree::create_node (std::string identifier, std::string parent_id, float branch_len) {
+Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Tree::create_node (std::string identifier, std::string parent_id, float branch_len) {
     Node* par = all_nodes[parent_id];
     Node* n = new Node(identifier, par, branch_len);
     if (all_nodes.find(identifier) != all_nodes.end()) {
@@ -635,9 +641,7 @@ void Mutation_Annotated_Tree::Tree::create_node (std::string identifier, std::st
     }
     all_nodes[identifier] = n;
     par->children.push_back(n);
-    if (n->level > max_level) {
-        max_level = n->level;
-    }
+    return n;
 }
 
 Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Tree::get_node (std::string nid) {
@@ -751,16 +755,6 @@ void Mutation_Annotated_Tree::Tree::remove_node_helper (std::string nid, bool mo
 
 void Mutation_Annotated_Tree::Tree::remove_node (std::string nid, bool move_level) { 
     remove_node_helper (nid, move_level);
-
-    // Update max level
-    size_t new_max_level = 0;
-    for (auto x: all_nodes) {
-        if (x.second->level > new_max_level) {
-            new_max_level = x.second->level;
-        }
-    }
-    max_level = new_max_level;
-
 }
 
 void Mutation_Annotated_Tree::Tree::move_node (std::string source_id, std::string dest_id) {
@@ -791,15 +785,6 @@ void Mutation_Annotated_Tree::Tree::move_node (std::string source_id, std::strin
             remaining_nodes.push(c);
         }
     }
-    
-    // Update max level
-    size_t new_max_level = 0;
-    for (auto x: all_nodes) {
-        if (x.second->level > new_max_level) {
-            new_max_level = x.second->level;
-        }
-    }
-    max_level = new_max_level;
 }
 
 std::vector<Mutation_Annotated_Tree::Node*> Mutation_Annotated_Tree::Tree::breadth_first_expansion(std::string nid) {
@@ -856,7 +841,7 @@ size_t Mutation_Annotated_Tree::Tree::get_parsimony_score() {
 void Mutation_Annotated_Tree::Tree::condense_leaves(std::vector<std::string> missing_samples) {
     auto tree_leaves = get_leaves_ids();
     for (auto l1_id: tree_leaves) {
-        std::vector<std::string> polytomy_nodes;
+        std::vector<Node*> polytomy_nodes;
 
         auto l1 = get_node(l1_id);
         if (l1 == NULL) {
@@ -874,7 +859,7 @@ void Mutation_Annotated_Tree::Tree::condense_leaves(std::vector<std::string> mis
                     continue;
                 }
             if (l2->is_leaf() && (get_node(l2->identifier) != NULL) && (l2->mutations.size() == 0)) {
-                polytomy_nodes.push_back(l2->identifier);
+                polytomy_nodes.push_back(l2);
             }
         }
 
@@ -882,16 +867,14 @@ void Mutation_Annotated_Tree::Tree::condense_leaves(std::vector<std::string> mis
             std::string new_node_name = "node_" + std::to_string(1+condensed_nodes.size()) + "_condensed_" + std::to_string(polytomy_nodes.size()) + "_leaves";
             
             auto curr_node = get_node(l1->identifier);
-            create_node(new_node_name, curr_node->parent->identifier, l1->branch_length);
-            
-            auto new_node = get_node(new_node_name);
+            auto new_node = create_node(new_node_name, curr_node->parent->identifier, l1->branch_length);
             new_node->clear_mutations();
             
             condensed_nodes[new_node_name] = std::vector<std::string>(polytomy_nodes.size());
 
             for (size_t it = 0; it < polytomy_nodes.size(); it++) {
-                condensed_nodes[new_node_name][it] = polytomy_nodes[it];
-                remove_node(polytomy_nodes[it], false);
+                condensed_nodes[new_node_name][it] = polytomy_nodes[it]->identifier;
+                remove_node(polytomy_nodes[it]->identifier, false);
             }
         }
     }
