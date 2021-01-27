@@ -133,6 +133,6 @@ namespace Mutation_Annotated_Tree {
     Tree load_mutation_annotated_tree (std::string filename);
     void save_mutation_annotated_tree (Tree tree, std::string filename);
 
-    Tree get_tree_copy(Tree tree);
+    Tree get_tree_copy(Tree tree, std::string identifier="");
 }
 
