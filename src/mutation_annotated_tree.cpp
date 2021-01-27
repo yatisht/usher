@@ -148,7 +148,7 @@ std::vector<int8_t> Mutation_Annotated_Tree::get_nuc_vec_from_id (int8_t nuc_id)
 // internal node ids and branch lengths are printed. If last boolean argument is
 // set, branch lengths from input tree are retained, otherwise, branch length
 // for a branch is equal to the number of mutations annotated on that branch 
-std::string Mutation_Annotated_Tree::get_newick_string (Mutation_Annotated_Tree::Tree& T, Mutation_Annotated_Tree::Node* node, bool print_internal, bool print_branch_len, bool retain_original_branch_len) {
+std::string Mutation_Annotated_Tree::get_newick_string (Mutation_Annotated_Tree::Tree& T, Mutation_Annotated_Tree::Node* node, bool print_internal, bool print_branch_len, bool retain_original_branch_len, bool uncondense_leaves) {
     std::string newick_string = "";
 
     std::vector<Node*> traversal = T.depth_first_expansion(node);
@@ -178,7 +178,19 @@ std::string Mutation_Annotated_Tree::get_newick_string (Mutation_Annotated_Tree:
                 prev_open = true;
             }
             if (n->is_leaf()) {
-                newick_string += n->identifier;
+                if (uncondense_leaves && (T.condensed_nodes.find(n->identifier) != T.condensed_nodes.end())) {
+                    auto cn = T.condensed_nodes[n->identifier];
+                    auto cn_size = cn.size();
+                    for (size_t idx = 0; idx < cn_size; idx++) {
+                        newick_string += cn[idx];
+                        if (idx+1 < cn_size) {
+                            newick_string += ",";
+                        }
+                    }
+                }
+                else {
+                    newick_string += n->identifier;
+                }
                 if ((print_branch_len) && (branch_length >= 0)) {
                     std::stringstream ss;
                     ss << branch_length;
@@ -207,7 +219,20 @@ std::string Mutation_Annotated_Tree::get_newick_string (Mutation_Annotated_Tree:
                 branch_length_stack.pop();
             }
             if (n->is_leaf()) {
-                newick_string += "," + n->identifier;
+                if (uncondense_leaves && (T.condensed_nodes.find(n->identifier) != T.condensed_nodes.end())) {
+                    auto cn = T.condensed_nodes[n->identifier];
+                    newick_string += ",";
+                    auto cn_size = cn.size();
+                    for (size_t idx = 0; idx < cn_size; idx++) {
+                        newick_string += cn[idx];
+                        if (idx+1 < cn_size) {
+                            newick_string += ",";
+                        }
+                    }
+                }
+                else {
+                    newick_string += "," + n->identifier;
+                }
                 if ((print_branch_len) && (branch_length >= 0)) {
                     std::stringstream ss;
                     ss << branch_length;
@@ -222,7 +247,20 @@ std::string Mutation_Annotated_Tree::get_newick_string (Mutation_Annotated_Tree:
         else {
             prev_open = false;
             if (n->is_leaf()) {
-                newick_string += "," + n->identifier;
+                if (uncondense_leaves && (T.condensed_nodes.find(n->identifier) != T.condensed_nodes.end())) {
+                    auto cn = T.condensed_nodes[n->identifier];
+                    newick_string += ",";
+                    auto cn_size = cn.size();
+                    for (size_t idx = 0; idx < cn_size; idx++) {
+                        newick_string += cn[idx];
+                        if (idx+1 < cn_size) {
+                            newick_string += ",";
+                        }
+                    }
+                }
+                else {
+                    newick_string += "," + n->identifier;
+                }
                 if ((print_branch_len) && (branch_length >= 0)) {
                     std::stringstream ss;
                     ss << branch_length;
@@ -255,8 +293,8 @@ std::string Mutation_Annotated_Tree::get_newick_string (Mutation_Annotated_Tree:
     return newick_string;
 }
 
-std::string Mutation_Annotated_Tree::get_newick_string (Tree& T, bool print_internal, bool print_branch_len, bool retain_original_branch_len) {
-    return get_newick_string(T, T.root, print_internal, print_branch_len, retain_original_branch_len);
+std::string Mutation_Annotated_Tree::get_newick_string (Tree& T, bool print_internal, bool print_branch_len, bool retain_original_branch_len, bool uncondense_leaves) {
+    return get_newick_string(T, T.root, print_internal, print_branch_len, retain_original_branch_len, uncondense_leaves);
 }
 
 // Split string into words for a specific delimiter delim

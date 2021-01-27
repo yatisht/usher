@@ -1078,15 +1078,9 @@ int main(int argc, char** argv) {
             }
 
             FILE* uncondensed_final_tree_file = fopen(uncondensed_final_tree_filename.c_str(), "w");
+                
+            fprintf(uncondensed_final_tree_file, "%s\n", MAT::get_newick_string(*T, true, true, retain_original_branch_len, true).c_str());
 
-            if (T->condensed_nodes.size() > 0) {
-                MAT::Tree T_to_print = MAT::get_tree_copy(*T);
-                T_to_print.uncondense_leaves();
-                fprintf(uncondensed_final_tree_file, "%s\n", MAT::get_newick_string(T_to_print, true, true, retain_original_branch_len).c_str());
-            }
-            else {
-                fprintf(uncondensed_final_tree_file, "%s\n", MAT::get_newick_string(*T, true, true, retain_original_branch_len).c_str());
-            }
             fclose(uncondensed_final_tree_file);
 
             fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
