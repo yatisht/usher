@@ -545,7 +545,10 @@ int main(int argc, char** argv) {
                     }
 
                     size_t best_node_num_leaves = 0;
-                    int best_set_difference = 1e9;
+                    // The maximum number of mutations is bound by the number
+                    // of mutations in the missing sample (place at root)
+                    int best_set_difference = missing_sample_mutations[s].size();
+
                     size_t best_j = 0;
                     size_t num_best = 1;
                     bool best_node_has_unique = false;
@@ -666,7 +669,9 @@ int main(int argc, char** argv) {
                 }
 
                 size_t best_node_num_leaves = 0;
-                int best_set_difference = 1e9;
+                // The maximum number of mutations is bound by the number
+                // of mutations in the missing sample (place at root)
+                int best_set_difference = missing_sample_mutations[s].size();
                 
                 size_t best_j = 0;
                 bool best_node_has_unique = false;
