@@ -304,17 +304,21 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores) {
         // Check if mutation is found in ancestral_mutations
         for (size_t k = start_index; k < ancestral_mutations.size(); k++) {
             auto m2 = ancestral_mutations[k];
+            start_index = k;
             // Masked mutations don't match anything
             if (m2.is_masked()) {
                 continue;
             }
-            start_index = k;
             if (m1.position == m2.position) {
                 found_pos = true;
                 anc_nuc = m2.mut_nuc;
                 if ((m1.mut_nuc & anc_nuc) != 0) {
                     found = true;
                 }
+                break;
+            }
+            // break since mutations are position-sorted
+            if (m2.position > m1.position) {
                 break;
             }
         }
@@ -410,6 +414,10 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores) {
                 if ((m2.mut_nuc & anc_nuc) != 0) {
                     found = true;
                 }
+            }
+            // break since mutations are position-sorted
+            if (m2.position > m1.position) {
+                break;
             }
         }
         if (found_pos) {
