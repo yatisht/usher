@@ -58,10 +58,12 @@ if(DEFINED Protobuf_PATH)
         TARGET matToVcf
         PROTOS parsimony.proto)
 
-    protobuf_generate(
-        LANGUAGE cpp
-        TARGET matUtils
-        PROTOS parsimony.proto)
+    if(COMPILE_UTILS)
+        protobuf_generate(
+            LANGUAGE cpp
+            TARGET matUtils
+            PROTOS parsimony.proto)
+    endif(COMPILE_UTILS)
 else()
     protobuf_generate_cpp(
         PROTO_SRCS PROTO_HDRS
