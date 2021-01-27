@@ -377,7 +377,7 @@ last_pos_inserted=(newly_inserted);
     Tree load_mutation_annotated_tree (std::string filename);
     void save_mutation_annotated_tree (Tree tree, std::string filename);
 
-    Tree get_tree_copy(Tree tree);
+    Tree get_tree_copy(Tree tree, std::string identifier="");
     // Exchange 2 branches of the same tree that are not root (not checked to be the same tree)
     void exchange(Node*  branch1, Node* branch2);
 }
