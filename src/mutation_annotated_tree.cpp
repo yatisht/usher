@@ -445,33 +445,37 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
 
     auto dfs = tree.depth_first_expansion();
 
-    for (size_t idx = 0; idx < dfs.size(); idx++) {
-        auto node = dfs[idx];
-        auto mutation_list = data.node_mutations(idx);
-        for (int k = 0; k < mutation_list.mutation_size(); k++) {
-            auto mut = mutation_list.mutation(k);
-            Mutation m;
-            m.chrom = mut.chromosome();
-            m.position = mut.position();
-            if (!m.is_masked()) {
-                m.ref_nuc = (1 << mut.ref_nuc());
-                m.par_nuc = (1 << mut.par_nuc());
-                m.is_missing = false;
-                std::vector<int8_t> nuc_vec;
-                for (int n = 0; n < mut.mut_nuc_size(); n++) {
-                    nuc_vec.push_back(mut.mut_nuc(n));
-                }
-                m.mut_nuc = get_nuc_id(nuc_vec);
+    tbb::parallel_for( tbb::blocked_range<size_t>(0, dfs.size(), 1000),
+            [&](tbb::blocked_range<size_t> r) {
+            for (size_t idx = r.begin(); idx < r.end(); idx++) {
+               auto node = dfs[idx];
+               auto mutation_list = data.node_mutations(idx);
+               for (int k = 0; k < mutation_list.mutation_size(); k++) {
+                  auto mut = mutation_list.mutation(k);
+                  Mutation m;
+                  m.chrom = mut.chromosome();
+                  m.position = mut.position();
+                  if (!m.is_masked()) {
+                     m.ref_nuc = (1 << mut.ref_nuc());
+                     m.par_nuc = (1 << mut.par_nuc());
+                     m.is_missing = false;
+                     std::vector<int8_t> nuc_vec;
+                     for (int n = 0; n < mut.mut_nuc_size(); n++) {
+                        nuc_vec.push_back(mut.mut_nuc(n));
+                     }
+                     m.mut_nuc = get_nuc_id(nuc_vec);
+                  }
+                  else {
+                      // Mutation masked
+                      m.ref_nuc = 0;
+                      m.par_nuc = 0;
+                      m.mut_nuc = 0;
+                  }
+                  node->add_mutation(m);
+               }
             }
-            else {
-                // Mutation masked
-                m.ref_nuc = 0;
-                m.par_nuc = 0;
-                m.mut_nuc = 0;
-            }
-            node->add_mutation(m);
-        }
-    }
+        });
+
 
     size_t num_condensed_nodes = static_cast<size_t>(data.condensed_nodes_size());
     for (size_t idx = 0; idx < num_condensed_nodes; idx++) {
