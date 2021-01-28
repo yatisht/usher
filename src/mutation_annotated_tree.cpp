@@ -952,48 +952,6 @@ void Mutation_Annotated_Tree::Tree::collapse_tree() {
     }
 }
 
-//Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_tree_copy(Mutation_Annotated_Tree::Tree tree) {
-//    Tree copy = create_tree_from_newick_string (get_newick_string(tree, true, true));
-//
-//    std::vector<Node*> dfs1;
-//    std::vector<Node*> dfs2;
-//
-//    tbb::parallel_for(tbb::blocked_range<size_t>(0, 2),
-//            [&](tbb::blocked_range<size_t> r) {
-//            for (size_t k=r.begin(); k<r.end(); ++k){
-//              if (k==0) {
-//                dfs1 = tree.depth_first_expansion();
-//              }
-//              else {
-//                dfs2 = copy.depth_first_expansion();
-//              }
-//            }
-//            });
-//            
-//
-//    tbb::parallel_for(tbb::blocked_range<size_t>(0, dfs1.size(), 500),
-//            [&](tbb::blocked_range<size_t> r) {
-//            for (size_t k=r.begin(); k<r.end(); ++k){
-//              auto n1 = dfs1[k];
-//              auto n2 = dfs2[k];
-//              for (auto m: n1->mutations) {
-//                Mutation m2 = m.copy();
-//                n2->add_mutation(m2);
-//                }
-//              }
-//            });
-//
-//    for (auto cn: tree.condensed_nodes) {
-//        copy.condensed_nodes.insert(std::pair<std::string, std::vector<std::string>>(cn.first, std::vector<std::string>(cn.second.size())));
-//        for (size_t k = 0; k < cn.second.size(); k++) {
-//            copy.condensed_nodes[cn.first][k] = cn.second[k];
-//            copy.condensed_leaves.insert(cn.second[k]);
-//        }
-//    }
-//
-//    return copy;
-//}
-
 Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_tree_copy(Mutation_Annotated_Tree::Tree tree, std::string identifier) {
     Tree copy;
 
