@@ -1047,31 +1047,6 @@ int main(int argc, char** argv) {
     }
 
 
-    // Write final tree(s) to file(s)
-    for (size_t t_idx = 0; t_idx < num_trees; t_idx++) {
-        timer.Start();
-            
-        T = &optimal_trees[t_idx];
-        
-        auto final_tree_filename = outdir + "/final-tree.nh";
-        if (num_trees > 1) {
-            final_tree_filename = outdir + "/final-tree-" + std::to_string(t_idx+1) + ".nh";
-            fprintf(stderr, "Writing final tree %zu to file %s \n", t_idx+1, final_tree_filename.c_str());
-        }
-        else {
-            fprintf(stderr, "Writing final tree to file %s \n", final_tree_filename.c_str());
-        }
-        auto parsimony_score = T->get_parsimony_score();
-        fprintf(stderr, "The parsimony score for this tree is: %zu \n", parsimony_score);
-        FILE* final_tree_file = fopen(final_tree_filename.c_str(), "w");
-        fprintf(final_tree_file, "%s\n", MAT::get_newick_string(*T, true, true, retain_original_branch_len).c_str());
-        fclose(final_tree_file);
-
-        tree_parsimony_scores.emplace_back(parsimony_score);
-        
-        fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
-    }
-
     // If user need uncondensed tree output, write uncondensed tree(s) to
     // file(s)
     if (print_uncondensed_tree) {
@@ -1094,6 +1069,32 @@ int main(int argc, char** argv) {
             fprintf(uncondensed_final_tree_file, "%s\n", MAT::get_newick_string(*T, true, true, retain_original_branch_len, true).c_str());
 
             fclose(uncondensed_final_tree_file);
+
+            fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+        }
+    }
+    else {
+        // Write final tree(s) to file(s)
+        for (size_t t_idx = 0; t_idx < num_trees; t_idx++) {
+            timer.Start();
+
+            T = &optimal_trees[t_idx];
+
+            auto final_tree_filename = outdir + "/final-tree.nh";
+            if (num_trees > 1) {
+                final_tree_filename = outdir + "/final-tree-" + std::to_string(t_idx+1) + ".nh";
+                fprintf(stderr, "Writing final tree %zu to file %s \n", t_idx+1, final_tree_filename.c_str());
+            }
+            else {
+                fprintf(stderr, "Writing final tree to file %s \n", final_tree_filename.c_str());
+            }
+            auto parsimony_score = T->get_parsimony_score();
+            fprintf(stderr, "The parsimony score for this tree is: %zu \n", parsimony_score);
+            FILE* final_tree_file = fopen(final_tree_filename.c_str(), "w");
+            fprintf(final_tree_file, "%s\n", MAT::get_newick_string(*T, true, true, retain_original_branch_len).c_str());
+            fclose(final_tree_file);
+
+            tree_parsimony_scores.emplace_back(parsimony_score);
 
             fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
         }
