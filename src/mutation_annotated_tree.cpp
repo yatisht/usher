@@ -299,19 +299,19 @@ std::string Mutation_Annotated_Tree::get_newick_string (Tree& T, bool print_inte
 
 // Split string into words for a specific delimiter delim
 void Mutation_Annotated_Tree::string_split (std::string s, char delim, std::vector<std::string>& words) {
-    std::string curr = "";
-    for (auto c: s) {
-        if (c == delim) {
-            words.push_back(std::move(curr));
-            curr = "";
+    size_t start_pos = 0, end_pos = 0;
+    while ((end_pos = s.find(delim, start_pos)) != std::string::npos) {
+        if ((end_pos == start_pos) || end_pos >= s.length()) {
+            break;
         }
-        else {
-            curr += c;
-        }
+        words.push_back(std::move(s.substr(start_pos, end_pos-start_pos)));
+        start_pos = end_pos+1;
     }
-    if (curr != "") {
-        words.push_back(std::move(curr));
+    auto last = s.substr(start_pos, s.size()-start_pos);
+    if (last != "") {
+        words.push_back(std::move(last));
     }
+    
 }
 
 // Split string into words (delimited by space, tabs etc.)
@@ -339,6 +339,9 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::create_tree_from_newick_s
 
     std::vector<std::string> s1;
     string_split(newick_string, ',', s1);
+
+    num_open.reserve(s1.size());
+    num_close.reserve(s1.size());
 
     for (auto s: s1) {
         size_t no = 0;
@@ -402,7 +405,7 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::create_tree_from_newick_s
                 T.create_node(nid, parent_stack.top(), branch_len.top());
                 branch_len.pop();
             }
-            parent_stack.push(nid);
+            parent_stack.push(std::move(nid));
         }
         T.create_node(leaf, parent_stack.top(), branch_len.top());
         branch_len.pop();
@@ -666,7 +669,7 @@ size_t Mutation_Annotated_Tree::Tree::get_num_leaves(Node* node) {
     return num_leaves;
 }
 
-Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Tree::create_node (std::string identifier, float branch_len) {
+Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Tree::create_node (std::string const& identifier, float branch_len) {
     all_nodes.clear();
     Node* n = new Node(identifier, branch_len);
     root = n;
@@ -674,7 +677,7 @@ Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Tree::create_node (std::
     return n;
 }
 
-Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Tree::create_node (std::string identifier, std::string parent_id, float branch_len) {
+Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Tree::create_node (std::string const& identifier, std::string const& parent_id, float branch_len) {
     Node* par = all_nodes[parent_id];
     Node* n = new Node(identifier, par, branch_len);
     if (all_nodes.find(identifier) != all_nodes.end()) {
