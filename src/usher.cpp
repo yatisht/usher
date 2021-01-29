@@ -15,7 +15,6 @@ namespace po = boost::program_options;
 namespace MAT = Mutation_Annotated_Tree;
 
 int main(int argc, char** argv) {
-
     //Variables to load command-line options using Boost program_options
     std::string tree_filename;
     std::string din_filename;
@@ -1394,7 +1393,7 @@ int main(int argc, char** argv) {
 
         timer.Start();
 
-        fprintf(stderr, "Saving mutation-annotated tree object to file %s\n", dout_filename.c_str());
+        fprintf(stderr, "Saving mutation-annotated tree object to file (after condensing identical sequences) %s\n", dout_filename.c_str());
         if (num_trees > 1) {
             fprintf(stderr, "WARNING: --multiple-placements option was used but only the first mutation-annotated tree object will be saved to file.\n");
         }

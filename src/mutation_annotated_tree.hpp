@@ -15,6 +15,13 @@
 #include <tbb/blocked_range.h>
 #include <tbb/tbb.h>
 #include "parsimony.pb.h"
+#include "Instrumentor.h"
+
+#if SAVE_PROFILE == 1
+#  define TIMEIT() InstrumentationTimer timer##__LINE__(__PRETTY_FUNCTION__);
+#else
+#  define TIMEIT()
+#endif
 
 namespace Mutation_Annotated_Tree {
     int8_t get_nuc_id (char nuc);
@@ -98,8 +105,8 @@ namespace Mutation_Annotated_Tree {
             Tree (Node* n);
 
             Node* root;
-            std::unordered_map<std::string, std::vector<std::string>> condensed_nodes;
-            std::unordered_set<std::string> condensed_leaves;
+            tbb::concurrent_unordered_map<std::string, std::vector<std::string>> condensed_nodes;
+            tbb::concurrent_unordered_set<std::string> condensed_leaves;
 
             size_t curr_internal_node;
             size_t get_max_level ();
