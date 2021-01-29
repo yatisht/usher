@@ -304,7 +304,8 @@ void Mutation_Annotated_Tree::string_split (std::string s, char delim, std::vect
         if ((end_pos == start_pos) || end_pos >= s.length()) {
             break;
         }
-        words.push_back(std::move(s.substr(start_pos, end_pos-start_pos)));
+        auto curr = s.substr(start_pos, end_pos-start_pos);
+        words.push_back(std::move(curr));
         start_pos = end_pos+1;
     }
     auto last = s.substr(start_pos, s.size()-start_pos);
