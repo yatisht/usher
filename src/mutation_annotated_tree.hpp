@@ -49,6 +49,7 @@ namespace Mutation_Annotated_Tree {
             m.is_missing = is_missing;
             return m;
         }
+        
         Mutation () {
             chrom = "";
             is_missing = false;
@@ -62,6 +63,7 @@ namespace Mutation_Annotated_Tree {
             assert(other.chrom==chrom);
             assert(other.ref_nuc==ref_nuc);
             return true;
+        }
         inline bool is_masked() const {
             return (position < 0);
         }
@@ -84,7 +86,9 @@ namespace Mutation_Annotated_Tree {
         void swap(Mutations_Collection& in){
             mutations.swap(in.mutations);
         }
-
+        Mutation& operator[] (size_t idx){
+            return mutations[idx];
+        }
         iterator begin()  {
             return mutations.begin();
         }
