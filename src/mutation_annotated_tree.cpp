@@ -1000,7 +1000,6 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_tree_copy(Mutation_An
     return copy;
 }
 
-<<<<<<< HEAD
 void Mutation_Annotated_Tree::exchange(Node *branch1, Node *branch2){
     //Make sure they are not root
     assert(!branch1->is_root());
@@ -1021,7 +1020,6 @@ void Mutation_Annotated_Tree::exchange(Node *branch1, Node *branch2){
     *iter=branch1;
     branch1->parent=branch2_old_parent;
 }
-=======
 //Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_tree_copy(Mutation_Annotated_Tree::Tree tree, std::string identifier) {
 //    Tree copy;
 //
@@ -1060,4 +1058,3 @@ void Mutation_Annotated_Tree::exchange(Node *branch1, Node *branch2){
 //    return copy;
 //}
 
->>>>>>> f09600e (Reverting to old tree copy function.)
