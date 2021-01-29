@@ -1118,7 +1118,27 @@ int main(int argc, char **argv) {
                         mapper2_body(inp, print_parsimony_scores);
                         }       
                         });
-
+ print_placement_stats(max_trees, print_parsimony_scores,
+                        sample, total_nodes,
+                          best_set_difference, num_best);
+                if (max_trees == 1&&num_best>1) {
+                    low_confidence_samples.emplace_back(sample);
+                }
+                // Debugging information to be printed if -DDEBUG compile-time
+                // flag is set. This includes sample mutations, details of the
+                // best node and the list of mutations at the best node
+#if DEBUG == 1
+                print_mutations_dgb(missing_sample_mutations[s],num_best,best_j_vec,dfs,node_has_unique,T,best_node);
+#endif
+                
+                // If number of parsimony-optimal trees is more than 1 and if
+                // the number of trees has not already exceeded the maximum
+                // limit, create a copy of the current tree in curr_tree
+                place_sample(optimal_trees, T,
+                          sample,node_excess_mutations,
+                          node_imputed_mutations, node_set_difference,
+                          best_set_difference, best_j, best_node_has_unique,
+                          node_has_unique, best_j_vec, num_best, best_node,all_new_nodes,curr_new_nodes);
                 fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
                 curr_new_nodes++;
             }
