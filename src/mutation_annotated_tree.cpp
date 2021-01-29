@@ -1008,7 +1008,7 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_tree_copy(Mutation_An
             });
 
     size_t num_condensed_nodes = static_cast<size_t>(tree.condensed_nodes.size());
-    tbb::parallel_for( tbb::blocked_range<size_t>(0, num_condensed_nodes, 5000),
+    tbb::parallel_for( tbb::blocked_range<size_t>(0, num_condensed_nodes, 1000),
             [&](tbb::blocked_range<size_t> r) {
             for (size_t idx = r.begin(); idx < r.end(); idx++) {
                auto cn = tree.condensed_nodes.begin(); 
