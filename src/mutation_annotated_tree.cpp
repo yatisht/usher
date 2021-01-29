@@ -729,7 +729,16 @@ void Mutation_Annotated_Tree::Tree::remove_node_helper (std::string nid, bool mo
         delete curr_node;
     }
 }
-
+static void reassign_level_helper(Mutation_Annotated_Tree::Node* root){
+    for(auto c:root->children){
+        c->level=root->level+1;
+        reassign_level_helper(c);
+    }
+}
+void Mutation_Annotated_Tree::Tree::reassign_level(){
+    root->level=1;
+    reassign_level_helper(root);
+}
 void Mutation_Annotated_Tree::Tree::remove_node (std::string nid, bool move_level) { 
     remove_node_helper (nid, move_level);
 
@@ -957,7 +966,7 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_tree_copy(Mutation_An
             copy.condensed_leaves.insert(cn.second[k]);
         }
     }
-
+    copy.new_nodes=tree.new_nodes;
     return copy;
 }
 

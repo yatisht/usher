@@ -8,432 +8,15 @@
 #include <iostream>
 #include <memory>
 #include <limits>
-#include <string>
-#include <unordered_set>
-#include "tree_rearrangement.hpp"
-#include <vector>
 #include "boost/filesystem.hpp"
 #include "src/mutation_annotated_tree.hpp"
 #include "usher_graph.hpp"
 #include "parsimony.pb.h"
-
+#include "tree_rearrangement.hpp"
 namespace po = boost::program_options;
 namespace MAT = Mutation_Annotated_Tree;
-static FILE* parsimony_scores_file = NULL; 
-static uint32_t max_uncertainty;
-static uint32_t max_trees;
-static bool print_parsimony_scores = false;
-static bool refine_with_NNI=false;
 
-static void print_mutations_dgb(const std::vector<MAT::Mutation> &all_mutations,
-                                size_t num_best,
-                                std::vector<size_t> &best_node_dfs_index,
-                                std::vector<MAT::Node *> &dfs,
-                                std::vector<bool> &node_has_unique,
-                                MAT::Tree *T, MAT::Node *best_node) {
-    fprintf(stderr, "Sample mutations:\t");
-    if (all_mutations.size() > 0) {
-        for (auto m : all_mutations) {
-            if (m.is_missing) {
-                continue;
-            }
-            fprintf(stderr, "|%s",
-                    (MAT::get_nuc(m.par_nuc) + std::to_string(m.position) +
-                     MAT::get_nuc(m.mut_nuc))
-                        .c_str());
-            fprintf(stderr, "| ");
-        }
-    }
-    fprintf(stderr, "\n");
-
-    assert(num_best > 0);
-
-    // best_node_vec.emplace_back(best_node);
-    if ((num_best > 0) && (num_best <= max_uncertainty)) {
-        for (auto j : best_node_dfs_index) {
-            auto node = dfs[j];
-
-            std::vector<std::string> muts;
-
-            fprintf(stderr, "Best node ");
-            if (node->is_leaf() || node_has_unique[j]) {
-                fprintf(stderr, "(sibling)");
-            } else {
-                fprintf(stderr, "(child)");
-            }
-
-            if (node == best_node) {
-                fprintf(stderr, "*: %s\t", node->identifier.c_str());
-            } else {
-                fprintf(stderr, ": %s\t", node->identifier.c_str());
-            }
-
-            std::string s = "|";
-            for (auto m : node->mutations) {
-                s += MAT::get_nuc(m.par_nuc) + std::to_string(m.position) +
-                     MAT::get_nuc(m.mut_nuc) + '|';
-            }
-            if (node->mutations.size() > 0) {
-                muts.emplace_back(std::move(s));
-            }
-
-            for (auto anc : T->rsearch(node->identifier)) {
-                s = "|";
-                for (auto m : anc->mutations) {
-                    s += MAT::get_nuc(m.par_nuc) + std::to_string(m.position) +
-                         MAT::get_nuc(m.mut_nuc) + '|';
-                }
-                if (anc->mutations.size() > 0) {
-                    muts.emplace_back(std::move(s));
-                }
-            }
-
-            std::reverse(muts.begin(), muts.end());
-
-            fprintf(stderr, "Mutations: ");
-            for (size_t m = 0; m < muts.size(); m++) {
-                fprintf(stderr, "%s", muts[m].c_str());
-                if (m + 1 < muts.size()) {
-                    fprintf(stderr, " > ");
-                }
-            }
-            fprintf(stderr, "\n");
-        }
-        fprintf(stderr, "\n");
-    }
-}
-
-static void print_parsimony_score_to_file(
-    const std::string &sample, const std::vector<MAT::Node *> &dfs,
-    const std::vector<std::vector<MAT::Mutation>> &node_excess_mutations,
-    const std::vector<int> &node_set_difference,
-    const int &best_set_difference) {
-    for (size_t k = 0; k < dfs.size(); k++) {
-        char is_optimal =
-            (node_set_difference[k] == best_set_difference) ? 'y' : 'n';
-        fprintf(parsimony_scores_file, "%s\t%s\t%d\t\t%c\t", sample.c_str(),
-                dfs[k]->identifier.c_str(), node_set_difference[k], is_optimal);
-        if (node_set_difference[k] == best_set_difference) {
-            if (node_set_difference[k] == 0) {
-                fprintf(parsimony_scores_file, "*");
-            }
-            for (size_t idx = 0;
-                 idx < static_cast<size_t>(node_set_difference[k]); idx++) {
-                auto m = node_excess_mutations[k][idx];
-                assert((m.mut_nuc & (m.mut_nuc - 1)) == 0);
-                fprintf(parsimony_scores_file, "%s",
-                        (MAT::get_nuc(m.par_nuc) + std::to_string(m.position) +
-                         MAT::get_nuc(m.mut_nuc))
-                            .c_str());
-                if (idx + 1 < static_cast<size_t>(node_set_difference[k])) {
-                    fprintf(parsimony_scores_file, ",");
-                }
-            }
-        } else {
-            fprintf(parsimony_scores_file, "N/A");
-        }
-        fprintf(parsimony_scores_file, "\n");
-    }
-}
-
-static void print_placement_stats(uint32_t &max_trees, bool &print_parsimony_scores,
-                           std::string &sample, size_t &total_nodes,
-                           int &best_set_difference, size_t &num_best) {
-    if (!print_parsimony_scores) {
-        fprintf(stderr,
-                "Current tree size (#nodes): %zu\tSample name: %s\tParsimony "
-                "score: %d\tNumber of parsimony-optimal placements: %zu\n",
-                total_nodes, sample.c_str(), best_set_difference, num_best);
-        // Prints a warning message if 2 or more
-        // parsimony-optimal placements found
-        if (num_best > 1) {
-
-            if (num_best > max_uncertainty) {
-                fprintf(
-                    stderr,
-                    "WARNING: Number of parsimony-optimal placements exceeds "
-                    "maximum allowed value (%u). Ignoring sample %s.\n",
-                    max_uncertainty, sample.c_str());
-            } else {
-                fprintf(stderr,
-                        "WARNING: Too many parsimony-optimal placements found. "
-                        "Placement done without high confidence.\n");
-            }
-        }
-    } else {
-        fprintf(stderr,
-                "Missing sample: %s\t Best parsimony score: %d\tNumber of "
-                "parsimony-optimal placements: %zu\n",
-                sample.c_str(), best_set_difference, num_best);
-    }
-}
-
-static void print_imputed_mutations(
-    const std::vector<std::vector<MAT::Mutation>> &node_imputed_mutations,
-    const size_t best_j) {
-    if (node_imputed_mutations[best_j].size() > 0) {
-        fprintf(stderr, "Imputed mutations:\t");
-        size_t tot = node_imputed_mutations[best_j].size();
-        for (size_t curr = 0; curr < tot; curr++) {
-            if (curr < tot - 1) {
-                fprintf(
-                    stderr, "%i:%c;",
-                    node_imputed_mutations[best_j][curr].position,
-                    MAT::get_nuc(node_imputed_mutations[best_j][curr].mut_nuc));
-            } else {
-                fprintf(
-                    stderr, "%i:%c",
-                    node_imputed_mutations[best_j][curr].position,
-                    MAT::get_nuc(node_imputed_mutations[best_j][curr].mut_nuc));
-            }
-        }
-        fprintf(stderr, "\n");
-    }
-}
-
-/**
- * @brief Place new sample on T as sibling of node best_node if best_node is a
- * leaf, or the best_node has mutation not in sample, otherwise as child of
- * best_node
- *
- * @param T[inout] The tree to place in.
- * @param sample_name
- * @param node_excess_mutations  Mutations in sample but not in parent of best_node
- * @param best_node_has_unique best_node have mutations not in sample
- * @param best_node The node around which the new sample will be placed
- */
-static MAT::Node* place_one_sample_on_one_tree(
-    MAT::Tree *T, const std::string &sample_name,
-    const std::vector<MAT::Mutation> &node_excess_mutations,
-     const bool best_node_has_unique,
-    MAT::Node *best_node) {
-    MAT::Node* new_sample_node;
-    // Is placement as sibling
-    if (best_node->is_leaf() || best_node_has_unique) {
-        std::string nid = std::to_string(++T->curr_internal_node);
-        T->create_node(nid, best_node->parent->identifier);
-        new_sample_node=T->create_node(sample_name, nid);
-        T->move_node(best_node->identifier, nid);
-        
-        // mutations common to the best node branch and the sample
-        std::vector<MAT::Mutation> common_mut;
-
-        // mutations unique to best node branch
-        std::vector<MAT::Mutation> l1_mut;
-
-        // mutations unique to the sample not in best node branch
-        std::vector<MAT::Mutation> l2_mut;
-
-        //mutations originally on the best_node
-        std::vector<MAT::Mutation> curr_l1_mut;
-
-        // Compute current best node branch mutations
-        for (auto m1 : best_node->mutations) {
-            MAT::Mutation m = m1.copy();
-            curr_l1_mut.emplace_back(m);
-        }
-        // Clear mutations on the best node branch which
-        // will be later replaced by l1_mut
-        best_node->clear_mutations();
-
-        // Compute l1_mut
-        for (auto m1 : curr_l1_mut) {
-            bool found = false;
-            for (auto m2 : node_excess_mutations) {
-                if (m1.position == m2.position) {
-                    if (m1.mut_nuc == m2.mut_nuc) {
-                        found = true;
-                        break;
-                    }
-                }
-            }
-            if (!found) {
-                MAT::Mutation m = m1.copy();
-                l1_mut.emplace_back(m);
-            }
-        }
-        // Compute l2_mut
-        for (auto m1 : node_excess_mutations) {
-            bool found = false;
-            for (auto m2 : curr_l1_mut) {
-                if (m1.position == m2.position) {
-                    if (m1.mut_nuc == m2.mut_nuc) {
-                        found = true;
-                        MAT::Mutation m = m1.copy();
-                        common_mut.emplace_back(m);
-                        break;
-                    }
-                }
-            }
-            if (!found) {
-                MAT::Mutation m = m1.copy();
-                l2_mut.emplace_back(m);
-            }
-        }
-
-        // Add mutations to new node using common_mut
-        for (auto m : common_mut) {
-            T->get_node(nid)->add_mutation(m);
-        }
-        // Add mutations to best node using l1_mut
-        for (auto m : l1_mut) {
-            T->get_node(best_node->identifier)->add_mutation(m);
-        }
-        // Add new sample mutations using l2_mut
-        for (auto m : l2_mut) {
-            T->get_node(sample_name)->add_mutation(m);
-        }
-    }
-    // Else placement as child
-    else {
-        new_sample_node=T->create_node(sample_name, best_node->identifier);
-        MAT::Node *node = T->get_node(sample_name);
-        assert(node==new_sample_node);
-        std::vector<MAT::Mutation> node_mut;
-
-        MAT::Mutations_Collection& curr_l1_mut=best_node->mutations;
-
-        for (auto m1 : node_excess_mutations) {
-            bool found = false;
-            // Finding whether a mutation in sample not in parent of best_node
-            // (m1) is in mutations in best_node
-            for (MAT::Mutation& m2 : curr_l1_mut) {
-                if (m1.position == m2.position) {
-                    if (m1.mut_nuc == m2.mut_nuc) {
-                        found = true;
-                        break;
-                    }
-                }
-            }
-            if (!found) {
-                MAT::Mutation m = m1.copy();
-                node_mut.emplace_back(m);
-            }
-        }
-        for (auto m : node_mut) {
-            node->add_mutation(m);
-        }
-    }
-    return new_sample_node;
-}
-
-
-/**
- * @brief Place the new sample in tree T, create new copies of T to accommodate multiple optimum if necessary
- * 
- * @param optimal_trees[output] Vector of optimal trees, will be appended with copies of T with sample inserted at different optimal positions.
- * @param T The current tree in which the placement of sample is calculated
- * @param sample sample name
- * @param node_excess_mutations Mutations in sample but not in parent of best_node
- * @param node_imputed_mutations Ambiguous bases imputed for MP
- * @param node_set_difference 
- * @param best_set_difference 
- * @param best_j The dfs index of the 'best' node after tier breaking with num. of decendent around which the sample will be inserted
- * @param best_node_has_unique Whether the 'best' node have mutations not in sample
- * @param node_has_unique Same as above for rest of the optimal placements
- * @param best_j_vec 
- * @param num_best 
- * @param best_node 
- */
-static void place_sample(
-    std::vector<MAT::Tree> &optimal_trees, MAT::Tree *T,
-    std::string &sample,
-    const std::vector<std::vector<MAT::Mutation>> &node_excess_mutations,
-    const std::vector<std::vector<MAT::Mutation>> &node_imputed_mutations,
-    const std::vector<int> &node_set_difference, const int best_set_difference,
-     size_t best_j,  bool best_node_has_unique,
-    const std::vector<bool> &node_has_unique, std::vector<size_t> &best_j_vec,
-     size_t num_best,  MAT::Node *best_node,std::vector<std::vector<MAT::Node*>>& all_new_nodes,std::vector<std::vector<MAT::Node*>>::iterator curr_new_nodes) {
-    auto dfs = T->depth_first_expansion();
-    MAT::Tree curr_tree;
-    
-    if ((max_trees > 1) && (num_best > 1) && (optimal_trees.size() < max_trees)) {
-        curr_tree = MAT::get_tree_copy(*T);
-    }
-
-    if (print_parsimony_scores) {
-        print_parsimony_score_to_file(sample, dfs, node_excess_mutations,
-                                      node_set_difference, best_set_difference);
-    }
-    // Do placement only if number of parsimony-optimal placements
-    // does not exceed the maximum allowed value
-    else if (num_best <= max_uncertainty) {
-        if (num_best > 1) {
-            if (max_trees > 1) {
-                // Sorting by dfs order ensures reproducible results
-                // during multiple placements
-                std::sort(best_j_vec.begin(), best_j_vec.end());
-            }
-
-            // Update num_best so that the number of trees does
-            // not exceed maximum limit
-            if ((optimal_trees.size() <= max_trees) &&
-                (num_best + optimal_trees.size() > max_trees)) {
-                if ((num_best + optimal_trees.size() > max_trees + 1) &&
-                    (max_trees > 1))
-                    fprintf(stderr,
-                            "%zu parsimony-optimal placements found but total "
-                            "trees has already exceed the max possible value "
-                            "(%i)!\n",
-                            num_best, max_trees);
-                num_best = 1 + max_trees - optimal_trees.size();
-            }
-        }
-
-        // Iterate over the number of parsimony-optimal placements
-        // for which a new tree will be created
-        for (size_t k = 0; k < num_best; k++) {
-
-            // best_j is updated using best_j_vec if multiple
-            // placements are allowed and the number of new trees
-            // for the given sample is greater than 1. If not, the
-            // default tie-breaking strategy used in mapper2_body has
-            // already chosen a single best_j
-            if ((max_trees > 1) && (num_best > 1)) {
-                if ((k == 0) && (num_best > 1)) {
-                    fprintf(stderr,
-                            "Creating %zu additional tree(s) for %zu "
-                            "parsimony-optimal placements.\n",
-                            num_best - 1, num_best);
-                }
-                // If at second placement or higher, a new tree needs to
-                // be added to optimal_trees and T needs to point to its
-                // last element. If not, T is already pointing to the
-                // last element of optimal_trees on which placement will
-                // be carried out
-                if (k > 0) {
-                    auto tmp_T = MAT::get_tree_copy(curr_tree);
-                    optimal_trees.emplace_back(std::move(tmp_T));
-                    T = &optimal_trees[optimal_trees.size() - 1];
-                    dfs = T->depth_first_expansion();
-                    
-                    all_new_nodes.push_back(*curr_new_nodes);
-                    curr_new_nodes=all_new_nodes.end()-1;
-                }
-
-                best_j = best_j_vec[k];
-                best_node_has_unique = node_has_unique[k];
-                best_node = dfs[best_j];
-            }
-
-            // Ensure sample not already in the tree
-            if (T->get_node(sample) == NULL) {
-                curr_new_nodes->push_back(place_one_sample_on_one_tree(T, sample,
-                                             node_excess_mutations[best_j],
-                                             best_node_has_unique, best_node));
-
-                print_imputed_mutations(node_imputed_mutations, best_j);
-            }
-
-            if (max_trees == 1) {
-                break;
-            }
-        }
-    }
-}
-
-
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
 
     //Variables to load command-line options using Boost program_options
     std::string tree_filename;
@@ -443,12 +26,16 @@ int main(int argc, char **argv) {
     std::string vcf_filename;
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
     uint32_t num_threads;
+    uint32_t max_trees;
+    uint32_t max_uncertainty;
     bool sort_before_placement_1 = false;
     bool sort_before_placement_2 = false;
     bool reverse_sort = false;
     bool collapse_tree=false;
     bool print_uncondensed_tree = false;
+    bool print_parsimony_scores = false;
     bool retain_original_branch_len = false;
+    bool refine_trees=false;
     size_t print_subtrees_size=0;
     po::options_description desc{"Options"};
 
@@ -458,6 +45,7 @@ int main(int argc, char **argv) {
         ("tree,t", po::value<std::string>(&tree_filename)->default_value(""), "Input tree file")
         ("outdir,d", po::value<std::string>(&outdir)->default_value("."), "Output directory to dump output and log files [DEFAULT uses current directory]")
         ("load-mutation-annotated-tree,i", po::value<std::string>(&din_filename)->default_value(""), "Load mutation-annotated tree object")
+        ("refine-tree",po::bool_switch(&refine_trees))
         ("save-mutation-annotated-tree,o", po::value<std::string>(&dout_filename)->default_value(""), "Save output mutation-annotated tree object to the specified filename")
         ("sort-before-placement-1,s", po::bool_switch(&sort_before_placement_1), \
          "Sort new samples based on computed parsimony score and then number of optimal placements before the actual placement [EXPERIMENTAL].")
@@ -470,7 +58,6 @@ int main(int argc, char **argv) {
         ("max-uncertainty-per-sample,e", po::value<uint32_t>(&max_uncertainty)->default_value(1e6), \
          "Maximum number of equally parsimonious placements allowed per sample beyond which the sample is ignored")
         ("write-uncondensed-final-tree,u", po::bool_switch(&print_uncondensed_tree), "Write the final tree in uncondensed format and save to file uncondensed-final-tree.nh in outdir")
-        ("refine placemanet,r",po::bool_switch(&refine_with_NNI),"Refine final placement by try to swap adjacent newly placed samples")
         ("write-subtrees-size,k", po::value<size_t>(&print_subtrees_size)->default_value(0), \
          "Write minimum set of subtrees covering the newly added samples of size equal to or larger than this value")
         ("write-parsimony-scores-per-node,p", po::bool_switch(&print_parsimony_scores), \
@@ -581,7 +168,6 @@ int main(int argc, char **argv) {
     // execution in which a tie-breaking strategy defined in usher_mapper is
     // used for multiple parsimony-optimal placements.
     std::vector<MAT::Tree> optimal_trees;
-    
     // Tree pointer to point to some element in optimal_trees that would be
     // updated several times during the execution 
     MAT::Tree* T = NULL;
@@ -885,6 +471,7 @@ int main(int argc, char **argv) {
 
     fprintf(stderr, "Found %zu missing samples.\n\n", missing_samples.size()); 
 
+    FILE* parsimony_scores_file = NULL; 
         
     // If samples found in VCF that are missing from the input tree, they are
     // now placed using maximum parsimony or if print_parsimony_score is set,
@@ -1019,15 +606,12 @@ int main(int argc, char **argv) {
 
             fprintf(stderr, "Adding missing samples to the tree.\n");  
         }
-        //new nodes placed in each of the trees
-        std::vector<std::vector<MAT::Node*>> all_new_nodes(1); 
-        
+
         // Traverse in sorted sample order
         for (size_t idx=0; idx<indexes.size(); idx++) {
 
             num_trees = optimal_trees.size();
-            //pointing to the set of all new nodes in the current tree
-            std::vector<std::vector<MAT::Node*>>::iterator curr_new_nodes=all_new_nodes.begin();
+
             for (size_t t_idx=0; t_idx < num_trees; t_idx++) {
                 timer.Start();
                 
@@ -1069,6 +653,7 @@ int main(int argc, char **argv) {
                 // tree in DFS order. Again, guaranteed to be corrrect only 
                 // for pasrimony-optimal nodes 
                 std::vector<std::vector<MAT::Mutation>> node_imputed_mutations(total_nodes);
+
 
                 std::vector<int> node_set_difference;
 
@@ -1117,35 +702,330 @@ int main(int argc, char **argv) {
 
                         mapper2_body(inp, print_parsimony_scores);
                         }       
-                        });
- print_placement_stats(max_trees, print_parsimony_scores,
-                        sample, total_nodes,
-                          best_set_difference, num_best);
-                if (max_trees == 1&&num_best>1) {
-                    low_confidence_samples.emplace_back(sample);
+                        }); 
+
+                if (!print_parsimony_scores) {
+                    fprintf(stderr, "Current tree size (#nodes): %zu\tSample name: %s\tParsimony score: %d\tNumber of parsimony-optimal placements: %zu\n", total_nodes, sample.c_str(), \
+                            best_set_difference, num_best);
+                    // Prints a warning message if 2 or more
+                    // parsimony-optimal placements found
+                    if (num_best > 1) {
+                        if (max_trees == 1) {
+                            low_confidence_samples.emplace_back(sample);
+                        }
+                        if (num_best > max_uncertainty) {
+                            fprintf(stderr, "WARNING: Number of parsimony-optimal placements exceeds maximum allowed value (%u). Ignoring sample %s.\n", max_uncertainty, sample.c_str());
+                        }
+                        else {
+                            fprintf(stderr, "WARNING: Multiple parsimony-optimal placements found. Placement done without high confidence.\n");
+                        }
+                    }
                 }
+                else {
+                    fprintf(stderr, "Missing sample: %s\t Best parsimony score: %d\tNumber of parsimony-optimal placements: %zu\n", sample.c_str(), \
+                            best_set_difference, num_best);
+
+                }
+
                 // Debugging information to be printed if -DDEBUG compile-time
                 // flag is set. This includes sample mutations, details of the
                 // best node and the list of mutations at the best node
 #if DEBUG == 1
-                print_mutations_dgb(missing_sample_mutations[s],num_best,best_j_vec,dfs,node_has_unique,T,best_node);
+                fprintf (stderr, "Sample mutations:\t");
+                if (missing_sample_mutations[s].size() > 0) {
+                    for (auto m: missing_sample_mutations[s]) {
+                        if (m.is_missing) {
+                            continue;
+                        }
+                        fprintf(stderr, "|%s", (MAT::get_nuc(m.par_nuc) + std::to_string(m.position) + MAT::get_nuc(m.mut_nuc)).c_str());
+                        fprintf(stderr, "| ");
+                    }
+                }
+                fprintf (stderr, "\n");
+
+                assert(num_best > 0);
+
+                //best_node_vec.emplace_back(best_node);
+                if ((num_best > 0) && (num_best <= max_uncertainty)) {
+                    for (auto j: best_j_vec) {
+                        auto node = dfs[j];
+
+                        std::vector<std::string> muts;
+
+                        fprintf(stderr, "Best node ");
+                        if (node->is_leaf() || node_has_unique[j]) {
+                            fprintf(stderr, "(sibling)");
+                        }
+                        else {
+                            fprintf(stderr, "(child)");
+                        }
+
+                        if (node == best_node) {
+                            fprintf(stderr, "*: %s\t", node->identifier.c_str());
+                        }
+                        else {
+                            fprintf(stderr, ": %s\t", node->identifier.c_str());
+                        }
+
+                        std::string s = "|";
+                        for (auto m: node->mutations) {
+                            s += MAT::get_nuc(m.par_nuc) + std::to_string(m.position) + MAT::get_nuc(m.mut_nuc) + '|';
+                        }
+                        if (node->mutations.size() > 0) {
+                            muts.emplace_back(std::move(s));
+                        }
+
+                        for (auto anc: T->rsearch(node->identifier)) {
+                            s = "|";
+                            for (auto m: anc->mutations) {
+                                s += MAT::get_nuc(m.par_nuc) + std::to_string(m.position) + MAT::get_nuc(m.mut_nuc) + '|';
+                            }
+                            if (anc->mutations.size() > 0) {
+                                muts.emplace_back(std::move(s));
+                            }
+                        }
+
+
+                        std::reverse(muts.begin(), muts.end());
+
+                        fprintf(stderr, "Mutations: "); 
+                        for (size_t m = 0; m < muts.size(); m++) {
+                            fprintf(stderr, "%s", muts[m].c_str());
+                            if (m+1 < muts.size()) {
+                                fprintf(stderr, " > "); 
+                            }
+                        }
+                        fprintf(stderr, "\n"); 
+                    }
+                    fprintf(stderr, "\n"); 
+                }
+
 #endif
                 
                 // If number of parsimony-optimal trees is more than 1 and if
                 // the number of trees has not already exceeded the maximum
                 // limit, create a copy of the current tree in curr_tree
-                place_sample(optimal_trees, T,
-                          sample,node_excess_mutations,
-                          node_imputed_mutations, node_set_difference,
-                          best_set_difference, best_j, best_node_has_unique,
-                          node_has_unique, best_j_vec, num_best, best_node,all_new_nodes,curr_new_nodes);
+                MAT::Tree curr_tree;
+                if ((max_trees > 1) && (num_best > 1) && (num_trees < max_trees)) {
+                    curr_tree = MAT::get_tree_copy(*T);
+                }
+
+                if (print_parsimony_scores) {
+                    for (size_t k = 0; k < total_nodes; k++) {
+                        char is_optimal = (node_set_difference[k] == best_set_difference) ? 'y' : 'n';
+                        fprintf (parsimony_scores_file, "%s\t%s\t%d\t\t%c\t", sample.c_str(), dfs[k]->identifier.c_str(), node_set_difference[k], is_optimal); 
+                        if (node_set_difference[k] == best_set_difference) {
+                            if (node_set_difference[k] == 0) {
+                                fprintf(parsimony_scores_file, "*");
+                            }
+                            for (size_t idx = 0; idx < static_cast<size_t>(node_set_difference[k]); idx++) {
+                                auto m = node_excess_mutations[k][idx];
+                                assert (m.is_masked() || ((m.mut_nuc & (m.mut_nuc-1)) == 0));
+                                fprintf(parsimony_scores_file, "%s", m.get_string().c_str());
+                                if (idx+1 < static_cast<size_t>(node_set_difference[k])) {
+                                    fprintf(parsimony_scores_file, ",");
+                                }
+                            }
+                        }
+                        else {
+                            fprintf(parsimony_scores_file, "N/A");
+                        }
+                        fprintf(parsimony_scores_file, "\n");
+                    }
+                }
+                // Do placement only if number of parsimony-optimal placements
+                // does not exceed the maximum allowed value
+                else if (num_best <= max_uncertainty) {
+                    if (num_best > 1) {
+                        if (max_trees > 1) {
+                            // Sorting by dfs order ensures reproducible results
+                            // during multiple placements
+                            std::sort(best_j_vec.begin(), best_j_vec.end());
+                        }
+
+                        // Update num_best so that the number of trees does
+                        // not exceed maximum limit
+                        if ((optimal_trees.size() <= max_trees) && (num_best + optimal_trees.size() > max_trees)) {
+                            if ((num_best + optimal_trees.size() > max_trees+1) && (max_trees > 1))
+                                fprintf (stderr, "%zu parsimony-optimal placements found but total trees has already exceed the max possible value (%i)!\n", num_best, max_trees);
+                            num_best = 1 + max_trees - optimal_trees.size();
+                        }
+                    }
+
+                    // Iterate over the number of parsimony-optimal placements
+                    // for which a new tree will be created
+                    for (size_t k = 0; k < num_best; k++) {
+
+                        // best_j is updated using best_j_vec if multiple
+                        // placements are allowed and the number of new trees
+                        // for the given sample is greater than 1. If not, the
+                        // default tie-breaking strategy used in mapper2_body has
+                        // already chosen a single best_j
+                        if ((max_trees > 1) && (num_best > 1)) {
+                            if ((k==0) && (num_best > 1)) {
+                                fprintf (stderr, "Creating %zu additional tree(s) for %zu parsimony-optimal placements.\n", num_best-1, num_best);
+                            }
+                            // If at second placement or higher, a new tree needs to
+                            // be added to optimal_trees and T needs to point to its
+                            // last element. If not, T is already pointing to the
+                            // last element of optimal_trees on which placement will
+                            // be carried out
+                            if (k > 0) {
+                                auto tmp_T = MAT::get_tree_copy(curr_tree);
+                                optimal_trees.emplace_back(std::move(tmp_T));
+                                T = &optimal_trees[optimal_trees.size()-1];
+                                dfs = T->depth_first_expansion();
+                            }
+
+                            best_j = best_j_vec[k];                                                                                                                                                             
+                            best_node_has_unique = node_has_unique[k];
+                            best_node = dfs[best_j];
+                        }
+                        
+                        // Ensure sample not already in the tree
+                        if (T->get_node(sample) == NULL) {
+                            // Is placement as sibling
+                            if (best_node->is_leaf() || best_node_has_unique) {
+                                std::string nid = std::to_string(++T->curr_internal_node);
+                                T->create_node(nid, best_node->parent->identifier);
+                                Mutation_Annotated_Tree::Node* new_node=T->create_node(sample, nid);
+                                T->new_nodes.push_back(new_node);
+                                T->move_node(best_node->identifier, nid);
+                                // common_mut stores mutations common to the
+                                // best node branch and the sample, l1_mut
+                                // stores mutations unique to best node branch
+                                // and l2_mut stores mutations unique to the
+                                // sample not in best node branch
+                                std::vector<MAT::Mutation> common_mut, l1_mut, l2_mut;
+                                std::vector<MAT::Mutation> curr_l1_mut;
+
+                                // Compute current best node branch mutations
+                                for (auto m1: best_node->mutations) {
+                                    MAT::Mutation m = m1.copy();
+                                    curr_l1_mut.emplace_back(m);
+                                }
+                                // Clear mutations on the best node branch which
+                                // will be later replaced by l1_mut
+                                best_node->clear_mutations();
+                                
+                                // Compute l1_mut
+                                for (auto m1: curr_l1_mut) {
+                                    bool found = false;
+                                    for (auto m2: node_excess_mutations[best_j]) {
+                                        if (m1.is_masked()) {
+                                            break;
+                                        }
+                                        if (m1.position == m2.position) {
+                                            if (m1.mut_nuc == m2.mut_nuc) {
+                                                found = true;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    if (!found) {
+                                        MAT::Mutation m = m1.copy();
+                                        l1_mut.emplace_back(m);
+                                    }
+                                }
+                                // Compute l2_mut
+                                for (auto m1: node_excess_mutations[best_j]) {
+                                    bool found = false;
+                                    for (auto m2: curr_l1_mut) {
+                                        if (m1.is_masked()) {
+                                            break;
+                                        }
+                                        if (m1.position == m2.position) {
+                                            if (m1.mut_nuc == m2.mut_nuc) {
+                                                found = true;
+                                                MAT::Mutation m = m1.copy();
+                                                common_mut.emplace_back(m);
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    if (!found) {
+                                        MAT::Mutation m = m1.copy();
+                                        l2_mut.emplace_back(m);
+                                    }
+                                }
+                                
+                                // Add mutations to new node using common_mut
+                                for (auto m: common_mut) {
+                                    T->get_node(nid)->add_mutation(m);
+                                }
+                                // Add mutations to best node using l1_mut
+                                for (auto m: l1_mut) {
+                                    T->get_node(best_node->identifier)->add_mutation(m);
+                                }
+                                // Add new sample mutations using l2_mut
+                                for (auto m: l2_mut) {
+                                    T->get_node(sample)->add_mutation(m);
+                                }
+                            }
+                            // Else placement as child
+                            else {
+                                MAT::Node* new_node=T->create_node(sample, best_node->identifier);
+                                T->new_nodes.push_back(new_node);
+                                MAT::Node* node = T->get_node(sample);
+                                std::vector<MAT::Mutation> node_mut;
+
+                                std::vector<MAT::Mutation> curr_l1_mut;
+
+                                for (auto m1: best_node->mutations) {
+                                    MAT::Mutation m = m1.copy();
+                                    curr_l1_mut.emplace_back(m);
+                                }
+
+                                for (auto m1: node_excess_mutations[best_j]) {
+                                    bool found = false;
+                                    for (auto m2: curr_l1_mut) {
+                                        if (m1.is_masked()) {
+                                            break;
+                                        }
+                                        if (m1.position == m2.position) {
+                                            if (m1.mut_nuc == m2.mut_nuc) {
+                                                found = true;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    if (!found) {
+                                        MAT::Mutation m = m1.copy();
+                                        node_mut.emplace_back(m);
+                                    }
+                                }
+                                for (auto m: node_mut) {
+                                    node->add_mutation(m);
+                                }
+                            }
+
+                            if (node_imputed_mutations[best_j].size() > 0) {
+                                fprintf (stderr, "Imputed mutations:\t");
+                                size_t tot = node_imputed_mutations[best_j].size();
+                                for (size_t curr = 0; curr < tot; curr++) {
+                                    if (curr < tot-1) {
+                                        fprintf (stderr, "%i:%c;", node_imputed_mutations[best_j][curr].position, MAT::get_nuc(node_imputed_mutations[best_j][curr].mut_nuc));
+                                    }
+                                    else {
+                                        fprintf (stderr, "%i:%c", node_imputed_mutations[best_j][curr].position, MAT::get_nuc(node_imputed_mutations[best_j][curr].mut_nuc));
+                                    }
+                                }
+                                fprintf(stderr, "\n");
+                            }
+                        }
+                        
+                        if (max_trees == 1) {
+                            break;
+                        }
+                    }
+                }
+
                 fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
-                curr_new_nodes++;
             }
         }
-        Tree_Rearrangement::refine_trees(optimal_trees, all_new_nodes);
+        
     }
-    
+    if(refine_trees) Tree_Rearrangement::refine_trees(optimal_trees);
     num_trees = optimal_trees.size();
             
     // If user specified print_parsimony_scores, close corresponding file and
@@ -1262,7 +1142,6 @@ int main(int argc, char **argv) {
                         else {
                             curr_node_mutation_string += ' ';    
                         }
-                        k++;
                     }
                     mutation_stack.push(curr_node_mutation_string);
                 }
@@ -1281,7 +1160,6 @@ int main(int argc, char **argv) {
                             else {
                                 curr_node_mutation_string += ' ';    
                             }
-                            k++;
                         }
                         mutation_stack.push(curr_node_mutation_string);
                     }
@@ -1349,7 +1227,7 @@ int main(int argc, char **argv) {
                     MAT::Tree new_T = MAT::create_tree_from_newick_string(newick);
 
                     // Map to store mutations for individual tree nodes in new_T
-                    std::unordered_map<MAT::Node*, MAT::Mutations_Collection> subtree_node_mutations;
+                    std::unordered_map<MAT::Node*, Mutation_Annotated_Tree::Mutations_Collection> subtree_node_mutations;
                     std::vector<MAT::Mutation> subtree_root_mutations;
                     auto dfs1 = T->depth_first_expansion(anc);
                     auto dfs2 = new_T.depth_first_expansion();
@@ -1454,14 +1332,12 @@ int main(int argc, char **argv) {
                     for (auto n: new_T.depth_first_expansion()) {
                         size_t tot_mutations = subtree_node_mutations[n].size();
                         fprintf(subtree_mutations_file, "%s: ", n->identifier.c_str());
-
                         for (size_t idx = 0; idx < tot_mutations; idx++) {
                             auto m = subtree_node_mutations[n][idx];
                             fprintf(subtree_mutations_file, "%s", m.get_string().c_str());
                             if (idx+1 <tot_mutations) {
                                 fprintf(subtree_mutations_file, ",");
                             }
-                            idx++;
                         }
                         fprintf(subtree_mutations_file, "\n");
                     }
@@ -1554,3 +1430,4 @@ int main(int argc, char **argv) {
 
     return 0;
 }
+
