@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <iterator>
+#include <vector>
 namespace MAT = Mutation_Annotated_Tree;
 
 static void split_rounds(std::vector<MAT::Node *> &this_round,
@@ -49,19 +50,18 @@ static void split_rounds(std::vector<MAT::Node *> &this_round,
     this_round.push_back(dfs_ordered_nodes[idx.back()]);
 }
 void Tree_Rearrangement::refine_trees(
-    std::vector<MAT::Tree> &optimal_trees,
-    std::vector<std::vector<MAT::Node *>> &new_nodes_in_each_tree) {
+    std::vector<MAT::Tree> &optimal_trees) {
 
-    auto iter = new_nodes_in_each_tree.begin();
     for (auto this_tree : optimal_trees) {
         fprintf(stderr, "Before refinement: %zu \n",
                 this_tree.get_parsimony_score());
         auto dfs_ordered_nodes = this_tree.depth_first_expansion();
         Sample_Mut_Type ori;
-        while(!iter->empty()){
+        std::vector<MAT::Node*>& new_nodes=this_tree.new_nodes;
+        while(!new_nodes.empty()){
         check_samples(this_tree.root, ori);
         std::vector<MAT::Node *> optimized;
-        std::vector<MAT::Node *>& this_round = *iter;;
+        std::vector<MAT::Node *>& this_round = new_nodes;;
         std::vector<MAT::Node *> next_round;
         split_rounds(this_round, next_round, dfs_ordered_nodes);
         while (!this_round.empty()) {
@@ -80,10 +80,11 @@ void Tree_Rearrangement::refine_trees(
             }
         split_rounds(this_round, next_round, dfs_ordered_nodes);
         }
-        *iter=optimized;
+        new_nodes=optimized;
         }
 
         fprintf(stderr, "After refinement: %zu \n",
                 this_tree.get_parsimony_score());
+        this_tree.reassign_level();
     }
 }

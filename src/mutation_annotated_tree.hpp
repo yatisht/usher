@@ -89,6 +89,9 @@ namespace Mutation_Annotated_Tree {
         Mutation& operator[] (size_t idx){
             return mutations[idx];
         }
+        void operator=(const Mutations_Collection & other){
+            mutations=other.mutations;
+        }
         iterator begin()  {
             return mutations.begin();
         }
@@ -336,13 +339,14 @@ last_pos_inserted=(newly_inserted);
             }
 
             Tree (Node* n);
-
+            std::vector<Node*> new_nodes;
             size_t max_level;
             Node* root;
             std::unordered_map<std::string, std::vector<std::string>> condensed_nodes;
             std::unordered_set<std::string> condensed_leaves;
             size_t curr_internal_node;
             size_t get_max_level ();
+            void reassign_level();
             void rename_node(std::string old_nid, std::string new_nid);
             std::vector<Node*> get_leaves(std::string nid="");
             std::vector<std::string> get_leaves_ids(std::string nid="");
