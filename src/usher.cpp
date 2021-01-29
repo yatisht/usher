@@ -543,7 +543,11 @@ int main(int argc, char** argv) {
                     size_t best_node_num_leaves = 0;
                     // The maximum number of mutations is bound by the number
                     // of mutations in the missing sample (place at root)
-                    int best_set_difference = missing_sample_mutations[s].size();
+                    //int best_set_difference = 1e9;
+                    // TODO: currently number of root mutations is also added to
+                    // this value since it forces placement as child but this
+                    // could be changed later 
+                    int best_set_difference = missing_sample_mutations[s].size() + T->root->mutations.size() + 1;
 
                     size_t best_j = 0;
                     size_t num_best = 1;
@@ -666,7 +670,11 @@ int main(int argc, char** argv) {
                 size_t best_node_num_leaves = 0;
                 // The maximum number of mutations is bound by the number
                 // of mutations in the missing sample (place at root)
-                int best_set_difference = missing_sample_mutations[s].size();
+                //int best_set_difference = 1e9;
+                // TODO: currently number of root mutations is also added to
+                // this value since it forces placement as child but this
+                // could be changed later 
+                int best_set_difference = missing_sample_mutations[s].size() + T->root->mutations.size() + 1;
                 
                 size_t best_j = 0;
                 bool best_node_has_unique = false;
@@ -1394,6 +1402,11 @@ int main(int argc, char** argv) {
         Parsimony::data data;
 
         T = &optimal_trees[0];
+        // Recondense tree with new samples
+        if (T->condensed_nodes.size() > 0) {
+            T->uncondense_leaves();
+        }
+        T->condense_leaves();
         MAT::save_mutation_annotated_tree(*T, dout_filename);
         
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());

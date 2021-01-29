@@ -910,6 +910,7 @@ void Mutation_Annotated_Tree::Tree::condense_leaves(std::vector<std::string> mis
             
             auto curr_node = get_node(l1->identifier);
             auto new_node = create_node(new_node_name, curr_node->parent->identifier, l1->branch_length);
+
             new_node->clear_mutations();
             
             condensed_nodes[new_node_name] = std::vector<std::string>(polytomy_nodes.size());
@@ -976,7 +977,7 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_tree_copy(Mutation_An
             [&](tbb::blocked_range<size_t> r) {
             for (size_t k=r.begin(); k<r.end(); ++k){
               if (k==0) {
-                dfs1 = tree.depth_first_expansion();
+                dfs1 = tree.depth_first_expansion(root);
               }
               else {
                 dfs2 = copy.depth_first_expansion();
@@ -1018,17 +1019,19 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_tree_copy(Mutation_An
 //
 //    auto dfs = tree.depth_first_expansion(root);
 //    
-//    for (auto n: dfs) {
+//    for (auto n: bfs) {
 //        if (n == root) {
 //            auto new_node = copy.create_node(n->identifier, n->branch_length);
-//            for (auto mut: n->mutations) {
-//                new_node->add_mutation(mut);
+//            for (auto m: n->mutations) {
+//                Mutation m2 = m.copy();
+//                new_node->add_mutation(m2);
 //            }
 //        }
 //        else {
 //            auto new_node = copy.create_node(n->identifier, n->parent->identifier, n->branch_length);
-//            for (auto mut: n->mutations) {
-//                new_node->add_mutation(mut);
+//            for (auto m: n->mutations) {
+//                Mutation m2 = m.copy();
+//                new_node->add_mutation(m);
 //            }
 //        }
 //    }
