@@ -211,7 +211,7 @@ void Mutation_Annotated_Tree::write_newick_string (std::stringstream& ss, Mutati
                 }
                 if ((print_branch_len) && (branch_length_stack.top() >= 0)) {
                     ss << ':';
-                    ss << branch_length;
+                    ss << branch_length_stack.top();
                 }
                 node_stack.pop();
                 branch_length_stack.pop();
@@ -312,7 +312,7 @@ void Mutation_Annotated_Tree::string_split (std::string const& s, char delim, st
     }
     auto last = s.substr(start_pos, s.size()-start_pos);
     if (last != "") {
-        words.emplace_back(last);
+        words.push_back(std::move(last));
     }
     
 }
@@ -409,7 +409,7 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::create_tree_from_newick_s
                 T.create_node(nid, parent_stack.top(), branch_len.top());
                 branch_len.pop();
             }
-            parent_stack.push(nid);
+            parent_stack.push(std::move(nid));
         }
         T.create_node(leaf, parent_stack.top(), branch_len.top());
         branch_len.pop();
