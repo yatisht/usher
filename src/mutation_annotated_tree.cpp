@@ -393,7 +393,7 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::create_tree_from_newick_s
     }
 
     T.curr_internal_node = 0;
-    std::stack<std::string> parent_stack;
+    std::stack<Node*> parent_stack;
 
     for (size_t i=0; i<leaves.size(); i++) {
         auto leaf = leaves[i];
@@ -401,15 +401,16 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::create_tree_from_newick_s
         auto nc = num_close[i];
         for (size_t j=0; j<no; j++) {
             std::string nid = std::to_string(++T.curr_internal_node);
+            Node* new_node = NULL;
             if (parent_stack.size() == 0) {
-                T.create_node(nid, branch_len.top());
+                new_node = T.create_node(nid, branch_len.top());
                 branch_len.pop();
             }
             else {
-                T.create_node(nid, parent_stack.top(), branch_len.top());
+                new_node = T.create_node(nid, parent_stack.top(), branch_len.top());
                 branch_len.pop();
             }
-            parent_stack.push(std::move(nid));
+            parent_stack.push(new_node);
         }
         T.create_node(leaf, parent_stack.top(), branch_len.top());
         branch_len.pop();
@@ -924,7 +925,7 @@ void Mutation_Annotated_Tree::Tree::condense_leaves(std::vector<std::string> mis
             std::string new_node_name = "node_" + std::to_string(1+condensed_nodes.size()) + "_condensed_" + std::to_string(polytomy_nodes.size()) + "_leaves";
             
             auto curr_node = get_node(l1->identifier);
-            auto new_node = create_node(new_node_name, curr_node->parent->identifier, l1->branch_length);
+            auto new_node = create_node(new_node_name, curr_node->parent, l1->branch_length);
 
             new_node->clear_mutations();
             
@@ -953,7 +954,7 @@ void Mutation_Annotated_Tree::Tree::uncondense_leaves() {
         }
 
         for (size_t s = 1; s < num_samples; s++) {
-            create_node(cn->second[s], par->identifier, n->branch_length);
+            create_node(cn->second[s], par, n->branch_length);
         }
     }
     condensed_nodes.clear();
