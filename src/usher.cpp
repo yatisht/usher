@@ -1064,11 +1064,16 @@ int main(int argc, char** argv) {
                 fprintf(stderr, "Writing uncondensed final tree to file %s \n", uncondensed_final_tree_filename.c_str());
             }
 
-            FILE* uncondensed_final_tree_file = fopen(uncondensed_final_tree_filename.c_str(), "w");
+            //FILE* uncondensed_final_tree_file = fopen(uncondensed_final_tree_filename.c_str(), "w");
                 
-            fprintf(uncondensed_final_tree_file, "%s\n", MAT::get_newick_string(*T, true, true, retain_original_branch_len, true).c_str());
+            //fprintf(uncondensed_final_tree_file, "%s\n", MAT::get_newick_string(*T, true, true, retain_original_branch_len, true).c_str());
 
-            fclose(uncondensed_final_tree_file);
+            //fclose(uncondensed_final_tree_file);
+            std::ofstream uncondensed_final_tree_file(uncondensed_final_tree_filename.c_str(), std::ofstream::out);
+            std::stringstream newick_ss;
+            write_newick_string(newick_ss, *T, T->root, true, true, retain_original_branch_len, true);
+            uncondensed_final_tree_file << newick_ss.rdbuf(); 
+            uncondensed_final_tree_file.close();
 
             fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
         }
@@ -1090,9 +1095,14 @@ int main(int argc, char** argv) {
             }
             auto parsimony_score = T->get_parsimony_score();
             fprintf(stderr, "The parsimony score for this tree is: %zu \n", parsimony_score);
-            FILE* final_tree_file = fopen(final_tree_filename.c_str(), "w");
-            fprintf(final_tree_file, "%s\n", MAT::get_newick_string(*T, true, true, retain_original_branch_len).c_str());
-            fclose(final_tree_file);
+            //FILE* final_tree_file = fopen(final_tree_filename.c_str(), "w");
+            //fprintf(final_tree_file, "%s\n", MAT::get_newick_string(*T, true, true, retain_original_branch_len).c_str());
+            //fclose(final_tree_file);
+            std::ofstream final_tree_file(final_tree_filename.c_str(), std::ofstream::out);
+            std::stringstream newick_ss;
+            write_newick_string(newick_ss, *T, T->root, true, true, retain_original_branch_len);
+            final_tree_file << newick_ss.rdbuf(); 
+            final_tree_file.close();
 
             tree_parsimony_scores.emplace_back(parsimony_score);
 
@@ -1285,7 +1295,7 @@ int main(int argc, char** argv) {
                             }
                         }
 
-                        newick = MAT::get_newick_string(new_T, true, true, retain_original_branch_len);
+                        //newick = MAT::get_newick_string(new_T, true, true, retain_original_branch_len);
                     }
 
                     tbb::parallel_for (tbb::blocked_range<size_t>(i+1, missing_samples.size(), 100),
@@ -1308,9 +1318,15 @@ int main(int argc, char** argv) {
                         subtree_filename = outdir + "/" + "tree-" + std::to_string(t_idx+1) + "-subtree-" + std::to_string(num_subtrees) + ".nh";
                     }
                     fprintf(stderr, "Writing subtree %d to file %s.\n", num_subtrees, subtree_filename.c_str());
-                    FILE* subtree_file = fopen(subtree_filename.c_str(), "w");
-                    fprintf(subtree_file, "%s\n", newick.c_str());
-                    fclose(subtree_file);
+                    //FILE* subtree_file = fopen(subtree_filename.c_str(), "w");
+                    //fprintf(subtree_file, "%s\n", newick.c_str());
+                    //fclose(subtree_file);
+                    std::ofstream subtree_file(subtree_filename.c_str(), std::ofstream::out);
+                    std::stringstream newick_ss;
+                    write_newick_string(newick_ss, new_T, new_T.root, true, true, retain_original_branch_len);
+                    subtree_file << newick_ss.rdbuf(); 
+                    subtree_file.close();
+
 
                     // Write list of mutations on the subtree to file
                     auto subtree_mutations_filename = outdir + "/subtree-" + std::to_string(num_subtrees) + "-mutations.txt";

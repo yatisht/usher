@@ -546,7 +546,6 @@ void Mutation_Annotated_Tree::save_mutation_annotated_tree (Mutation_Annotated_T
     std::ofstream outfile(filename, std::ios::out | std::ios::binary);
     data.SerializeToOstream(&outfile);
     outfile.close();
-        
 }
 
 /* === Node === */
@@ -979,6 +978,7 @@ void Mutation_Annotated_Tree::Tree::collapse_tree() {
 }
 
 Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_tree_copy(Mutation_Annotated_Tree::Tree tree, std::string identifier) {
+    TIMEIT();
     auto root = tree.root;
     if (identifier != "") {
         root = tree.get_node(identifier);
