@@ -2,6 +2,7 @@
 #include <unordered_map>
 #include <string>
 #include <sstream>
+#include <stdio.h>
 #include <vector>
 #include <queue>
 #include <stack>
@@ -115,6 +116,7 @@ namespace Mutation_Annotated_Tree {
             std::vector<std::string> get_leaves_ids(std::string nid="");
             size_t get_num_leaves(Node* node=NULL);
             Node* create_node (std::string const& identifier, float branch_length = -1.0);
+            Node* create_node (std::string const& identifier, Node* par, float branch_length = -1.0);
             Node* create_node (std::string const& identifier, std::string const& parent_id, float branch_length = -1.0);
             Node* get_node (std::string identifier);
             bool is_ancestor (std::string anc_id, std::string nid);
@@ -132,9 +134,10 @@ namespace Mutation_Annotated_Tree {
     
     std::string get_newick_string(Tree& T, bool b1, bool b2, bool b3=false, bool b4=false);
     std::string get_newick_string(Tree& T, Node* node, bool b1, bool b2, bool b3=false, bool b4=false);
+    void write_newick_string (std::stringstream& ss, Tree& T, Node* node, bool b1, bool b2, bool b3=false, bool b4=false);
     Tree create_tree_from_newick (std::string filename);
     Tree create_tree_from_newick_string (std::string newick_string);
-    void string_split(std::string s, char delim, std::vector<std::string>& words);
+    void string_split(std::string const& s, char delim, std::vector<std::string>& words);
     void string_split(std::string s, std::vector<std::string>& words);
 
     Tree load_mutation_annotated_tree (std::string filename);
