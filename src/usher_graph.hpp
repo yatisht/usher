@@ -1,9 +1,10 @@
+#ifndef USHER_GRAPH
+#define USHER_GRAPH
 //#include "tree.hpp"
 #include "mutation_annotated_tree.hpp"
 #include <set>
 #include <cassert>
 #include <unordered_set>
-#include <mutex>
 #include <sys/time.h>
 #include <tbb/mutex.h>
 #include "Instrumentor.h"
@@ -78,3 +79,5 @@ struct mapper2_input {
 };
 
 void mapper2_body(mapper2_input& inp, bool compute_parsimony_scores);
+
+#endif

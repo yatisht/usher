@@ -4,6 +4,7 @@ cmake_minimum_required (VERSION 3.8)
 project(strain_phylogenetics)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -std=c++14 -Wall -g -Wno-unused-function")
+set(CMAKE_CXX_DEBUG_FLAGS "-O0 -fsanitize=address  -fsanitize=undefined")
 set(CMAKE_INCLUDE_CURRENT_DIR ON) 
 
 if(DEFINED Protobuf_PATH) 
@@ -28,7 +29,7 @@ FIND_PACKAGE(Boost COMPONENTS program_options iostreams filesystem REQUIRED)
 #find_package(OpenMP REQUIRED)
 
 INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIRS})
-
+AUX_SOURCE_DIRECTORY(src/tree_rearrangements tree_rearrange_src) 
 if(DEFINED Protobuf_PATH)
     add_executable(usher
         src/mutation_annotated_tree.cpp
@@ -73,6 +74,7 @@ else()
         src/mutation_annotated_tree.cpp
         src/usher_mapper.cpp
         src/usher.cpp
+        ${tree_rearrange_src}
         ${PROTO_SRCS}
         ${PROTO_HDRS}
         )

@@ -332,7 +332,7 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores) {
         }
         // If neither the same mutation nor another mutation at the same
         // position is found in ancestor but if the missing sample can carry
-        // the reference allele, add a mutation with reference allel to
+        // the reference allele, add a mutation with reference allele to
         // imputed_mutations for the sample (it's not a parsimony-increasing
         // mutation)
         else if (!found_pos && has_ref) {
