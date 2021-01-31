@@ -452,7 +452,8 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
 
     auto dfs = tree.depth_first_expansion();
 
-    tbb::parallel_for( tbb::blocked_range<size_t>(0, dfs.size(), 1000),
+    static tbb::affinity_partitioner ap;
+    tbb::parallel_for( tbb::blocked_range<size_t>(0, dfs.size()),
             [&](tbb::blocked_range<size_t> r) {
             for (size_t idx = r.begin(); idx < r.end(); idx++) {
                auto node = dfs[idx];
@@ -481,10 +482,10 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
                   node->add_mutation(m);
                }
             }
-        });
+        }, ap);
 
     size_t num_condensed_nodes = static_cast<size_t>(data.condensed_nodes_size());
-    tbb::parallel_for( tbb::blocked_range<size_t>(0, num_condensed_nodes, 1000),
+    tbb::parallel_for( tbb::blocked_range<size_t>(0, num_condensed_nodes),
             [&](tbb::blocked_range<size_t> r) {
             for (size_t idx = r.begin(); idx < r.end(); idx++) {
                auto cn = data.condensed_nodes(idx);
@@ -494,7 +495,7 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
                   tree.condensed_leaves.emplace(cn.condensed_leaves(k));
                }
             }
-    });
+    }, ap);
 
     return tree;
 }
@@ -989,6 +990,7 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_tree_copy(Mutation_An
     std::vector<Node*> dfs1;
     std::vector<Node*> dfs2;
 
+    static tbb::affinity_partitioner ap;
     tbb::parallel_for(tbb::blocked_range<size_t>(0, 2),
             [&](tbb::blocked_range<size_t> r) {
             for (size_t k=r.begin(); k<r.end(); ++k){
@@ -999,10 +1001,10 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_tree_copy(Mutation_An
                 dfs2 = copy.depth_first_expansion();
               }
             }
-            });
+            }, ap);
 
 
-    tbb::parallel_for(tbb::blocked_range<size_t>(0, dfs1.size(), 500),
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, dfs1.size()),
             [&](tbb::blocked_range<size_t> r) {
             for (size_t k=r.begin(); k<r.end(); ++k){
               auto n1 = dfs1[k];
@@ -1012,10 +1014,10 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_tree_copy(Mutation_An
                 n2->add_mutation(m2);
                 }
               }
-            });
+            }, ap);
 
     size_t num_condensed_nodes = static_cast<size_t>(tree.condensed_nodes.size());
-    tbb::parallel_for( tbb::blocked_range<size_t>(0, num_condensed_nodes, 1000),
+    tbb::parallel_for( tbb::blocked_range<size_t>(0, num_condensed_nodes),
             [&](tbb::blocked_range<size_t> r) {
             for (size_t idx = r.begin(); idx < r.end(); idx++) {
                auto cn = tree.condensed_nodes.begin(); 
@@ -1026,7 +1028,7 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_tree_copy(Mutation_An
                   copy.condensed_leaves.insert(cn->second[k]);
                }
             }
-    });
+    }, ap);
 
     return copy;
 }

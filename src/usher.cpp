@@ -560,7 +560,8 @@ int main(int argc, char** argv) {
                     // Parallel for loop to search for most parsimonious
                     // placements. Real action happens within mapper2_body
                     auto grain_size = 400; 
-                    tbb::parallel_for( tbb::blocked_range<size_t>(0, total_nodes, grain_size),
+                    static tbb::affinity_partitioner ap;
+                    tbb::parallel_for( tbb::blocked_range<size_t>(0, total_nodes),
                             [&](tbb::blocked_range<size_t> r) {
                             for (size_t k=r.begin(); k<r.end(); ++k){
                                 mapper2_input inp;
@@ -581,7 +582,7 @@ int main(int argc, char** argv) {
 
                                 mapper2_body(inp, false);
                             }       
-                    }); 
+                    }, ap); 
 
                     best_parsimony_scores.emplace_back(best_set_difference);
                     num_best_placements.emplace_back(num_best);
@@ -688,7 +689,8 @@ int main(int argc, char** argv) {
                 // Parallel for loop to search for most parsimonious
                 // placements. Real action happens within mapper2_body
                 auto grain_size = 400; 
-                tbb::parallel_for( tbb::blocked_range<size_t>(0, total_nodes, grain_size),
+                static tbb::affinity_partitioner ap;
+                tbb::parallel_for( tbb::blocked_range<size_t>(0, total_nodes),
                         [&](tbb::blocked_range<size_t> r) {
                         for (size_t k=r.begin(); k<r.end(); ++k){
                         mapper2_input inp;
@@ -713,7 +715,7 @@ int main(int argc, char** argv) {
 
                         mapper2_body(inp, print_parsimony_scores);
                         }       
-                        }); 
+                        }, ap); 
 
                 if (!print_parsimony_scores) {
                     fprintf(stderr, "Current tree size (#nodes): %zu\tSample name: %s\tParsimony score: %d\tNumber of parsimony-optimal placements: %zu\n", total_nodes, sample.c_str(), \
