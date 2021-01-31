@@ -7,13 +7,6 @@
 #include <unordered_set>
 #include <sys/time.h>
 #include <tbb/mutex.h>
-#include "Instrumentor.h"
-
-#if SAVE_PROFILE == 1
-#  define TIMEIT() InstrumentationTimer timer##__LINE__(__PRETTY_FUNCTION__);
-#else
-#  define TIMEIT()
-#endif
 
 //extern std::mutex data_lock;
 
