@@ -559,7 +559,6 @@ int main(int argc, char** argv) {
 
                     // Parallel for loop to search for most parsimonious
                     // placements. Real action happens within mapper2_body
-                    auto grain_size = 400; 
                     static tbb::affinity_partitioner ap;
                     tbb::parallel_for( tbb::blocked_range<size_t>(0, total_nodes),
                             [&](tbb::blocked_range<size_t> r) {
@@ -688,7 +687,6 @@ int main(int argc, char** argv) {
 
                 // Parallel for loop to search for most parsimonious
                 // placements. Real action happens within mapper2_body
-                auto grain_size = 400; 
                 static tbb::affinity_partitioner ap;
                 tbb::parallel_for( tbb::blocked_range<size_t>(0, total_nodes),
                         [&](tbb::blocked_range<size_t> r) {
