@@ -457,6 +457,10 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
             for (size_t idx = r.begin(); idx < r.end(); idx++) {
                auto node = dfs[idx];
                auto mutation_list = data.node_mutations(idx);
+               //JDM- I've updated the Node class to have a new attribute epps, which I will attempt to load with this
+               auto metaobj = data.metadata(idx); //JDM- should produce a specific node_metadata message
+               node->epps = metaobj.sample_epps(); //JDM- additional metadata extraction lines would go directly after this line, I think
+               
                for (int k = 0; k < mutation_list.mutation_size(); k++) {
                   auto mut = mutation_list.mutation(k);
                   Mutation m;

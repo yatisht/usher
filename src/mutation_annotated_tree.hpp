@@ -77,6 +77,7 @@ namespace Mutation_Annotated_Tree {
             size_t level;
             float branch_length;
             std::string identifier;
+            int epps = 0; //JDM-add a new variable attribute, integer, its the epps count. Default 0? 
             Node* parent;
             std::vector<Node*> children;
             std::vector<Mutation> mutations;
