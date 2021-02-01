@@ -1,6 +1,8 @@
 #include "mutation_annotated_tree.hpp"
+#include <algorithm>
+#include <cstddef>
 #include <iomanip>
-
+#include <cassert>
 // Uses one-hot encoding if base is unambiguous
 // A:1,C:2,G:4,T:8
 int8_t Mutation_Annotated_Tree::get_nuc_id (char nuc) {
@@ -564,9 +566,10 @@ Mutation_Annotated_Tree::Node::Node() {
     parent = NULL;
     branch_length = -1.0;
     mutations.clear();
+    is_new=false;
 }
 
-Mutation_Annotated_Tree::Node::Node (std::string id, float len) {
+Mutation_Annotated_Tree::Node::Node (std::string id, float len) :is_new(0){
     identifier = id;
     parent = NULL;
     level = 1;
@@ -574,20 +577,11 @@ Mutation_Annotated_Tree::Node::Node (std::string id, float len) {
     mutations.clear();
 }
 
-Mutation_Annotated_Tree::Node::Node (std::string id, Node* p, float len) {
+Mutation_Annotated_Tree::Node::Node (std::string id, Node* p, float len):is_new(0) {
     identifier = id;
     parent = p;
     level = p->level + 1;
     branch_length = len;
-    mutations.clear();
-}
-
-void Mutation_Annotated_Tree::Node::add_mutation (Mutation mut) {
-    mutations.insert(std::upper_bound(mutations.begin(), mutations.end(), mut),
-            mut);
-}
-
-void Mutation_Annotated_Tree::Node::clear_mutations() {
     mutations.clear();
 }
 
@@ -754,21 +748,7 @@ void Mutation_Annotated_Tree::Tree::remove_node_helper (std::string nid, bool mo
                 child->level = curr_parent->parent->level + 1;
                 child->branch_length += curr_parent->branch_length;
 
-                for (auto m1: curr_parent->mutations) {
-                    bool found_pos = false;
-                    for (auto m2: child->mutations) {
-                        if (m1.position == m2.position) {
-                            found_pos = true;
-                            break;
-                        }
-                        if (m2.position > m1.position) {
-                            break;
-                        }
-                    }
-                    if (!found_pos) {
-                        child->add_mutation(m1);
-                    }
-                }
+                child->mutations.merge(curr_parent->mutations, 1);
 
                 curr_parent->parent->children.push_back(child);
                 
@@ -810,7 +790,16 @@ void Mutation_Annotated_Tree::Tree::remove_node_helper (std::string nid, bool mo
         delete curr_node;
     }
 }
-
+static void reassign_level_helper(Mutation_Annotated_Tree::Node* root){
+    for(auto c:root->children){
+        c->level=root->level+1;
+        reassign_level_helper(c);
+    }
+}
+void Mutation_Annotated_Tree::Tree::reassign_level(){
+    root->level=1;
+    reassign_level_helper(root);
+}
 void Mutation_Annotated_Tree::Tree::remove_node (std::string nid, bool move_level) { 
     remove_node_helper (nid, move_level);
 }
@@ -871,10 +860,12 @@ std::vector<Mutation_Annotated_Tree::Node*> Mutation_Annotated_Tree::Tree::bread
     return traversal;
 }
 
-void Mutation_Annotated_Tree::Tree::depth_first_expansion_helper(Mutation_Annotated_Tree::Node* node, std::vector<Mutation_Annotated_Tree::Node*>& vec) {
+static void depth_first_expansion_helper(Mutation_Annotated_Tree::Node* node, std::vector<Mutation_Annotated_Tree::Node*>& vec, size_t& index) {
     vec.push_back(node);
+    node->index=index;
+    index++;
     for (auto c: node->children) {
-        depth_first_expansion_helper(c, vec);
+        depth_first_expansion_helper(c, vec,index);
     }
 }
 
@@ -884,7 +875,8 @@ std::vector<Mutation_Annotated_Tree::Node*> Mutation_Annotated_Tree::Tree::depth
         node = root;
     }
     std::vector<Node*> traversal;
-    depth_first_expansion_helper(node, traversal);
+    size_t index=0;
+    depth_first_expansion_helper(node, traversal,index);
     return traversal;
 }
 
@@ -961,7 +953,7 @@ void Mutation_Annotated_Tree::Tree::uncondense_leaves() {
     condensed_nodes.clear();
     condensed_leaves.clear();
 }
-
+// Merge nodes that have no mutations comparing to parent into parent node 
 void Mutation_Annotated_Tree::Tree::collapse_tree() {
     auto bfs = breadth_first_expansion();
 
@@ -1032,4 +1024,62 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_tree_copy(Mutation_An
 
     return copy;
 }
+
+void Mutation_Annotated_Tree::exchange(Node *branch1, Node *branch2){
+    //Make sure they are not root
+    assert(!branch1->is_root());
+    assert(!branch2->is_root());
+    Node* const branch1_old_parent=branch1->parent;
+    Node* const branch2_old_parent=branch2->parent;
+
+    //locate branch 1 among the children of branch 1, and replace it with branch2
+    auto iter=std::find(branch1_old_parent->children.begin(),branch1_old_parent->children.end(),branch1);
+    assert(iter!=branch1_old_parent->children.end());//ehh, why not here...
+    *iter=branch2;
+    //change its parent
+    branch2->parent=branch1_old_parent;
+
+    //the same for branch2
+    iter=std::find(branch2_old_parent->children.begin(),branch2_old_parent->children.end(),branch2);
+    assert(iter!=branch2_old_parent->children.end());
+    *iter=branch1;
+    branch1->parent=branch2_old_parent;
+}
+//Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_tree_copy(Mutation_Annotated_Tree::Tree tree, std::string identifier) {
+//    Tree copy;
+//
+//    auto root = tree.root;
+//    if (identifier != "") {
+//        root = tree.get_node(identifier);
+//    }
+//
+//    auto dfs = tree.depth_first_expansion(root);
+//    
+//    for (auto n: dfs) {
+//        if (n == root) {
+//            auto new_node = copy.create_node(n->identifier, n->branch_length);
+//            for (auto mut: n->mutations) {
+//                new_node->add_mutation(mut);
+//            }
+//        }
+//        else {
+//            auto new_node = copy.create_node(n->identifier, n->parent->identifier, n->branch_length);
+//            for (auto mut: n->mutations) {
+//                new_node->add_mutation(mut);
+//            }
+//        }
+//    }
+//
+//    for (auto cn: tree.condensed_nodes) {
+//        copy.condensed_nodes.insert(std::pair<std::string, std::vector<std::string>>(cn.first, std::vector<std::string>(cn.second.size())));
+//        for (size_t k = 0; k < cn.second.size(); k++) {
+//            copy.condensed_nodes[cn.first][k] = cn.second[k];
+//            copy.condensed_leaves.insert(cn.second[k]);
+//        }
+//    }
+//
+//    copy.curr_internal_node = tree.curr_internal_node;
+//
+//    return copy;
+//}
 

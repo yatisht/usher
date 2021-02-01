@@ -2,8 +2,10 @@
 cmake_minimum_required (VERSION 3.8) 
 
 project(strain_phylogenetics)
-
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -std=c++11 -Wall -g -Wno-unused-function")
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -std=c++11 -Wall -Wno-unused-function -Wno-sign-compare")
+set(CMAKE_CXX_FLAGS_DEBUG " -O0 -fsanitize=address -fsanitize=undefined")
+set(CMAKE_CXX_FLAGS_RELEASE " -DNDEBUG")
 set(CMAKE_INCLUDE_CURRENT_DIR ON) 
 
 if(DEFINED Protobuf_PATH) 
@@ -33,6 +35,9 @@ if(DEFINED Protobuf_PATH)
     add_executable(usher
         src/mutation_annotated_tree.cpp
         src/usher_mapper.cpp
+        src/tree_rearrangement.cpp
+        src/fitch-sankoff.cpp
+        src/NNI.cpp
         src/usher.cpp
         )
 
@@ -72,6 +77,10 @@ else()
     add_executable(usher
         src/mutation_annotated_tree.cpp
         src/usher_mapper.cpp
+        src/Fitch_Sankoff.cpp
+        src/check_samples.cpp
+        src/tree_rearrangement.cpp
+        src/NNI.cpp
         src/usher.cpp
         ${PROTO_SRCS}
         ${PROTO_HDRS}

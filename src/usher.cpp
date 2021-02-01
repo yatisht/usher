@@ -10,7 +10,7 @@
 #include "boost/filesystem.hpp"
 #include "usher_graph.hpp"
 #include "parsimony.pb.h"
-
+#include "tree_rearrangement.hpp"
 namespace po = boost::program_options;
 namespace MAT = Mutation_Annotated_Tree;
 
@@ -32,6 +32,7 @@ int main(int argc, char** argv) {
     bool print_uncondensed_tree = false;
     bool print_parsimony_scores = false;
     bool retain_original_branch_len = false;
+    bool refine_trees=false;
     size_t print_subtrees_size=0;
     po::options_description desc{"Options"};
 
@@ -41,6 +42,7 @@ int main(int argc, char** argv) {
         ("tree,t", po::value<std::string>(&tree_filename)->default_value(""), "Input tree file")
         ("outdir,d", po::value<std::string>(&outdir)->default_value("."), "Output directory to dump output and log files [DEFAULT uses current directory]")
         ("load-mutation-annotated-tree,i", po::value<std::string>(&din_filename)->default_value(""), "Load mutation-annotated tree object")
+        ("refine-tree",po::bool_switch(&refine_trees))
         ("save-mutation-annotated-tree,o", po::value<std::string>(&dout_filename)->default_value(""), "Save output mutation-annotated tree object to the specified filename")
         ("sort-before-placement-1,s", po::bool_switch(&sort_before_placement_1), \
          "Sort new samples based on computed parsimony score and then number of optimal placements before the actual placement [EXPERIMENTAL].")
@@ -899,7 +901,8 @@ int main(int argc, char** argv) {
                             if (best_node->is_leaf() || best_node_has_unique) {
                                 std::string nid = std::to_string(++T->curr_internal_node);
                                 T->create_node(nid, best_node->parent->identifier);
-                                T->create_node(sample, nid);
+                                Mutation_Annotated_Tree::Node* new_node=T->create_node(sample, nid);
+                                T->new_nodes.push_back(new_node);
                                 T->move_node(best_node->identifier, nid);
                                 // common_mut stores mutations common to the
                                 // best node branch and the sample, l1_mut
@@ -974,7 +977,8 @@ int main(int argc, char** argv) {
                             }
                             // Else placement as child
                             else {
-                                T->create_node(sample, best_node->identifier);
+                                MAT::Node* new_node=T->create_node(sample, best_node->identifier);
+                                T->new_nodes.push_back(new_node);
                                 MAT::Node* node = T->get_node(sample);
                                 std::vector<MAT::Mutation> node_mut;
 
@@ -1034,7 +1038,7 @@ int main(int argc, char** argv) {
         }
         
     }
-
+    if(refine_trees) Tree_Rearrangement::refine_trees(optimal_trees);
     num_trees = optimal_trees.size();
             
     // If user specified print_parsimony_scores, close corresponding file and
@@ -1241,7 +1245,7 @@ int main(int argc, char** argv) {
                     MAT::Tree new_T = MAT::create_tree_from_newick_string(newick);
 
                     // Map to store mutations for individual tree nodes in new_T
-                    std::unordered_map<MAT::Node*, std::vector<MAT::Mutation>> subtree_node_mutations;
+                    std::unordered_map<MAT::Node*, Mutation_Annotated_Tree::Mutations_Collection> subtree_node_mutations;
                     std::vector<MAT::Mutation> subtree_root_mutations;
                     auto dfs1 = T->depth_first_expansion(anc);
                     auto dfs2 = new_T.depth_first_expansion();

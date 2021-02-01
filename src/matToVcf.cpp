@@ -1,3 +1,4 @@
+#define matToVCF
 #include <array>
 #include <fstream>
 #include <iostream>
