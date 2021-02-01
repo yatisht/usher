@@ -467,9 +467,9 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
                      m.ref_nuc = (1 << mut.ref_nuc());
                      m.par_nuc = (1 << mut.par_nuc());
                      m.is_missing = false;
-                     std::vector<int8_t> nuc_vec;
+                     std::vector<int8_t> nuc_vec(mut.mut_nuc_size());
                      for (int n = 0; n < mut.mut_nuc_size(); n++) {
-                        nuc_vec.push_back(mut.mut_nuc(n));
+                        nuc_vec[n] = mut.mut_nuc(n);
                      }
                      m.mut_nuc = get_nuc_id(nuc_vec);
                   }
@@ -966,14 +966,23 @@ void Mutation_Annotated_Tree::Tree::collapse_tree() {
     auto bfs = breadth_first_expansion();
 
     for (size_t idx = 1; idx < bfs.size(); idx++) {
-        auto mutations = bfs[idx]->mutations;
+        auto node = bfs[idx];
+        auto mutations = node->mutations;
         if (mutations.size() == 0) {
-            auto node = bfs[idx];
             auto parent = node->parent;
             auto children = node->children;
             for (auto child: children) {
                 move_node(child->identifier, parent->identifier);
             }
+        }
+        //If internal node has one child, the child can be moved up one level
+        else if (node->children.size() == 1) {
+            auto child = node->children.front();
+            auto parent = node->parent;
+            for (auto m: mutations) {
+                child->add_mutation(m.copy());
+            }
+            move_node(child->identifier, parent->identifier);
         }
     }
 }
