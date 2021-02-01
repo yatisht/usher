@@ -1,0 +1,17 @@
+name: usher
+channels:
+  - defaults                                                                                                                                                                                                    
+  - conda-forge
+  - bioconda
+  - anaconda
+dependencies:
+  - cxx-compiler
+  - protobuf=3.12
+  - cmake=3.10
+  - make
+  - boost-cpp
+  - mafft
+  - python
+  - git
+  - wget
+  - rsync

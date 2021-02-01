@@ -1,2 +1,7 @@
 build/
 scripts/__pycache__
+*.tar.gz
+*~
+cmake-3*
+oneTBB-*
+protobuf-*

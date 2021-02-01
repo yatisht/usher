@@ -1,4 +1,4 @@
-brew install cmake boost protobuf wget python@3
+brew install cmake boost protobuf wget python@3 rsync
 
 # TBB
 wget https://github.com/oneapi-src/oneTBB/releases/download/2019_U9/tbb2019_20191006oss_mac.tgz
@@ -12,9 +12,9 @@ make -j
 cd ..
 
 # install faToVcf
-wget https://hgdownload.soe.ucsc.edu/admin/exe/macOSX.x86_64/faToVcf
-chmod 777 ./faToVcf
-mv ./faToVcf ./scripts/faToVcf
+rsync -aP rsync://hgdownload.soe.ucsc.edu/genome/admin/exe/macOSX.x86_64/faToVcf .
+chmod +x faToVcf
+mv faToVcf scripts/
 
 #install biopython
 pip3 install biopython

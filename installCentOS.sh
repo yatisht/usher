@@ -1,8 +1,5 @@
 sudo yum group install -y  "Development Tools"                                                                                                                                                                  
-sudo yum install -y wget
-sudo yum install -y boost-devel
-sudo yum install -y python3
-
+sudo yum install -y wget boost-devel python3 rsync
 
 # install cmake-3.18
 wget https://github.com/Kitware/CMake/releases/download/v3.18.2/cmake-3.18.2.tar.gz
@@ -19,9 +16,9 @@ sudo rpm -Uvh mafft-7.471-gcc_fc6.x86_64.rpm
 rm mafft-7.471-gcc_fc6.x86_64.rpm
 
 # install faToVcf
-wget https://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64/faToVcf
-chmod 777 ./faToVcf
-mv ./faToVcf ./scripts/faToVcf
+rsync -aP rsync://hgdownload.soe.ucsc.edu/genome/admin/exe/linux.x86_64/faToVcf .
+chmod +x faToVcf
+mv faToVcf scripts/
 
 #install biopython
 pip3 install biopython

@@ -1,12 +1,13 @@
-sudo apt update 
-sudo apt-get --yes install build-essential
-sudo apt-get --yes install wget
-sudo apt-get --yes install cmake
-sudo apt-get --yes install libboost-all-dev
-sudo apt-get --yes install libprotoc-dev libprotoc-dev protobuf-compiler
-sudo apt-get --yes install python python3-setuptools python3-pip 
-sudo apt-get install -y mafft
+sudo -E apt update 
+sudo -E apt-get --yes install build-essential \
+ wget cmake  libboost-all-dev \
+ libprotoc-dev libprotoc-dev protobuf-compiler \
+ python python3-setuptools python3-pip mafft rsync
+ 
+#install python library biopython
+pip3 install biopython
 
+#download and install TBB
 wget https://github.com/oneapi-src/oneTBB/archive/2019_U9.tar.gz 
 tar -xvzf 2019_U9.tar.gz
 mkdir -p build
@@ -16,9 +17,6 @@ make -j
 cd ..
     
 # install faToVcf
-wget http://public.gi.ucsc.edu/~yatisht/data/binaries/faToVcf
-chmod 777 ./faToVcf
-mv ./faToVcf ./scripts/faToVcf
-
-#install biopython
-pip3 install biopython
+rsync -aP rsync://hgdownload.soe.ucsc.edu/genome/admin/exe/linux.x86_64/faToVcf .
+chmod +x faToVcf
+mv faToVcf scripts/

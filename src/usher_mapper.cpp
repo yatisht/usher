@@ -190,6 +190,12 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores) {
         for (auto m1: input.node->mutations) {
             node_num_mut++;
             auto anc_nuc = m1.mut_nuc;
+            // if mutation is masked, treat it as a unique mutation (add as
+            // sibling)
+            if (m1.is_masked()) {
+                has_unique = true;
+                break;
+            }
             assert (((anc_nuc-1) & anc_nuc) == 0); 
             bool found = false;
             bool found_pos = false;
@@ -236,6 +242,7 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores) {
                 if (!found_pos && (anc_nuc == m1.ref_nuc)) {
                     MAT::Mutation m;
                     m.position = m1.position;
+                    m.chrom = m1.chrom;
                     m.ref_nuc = m1.ref_nuc;
                     m.par_nuc = m1.par_nuc;
                     m.mut_nuc = anc_nuc;
@@ -266,9 +273,11 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores) {
     // current node, add only the most recent mutation to the vector
     for (auto n: input.T->rsearch(input.node->identifier)) {
         for (auto m: n->mutations) {
-            if (std::find(anc_positions.begin(), anc_positions.end(), m.position) == anc_positions.end()) {
+            if (m.is_masked() || (std::find(anc_positions.begin(), anc_positions.end(), m.position) == anc_positions.end())) {
                 ancestral_mutations.emplace_back(m);
-                anc_positions.emplace_back(m.position);
+                if (!m.is_masked()) {
+                    anc_positions.emplace_back(m.position);
+                }
             }
         }
     }
@@ -293,6 +302,10 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores) {
         // Check if mutation is found in ancestral_mutations
         for (size_t k = start_index; k < ancestral_mutations.size(); k++) {
             auto m2 = ancestral_mutations[k];
+            // Masked mutations don't match anything
+            if (m2.is_masked()) {
+                continue;
+            }
             start_index = k;
             if (m1.position == m2.position) {
                 found_pos = true;
@@ -377,6 +390,11 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores) {
         bool found_pos = false;
         auto anc_nuc = m1.mut_nuc;
         for (size_t k = start_index; k < input.missing_sample_mutations->size(); k++) {
+            // If ancestral mutation is masked, terminate the search for
+            // identical mutation 
+            if (m1.is_masked()) {
+                break;
+            }
             auto m2 = (*input.missing_sample_mutations)[k];
             start_index = k;
             if (m1.position == m2.position) {
@@ -391,9 +409,12 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores) {
                 }
             }
         }
+        // If ancestral mutation is found, do nothing. Else, if last ancestor
+        // with mutation in the same position is found having reference allele, do
+        // nothing. In all remaining cases, add the mutation to excess_mutations. 
         if (found) {
         }
-        else if (!found_pos && (anc_nuc == m1.ref_nuc)) {
+        else if (!found_pos && !m1.is_masked() && (anc_nuc == m1.ref_nuc)) {
         }
         else {
             set_difference += 1;
@@ -406,7 +427,7 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores) {
             m.ref_nuc = m1.ref_nuc;
             m.par_nuc = anc_nuc;
             m.mut_nuc = m1.ref_nuc;
-            assert((m.mut_nuc & (m.mut_nuc-1)) == 0);
+            assert(m.is_masked() || ((m.mut_nuc & (m.mut_nuc-1)) == 0));
             (*input.excess_mutations).emplace_back(m);
         }
     }
