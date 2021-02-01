@@ -2,6 +2,7 @@
 #define tree_rearrangement_internal
 #include "Fitch_Sankoff.hpp"
 #include "src/mutation_annotated_tree.hpp"
+#include <tbb/concurrent_unordered_map.h>
 #include <tbb/concurrent_vector.h>
 #include <tbb/pipeline.h>
 #include <unordered_map>
@@ -11,7 +12,7 @@
 /* Enumerater Nodes -(Node*)->  Find neighbors and positions to do fitch-sankoff -(Possible_Moves*)-> do fitch-sankoff -(Possible_Moves*)->  estimate profit of moves -(Profitable_Moves*)-> apply moves*/
 //======================Message types========================
 struct Fitch_Sankoff_Result{
-    int pos;
+    MAT::Mutation mutation;
     int original_tip_score;
     Fitch_Sankoff::Score_Type tip_score;
     std::vector<char> original_state;
@@ -45,7 +46,7 @@ struct Merge_Discriptor{
 };
 struct Move{
     MAT::Node* dst;
-    std::vector<std::pair<int,Fitch_Sankoff::States_Type&>> states;
+    std::vector<Fitch_Sankoff_Result*> states;
     Mutation_Annotated_Tree::Mutations_Collection new_tip_mutations;
     //The child of its new parent that shares mutation, null if none
     std::vector<Merge_Discriptor> merger;
@@ -56,13 +57,14 @@ struct Profitable_Moves{
     int score_change;
     MAT::Node* src;
     std::vector<Move> moves;
+    Fitch_Sankoff_Shared shared;
     std::unordered_map<int, Fitch_Sankoff_Result>* src_tip_fs_result;
 };
 
 struct ConfirmedMove{
-    MAT::Node* src;
-    MAT::Node* dst;
-    Merge_Discriptor* merge;
+    std::vector<MAT::Node*> removed;
+    std::vector<MAT::Node*> added;
+    std::vector<std::pair<MAT::Node*,std::vector<Merge_Discriptor>>> merges;
 };
 
 //======================For synchronization (postpone conflicting moves)===========================
@@ -91,11 +93,15 @@ class Movable_Node_Enumerator{
     mutable std::vector<int>::iterator iter;
     mutable std::vector<int> next_round;
     std::vector<MAT::Node *>& dfs_ordered_nodes;
-    Movable_Node_Enumerator(const Movable_Node_Enumerator& other)=delete;
-    Movable_Node_Enumerator& operator=(Movable_Node_Enumerator&)=delete;
+    mutable bool valid;
 public:
     Movable_Node_Enumerator(std::vector<MAT::Node *>& to_check,std::vector<MAT::Node *>& dfs_ordered_nodes);
-
+    Movable_Node_Enumerator(const Movable_Node_Enumerator& other):dfs_ordered_nodes(other.dfs_ordered_nodes),valid(true){
+        other.valid=false;
+        this_round.swap(other.this_round);
+        iter=other.iter;
+        next_round.swap(other.next_round);
+    }
     MAT::Node* operator() (tbb::flow_control) const;
 };
 
@@ -115,9 +121,10 @@ struct Profitable_Moves_Enumerator{
     Profitable_Moves* operator() (Possible_Moves*)const;
 };
 
-
+typedef tbb::concurrent_unordered_map<MAT::Node*,ConfirmedMove> Pending_Moves_t;
 struct Move_Executor{
-    std::vector<ConfirmedMove>& moves;
+    Pending_Moves_t& pending_moves;
+    tbb::concurrent_vector<Profitable_Moves*>& multiple_optimal_deferred;
     std::vector<MAT::Node *>& dfs_ordered_nodes;
     MAT::Tree& tree;
     void operator()(Profitable_Moves*)const;

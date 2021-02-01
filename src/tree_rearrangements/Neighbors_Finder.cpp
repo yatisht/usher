@@ -55,11 +55,10 @@ Possible_Moves* Neighbors_Finder::operator()(MAT::Node* src)const{
     result->src=src;
     result->to_search=BFS(src->parent,src,radius,result->dst);
     
-    tbb::concurrent_hash_map<MAT::Node*, tbb::concurrent_vector<int>>::const_accessor temp;
-    bool search_pos=repeatedly_mutating_loci.find(temp,src);
-    if(search_pos){
-        for(int pos:temp->second){
-            if(result->to_search->find(pos)!=result->to_search->end()){
+    auto iter=repeatedly_mutating_loci.find(src);
+    if(iter!=repeatedly_mutating_loci.end()){
+        for(const MAT::Mutation& m:*(result->to_search)){
+            if(iter->second.count(m.position)){
                 postponed.push_back(src);
                 return nullptr;
             }

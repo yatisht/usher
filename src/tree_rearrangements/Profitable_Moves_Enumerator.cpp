@@ -1,5 +1,6 @@
 #include "src/mutation_annotated_tree.hpp"
 #include "tree_rearrangement_internal.hpp"
+#include "conflicts.hpp"
 #include <algorithm>
 #include <cstddef>
 #include <iterator>
@@ -30,8 +31,8 @@ static int get_parsimony_score_change( std::unordered_map<int, Fitch_Sankoff_Res
 }
 
 struct Merge_Comparator{
-    bool operator()(const Merge_Discriptor* first, const Merge_Discriptor* second)const {
-        return first->shared_mutations.size()>second->shared_mutations.size();
+    bool operator()(const Merge_Discriptor& first, const Merge_Discriptor& second)const {
+        return first.shared_mutations.size()>second.shared_mutations.size();
     }
 };
 static void check_mergable(MAT::Node* parent,MAT::Mutations_Collection& mutations,std::vector<Merge_Discriptor> possible_merges){
@@ -51,50 +52,7 @@ static void check_mergable(MAT::Node* parent,MAT::Mutations_Collection& mutation
         std::sort(possible_merges.begin(),possible_merges.end(),Merge_Comparator());
     }
 }
-bool check_mut_conflict(MAT::Node* node, const std::vector<std::pair<int,Fitch_Sankoff::States_Type&>>& states){
-    auto iter=repeatedly_mutating_loci.find(node);
-    if (iter==repeatedly_mutating_loci.end()) {
-    return false;
-    }
-    const std::unordered_set<int>& subtree_mut_changed=iter->second;
-    for(const std::pair<int,Fitch_Sankoff::States_Type&>& e:states){
-        if (subtree_mut_changed.count(e.first)) {
-            return true;
-        }
-    }
-    return false;
-}
-bool check_loop_conflict(MAT::Node* src, MAT::Node* dst){
-    auto iter=potential_crosses.find(src);
-    if(iter==potential_crosses.end()){
-        return false;
-    }
-    std::unordered_set<MAT::Node*>& nodes_moved_to_subtree=iter->second;
-    while (dst) {
-        if(nodes_moved_to_subtree.count(dst)){
-            return true;
-        }
-        dst=dst->parent;
-    }
-    return false;
-}
-void register_mut_conflict(MAT::Node* node, const std::vector<std::pair<int,Fitch_Sankoff::States_Type&>>& states){
-    while (node) {
-        auto iter=repeatedly_mutating_loci.insert({node,std::unordered_set<int>()});
-        std::unordered_set<int>& to_insert=iter.first->second;
-        for(const std::pair<int,Fitch_Sankoff::States_Type&>& e:states){
-             to_insert.insert(e.first);
-        }
-        node=node->parent;
-    }
-}
-void register_loop_conflict(MAT::Node* src, MAT::Node* dst){
-    while (dst) {
-        auto iter=potential_crosses.emplace(dst, std::unordered_set<MAT::Node*>());
-        iter.first->second.insert(src);
-        dst=dst->parent;
-    }
-}
+
 size_t remove_conflicts(MAT::Node* src,std::vector<Move> possible_moves,std::vector<bool>& is_conflict){
     size_t non_conflicting=possible_moves.size();
     Move* last_nonconflicting=nullptr;
@@ -157,12 +115,13 @@ struct check_individual_move_profitable {
 
 static void fill_result(Possible_Moves* in,Profitable_Moves* result,std::vector<size_t>& good_idx){
     result->src_tip_fs_result=in->src_tip_fs_result;
+    result->shared=in->shared;
     result->src=in->src;
     auto iter=result->moves.begin();
         for(auto idx:good_idx){
             iter->states.reserve(in->dst[idx].mut.size());
             for(auto& m:in->dst[idx].mut){
-                iter->states.emplace_back(m.position,(*(in->src_tip_fs_result))[m.position].states);
+                iter->states.push_back(&((*in->src_tip_fs_result)[m.position]));
             }
         }
 }
@@ -188,12 +147,17 @@ Profitable_Moves* Profitable_Moves_Enumerator::operator() (Possible_Moves* in)co
         if (non_conflicting) {
             if(non_conflicting!=result->moves.size()){
                 std::vector<Move> filtered;
-                std::copy_if(result->moves.begin(), result->moves.end(), std::back_inserter(filtered),[&is_conflict](size_t i){return is_conflict[i];});
+                for (size_t i=0; i<is_conflict.size(); i++) {
+                    if(!is_conflict[i]){
+                        filtered.push_back(result->moves[i]);
+                    }
+                }
                 result->moves.swap(filtered);
             }
             delete in;
             return result;
         }
+        postponed.push_back(in->src);
     }
     
     delete in;

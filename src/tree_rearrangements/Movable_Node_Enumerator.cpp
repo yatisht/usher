@@ -1,6 +1,7 @@
 #include "tree_rearrangement_internal.hpp"
 #include <algorithm>
 Movable_Node_Enumerator::Movable_Node_Enumerator(std::vector<MAT::Node *>& to_check,std::vector<MAT::Node *>& dfs_ordered_nodes):dfs_ordered_nodes(dfs_ordered_nodes){
+    valid=true;
     for(auto n:to_check){
         n=n->parent;
         if(n)
@@ -10,6 +11,7 @@ Movable_Node_Enumerator::Movable_Node_Enumerator(std::vector<MAT::Node *>& to_ch
 }
 
 Mutation_Annotated_Tree::Node* Movable_Node_Enumerator::operator() (tbb::flow_control fc) const{
+    assert(valid);
     if (iter==this_round.end()) {
         if (next_round.empty()){
             fc.stop();

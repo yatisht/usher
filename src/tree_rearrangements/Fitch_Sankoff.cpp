@@ -158,36 +158,14 @@ static MAT::Node* splay(MAT::Node* to_splay,MAT::Tree& tree){
     return new_branch;
 }
 
-static void set_mutation(MAT::Node *node, char state, char par_state, const MAT::Mutation& mutationOri,std::unordered_map<MAT::Node*, MAT::Node*>& new_internal_map,MAT::Tree& tree,char ori_state) {
-    assert(par_state == get_genotype(node->parent, mutationOri));
-    
-    bool change_made=false;
+static void set_mutation(MAT::Node *node, char state, char par_state, const MAT::Mutation& mutationOri) {    
     if (par_state == state) {
-        change_made=node->mutations.remove(mutationOri.position);
+        node->mutations.remove(mutationOri.position);
     } else {
         MAT::Mutation mutation(mutationOri);
         mutation.par_nuc = par_state;
         mutation.mut_nuc = state;
-        change_made=node->mutations.insert(mutation, 0);
-    }
-    
-    if(state==ori_state) return;
-    MAT::Node *original_child = nullptr;
-    if (!node->not_sample()) {
-        original_child = splay(node, tree);
-        new_internal_map.insert(std::make_pair(node, original_child));
-    } else {
-        auto iter = new_internal_map.find(node);
-        if (iter != new_internal_map.end()) {
-            original_child = iter->second;
-        }
-    }
-    
-    if (original_child) {
-        MAT::Mutation mutation(mutationOri);
-        mutation.par_nuc = state;
-        mutation.mut_nuc = ori_state;
-        node->mutations.insert(mutation, -1);
+        node->mutations.insert(mutation, 0);
     }
 }
 
@@ -195,8 +173,7 @@ static void set_mutation(MAT::Node *node, char state, char par_state, const MAT:
 
 void Fitch_Sankoff::sankoff_forward_pass(const std::pair<size_t, size_t> &range,
                           States_Type &states,
-                          std::vector<MAT::Node *> &dfs_ordered_nodes,const MAT::Mutation &mutation,char ancestor_state,std::vector<char> original_state,std::unordered_map<MAT::Node*, MAT::Node*>& new_internal_map,
-                          MAT::Tree& tree
+                          std::vector<MAT::Node *> &dfs_ordered_nodes,const MAT::Mutation &mutation,std::vector<char> original_state
 //#ifndef NDEBUG
 //,Scores_Type &child_scores 
 //#endif
@@ -204,9 +181,7 @@ void Fitch_Sankoff::sankoff_forward_pass(const std::pair<size_t, size_t> &range,
     //first node->last element
     //index=size-1-(dfs_index-first_element_index)
     size_t offset=states.size()-1+range.first;
-    //set the state of first node
-    //assert(dfs_ordered_nodes[range.first]==states.back().node);
-    set_mutation(dfs_ordered_nodes[range.first],1<<states.back(),ancestor_state,mutation,new_internal_map,tree,original_state[0]);
+    //state of first node set externally
     //for the rest
     for (size_t dfs_idx=range.first+1; dfs_idx<range.second; dfs_idx++) {
         auto this_node=dfs_ordered_nodes[dfs_idx];
@@ -219,7 +194,7 @@ void Fitch_Sankoff::sankoff_forward_pass(const std::pair<size_t, size_t> &range,
         assert(parent_state<4);
         
         if(this_node->is_leaf()) {
-            set_mutation(this_node, original_state[dfs_idx-range.first], 1<<parent_state, mutation,new_internal_map,tree,original_state[dfs_idx-range.first]);
+            set_mutation(this_node, original_state[dfs_idx-range.first], 1<<parent_state, mutation);
             continue;
         }
         
@@ -227,7 +202,7 @@ void Fitch_Sankoff::sankoff_forward_pass(const std::pair<size_t, size_t> &range,
         //assert(this_state==get_child_score_on_par_nuc(parent_state, child_scores[state_idx]).second);
         
         states[state_idx]=this_state;
-        set_mutation(this_node, 1<<this_state, 1<<parent_state, mutation,new_internal_map,tree,original_state[dfs_idx-range.first]);
+        set_mutation(this_node, 1<<this_state, 1<<parent_state, mutation);
 
     }
 }

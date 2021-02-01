@@ -66,10 +66,13 @@ Possible_Moves* Parsimony_Score_Calculator::operator()(Possible_Moves* in)const{
     [&](tbb::blocked_range<size_t> r) {
         for(size_t j=r.begin(); j<r.end(); ++j){
             auto this_result=results[j];
+            this_result->mutation=mutations[j];
             this_result->original_state=original_states[j];
+            
             Fitch_Sankoff::Scores_Type scores;
             Fitch_Sankoff::States_Type& states=this_result->states;
             this_result->original_tip_score=Fitch_Sankoff::sankoff_backward_pass(in->shared.range,mutations[j],dfs_ordered_nodes,scores,states,original_states[j]);
+            
             this_result->tip_score=scores.back();
         }
     });
