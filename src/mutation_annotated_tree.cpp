@@ -972,7 +972,7 @@ void Mutation_Annotated_Tree::Tree::collapse_tree() {
             auto child = node->children.front();
             auto parent = node->parent;
             for (auto m: mutations) {
-                child->add_mutation(m.copy());
+                child->add_mutation(m);
             }
             move_node(child->identifier, parent->identifier);
         }

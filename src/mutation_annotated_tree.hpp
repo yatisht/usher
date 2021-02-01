@@ -309,6 +309,7 @@ last_pos_inserted=(newly_inserted);
             Node* parent;
             std::vector<Node*> children;
             Mutations_Collection mutations;
+            tbb::mutex mutex;
             bool is_new; //whether this node is a new sample
             size_t index; //index in dfs pre-order
             bool is_leaf();
@@ -318,7 +319,7 @@ last_pos_inserted=(newly_inserted);
             Node(std::string id, float l);
             Node(std::string id, Node* p, float l);
 #ifndef matToVCF   
-            void add_mutation(Mutation& mut){
+            void add_mutation(const Mutation& mut){
                 mutations.insert(mut);
             }
             // HACK: try to identify whether a node is a sample from name

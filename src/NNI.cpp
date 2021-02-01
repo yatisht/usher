@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstddef>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -217,8 +218,14 @@ apply_move(MAT::Node *this_node, const std::pair<size_t, size_t> &range,
 
     }
     // Try merging with sibling in the new location
+    {
+    std::unique_lock<tbb::mutex> lock(new_parent->mutex,std::defer_lock);
+    if(move_to_parent){
+        lock.lock();
+    }
     insert_node(new_parent,this_node,tree);
     this_node->parent=new_parent;
+    }
     // apply adjustment to subtree
     #ifndef NDEBUG
     auto score_iter=scores_all_pos.begin();

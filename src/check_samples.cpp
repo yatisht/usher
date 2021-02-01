@@ -81,5 +81,6 @@ void check_samples(Mutation_Annotated_Tree::Node *root,
             fprintf(stderr, "[ERROR] Missing Sample %s ? \n",
                     s.first->identifier.c_str());
         }
+        printf("checked");
     }
 }

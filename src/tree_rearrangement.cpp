@@ -4,6 +4,9 @@
 #include <algorithm>
 #include <cstddef>
 #include <iterator>
+#include <mutex>
+#include <tbb/blocked_range.h>
+#include <tbb/parallel_for_each.h>
 #include <vector>
 namespace MAT = Mutation_Annotated_Tree;
 
@@ -41,7 +44,7 @@ static void split_rounds(std::vector<MAT::Node *> &this_round,
         if(next_ele==*iter){
             continue;
         }
-        if (!check_grand_parent(dfs_ordered_nodes[next_ele],dfs_ordered_nodes[*iter])) {
+        if (!check_grand_parent(dfs_ordered_nodes[next_ele]->parent,dfs_ordered_nodes[*iter]->parent)) {
             this_round.push_back(dfs_ordered_nodes[*iter]);
         } else {
             next_round.push_back(dfs_ordered_nodes[*iter]);
@@ -64,15 +67,20 @@ void Tree_Rearrangement::refine_trees(
         std::vector<MAT::Node *>& this_round = new_nodes;;
         std::vector<MAT::Node *> next_round;
         split_rounds(this_round, next_round, dfs_ordered_nodes);
+        tbb::mutex mutex;
         while (!this_round.empty()) {
             bool have_update = false;
-            for (MAT::Node *&node : this_round) {
-                if(Tree_Rearrangement::move_nearest(
-                    node, dfs_ordered_nodes, this_tree)){
+            tbb::parallel_for(tbb::blocked_range<size_t>(0,this_round.size()),[&](tbb::blocked_range<size_t> r){
+                for (size_t i=r.begin();i<r.end() ; i++) {
+                    if(Tree_Rearrangement::move_nearest(
+                    this_round[i], dfs_ordered_nodes, this_tree)){
+                        std::lock_guard<tbb::mutex> lock(mutex);
                         have_update=true;
-                        optimized.push_back(node);
+                        optimized.push_back(this_round[i]);
                     }
-            }
+                }
+            });
+            
             if (have_update) {
                 Sample_Mut_Type copy(ori);
                 check_samples(this_tree.root, copy);
