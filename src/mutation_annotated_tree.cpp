@@ -447,9 +447,12 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
     }
     data.ParseFromIstream(&inpfile);
     inpfile.close();
-
+    //check if the pb has a metadata field
+    bool hasmeta = (data.metadata_size()>0);
+    if (!hasmeta) {
+        fprintf(stderr, "WARNING: This pb does not include any metadata. Filling in default values\n");
+    }
     tree = create_tree_from_newick_string(data.newick());
-
     auto dfs = tree.depth_first_expansion();
 
     tbb::parallel_for( tbb::blocked_range<size_t>(0, dfs.size(), 1000),
@@ -458,9 +461,12 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
                auto node = dfs[idx];
                auto mutation_list = data.node_mutations(idx);
                //JDM- I've updated the Node class to have a new attribute epps, which I will attempt to load with this
-               auto metaobj = data.metadata(idx); //JDM- should produce a specific node_metadata message
-               node->epps = metaobj.sample_epps(); //JDM- additional metadata extraction lines would go directly after this line, I think
-               
+               if (hasmeta) {
+                   auto metaobj = data.metadata(idx); //JDM- should produce a specific node_metadata message
+                   node->epps = metaobj.sample_epps(); //JDM- additional metadata extraction lines would go directly after this line, I think               
+               } else {
+                   node->epps = 0; //fill in the default values.
+               }
                for (int k = 0; k < mutation_list.mutation_size(); k++) {
                   auto mut = mutation_list.mutation(k);
                   Mutation m;
@@ -511,6 +517,10 @@ void Mutation_Annotated_Tree::save_mutation_annotated_tree (Mutation_Annotated_T
     auto dfs = tree.depth_first_expansion();
 
     for (size_t idx = 0; idx < dfs.size(); idx++) {
+        //JDM-save the epps value
+        auto meta = data.add_metadata();
+        meta->set_sample_epps(dfs[idx]->epps);
+
         auto mutation_list = data.add_node_mutations();
         for (auto m: dfs[idx]->mutations) {
             auto mut = mutation_list->add_mutation();
