@@ -18,8 +18,9 @@ po::variables_map check_options(int argc, char** argv) {
          "Input mutation-annotated tree file to mask [REQUIRED]")
         ("output-mat,o", po::value<std::string>()->required(),
          "Output masked mutation-annotated tree file [REQUIRED]")
-        ("restricted-samples,s", po::value<std::string>()->required(),
-         "[REQUIRED]")
+        ("restricted-samples,s", po::value<std::string>()->default_value("none"), //this will buf if they name their restricted sample file "none" with no extension for some insane reason
+         "Sample names to restrict. Use to perform masking") //this is now optional, as the Utils may be doing things other than masking. Should still perform the same given the same commands as previous.
+        //("")
         ("help,h", "Print help messages");
     
     po::options_description all_options;
@@ -44,27 +45,14 @@ po::variables_map check_options(int argc, char** argv) {
     return vm;
 }
 
-int main(int argc, char** argv) {
-
-    // Command line options
-    po::variables_map vm = check_options(argc, argv);
-    std::string input_mat_filename = vm["input-mat"].as<std::string>();
-    std::string output_mat_filename = vm["output-mat"].as<std::string>();
-    std::string samples_filename = vm["restricted-samples"].as<std::string>();
-
-    // Load input MAT and uncondense tree
-    auto T = MAT::load_mutation_annotated_tree(input_mat_filename);
-    if (T.condensed_nodes.size() > 0) {
-      T.uncondense_leaves();
-    }
-
-    // Load restricted sample names from the input file and add it to the set
-    std::unordered_set<std::string> restricted_samples;
+MAT::Tree restrictSamples (std::string samples_filename, MAT::Tree T) {
+    // Load restricted sampl0e names from the input file and add it to the set
     std::ifstream infile(samples_filename);
     if (!infile) {
-        fprintf(stderr, "ERROR: Could not open the restricted sampels file: %s!\n", samples_filename.c_str());
+        fprintf(stderr, "ERROR: Could not open the restricted samples file: %s!\n", samples_filename.c_str());
         exit(1);
-    }
+    }    
+    std::unordered_set<std::string> restricted_samples;
     std::string sample;
     while (std::getline(infile, sample)) {
         if (T.get_node(sample) == NULL) {
@@ -160,6 +148,31 @@ int main(int argc, char** argv) {
             }
         }
     }
+    return T;
+}
+
+MAT::Tree calculateMetadata (MAT::Tree T) {
+    return T; //do nothing for now while testing having moved the restrictedSites functionality.
+}
+
+int main(int argc, char** argv) {
+
+    // Command line options
+    po::variables_map vm = check_options(argc, argv);
+    std::string input_mat_filename = vm["input-mat"].as<std::string>();
+    std::string output_mat_filename = vm["output-mat"].as<std::string>();
+    std::string samples_filename = vm["restricted-samples"].as<std::string>();
+
+    // Load input MAT and uncondense tree
+    auto T = MAT::load_mutation_annotated_tree(input_mat_filename);
+    if (T.condensed_nodes.size() > 0) {
+      T.uncondense_leaves();
+    }
+    // If a restricted samples file was provided, perform masking procedure
+    if (samples_filename != "none") {
+        T = restrictSamples(samples_filename, T);
+    }
+    // 
 
     // Store final MAT to output file 
     MAT::save_mutation_annotated_tree(T, output_mat_filename);
