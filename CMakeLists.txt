@@ -6,6 +6,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -std=c++11 -Wall -Wno-unused-function -Wno-sign-compare")
 set(CMAKE_CXX_FLAGS_DEBUG " -O0 -fsanitize=address -fsanitize=undefined")
 set(CMAKE_CXX_FLAGS_RELEASE " -DNDEBUG")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO " -DNDEBUG")
 set(CMAKE_INCLUDE_CURRENT_DIR ON) 
 
 if(DEFINED Protobuf_PATH) 

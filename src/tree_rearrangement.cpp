@@ -3,13 +3,31 @@
 #include "src/mutation_annotated_tree.hpp"
 #include <algorithm>
 #include <cstddef>
+#include <cstdio>
 #include <iterator>
 #include <mutex>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for_each.h>
+#include <src/Twice_Bloom_Filter.hpp>
 #include <vector>
 namespace MAT = Mutation_Annotated_Tree;
 
+static void find_nodes_with_recurrent_mutations(std::vector<MAT::Node *>& all_nodes, std::vector<MAT::Node *>& output){
+    Twice_Bloom_Filter filter;
+    for(MAT::Node* n:all_nodes){
+        for(const MAT::Mutation& m:n->mutations){
+            filter.insert(m.position);
+        }
+    }
+    for(MAT::Node* n:all_nodes){
+        for(const MAT::Mutation& m:n->mutations){
+            if(filter.query(m.position)){
+                output.push_back(n);
+                break;
+            }
+        }
+    }
+}
 static void split_rounds(std::vector<MAT::Node *> &this_round,
                          std::vector<MAT::Node *> &next_round,
                          std::vector<MAT::Node *> &dfs_ordered_nodes) {
@@ -66,11 +84,13 @@ void Tree_Rearrangement::refine_trees(
         std::vector<MAT::Node *> optimized;
         std::vector<MAT::Node *>& this_round = new_nodes;;
         std::vector<MAT::Node *> next_round;
+        find_nodes_with_recurrent_mutations(dfs_ordered_nodes, new_nodes);
         split_rounds(this_round, next_round, dfs_ordered_nodes);
         tbb::mutex mutex;
         while (!this_round.empty()) {
             bool have_update = false;
-            tbb::parallel_for(tbb::blocked_range<size_t>(0,this_round.size()),[&](tbb::blocked_range<size_t> r){
+            //fprintf(stderr, "Optimizing %zu nodes \n",this_round.size());
+            tbb::parallel_for(tbb::blocked_range<size_t>(0,this_round.size(),10),[&](tbb::blocked_range<size_t> r){
                 for (size_t i=r.begin();i<r.end() ; i++) {
                     if(Tree_Rearrangement::move_nearest(
                     this_round[i], dfs_ordered_nodes, this_tree)){
