@@ -1,40 +1,38 @@
 ##fileformat=VCFv4.2
-##source_20200913.1=vcf-merge(r953) ./test/ARTIC2UShER/ARTIC2UShER-Testfile_09_09_20_R941_Covid2_Guppy_4.0.11_guppy_demultiplexed_barcode03.muscle.out.fasta,./test/ARTIC2UShER/ARTIC2UShER-Testfile_09_09_20_R941_Covid2_Guppy_4.0.11_guppy_demultiplexed_barcode02.muscle.out.fasta,./test/ARTIC2UShER/ARTIC2UShER-Testfile_09_09_20_R941_Covid2_Guppy_4.0.11_guppy_demultiplexed_barcode01.muscle.out.fasta
-##sourceFiles_20200913.1=./test/ARTIC2UShER/ARTIC2UShER-Testfile_09_09_20_R941_Covid2_Guppy_4.0.11_guppy_demultiplexed_barcode03.muscle.out.fasta,./test/ARTIC2UShER/ARTIC2UShER-Testfile_09_09_20_R941_Covid2_Guppy_4.0.11_guppy_demultiplexed_barcode02.muscle.out.fasta,./test/ARTIC2UShER/ARTIC2UShER-Testfile_09_09_20_R941_Covid2_Guppy_4.0.11_guppy_demultiplexed_barcode01.muscle.out.fasta
-##nanopolish_window=MN908947.3:1-29902
-##INFO=<ID=TotalAltCalls,Number=1,Type=Integer,Description="The number of alternate allele calls for the variant">
-#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	barcode03	barcode02	barcode01
-MN908947.3	68	.	A	T	.	.	AC=1	GT	1	0	0
-MN908947.3	105	.	G	T	.	.	AC=1	GT	1	0	0
-MN908947.3	241	.	C	T	.	.	AC=3	GT	1	1	1
-MN908947.3	1059	.	C	T	.	.	AC=1	GT	0	0	1
-MN908947.3	3037	.	C	T	.	.	AC=3	GT	1	1	1
-MN908947.3	3206	.	G	A	.	.	AC=1	GT	0	1	0
-MN908947.3	5826	.	C	T	.	.	AC=1	GT	1	0	0
-MN908947.3	6539	.	C	T	.	.	AC=1	GT	1	0	0
-MN908947.3	6781	.	C	T	.	.	AC=1	GT	0	1	0
-MN908947.3	9967	.	C	T	.	.	AC=1	GT	0	0	1
-MN908947.3	10156	.	C	T	.	.	AC=1	GT	0	1	0
-MN908947.3	11916	.	C	T	.	.	AC=1	GT	0	1	0
-MN908947.3	12721	.	G	T	.	.	AC=1	GT	1	0	0
-MN908947.3	14408	.	C	T	.	.	AC=3	GT	1	1	1
-MN908947.3	16393	.	C	T	.	.	AC=1	GT	1	0	0
-MN908947.3	17310	.	T	C	.	.	AC=1	GT	0	0	1
-MN908947.3	18730	.	A	G	.	.	AC=1	GT	1	0	0
-MN908947.3	19185	.	C	T	.	.	AC=1	GT	0	1	0
-MN908947.3	19839	.	T	C	.	.	AC=1	GT	1	0	0
-MN908947.3	19895	.	C	T	.	.	AC=1	GT	1	0	0
-MN908947.3	20629	.	C	T	.	.	AC=1	GT	1	0	0
-MN908947.3	23403	.	A	G	.	.	AC=3	GT	1	1	1
-MN908947.3	23756	.	A	T	.	.	AC=1	GT	1	0	0
-MN908947.3	25273	.	G	T	.	.	AC=1	GT	0	0	1
-MN908947.3	25563	.	G	T	.	.	AC=1	GT	0	0	1
-MN908947.3	26612	.	A	T	.	.	AC=1	GT	1	0	0
-MN908947.3	26894	.	C	T	.	.	AC=1	GT	0	1	0
-MN908947.3	27450	.	C	G	.	.	AC=1	GT	1	0	0
-MN908947.3	27964	.	C	T	.	.	AC=1	GT	0	0	1
-MN908947.3	28089	.	G	T	.	.	AC=1	GT	0	0	1
-MN908947.3	28655	.	G	T	.	.	AC=1	GT	0	0	1
-MN908947.3	28881	.	G	A	.	.	AC=2	GT	1	1	0
-MN908947.3	28882	.	G	A	.	.	AC=2	GT	1	1	0
-MN908947.3	28883	.	G	C	.	.	AC=2	GT	1	1	0
+##reference=/public/groups/corbettlab/lgozasht/SARS/usher/scripts/inputMsa.fa:NC_045512v2
+##source=faToVcf /public/groups/corbettlab/lgozasht/SARS/usher/scripts/inputMsa.fa ./test/test_merged.vcf
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	./analysis/barcode01/09_09_20_R941_Covid2_Guppy_4.0.11_guppy_demultiplexed_barcode01/ARTIC/nanopolish	MN908947.3	./analysis/barcode02/09_09_20_R941_Covid2_Guppy_4.0.11_guppy_demultiplexed_barcode02/ARTIC/nanopolish	./analysis/barcode03/09_09_20_R941_Covid2_Guppy_4.0.11_guppy_demultiplexed_barcode03/ARTIC/nanopolish
+NC_045512v2	68	A68T	A	T	.	.	AC=1;AN=5	GT	0	0	0	1
+NC_045512v2	105	G105T	G	T	.	.	AC=1;AN=5	GT	0	0	0	1
+NC_045512v2	241	C241T	C	T	.	.	AC=3;AN=5	GT	1	0	1	1
+NC_045512v2	1059	C1059T	C	T	.	.	AC=1;AN=5	GT	1	0	0	0
+NC_045512v2	3037	C3037T	C	T	.	.	AC=3;AN=5	GT	1	0	1	1
+NC_045512v2	3206	G3206A	G	A	.	.	AC=1;AN=5	GT	0	0	1	0
+NC_045512v2	5826	C5826T	C	T	.	.	AC=1;AN=5	GT	0	0	0	1
+NC_045512v2	6539	C6539T	C	T	.	.	AC=1;AN=5	GT	0	0	0	1
+NC_045512v2	6781	C6781T	C	T	.	.	AC=1;AN=5	GT	0	0	1	0
+NC_045512v2	9967	C9967T	C	T	.	.	AC=1;AN=5	GT	1	0	0	0
+NC_045512v2	10156	C10156T	C	T	.	.	AC=1;AN=5	GT	0	0	1	0
+NC_045512v2	11916	C11916T	C	T	.	.	AC=1;AN=5	GT	0	0	1	0
+NC_045512v2	12721	G12721T	G	T	.	.	AC=1;AN=5	GT	0	0	0	1
+NC_045512v2	14408	C14408T	C	T	.	.	AC=3;AN=5	GT	1	0	1	1
+NC_045512v2	16393	C16393T	C	T	.	.	AC=1;AN=5	GT	0	0	0	1
+NC_045512v2	17310	T17310C	T	C	.	.	AC=1;AN=5	GT	1	0	0	0
+NC_045512v2	18730	A18730G	A	G	.	.	AC=1;AN=5	GT	0	0	0	1
+NC_045512v2	19185	C19185T	C	T	.	.	AC=1;AN=5	GT	0	0	1	0
+NC_045512v2	19839	T19839C	T	C	.	.	AC=1;AN=5	GT	0	0	0	1
+NC_045512v2	19895	C19895T	C	T	.	.	AC=1;AN=5	GT	0	0	0	1
+NC_045512v2	20629	C20629T	C	T	.	.	AC=1;AN=5	GT	0	0	0	1
+NC_045512v2	23403	A23403G	A	G	.	.	AC=3;AN=5	GT	1	0	1	1
+NC_045512v2	23756	A23756T	A	T	.	.	AC=1;AN=5	GT	0	0	0	1
+NC_045512v2	25273	G25273T	G	T	.	.	AC=1;AN=5	GT	1	0	0	0
+NC_045512v2	25563	G25563T	G	T	.	.	AC=1;AN=5	GT	1	0	0	0
+NC_045512v2	26612	A26612T	A	T	.	.	AC=1;AN=5	GT	0	0	0	1
+NC_045512v2	26894	C26894T	C	T	.	.	AC=1;AN=5	GT	0	0	1	0
+NC_045512v2	27450	C27450G	C	G	.	.	AC=1;AN=5	GT	0	0	0	1
+NC_045512v2	27964	C27964T	C	T	.	.	AC=1;AN=5	GT	1	0	0	0
+NC_045512v2	28095	A28095T	A	T	.	.	AC=1;AN=5	GT	1	0	0	0
+NC_045512v2	28655	G28655T	G	T	.	.	AC=1;AN=5	GT	1	0	0	0
+NC_045512v2	28881	G28881A	G	A	.	.	AC=2;AN=5	GT	0	0	1	1
+NC_045512v2	28882	G28882A	G	A	.	.	AC=2;AN=5	GT	0	0	1	1
+NC_045512v2	28883	G28883C	G	C	.	.	AC=2;AN=5	GT	0	0	1	1

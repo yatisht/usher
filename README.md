@@ -253,7 +253,7 @@ MSA file or unaligned full SARS-CoV-2 genomic sequence(s) in fasta format
 Pease ensure that faToVcf exists in the same directory as Fasta2UShER.py!
 
 ```
-python3 scripts/Fasta2UShER.py -inpath ./test/Fasta2UShER -outfile ./test/test_merged.vcf
+python3 scripts/Fasta2UShER.py -reference ./test/NC_045512v2.fa  -inpath ./test/Fasta2UShER/ -unaligned -output ./test/test_merged.vcf
 ```
 
 ### Output
