@@ -5,8 +5,8 @@
 #include <vector>
 #include <boost/program_options.hpp> 
 #include <boost/filesystem.hpp>
-#include "mutation_annotated_tree.hpp"
-
+//#include "usher_graph.hpp"
+#include "usher_mapper.cpp"//it shouldn't need this.
 namespace po = boost::program_options;
 namespace MAT = Mutation_Annotated_Tree;
 
@@ -20,7 +20,8 @@ po::variables_map check_options(int argc, char** argv) {
          "Output masked mutation-annotated tree file [REQUIRED]")
         ("restricted-samples,s", po::value<std::string>()->default_value("none"), //this will buf if they name their restricted sample file "none" with no extension for some insane reason
          "Sample names to restrict. Use to perform masking") //this is now optional, as the Utils may be doing things other than masking. Should still perform the same given the same commands as previous.
-        //("")
+        ("find-epps,e", po::bool_switch(),
+        "Use to calculate and store the number of equally parsimonious placements for all nodes")
         ("help,h", "Print help messages");
     
     po::options_description all_options;
@@ -44,6 +45,12 @@ po::variables_map check_options(int argc, char** argv) {
     }
     return vm;
 }
+
+/*
+As a general principle, I intend to write this utility such that each function is modular and self-contained and any or all of them can be called based on command line usage.
+Each relevant function will both take and return a MAT object
+The main() function will only contain MAT and option read in, a series of if() then function calls, and saving the tree at the end
+*/
 
 MAT::Tree restrictSamples (std::string samples_filename, MAT::Tree T) {
     // Load restricted sampl0e names from the input file and add it to the set
@@ -151,8 +158,128 @@ MAT::Tree restrictSamples (std::string samples_filename, MAT::Tree T) {
     return T;
 }
 
-MAT::Tree calculateMetadata (MAT::Tree T) {
-    return T; //do nothing for now while testing having moved the restrictedSites functionality.
+MAT::Tree findEPPs (MAT::Tree Tobj) {
+    //all comments on function JDM
+    //first, need to iterate through all leaf nodes, including condensed nodes and single leaves
+    //internal nodes have metadata objects but those are just gonna be default values 0 for epps for now which should indicate high confidence anyways
+    //the simplest way to do this is to iterate through all nodes and check whether each one is a leaf
+    MAT::Tree* T = &Tobj; //T in this function is a pointer because of how the mapper is written.
+    auto fdfs = T->depth_first_expansion(); //the full tree expanded for outer loop iteration.
+    for (size_t s=0; s<fdfs.size(); s++){ //this loop is not a parallel for because its going to contain a parallel for
+        //get the node object.
+        auto node = fdfs[s];
+        if (node->is_leaf()) {
+            //retrieve the full set of mutations associated with this Node object from root to it
+            //to do this, get the full set of ancestral nodes and their mutations
+            //code copied from the usher mapper.
+            std::vector<int> anc_positions; //tracking positions is required to account for backmutation/overwriting along the path
+            std::vector<MAT::Mutation> ancestral_mutations;
+            //first load in the current mutations
+            for (auto m: node->mutations){
+                if (m.is_masked() || (std::find(anc_positions.begin(), anc_positions.end(), m.position) == anc_positions.end())) {
+                    ancestral_mutations.emplace_back(m);
+                    if (!m.is_masked()) {
+                        anc_positions.emplace_back(m.position);
+                    }            
+                }
+            }
+            //then load in ancestral mutations
+            for (auto n: T->rsearch(node->identifier)) {
+                for (auto m: n->mutations) {
+                    if (m.is_masked() || (std::find(anc_positions.begin(), anc_positions.end(), m.position) == anc_positions.end())) {
+                        ancestral_mutations.emplace_back(m);
+                        if (!m.is_masked()) {
+                            anc_positions.emplace_back(m.position);
+                        }
+                    }
+                }
+            }
+            //now that we have the mutation set, pop the current node from the Tree
+            //save its identifier, parent, and branch length for replacement
+            MAT::Node* npar = node->parent;
+            std::string nid = node->identifier;
+            float blen = node->branch_length;
+            T->remove_node(node->identifier, true); //this should modify in-place
+            //the ancestral_mutations vector, plus the mutations assigned to this specific node, constitute the "missing_sample" equivalents for calling the mapper
+            //PUT THE MAPPING HERE?? THERES NO CLEAR FUNCTION TO DO THIS :( WHY YATISH, WHY WRITE IT SO HORRIBLY
+            //just super confusing repetitive ass code from the main Usher cpp, ugh
+            //I think I'll have to loop over every node in the pruned tree and check placement???
+            
+            //COPIED FROM SOME PART OF USHER 
+            auto dfs = T->depth_first_expansion();
+            size_t total_nodes = dfs.size();
+
+            // Stores the excess mutations to place the sample at each
+            // node of the tree in DFS order. When placement is as a
+            // child, it only contains parsimony-increasing mutations in
+            // the sample. When placement is as a sibling, it contains 
+            // parsimony-increasing mutations as well as the mutations
+            // on the placed node in common with the new sample. Note
+            // guaranteed to be corrrect only for optimal nodes since
+            // the mapper can terminate the search early for non-optimal
+            // nodes
+            std::vector<std::vector<MAT::Mutation>> node_excess_mutations(total_nodes);
+            // Stores the imputed mutations for ambiguous bases in the
+            // sampled in order to place the sample at each node of the 
+            // tree in DFS order. Again, guaranteed to be corrrect only 
+            // for pasrimony-optimal nodes 
+            std::vector<std::vector<MAT::Mutation>> node_imputed_mutations(total_nodes);
+
+            // Stores the parsimony score to place the sample at each
+            // node of the tree in DFS order.
+            std::vector<int> node_set_difference;
+            size_t best_node_num_leaves = 0;
+            // The maximum number of mutations is bound by the number
+            // of mutations in the missing sample (place at root)
+            //int best_set_difference = 1e9;
+            // TODO: currently number of root mutations is also added to
+            // this value since it forces placement as child but this
+            // could be changed later 
+            int best_set_difference = ancestral_mutations.size() + T->root->mutations.size() + 1;
+
+            size_t best_j = 0;
+            size_t num_best = 1;
+            bool best_node_has_unique = false;
+            MAT::Node* best_node = T->root;
+
+            std::vector<bool> node_has_unique(total_nodes, false);
+            std::vector<size_t> best_j_vec;
+            best_j_vec.emplace_back(0);
+
+            // Parallel for loop to search for most parsimonious
+            // placements. Real action happens within mapper2_body
+            auto grain_size = 400; 
+            tbb::parallel_for( tbb::blocked_range<size_t>(0, total_nodes, grain_size),
+                    [&](tbb::blocked_range<size_t> r) {
+                    for (size_t k=r.begin(); k<r.end(); ++k){
+                        mapper2_input inp;
+                        inp.T = T;
+                        inp.node = dfs[k];
+                        inp.missing_sample_mutations = &ancestral_mutations;
+                        inp.excess_mutations = &node_excess_mutations[k];
+                        inp.imputed_mutations = &node_imputed_mutations[k];
+                        inp.best_node_num_leaves = &best_node_num_leaves;
+                        inp.best_set_difference = &best_set_difference;
+                        inp.best_node = &best_node;
+                        inp.best_j =  &best_j;
+                        inp.num_best = &num_best;
+                        inp.j = k;
+                        inp.has_unique = &best_node_has_unique;
+                        inp.best_j_vec = &best_j_vec;
+                        inp.node_has_unique = &(node_has_unique);
+
+                        mapper2_body(inp, false);
+                    }       
+                    }); 
+            //BACK TO MY CODE (JDM)
+            //put the node back.
+            T->create_node(nid, npar, blen);
+            //give it metadata
+            auto cnode = T->get_node(nid);
+            cnode->epps = num_best;
+        }
+    }
+    return Tobj; //return the actual object.
 }
 
 int main(int argc, char** argv) {
@@ -162,9 +289,10 @@ int main(int argc, char** argv) {
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string output_mat_filename = vm["output-mat"].as<std::string>();
     std::string samples_filename = vm["restricted-samples"].as<std::string>();
-
+    bool fepps = vm["find-epps"].as<bool>();
     // Load input MAT and uncondense tree
-    auto T = MAT::load_mutation_annotated_tree(input_mat_filename);
+    MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
+    //T here is the actual object.
     if (T.condensed_nodes.size() > 0) {
       T.uncondense_leaves();
     }
@@ -172,7 +300,10 @@ int main(int argc, char** argv) {
     if (samples_filename != "none") {
         T = restrictSamples(samples_filename, T);
     }
-    // 
+    // If the argument to calculate equally parsimonious placements was used, perform this operation
+    if (fepps) {
+        T = findEPPs(T);
+    }
 
     // Store final MAT to output file 
     MAT::save_mutation_annotated_tree(T, output_mat_filename);
