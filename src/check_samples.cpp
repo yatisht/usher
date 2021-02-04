@@ -23,8 +23,8 @@ static void insert_samples_worker(Mutation_Annotated_Tree::Node *root,
     for (Mutation_Annotated_Tree::Mutation &m : root->mutations) {
         ins_mut(parent_mutations, m);
     }
-    if (!root->not_sample()) {
-        samples.insert(std::make_pair(root, parent_mutations));
+    if (root->is_leaf()) {
+        samples.insert(std::make_pair(root->identifier, parent_mutations));
     }
     for (auto child : root->children) {
         insert_samples_worker(child, parent_mutations, samples);
@@ -37,8 +37,8 @@ static void check_samples_worker(Mutation_Annotated_Tree::Node *root,
     for (Mutation_Annotated_Tree::Mutation &m : root->mutations) {
         ins_mut(parent_mutations, m);
     }
-    if (!root->not_sample()) {
-        auto iter = samples.find(root);
+    if (root->is_leaf()) {
+        auto iter = samples.find(root->identifier);
         if (iter == samples.end()) {
             fprintf(stderr, "[ERROR] Extra Sample %s ? \n",
                     root->identifier.c_str());
@@ -70,19 +70,19 @@ static void check_samples_worker(Mutation_Annotated_Tree::Node *root,
     }
 }
 void check_samples(Mutation_Annotated_Tree::Node *root,
-                   std::unordered_map<Mutation_Annotated_Tree::Node *,
-                                      Mutation_Set> &samples) {
+                   Sample_Mut_Type &samples) {
     Mutation_Set mutations;
     if (samples.empty()) {
         insert_samples_worker(root, mutations, samples);
     } else {
+        fprintf(stderr,"checking\n");
         check_samples_worker(root, mutations, samples);
         for (auto s : samples) {
             fprintf(stderr, "[ERROR] Missing Sample %s ? \n",
-                    s.first->identifier.c_str());
+                    s.first.c_str());
         }
         //#ifndef NDEBUG
-        //fprintf(stderr,"checked\n");
+        fprintf(stderr,"checked\n");
         //#endif
     }
 }

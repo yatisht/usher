@@ -76,11 +76,12 @@ void Tree_Rearrangement::refine_trees(
     for (auto this_tree : optimal_trees) {
         fprintf(stderr, "Before refinement: %zu \n",
                 this_tree.get_parsimony_score());
-        auto dfs_ordered_nodes = this_tree.depth_first_expansion();
         Sample_Mut_Type ori;
+        check_samples(this_tree.root, ori);
+        auto dfs_ordered_nodes = this_tree.depth_first_expansion();
+
         std::vector<MAT::Node*>& new_nodes=this_tree.new_nodes;
         while(!new_nodes.empty()){
-        check_samples(this_tree.root, ori);
         std::vector<MAT::Node *> optimized;
         std::vector<MAT::Node *>& this_round = new_nodes;;
         std::vector<MAT::Node *> next_round;
@@ -102,14 +103,13 @@ void Tree_Rearrangement::refine_trees(
             });
             
             if (have_update) {
-                Sample_Mut_Type copy(ori);
-                check_samples(this_tree.root, copy);
                 dfs_ordered_nodes = this_tree.depth_first_expansion();
             }
         split_rounds(this_round, next_round, dfs_ordered_nodes);
         }
         new_nodes=optimized;
         }
+        check_samples(this_tree.root, ori);
 
         fprintf(stderr, "After refinement: %zu \n",
                 this_tree.get_parsimony_score());

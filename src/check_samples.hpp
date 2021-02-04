@@ -1,5 +1,6 @@
 #include "mutation_annotated_tree.hpp"
 #include <cstdio>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -18,8 +19,8 @@ struct MutationHash {
 typedef std::unordered_set<Mutation_Annotated_Tree::Mutation, MutationHash,
                            MutationComparator>
     Mutation_Set;
-typedef std::unordered_map<Mutation_Annotated_Tree::Node *, Mutation_Set>
+typedef std::unordered_map<std::string, Mutation_Set>
     Sample_Mut_Type;
 void check_samples(
     Mutation_Annotated_Tree::Node *root,
-    std::unordered_map<Mutation_Annotated_Tree::Node *, Mutation_Set> &samples);
+    Sample_Mut_Type &samples);

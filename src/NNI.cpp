@@ -137,7 +137,7 @@ Original_States get_original_states(std::vector<MAT::Node*> dfs_ordered_nodes, c
     }
     return result;
 }
-static void insert_node(MAT::Node *parent, MAT::Node *to_insert,
+static void insert_node_internal(MAT::Node *parent, MAT::Node *to_insert,
                         MAT::Tree &tree) {
     MAT::Mutations_Collection best_common;
     MAT::Mutations_Collection best_sibling_unique;
@@ -179,7 +179,22 @@ static void insert_node(MAT::Node *parent, MAT::Node *to_insert,
         parent_children.push_back(new_node);
     }
 }
-
+static void insert_node_leaf(MAT::Node *parent, MAT::Node *to_insert,
+                        MAT::Tree &tree){
+    std::string ori_identifier=parent->identifier;
+    std::string new_identifier=std::to_string(++tree.curr_internal_node);
+    tree.rename_node(ori_identifier,new_identifier);
+    tree.create_node(ori_identifier,parent);
+    parent->children.push_back(to_insert);
+}
+static void insert_node(MAT::Node *parent, MAT::Node *to_insert,
+                        MAT::Tree &tree){
+    if(parent->is_leaf()){
+        insert_node_leaf(parent, to_insert, tree);
+    }else {
+        insert_node_internal(parent, to_insert, tree);
+    }
+}
 template <bool move_to_parent>
 static void
 apply_move(MAT::Node *this_node, const std::pair<size_t, size_t> &range,
