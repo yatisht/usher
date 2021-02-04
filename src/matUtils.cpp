@@ -6,7 +6,8 @@
 #include <boost/program_options.hpp> 
 #include <boost/filesystem.hpp>
 //#include "usher_graph.hpp"
-#include "usher_mapper.cpp"//it shouldn't need this.
+#include "usher_mapper.cpp"//it shouldn't need this, but if I just include the hpp it insists that the mapper2_body function isn't defined. 
+
 namespace po = boost::program_options;
 namespace MAT = Mutation_Annotated_Tree;
 
@@ -159,12 +160,21 @@ MAT::Tree restrictSamples (std::string samples_filename, MAT::Tree T) {
 }
 
 MAT::Tree findEPPs (MAT::Tree Tobj) {
+    TIMEIT()
     //all comments on function JDM
     //first, need to iterate through all leaf nodes, including condensed nodes and single leaves
     //internal nodes have metadata objects but those are just gonna be default values 0 for epps for now which should indicate high confidence anyways
     //the simplest way to do this is to iterate through all nodes and check whether each one is a leaf
-    MAT::Tree* T = &Tobj; //T in this function is a pointer because of how the mapper is written.
-    auto fdfs = T->depth_first_expansion(); //the full tree expanded for outer loop iteration.
+    //I'm having segfault problems, which I'm going to guess have to do with how I'm editing things while iterating over them?
+    //maybe try making a copy of the tree and popping from the copy, then updating the node in the original without ever creating a node?
+
+    
+    //MAT::Tree* T = &Tobj; //T in this function is a pointer because of how the mapper is written.
+    //fprintf(stderr, "Number of Leaves on Tree Pre-everything %d \n", Tobj.get_num_leaves());
+    //fprintf(stderr, "Assigned tree pointer\n");
+    MAT::Tree TCopy = MAT::get_tree_copy(Tobj);
+    MAT::Tree* T = &TCopy; //wants the pointer for mapping.
+    auto fdfs = Tobj.depth_first_expansion(); //the full tree expanded for outer loop iteration.
     for (size_t s=0; s<fdfs.size(); s++){ //this loop is not a parallel for because its going to contain a parallel for
         //get the node object.
         auto node = fdfs[s];
@@ -184,7 +194,7 @@ MAT::Tree findEPPs (MAT::Tree Tobj) {
                 }
             }
             //then load in ancestral mutations
-            for (auto n: T->rsearch(node->identifier)) {
+            for (auto n: Tobj.rsearch(node->identifier)) {
                 for (auto m: n->mutations) {
                     if (m.is_masked() || (std::find(anc_positions.begin(), anc_positions.end(), m.position) == anc_positions.end())) {
                         ancestral_mutations.emplace_back(m);
@@ -194,17 +204,28 @@ MAT::Tree findEPPs (MAT::Tree Tobj) {
                     }
                 }
             }
+            //fprintf(stderr, "Loaded mutations for leaf into array\n");
+
+            //JDM-create a copy of the tree for pruning and mapping.
+
+            //fprintf(stderr, "Number of Leaves on Clone Tree Premapping %d \n", T->get_num_leaves());
+
             //now that we have the mutation set, pop the current node from the Tree
             //save its identifier, parent, and branch length for replacement
-            MAT::Node* npar = node->parent;
-            std::string nid = node->identifier;
+            //fprintf(stderr, "Preremoval Parent ID %s \n", node->parent->identifier.c_str());
+            //const std::string &nparid = node->parent->identifier;
+            MAT::Node* nparn = node->parent;
+            const std::string &nid = node->identifier; //needed to relocate the original node
             float blen = node->branch_length;
-            T->remove_node(node->identifier, true); //this should modify in-place
+
+            T->remove_node(node->identifier, true); //this should modify in-place. pop it from the copy
+            //fprintf(stderr, "Postremoval Parent ID %s \n", nparid.c_str());
+
             //the ancestral_mutations vector, plus the mutations assigned to this specific node, constitute the "missing_sample" equivalents for calling the mapper
             //PUT THE MAPPING HERE?? THERES NO CLEAR FUNCTION TO DO THIS :( WHY YATISH, WHY WRITE IT SO HORRIBLY
             //just super confusing repetitive ass code from the main Usher cpp, ugh
             //I think I'll have to loop over every node in the pruned tree and check placement???
-            
+            //fprintf(stderr, "Node removed from the tree\n");
             //COPIED FROM SOME PART OF USHER 
             auto dfs = T->depth_first_expansion();
             size_t total_nodes = dfs.size();
@@ -273,10 +294,24 @@ MAT::Tree findEPPs (MAT::Tree Tobj) {
                     }); 
             //BACK TO MY CODE (JDM)
             //put the node back.
-            T->create_node(nid, npar, blen);
-            //give it metadata
-            auto cnode = T->get_node(nid);
+            //fprintf(stderr, "Node %s remapped\n", nid.c_str()); //seems fine...
+            //fprintf(stderr, "Node branch length: %f \n", blen);
+            //fprintf(stderr, "Postmapping Parent ID %s \n", nparid.c_str());
+            //fprintf(stderr, "Number of Leaves on Clone Tree Postmapping %d \n", T->get_num_leaves());
+            MAT::Node* repnode = NULL;
+            //fprintf(stderr, "Created blank node object\n");
+            repnode = T->create_node(nid, nparn, blen); //replace the node back onto the tree copy
+            //can't add error messages to the create node function because it's called a bajillion times in the mapper and it floods me out
+            //delete the tree copy.
+            //fprintf(stderr, "Attempting to delete tree copy\n");
+            //delete T;
+            //fprintf(stderr, "Tree copy deleted\n");
+            //fprintf(stderr, "Node recreated\n");
+            //give the original tree node, which hasn't moved, the metadata.
+            auto cnode = Tobj.get_node(nid);
             cnode->epps = num_best;
+            //fprintf(stderr, "Node metadata updated\n");
+
         }
     }
     return Tobj; //return the actual object.
@@ -302,6 +337,7 @@ int main(int argc, char** argv) {
     }
     // If the argument to calculate equally parsimonious placements was used, perform this operation
     if (fepps) {
+        fprintf(stderr, "Attempting to calculate EPPs\n");
         T = findEPPs(T);
     }
 
