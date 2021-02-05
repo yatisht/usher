@@ -715,6 +715,17 @@ Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Tree::create_node (std::
     return create_node(identifier, par, branch_len);
 }
 
+Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Tree::add_node (Node* node, Node* par) {
+    //new function which incorporates a full node object and its information. 
+    if (all_nodes.find(node->identifier) != all_nodes.end()) {
+        fprintf(stderr, "Error: %s already in the tree!\n", node->identifier.c_str());
+        exit(1);
+    }
+    all_nodes[node->identifier] = node;
+    par->children.push_back(node);
+    return node;
+}
+
 Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Tree::get_node (std::string nid) {
     if (all_nodes.find(nid) != all_nodes.end()) {
         return all_nodes[nid];

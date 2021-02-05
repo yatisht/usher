@@ -119,6 +119,7 @@ namespace Mutation_Annotated_Tree {
             Node* create_node (std::string const& identifier, float branch_length = -1.0);
             Node* create_node (std::string const& identifier, Node* par, float branch_length = -1.0);
             Node* create_node (std::string const& identifier, std::string const& parent_id, float branch_length = -1.0);
+            Node* add_node (Node* node, Node* par);
             Node* get_node (std::string identifier);
             bool is_ancestor (std::string anc_id, std::string nid);
             std::vector<Node*> rsearch (std::string nid);

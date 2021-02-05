@@ -173,7 +173,8 @@ MAT::Tree findEPPs (MAT::Tree Tobj) {
     //fprintf(stderr, "Number of Leaves on Tree Pre-everything %d \n", Tobj.get_num_leaves());
     //fprintf(stderr, "Assigned tree pointer\n");
     MAT::Tree TCopy = MAT::get_tree_copy(Tobj);
-    MAT::Tree* T = &TCopy; //wants the pointer for mapping.
+    MAT::Tree* T = &TCopy; //wants the pointer for mapping. Going to be popping from and adding to the tree copy for now.
+
     auto fdfs = Tobj.depth_first_expansion(); //the full tree expanded for outer loop iteration.
     for (size_t s=0; s<fdfs.size(); s++){ //this loop is not a parallel for because its going to contain a parallel for
         //get the node object.
@@ -214,10 +215,13 @@ MAT::Tree findEPPs (MAT::Tree Tobj) {
             //save its identifier, parent, and branch length for replacement
             //fprintf(stderr, "Preremoval Parent ID %s \n", node->parent->identifier.c_str());
             //const std::string &nparid = node->parent->identifier;
-            MAT::Node* nparn = node->parent;
-            const std::string &nid = node->identifier; //needed to relocate the original node
-            float blen = node->branch_length;
-
+            //MAT::Node* nparn = node->parent;
+            //const std::string &nid = node->identifier; //needed to relocate the original node
+            //float blen = node->branch_length;
+            //MAT::Tree* T = new MAT::Tree;
+            //MAT::Tree TCopy = MAT::get_tree_copy(Tobj);
+            //T = &TCopy;            
+            
             T->remove_node(node->identifier, true); //this should modify in-place. pop it from the copy
             //fprintf(stderr, "Postremoval Parent ID %s \n", nparid.c_str());
 
@@ -298,20 +302,24 @@ MAT::Tree findEPPs (MAT::Tree Tobj) {
             //fprintf(stderr, "Node branch length: %f \n", blen);
             //fprintf(stderr, "Postmapping Parent ID %s \n", nparid.c_str());
             //fprintf(stderr, "Number of Leaves on Clone Tree Postmapping %d \n", T->get_num_leaves());
-            MAT::Node* repnode = NULL;
+            //MAT::Node* repnode = NULL;
             //fprintf(stderr, "Created blank node object\n");
-            repnode = T->create_node(nid, nparn, blen); //replace the node back onto the tree copy
+            //repnode = T->create_node(nid, nparn, blen); //replace the node back onto the tree copy
             //can't add error messages to the create node function because it's called a bajillion times in the mapper and it floods me out
             //delete the tree copy.
-            //fprintf(stderr, "Attempting to delete tree copy\n");
             //delete T;
             //fprintf(stderr, "Tree copy deleted\n");
             //fprintf(stderr, "Node recreated\n");
-            //give the original tree node, which hasn't moved, the metadata.
-            auto cnode = Tobj.get_node(nid);
-            cnode->epps = num_best;
-            //fprintf(stderr, "Node metadata updated\n");
+            
+            T->add_node(node, node->parent); //simplest option? assuming the node object doesn't get deleted along with the tree vector attribute
 
+            //give the original tree node, which hasn't moved, the metadata.
+            auto cnode = Tobj.get_node(node->identifier);
+            cnode->epps = num_best;
+            fprintf(stderr, "Node metadata updated- ID %s ", node->identifier.c_str());
+            fprintf(stderr, "EPPs %ld\n", num_best);
+            //fprintf(stderr, "Attempting to delete tree copy\n");
+            //delete T;
         }
     }
     return Tobj; //return the actual object.
