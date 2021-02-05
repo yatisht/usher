@@ -16,13 +16,19 @@ po::variables_map check_options(int argc, char** argv) {
     po::options_description desc{"Options"};
     desc.add_options()
         ("input-mat,i", po::value<std::string>()->required(),
-         "Input mutation-annotated tree file to mask [REQUIRED]")
-        ("output-mat,o", po::value<std::string>()->required(),
-         "Output masked mutation-annotated tree file [REQUIRED]")
-        ("restricted-samples,s", po::value<std::string>()->default_value("none"), //this will buf if they name their restricted sample file "none" with no extension for some insane reason
+         "Input mutation-annotated tree file [REQUIRED]")
+        ("output-mat,o", po::value<std::string>()->default_value(""),
+         "Use to output a full processed mutation-annotated tree file.")
+        ("restricted-samples,s", po::value<std::string>()->default_value(""), 
          "Sample names to restrict. Use to perform masking") //this is now optional, as the Utils may be doing things other than masking. Should still perform the same given the same commands as previous.
         ("find-epps,e", po::bool_switch(),
         "Use to calculate and store the number of equally parsimonious placements for all nodes")
+        ("write-vcf,v", po::value<string>()->default_value(""),
+         "Output VCF file ")
+        ("no-genotypes,n", po::bool_switch(),
+        "Do not include sample genotype columns in VCF output. Used only with the vcf option")
+        ("write-tree,t", po::value<string>()->default_value(""),
+         "Use to write a newick tree to the indicated file.")
         ("help,h", "Print help messages");
     
     po::options_description all_options;
@@ -162,16 +168,7 @@ MAT::Tree restrictSamples (std::string samples_filename, MAT::Tree T) {
 MAT::Tree findEPPs (MAT::Tree Tobj) {
     TIMEIT()
     //all comments on function JDM
-    //first, need to iterate through all leaf nodes, including condensed nodes and single leaves
-    //internal nodes have metadata objects but those are just gonna be default values 0 for epps for now which should indicate high confidence anyways
-    //the simplest way to do this is to iterate through all nodes and check whether each one is a leaf
-    //I'm having segfault problems, which I'm going to guess have to do with how I'm editing things while iterating over them?
-    //maybe try making a copy of the tree and popping from the copy, then updating the node in the original without ever creating a node?
 
-    
-    //MAT::Tree* T = &Tobj; //T in this function is a pointer because of how the mapper is written.
-    //fprintf(stderr, "Number of Leaves on Tree Pre-everything %d \n", Tobj.get_num_leaves());
-    //fprintf(stderr, "Assigned tree pointer\n");
     MAT::Tree TCopy = MAT::get_tree_copy(Tobj);
     MAT::Tree* T = &TCopy; //wants the pointer for mapping. Going to be popping from and adding to the tree copy for now.
 
@@ -205,32 +202,10 @@ MAT::Tree findEPPs (MAT::Tree Tobj) {
                     }
                 }
             }
-            //fprintf(stderr, "Loaded mutations for leaf into array\n");
-
-            //JDM-create a copy of the tree for pruning and mapping.
-
-            //fprintf(stderr, "Number of Leaves on Clone Tree Premapping %d \n", T->get_num_leaves());
-
             //now that we have the mutation set, pop the current node from the Tree
-            //save its identifier, parent, and branch length for replacement
-            //fprintf(stderr, "Preremoval Parent ID %s \n", node->parent->identifier.c_str());
-            //const std::string &nparid = node->parent->identifier;
-            //MAT::Node* nparn = node->parent;
-            //const std::string &nid = node->identifier; //needed to relocate the original node
-            //float blen = node->branch_length;
-            //MAT::Tree* T = new MAT::Tree;
-            //MAT::Tree TCopy = MAT::get_tree_copy(Tobj);
-            //T = &TCopy;            
-            
             T->remove_node(node->identifier, true); //this should modify in-place. pop it from the copy
-            //fprintf(stderr, "Postremoval Parent ID %s \n", nparid.c_str());
-
             //the ancestral_mutations vector, plus the mutations assigned to this specific node, constitute the "missing_sample" equivalents for calling the mapper
-            //PUT THE MAPPING HERE?? THERES NO CLEAR FUNCTION TO DO THIS :( WHY YATISH, WHY WRITE IT SO HORRIBLY
-            //just super confusing repetitive ass code from the main Usher cpp, ugh
-            //I think I'll have to loop over every node in the pruned tree and check placement???
-            //fprintf(stderr, "Node removed from the tree\n");
-            //COPIED FROM SOME PART OF USHER 
+
             auto dfs = T->depth_first_expansion();
             size_t total_nodes = dfs.size();
 
@@ -298,19 +273,6 @@ MAT::Tree findEPPs (MAT::Tree Tobj) {
                     }); 
             //BACK TO MY CODE (JDM)
             //put the node back.
-            //fprintf(stderr, "Node %s remapped\n", nid.c_str()); //seems fine...
-            //fprintf(stderr, "Node branch length: %f \n", blen);
-            //fprintf(stderr, "Postmapping Parent ID %s \n", nparid.c_str());
-            //fprintf(stderr, "Number of Leaves on Clone Tree Postmapping %d \n", T->get_num_leaves());
-            //MAT::Node* repnode = NULL;
-            //fprintf(stderr, "Created blank node object\n");
-            //repnode = T->create_node(nid, nparn, blen); //replace the node back onto the tree copy
-            //can't add error messages to the create node function because it's called a bajillion times in the mapper and it floods me out
-            //delete the tree copy.
-            //delete T;
-            //fprintf(stderr, "Tree copy deleted\n");
-            //fprintf(stderr, "Node recreated\n");
-            
             T->add_node(node, node->parent); //simplest option? assuming the node object doesn't get deleted along with the tree vector attribute
 
             //give the original tree node, which hasn't moved, the metadata.
@@ -318,11 +280,239 @@ MAT::Tree findEPPs (MAT::Tree Tobj) {
             cnode->epps = num_best;
             fprintf(stderr, "Node metadata updated- ID %s ", node->identifier.c_str());
             fprintf(stderr, "EPPs %ld\n", num_best);
-            //fprintf(stderr, "Attempting to delete tree copy\n");
-            //delete T;
         }
     }
     return Tobj; //return the actual object.
+}
+
+//CODE FOR VCF CONVERSION
+
+void make_vcf (MAT::Tree T, std::string vcf_filename, bool no_genotypes) {
+    auto vcf_filepath = outdir + "/" + vcf_filename;
+    FILE *vcf_file = fopen(vcf_filepath.c_str(), "w");
+    vector<Mutation_Annotated_Tree::Node*> dfs = T.depth_first_expansion();
+    write_vcf_header(vcf_file, dfs, !no_genotypes);
+    write_vcf_rows(vcf_file, T, dfs, !no_genotypes);
+    fclose(vcf_file);
+}
+
+void write_vcf_header(FILE *vcf_file, vector<Mutation_Annotated_Tree::Node*> &dfs,
+                      bool print_genotypes) {
+    // Write minimal VCF header with sample names in same order that genotypes
+    // will be printed out (DFS).
+    fprintf(vcf_file, "##fileformat=VCFv4.2\n");
+    fprintf(vcf_file, "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO");
+    if (print_genotypes) {
+        fprintf(vcf_file, "\tFORMAT");
+        for (auto node: dfs) {
+            if (node->is_leaf()) {
+                fprintf(vcf_file, "\t%s", node->identifier.c_str());
+            }
+        }
+    }
+    fputc('\n', vcf_file);
+}
+
+uint count_leaves(vector<Mutation_Annotated_Tree::Node*> &dfs) {
+    // Return the number of leaf nodes in dfs
+    uint count = 0;
+    for (auto node: dfs) {
+        if (node->is_leaf()) {
+            count++;
+        }
+    }
+    return count;
+}
+
+int8_t *new_gt_array(int size, int8_t ref) {
+    // Allocate and return an array of int8_t (encoded nucleotide values) initialized to ref.
+    int8_t *gt_array = new int8_t[size];
+    for (int i = 0;  i < size;  i++) {
+        gt_array[i] = ref;
+    }
+    return gt_array;
+}
+
+uint r_add_genotypes(MAT::Node *node,
+                     unordered_map<string, vector<int8_t *>> &chrom_pos_genotypes, 
+                     unordered_map<string, vector<int8_t>> &chrom_pos_ref,
+                     uint leaf_count, uint leaf_ix, vector<struct MAT::Mutation *> &mut_stack) {
+    // Traverse tree, adding leaf/sample genotypes for mutations annotated on path from root to node
+    // to chrom_pos_genotypes (and reference allele to chrom_pos_ref).
+    for (auto &mut: node->mutations) {
+      if (mut.is_masked()) {
+          continue;
+      }
+      mut_stack.push_back(&mut);
+    }
+    if (node->is_leaf()) {
+        // Store genotypes in this leaf's column for all mutations on the path from root to leaf
+        for (auto mut: mut_stack) {
+            string chrom = mut->chrom;
+            uint pos = (uint)mut->position;
+            if (chrom.empty()) {
+              fprintf(stderr, "mut->chrom is empty string at node '%s', position %u\n",
+                      node->identifier.c_str(), pos);
+            }
+            if (chrom_pos_genotypes.find(chrom) == chrom_pos_genotypes.end()) {
+                // First variant on chrom: initialize a vector mapping position to genotype.
+                // Assume a genome size similar to SARS-CoV-2, resize if necessary.
+                uint initSize = 30000;
+                chrom_pos_genotypes[chrom] = vector<int8_t *>(initSize);
+                chrom_pos_ref[chrom] = vector<int8_t>(initSize);
+            }
+            if (pos >= chrom_pos_genotypes[chrom].size()) {
+                // chrom has larger positions than we assumed; allocate a larger vector.
+                uint newSize = chrom_pos_genotypes[chrom].size() * 2;
+                chrom_pos_genotypes[chrom].resize(newSize);
+                chrom_pos_ref[chrom].resize(newSize);
+            }
+            if (! chrom_pos_genotypes[chrom][pos]) {
+                // First variant reported at this position; allocate genotype array and
+                // store reference allele (which is stored in par_nuc not ref_nuc).
+                chrom_pos_genotypes[chrom][pos] = new_gt_array(leaf_count, mut->par_nuc);
+                chrom_pos_ref[chrom][pos] = mut->par_nuc;
+            }
+            // Store the allele/genotype for this chrom / pos / sample.
+            chrom_pos_genotypes[chrom][pos][leaf_ix] = mut->mut_nuc;
+        }
+        leaf_ix++;
+    }
+    for (auto child: node->children) {
+        leaf_ix = r_add_genotypes(child, chrom_pos_genotypes, chrom_pos_ref, leaf_count, leaf_ix,
+                                  mut_stack);
+    }
+    for (auto mut: node->mutations) {
+        mut_stack.pop_back();
+    }
+    return leaf_ix;
+}
+
+unordered_map<int8_t, uint>count_alleles(int8_t *gt_array, uint gtCount)  {
+    // Tally up the count of each allele (both ref and alts) from sample genotypes.
+    unordered_map<int8_t, uint> allele_counts;
+    for (uint i = 0;  i < gtCount;  i++) {
+        int8_t allele = gt_array[i];
+        if (allele_counts.find(allele) == allele_counts.end()) {
+            allele_counts.insert({allele, 1});
+        } else {
+            allele_counts[allele]++;
+        }
+    }
+    return allele_counts;
+}
+
+bool cmp_allele_count_desc(const pair<int8_t, uint>& a, const pair<int8_t, uint>& b) {
+    // Compare counts of two alleles, for sorting in descending order.
+    return a.second > b.second;
+}
+
+map<int8_t, uint>make_alts(unordered_map<int8_t, uint> &allele_counts, int8_t ref) {
+    // Map alternate alleles, ordered by count (highest first), to counts.
+    vector<pair<int8_t, uint>> pairs;
+    for (auto &itr : allele_counts) {
+        if (itr.first != ref) {
+            pairs.push_back(itr);
+        }
+    }
+    sort(pairs.begin(), pairs.end(), cmp_allele_count_desc);
+    map<int8_t, uint> alts;
+    for (auto &itr : pairs) {
+      alts.insert(itr);
+    }
+    return alts;
+}
+
+string make_id(int8_t ref, uint pos, map<int8_t, uint> &alts) {
+    // Return a C string comma-sep list of the form <ref><pos><alt1>[,<ref><pos><alt2>[,...]].
+    string id;
+    for (auto &itr : alts) {
+        if (! id.empty()) {
+            id += ",";
+        }
+        id += MAT::get_nuc(ref) + to_string(pos) + MAT::get_nuc(itr.first);
+    }
+    return id;
+}
+
+string make_alt_str(map<int8_t, uint> &alts) {
+    // Return a C string comma-sep list of alternate alleles.
+    string alt_str;
+    for (auto &itr : alts) {
+        if (! alt_str.empty()) {
+          alt_str += ",";
+        }
+        alt_str += MAT::get_nuc(itr.first);
+    }
+    return alt_str;
+}
+
+string make_info(map<int8_t, uint> &alts, uint leaf_count) {
+    // Return a C string VCF INFO value with AC (comma-sep list of alternate allele counts)
+    // and AN (total genotype count).
+    string alt_count_str;
+    for (auto &itr : alts) {
+        if (! alt_count_str.empty()) {
+            alt_count_str += ",";
+        }
+        alt_count_str += to_string(itr.second);
+    }
+    string info = "AC=" + alt_count_str + ";AN=" + to_string(leaf_count);
+    return info;
+}
+
+int *make_allele_codes(int8_t ref, map<int8_t, uint> &alts) {
+    // Return an array that maps binary-encoded nucleotide to VCF genotype encoding:
+    // 0 for reference allele, 1 for first alternate allele, and so on.
+    int *al_codes = new int[256];
+    for (int i = 0;  i < 256;  i++) {
+        al_codes[i] = 0;
+    }
+    al_codes[(uint8_t)ref] = 0;
+    int altIx = 1;
+    for (auto &itr : alts) {
+        al_codes[itr.first] = altIx++;
+    }
+    return al_codes;
+}
+
+void write_vcf_rows(FILE *vcf_file, MAT::Tree T, vector<MAT::Node*> &dfs, bool print_genotypes) {
+    // Fill in a matrix of genomic positions and sample genotypes in the same order as the
+    // sample names in the header, compute allele counts, and output VCF rows.
+    uint leaf_count = count_leaves(dfs);
+    // The int8_t here is mutation_annotated_tree.hpp's binary encoding of IUPAC nucleotide bases.
+    unordered_map<string, vector<int8_t *>> chrom_pos_genotypes;
+    unordered_map<string, vector<int8_t>> chrom_pos_ref;
+    vector<struct MAT::Mutation *> mut_stack;
+    r_add_genotypes(T.root, chrom_pos_genotypes, chrom_pos_ref, leaf_count, 0, mut_stack);
+    // Write row of VCF for each variant in chrom_pos_genotypes[chrom]
+    for (auto itr = chrom_pos_genotypes.begin();  itr != chrom_pos_genotypes.end();  ++itr) {
+        string chrom = itr->first;
+        vector<int8_t *> pos_genotypes = itr->second;
+        for (uint pos = 0;  pos < pos_genotypes.size();  pos++) {
+            int8_t *gt_array = pos_genotypes[pos];
+            if (gt_array) {
+              int8_t ref = chrom_pos_ref[chrom][pos];
+              unordered_map<int8_t, uint>allele_counts = count_alleles(gt_array, leaf_count);
+              map<int8_t, uint>alts = make_alts(allele_counts, ref);
+              string id = make_id(ref, pos, alts);
+              string alt_str = make_alt_str(alts);
+              string info = make_info(alts, leaf_count);
+              fprintf(vcf_file, "%s\t%d\t%s\t%c\t%s\t.\t.\t%s",
+                      chrom.c_str(), pos, id .c_str(), MAT::get_nuc(ref), alt_str.c_str(),
+                      info.c_str());
+              if (print_genotypes) {
+                  int *allele_codes = make_allele_codes(ref, alts);
+                  fprintf(vcf_file, "\tGT");
+                  for (uint i = 0;  i < leaf_count;  i++) {
+                      int8_t allele = gt_array[i];
+                      fprintf(vcf_file, "\t%d", allele_codes[allele]);
+                  }
+              }
+              fputc('\n', vcf_file);
+            }
+        }
+    }
 }
 
 int main(int argc, char** argv) {
@@ -332,7 +522,12 @@ int main(int argc, char** argv) {
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string output_mat_filename = vm["output-mat"].as<std::string>();
     std::string samples_filename = vm["restricted-samples"].as<std::string>();
+    std::string tree_filename = vm["write-tree"].as<string>();
+    std::string vcf_filename = vm["write-vcf"].as<string>();
+
     bool fepps = vm["find-epps"].as<bool>();
+    bool no_genotypes = vm['no-genotypes'].as<bool>();
+
     // Load input MAT and uncondense tree
     MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
     //T here is the actual object.
@@ -340,7 +535,7 @@ int main(int argc, char** argv) {
       T.uncondense_leaves();
     }
     // If a restricted samples file was provided, perform masking procedure
-    if (samples_filename != "none") {
+    if (samples_filename != "") {
         T = restrictSamples(samples_filename, T);
     }
     // If the argument to calculate equally parsimonious placements was used, perform this operation
@@ -348,9 +543,22 @@ int main(int argc, char** argv) {
         fprintf(stderr, "Attempting to calculate EPPs\n");
         T = findEPPs(T);
     }
-
-    // Store final MAT to output file 
-    MAT::save_mutation_annotated_tree(T, output_mat_filename);
+    //if a vcf filename was given, write a vcf to it
+    if (vcf_filename != "") {
+        make_vcf(T, vcf_filename, no_genotypes);
+    }
+    //if a newick tree filename was given, write a tree to it
+    if (tree_filename != "") {
+        auto tree_filepath = outdir + "/" + tree_filename;
+        FILE *tree_file = fopen(tree_filepath.c_str(), "w");
+        fprintf(tree_file, "%s\n",
+            MAT::get_newick_string(T, true, true, true).c_str());
+        fclose(tree_file);        
+    }
+    // Store final MAT to output file if indicated
+    if (output_mat_filename != "") {
+        MAT::save_mutation_annotated_tree(T, output_mat_filename);
+    }
 
     return 0;
 }
