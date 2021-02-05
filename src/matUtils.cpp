@@ -218,7 +218,6 @@ MAT::Tree findEPPs (MAT::Tree Tobj) {
             T->remove_node(node->identifier, true); //this should modify in-place. pop it from the copy
             //fprintf(stderr, "Postremoval Parent ID %s \n", nparid.c_str());
             fprintf(stderr, "Mutations %ld ", ancestral_mutations.size());
-            size_t num_best = 0; //default to 0 for now. This value applies to the metadata if the mapping isn't ran for whatever reason
 
             if (ancestral_mutations.size()>0) {
                 //the ancestral_mutations vector, plus the mutations assigned to this specific node, constitute the "missing_sample" equivalents for calling the mapper
@@ -304,15 +303,18 @@ MAT::Tree findEPPs (MAT::Tree Tobj) {
                 //fprintf(stderr, "Node recreated\n");
                 fprintf(stderr, "Parsimony %u ", best_set_difference);
                 T->add_node(node, node->parent); //simplest option? assuming the node object doesn't get deleted along with the tree vector attribute
+
+                //give the original tree node, which hasn't moved, the metadata.
+                auto cnode = Tobj.get_node(node->identifier);
+                cnode->epps = num_best;
+                fprintf(stderr, "EPPs %ld\n", num_best);    
+
             } else {
                 //no mutations for this sample compared to the reference. This may cause problems with the mapper
+                //if this gets skipped, it keeps the previous value (default 0)
                 fprintf(stderr, "Parsimony N/A ");
             }
 
-            //give the original tree node, which hasn't moved, the metadata.
-            auto cnode = Tobj.get_node(node->identifier);
-            cnode->epps = num_best;
-            fprintf(stderr, "EPPs %ld\n", num_best);
 
         }
     }
