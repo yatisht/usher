@@ -933,6 +933,10 @@ size_t Mutation_Annotated_Tree::Tree::get_parsimony_score() {
 }
 
 void Mutation_Annotated_Tree::Tree::condense_leaves(std::vector<std::string> missing_samples) {
+    if (condensed_nodes.size() > 0) {
+        fprintf(stderr, "WARNING: tree contains condensed nodes. It may be condensed already!\n");
+    }
+
     auto tree_leaves = get_leaves_ids();
     for (auto l1_id: tree_leaves) {
         std::vector<Node*> polytomy_nodes;
@@ -1106,51 +1110,34 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_subtree (const Mutati
     Tree subtree;
 
     // Set of leaf and internal nodes corresponding to the subtree
-    std::unordered_set<Node*> subtree_nodes;
+    tbb::concurrent_unordered_set<Node*> subtree_nodes;
+    // Maintain a set of all ancestors of a sample for each sample
+    std::vector<tbb::concurrent_unordered_set<Node*>> all_ancestors(samples.size());
 
-    // To identify the internal nodes of the subtree, a queue is maintained
-    // which keeps a track of the nodes yet to be combined with its closest
-    // sibling 
-    std::queue<Node*> remaining;
-
-    for (auto s: samples) {
-        auto n = tree.get_node(s);
-        subtree_nodes.insert(n);
-        remaining.push(n);
-    }
-
-    // In each iteration, the remaining size reduces by 1
-    // The element at the front of the queue is popped out, along with another 
-    // element that it shares the nearest last common ancestor with, and this
-    // ancestor is added back to the queue. This repeats till only one element
-    // (root of the subtree) remains 
-    while (remaining.size() > 1) {
-        auto curr = remaining.front();
-        remaining.pop();
-
-        for (auto anc: tree.rsearch(curr->identifier)) {
-            bool found = false;
-            Node* lca = NULL;
-
-            auto num_elem = remaining.size();
-            for (size_t i = 0; i < num_elem; i++) {
-                auto next = remaining.front();
-                remaining.pop();
-                if (!found && tree.is_ancestor(anc->identifier, next->identifier)) {
-                    lca = anc;
-                    found = true;
-                }
-                else {
-                    remaining.push(next);
-                }
+    static tbb::affinity_partitioner ap;
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, samples.size()),
+            [&](tbb::blocked_range<size_t> r) {
+            for (size_t k=r.begin(); k<r.end(); ++k){
+               subtree_nodes.insert(tree.get_node(samples[k]));
+               for (auto anc: tree.rsearch(samples[k])) {
+                   all_ancestors[k].insert(anc);
+               }
             }
-            if (found) {
-                subtree_nodes.insert(lca);
-                remaining.push(lca);
-                break;
+    }, ap);
+
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, samples.size()),
+            [&](tbb::blocked_range<size_t> r) {
+            for (size_t i=r.begin(); i<r.end(); ++i){
+               for (size_t j=i+1; j<samples.size(); ++j){
+                   for (auto anc: tree.rsearch(samples[i])) {
+                      if (all_ancestors[j].find(anc) != all_ancestors[j].end()) {
+                         subtree_nodes.insert(anc);
+                         break;
+                      }
+                   }
+               }
             }
-        }
-    }
+    }, ap);
     
     auto dfs = tree.depth_first_expansion();
     std::stack<Node*> last_subtree_node;
