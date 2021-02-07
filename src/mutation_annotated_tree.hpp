@@ -119,7 +119,6 @@ namespace Mutation_Annotated_Tree {
             Node* create_node (std::string const& identifier, float branch_length = -1.0);
             Node* create_node (std::string const& identifier, Node* par, float branch_length = -1.0);
             Node* create_node (std::string const& identifier, std::string const& parent_id, float branch_length = -1.0);
-            Node* add_node (Node* node, Node* par);
             Node* get_node (std::string identifier);
             bool is_ancestor (std::string anc_id, std::string nid);
             std::vector<Node*> rsearch (std::string nid);
@@ -127,8 +126,9 @@ namespace Mutation_Annotated_Tree {
             void move_node (std::string source, std::string destination);
             std::vector<Node*> breadth_first_expansion(std::string nid="");
             std::vector<Node*> depth_first_expansion(Node* node=NULL);
-
             size_t get_parsimony_score();
+            size_t total_parsimony;
+
             void condense_leaves(std::vector<std::string> = std::vector<std::string>());
             void uncondense_leaves();
             void collapse_tree();
