@@ -513,6 +513,7 @@ void Mutation_Annotated_Tree::save_mutation_annotated_tree (Mutation_Annotated_T
     TIMEIT();
     Parsimony::data data;
     data.set_newick(get_newick_string(tree, false, true));
+    data.set_global_parsimony(tree.total_parsimony); //save this metadata value.
 
     auto dfs = tree.depth_first_expansion();
 
@@ -713,17 +714,6 @@ Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Tree::create_node (std::
 Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Tree::create_node (std::string const& identifier, std::string const& parent_id, float branch_len) {
     Node* par = all_nodes[parent_id];
     return create_node(identifier, par, branch_len);
-}
-
-Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Tree::add_node (Node* node, Node* par) {
-    //new function which incorporates a full node object and its information. 
-    if (all_nodes.find(node->identifier) != all_nodes.end()) {
-        fprintf(stderr, "Error: %s already in the tree!\n", node->identifier.c_str());
-        exit(1);
-    }
-    all_nodes[node->identifier] = node;
-    par->children.push_back(node);
-    return node;
 }
 
 Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Tree::get_node (std::string nid) {

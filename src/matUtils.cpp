@@ -29,6 +29,8 @@ po::variables_map check_options(int argc, char** argv) {
         "Do not include sample genotype columns in VCF output. Used only with the vcf option")
         ("write-tree,t", po::value<std::string>()->default_value(""),
          "Use to write a newick tree to the indicated file.")
+        ("get-parsimony,p", po::bool_switch(),
+        "Use to calculate and save global tree parsimony.")
         ("help,h", "Print help messages");
     
     po::options_description all_options;
@@ -531,6 +533,7 @@ int main(int argc, char** argv) {
     std::string tree_filename = vm["write-tree"].as<std::string>();
     std::string vcf_filename = vm["write-vcf"].as<std::string>();
 
+    bool get_parsimony = vm["get-parsimony"].as<bool>();
     bool fepps = vm["find-epps"].as<bool>();
     bool no_genotypes = vm["no-genotypes"].as<bool>();
 
@@ -560,6 +563,9 @@ int main(int argc, char** argv) {
         fprintf(tree_file, "%s\n",
             MAT::get_newick_string(T, true, true, true).c_str());
         fclose(tree_file);        
+    }
+    if (get_parsimony){
+        T.total_parsimony = T.get_parsimony_score();
     }
     // Store final MAT to output file if indicated
     if (output_mat_filename != "") {
