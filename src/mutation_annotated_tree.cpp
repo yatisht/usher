@@ -1056,3 +1056,116 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_tree_copy(Mutation_An
 
     return copy;
 }
+
+// Get the last common ancestor of two node identifiers. Return NULL if does not
+// exist
+Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::LCA (const Mutation_Annotated_Tree::Tree& tree, const std::string& nid1, const std::string& nid2) {
+    TIMEIT();
+    Node* ret = NULL;
+
+    if ((tree.get_node(nid1) == NULL) || (tree.get_node(nid2) == NULL)) {
+        return ret;
+    }
+
+    for (auto anc: tree.rsearch(nid1)) {
+        ret = anc;
+        if (tree.is_ancestor(anc->identifier, nid2)) {
+            return ret;
+        }
+    }
+
+    return ret;
+}
+
+// Extract the subtree consisting of the specified set of samples. This routine
+// maintains the internal node names of the input tree. Mutations are copied
+// from the tree such that the path of mutations from root to the sample is
+// same as the original tree.
+Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_subtree (const Mutation_Annotated_Tree::Tree& tree, const std::vector<std::string>& samples) {
+    TIMEIT();
+    Tree subtree;
+
+    // Set of leaf and internal nodes corresponding to the subtree
+    tbb::concurrent_unordered_set<Node*> subtree_nodes;
+    // Maintain a set of all ancestors of a sample for each sample
+    std::vector<tbb::concurrent_unordered_set<Node*>> all_ancestors(samples.size());
+
+    static tbb::affinity_partitioner ap;
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, samples.size()),
+            [&](tbb::blocked_range<size_t> r) {
+            for (size_t k=r.begin(); k<r.end(); ++k){
+               subtree_nodes.insert(tree.get_node(samples[k]));
+               for (auto anc: tree.rsearch(samples[k])) {
+                   all_ancestors[k].insert(anc);
+               }
+            }
+    }, ap);
+
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, samples.size()),
+            [&](tbb::blocked_range<size_t> r) {
+            for (size_t i=r.begin(); i<r.end(); ++i){
+               for (size_t j=i+1; j<samples.size(); ++j){
+                   for (auto anc: tree.rsearch(samples[i])) {
+                      if (all_ancestors[j].find(anc) != all_ancestors[j].end()) {
+                         subtree_nodes.insert(anc);
+                         break;
+                      }
+                   }
+               }
+            }
+    }, ap);
+    
+    auto dfs = tree.depth_first_expansion();
+    std::stack<Node*> last_subtree_node;
+    for (auto n: dfs) {
+        // If the node is in subtree_nodes, it should be added to the subtree
+        if (subtree_nodes.find(n) != subtree_nodes.end()) {
+            Node* subtree_parent = NULL;
+            if (last_subtree_node.size() > 0) {
+                while (!tree.is_ancestor(last_subtree_node.top()->identifier, n->identifier)) {
+                    last_subtree_node.pop();
+                }
+                subtree_parent = last_subtree_node.top();
+            }
+            // Add as root of the subtree
+            if (subtree_parent == NULL) {
+                Node* new_node = subtree.create_node(n->identifier);
+                
+                std::vector<Node*> root_to_node = tree.rsearch(n->identifier); 
+                std::reverse(root_to_node.begin(), root_to_node.end());
+                root_to_node.emplace_back(n);
+
+                for (auto curr: root_to_node) {
+                    for (auto m: curr->mutations) {
+                        new_node->add_mutation(m);
+                    }
+                }
+            }
+            // Add to the parent identified
+            else {
+                Node* new_node = subtree.create_node(n->identifier, subtree_parent->identifier);
+
+                std::vector<Node*> par_to_node;
+                for (auto anc: tree.rsearch(n->identifier)) {
+                    if (anc == subtree_parent) {
+                        break;
+                    }
+                    par_to_node.emplace_back(anc);
+                }
+                std::reverse(par_to_node.begin(), par_to_node.end());
+                par_to_node.emplace_back(n);
+
+                for (auto curr: par_to_node) {
+                    for (auto m: curr->mutations) {
+                        new_node->add_mutation(m);
+                    }
+                }
+            }
+            last_subtree_node.push(n);
+        }
+    }
+
+    subtree.curr_internal_node = tree.curr_internal_node;
+
+    return subtree;
+}
