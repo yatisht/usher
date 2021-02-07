@@ -172,14 +172,27 @@ MAT::Tree findEPPs (MAT::Tree Tobj) {
     //MAT::Tree* T = &Tobj; //T in this function is a pointer because of how the mapper is written.
     //fprintf(stderr, "Number of Leaves on Tree Pre-everything %d \n", Tobj.get_num_leaves());
     //fprintf(stderr, "Assigned tree pointer\n");
-    MAT::Tree TCopy = MAT::get_tree_copy(Tobj); //theoretically I shouldn't need the copy but this helped with segfaults I think. Once I get it all the way working I can revisit this
-    MAT::Tree* T = &TCopy; //wants the pointer for mapping. Going to be popping from and adding to the tree copy for now.
+    //MAT::Tree TCopy = MAT::get_tree_copy(Tobj); //theoretically I shouldn't need the copy but this helped with segfaults I think. Once I get it all the way working I can revisit this
+    //MAT::Tree* T = &TCopy; //wants the pointer for mapping. Going to be popping from and adding to the tree copy for now.
+    // MAT::Tree* T = new MAT::Tree;
+    MAT::Tree TCopy = MAT::get_tree_copy(Tobj);
+    MAT::Tree* T = &TCopy;
+    //auto fdfs = Tobj.depth_first_expansion(); //the full tree expanded for outer loop iteration.
+    //samples near end are the problematic ones... reverse order for ease of debugging
+    //std::reverse(fdfs.begin(), fdfs.end());
+    
 
-    auto fdfs = Tobj.depth_first_expansion(); //the full tree expanded for outer loop iteration.
-    for (size_t s=0; s<fdfs.size(); s++){ //this loop is not a parallel for because its going to contain a parallel for
+    std::vector<MAT::Node*> fdfs = Tobj.depth_first_expansion();
+    fprintf(stderr, "Number of Leaves in Vector: %ld\n", fdfs.size()); 
+
+    for (size_t s=0; s<fdfs.size(); s++){ //this loop is not a parallel for because its going to contain a parallel for.
         //get the node object.
         auto node = fdfs[s];
-        if (node->is_leaf()) {
+        //print tree sizes for tracking.
+        //fprintf(stderr,"Tree %ld ",Tobj.get_num_leaves());
+        //fprintf(stderr,"TreeCopy %ld ",T->get_num_leaves());
+        if (node->is_leaf()) { 
+            assert (node->children.size() == 0); //leaf nodes need to be leaves.
             fprintf(stderr, "Node- ID %s ", node->identifier.c_str()); //write the identifier to stderr
             //retrieve the full set of mutations associated with this Node object from root to it
             //to do this, get the full set of ancestral nodes and their mutations
@@ -215,7 +228,7 @@ MAT::Tree findEPPs (MAT::Tree Tobj) {
             //const std::string &nid = node->identifier; //needed to relocate the original node
             //float blen = node->branch_length;
    
-            T->remove_node(node->identifier, true); //this should modify in-place. pop it from the copy
+            //T->remove_node(node->identifier, true); //this should modify in-place. pop it from the copy
             //fprintf(stderr, "Postremoval Parent ID %s \n", nparid.c_str());
             fprintf(stderr, "Mutations %ld ", ancestral_mutations.size());
 
@@ -268,23 +281,25 @@ MAT::Tree findEPPs (MAT::Tree Tobj) {
                 tbb::parallel_for( tbb::blocked_range<size_t>(0, total_nodes, grain_size),
                         [&](tbb::blocked_range<size_t> r) {
                         for (size_t k=r.begin(); k<r.end(); ++k){
-                            mapper2_input inp;
-                            inp.T = T;
-                            inp.node = dfs[k];
-                            inp.missing_sample_mutations = &ancestral_mutations;
-                            inp.excess_mutations = &node_excess_mutations[k];
-                            inp.imputed_mutations = &node_imputed_mutations[k];
-                            inp.best_node_num_leaves = &best_node_num_leaves;
-                            inp.best_set_difference = &best_set_difference;
-                            inp.best_node = &best_node;
-                            inp.best_j =  &best_j;
-                            inp.num_best = &num_best;
-                            inp.j = k;
-                            inp.has_unique = &best_node_has_unique;
-                            inp.best_j_vec = &best_j_vec;
-                            inp.node_has_unique = &(node_has_unique);
+                            if (dfs[k]->identifier != node->identifier) { //dont try to self-map.
+                                mapper2_input inp;
+                                inp.T = T;
+                                inp.node = dfs[k];
+                                inp.missing_sample_mutations = &ancestral_mutations;
+                                inp.excess_mutations = &node_excess_mutations[k];
+                                inp.imputed_mutations = &node_imputed_mutations[k];
+                                inp.best_node_num_leaves = &best_node_num_leaves;
+                                inp.best_set_difference = &best_set_difference;
+                                inp.best_node = &best_node;
+                                inp.best_j =  &best_j;
+                                inp.num_best = &num_best;
+                                inp.j = k;
+                                inp.has_unique = &best_node_has_unique;
+                                inp.best_j_vec = &best_j_vec;
+                                inp.node_has_unique = &(node_has_unique);
 
-                            mapper2_body(inp, false);
+                                mapper2_body(inp, false);
+                            }
                         }       
                         }); 
                 //BACK TO MY CODE (JDM)
@@ -302,8 +317,7 @@ MAT::Tree findEPPs (MAT::Tree Tobj) {
                 //fprintf(stderr, "Tree copy deleted\n");
                 //fprintf(stderr, "Node recreated\n");
                 fprintf(stderr, "Parsimony %u ", best_set_difference);
-                T->add_node(node, node->parent); //simplest option? assuming the node object doesn't get deleted along with the tree vector attribute
-
+                //T->add_node(node, node->parent); //simplest option? assuming the node object doesn't get deleted along with the tree vector attribute
                 //give the original tree node, which hasn't moved, the metadata.
                 auto cnode = Tobj.get_node(node->identifier);
                 cnode->epps = num_best;
@@ -312,7 +326,7 @@ MAT::Tree findEPPs (MAT::Tree Tobj) {
             } else {
                 //no mutations for this sample compared to the reference. This may cause problems with the mapper
                 //if this gets skipped, it keeps the previous value (default 0)
-                fprintf(stderr, "Parsimony N/A ");
+                fprintf(stderr, "Parsimony N/A EPPs 0\n");
             }
 
 
