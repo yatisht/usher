@@ -94,7 +94,7 @@ if args['unaligned'] is not None:
             filePath,
             temp.name),
         shell=True)
-    msaName = 'inputMsa.fa'
+    msaName = '{0}/inputMsa.fa'.format(filePath)
     temp.close()
 
 else:
