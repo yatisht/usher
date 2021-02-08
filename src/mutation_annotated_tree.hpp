@@ -96,7 +96,7 @@ namespace Mutation_Annotated_Tree {
     class Tree {
         private:
             void remove_node_helper (std::string nid, bool move_level);
-            void depth_first_expansion_helper(Node* node, std::vector<Node*>& vec);
+            void depth_first_expansion_helper(Node* node, std::vector<Node*>& vec) const;
             std::unordered_map <std::string, Node*> all_nodes;
         public:
             Tree() {
@@ -119,13 +119,14 @@ namespace Mutation_Annotated_Tree {
             Node* create_node (std::string const& identifier, float branch_length = -1.0);
             Node* create_node (std::string const& identifier, Node* par, float branch_length = -1.0);
             Node* create_node (std::string const& identifier, std::string const& parent_id, float branch_length = -1.0);
-            Node* get_node (std::string identifier);
-            bool is_ancestor (std::string anc_id, std::string nid);
-            std::vector<Node*> rsearch (std::string nid);
+            Node* get_node (std::string identifier) const;
+            bool is_ancestor (std::string anc_id, std::string nid) const;
+            std::vector<Node*> rsearch (const std::string& nid) const;
             void remove_node (std::string nid, bool move_level);
             void move_node (std::string source, std::string destination);
             std::vector<Node*> breadth_first_expansion(std::string nid="");
-            std::vector<Node*> depth_first_expansion(Node* node=NULL);
+            std::vector<Node*> depth_first_expansion(Node* node=NULL) const;
+
             size_t get_parsimony_score();
             size_t total_parsimony;
 
@@ -134,9 +135,9 @@ namespace Mutation_Annotated_Tree {
             void collapse_tree();
     };
     
-    std::string get_newick_string(Tree& T, bool b1, bool b2, bool b3=false, bool b4=false);
-    std::string get_newick_string(Tree& T, Node* node, bool b1, bool b2, bool b3=false, bool b4=false);
-    void write_newick_string (std::stringstream& ss, Tree& T, Node* node, bool b1, bool b2, bool b3=false, bool b4=false);
+    std::string get_newick_string(const Tree& T, bool b1, bool b2, bool b3=false, bool b4=false);
+    std::string get_newick_string(const Tree& T, Node* node, bool b1, bool b2, bool b3=false, bool b4=false);
+    void write_newick_string (std::stringstream& ss, const Tree& T, Node* node, bool b1, bool b2, bool b3=false, bool b4=false);
     Tree create_tree_from_newick (std::string filename);
     Tree create_tree_from_newick_string (std::string newick_string);
     void string_split(std::string const& s, char delim, std::vector<std::string>& words);
@@ -145,8 +146,8 @@ namespace Mutation_Annotated_Tree {
     Tree load_mutation_annotated_tree (std::string filename);
     void save_mutation_annotated_tree (Tree tree, std::string filename);
 
-    Tree get_tree_copy(Tree tree, std::string identifier="");
-    
+    Tree get_tree_copy(const Tree& tree, const std::string& identifier="");
+
     Node* LCA (const Tree& tree, const std::string& node_id1, const std::string& node_id2);
     Tree get_subtree (const Tree& tree, const std::vector<std::string>& samples);
 }
