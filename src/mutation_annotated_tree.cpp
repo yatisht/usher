@@ -453,6 +453,7 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
         fprintf(stderr, "WARNING: This pb does not include any metadata. Filling in default values\n");
     }
     tree = create_tree_from_newick_string(data.newick());
+    tree.total_parsimony = data.global_parsimony(); //the pb will yield a default value of 0 if unset.
     auto dfs = tree.depth_first_expansion();
     static tbb::affinity_partitioner ap;
     tbb::parallel_for( tbb::blocked_range<size_t>(0, dfs.size()),
