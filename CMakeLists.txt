@@ -43,6 +43,7 @@ if(DEFINED Protobuf_PATH)
 
     add_executable(matUtils
         src/mutation_annotated_tree.cpp
+        src/usher_mapper.cpp
         src/matUtils.cpp
         )
 
@@ -82,6 +83,7 @@ else()
 
     add_executable(matUtils
         src/mutation_annotated_tree.cpp
+        src/usher_mapper.cpp
         src/matUtils.cpp
         ${PROTO_SRCS}
         ${PROTO_HDRS}
