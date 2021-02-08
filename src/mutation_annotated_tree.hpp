@@ -146,5 +146,8 @@ namespace Mutation_Annotated_Tree {
     void save_mutation_annotated_tree (Tree tree, std::string filename);
 
     Tree get_tree_copy(Tree tree, std::string identifier="");
+    
+    Node* LCA (const Tree& tree, const std::string& node_id1, const std::string& node_id2);
+    Tree get_subtree (const Tree& tree, const std::vector<std::string>& samples);
 }
 
