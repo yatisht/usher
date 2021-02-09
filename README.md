@@ -31,7 +31,7 @@ UShER is much faster than existing tools with similar functionality and has now 
       * [Multiple parsimony-optimal placements](#multiple-parsimony-optimal-placements)
       * [Updating multiple input trees](#updating-multiple-input-trees)
 * [Fasta2UShER](#fasta2usher)
-* [MatToVcf](#mattovcf)
+* [matUtils](#matUtils)
 * [Acknowledgement](#acknowledgement)
 * [Reference](#reference)
 
