@@ -272,6 +272,30 @@ Mutation-annotated tree file generated using UShER.
 
 ### Options
 
+#### Annotate
+
+**-i**: Input mutation-annotated tree file (REQUIRED)
+
+**-o**: Output mutation-annotated tree file (REQUIRED)
+
+**-p**: Calculate and store total tree parsimony. 
+
+**-e**: Calculate and store equally parsimonious placements for all samples in the tree.
+
+**-h**: Print help messages
+
+#### Filter
+
+**-i**: Input mutation-annotated tree file (REQUIRED) 
+
+**-o**: Output mutation-annotated tree file (REQUIRED)
+
+**-s**: Use to mask specific samples from the tree. 
+
+**-h**: Print help messages
+
+#### Convert
+
 **-i**: Input mutation-annotated tree file (REQUIRED) 
 
 **-v**: Output VCF file 
@@ -280,18 +304,12 @@ Mutation-annotated tree file generated using UShER.
 
 **-n**: Do not include sample genotype columns in VCF output. Used only with -v
 
-**-p**: Calculate and store total tree parsimony. 
-
-**-e**: Calculate and store equally parsimonious placements for all samples in the tree.
-
-**-s**: Use to mask specific samples from the tree. 
-
 **-h**: Print help messages
 
 ### Usage example
 
 ```
-./build/matUtils -i global_assignments.pb -v global_assignments.vcf -t global_assignments.nh
+./build/matUtils convert -i global_assignments.pb -v global_assignments.vcf -t global_assignments.nh
 ```
 
 ### Output
