@@ -264,7 +264,7 @@ For the example above, a new VCF *test/test_merged.vcf* is generated (identical 
 
 ## matUtils
 
-We are now providing a toolkit, `matUtils`, which can perform a number of tasks related to manipulating and annotated the mutation annotated tree, such as the generation of a Newick format tree and parsimony-resolved VCF file corresponding to UShER's mutation annotated tree, masking out mutations specific to certain samples, calculating the number of equally parsimonious placements for all samples currently included in the tree and the total tree parsimony score.
+We are now providing a toolkit, `matUtils`, which can perform a number of tasks related to manipulating and querying the UShER's mutation-annotated tree, such as the generation of the corresponding Newick tree or parsimony-resolved VCF file, masking out mutations specific to certain samples, calculating the number of equally parsimonious placements for all samples currently included in the mutation-annotated tree as well as the total parsimony score of the tree (see usage options below).
 
 ### Input
 
