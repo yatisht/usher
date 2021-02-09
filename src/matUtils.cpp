@@ -13,7 +13,7 @@ namespace MAT = Mutation_Annotated_Tree;
 //Filter subcommands follow
 
 MAT::Tree restrictSamples (std::string samples_filename, MAT::Tree T) {
-    // Load restricted sampl0e names from the input file and add it to the set
+    // Load restricted sample names from the input file and add it to the set
     std::ifstream infile(samples_filename);
     if (!infile) {
         fprintf(stderr, "ERROR: Could not open the restricted samples file: %s!\n", samples_filename.c_str());
@@ -22,8 +22,14 @@ MAT::Tree restrictSamples (std::string samples_filename, MAT::Tree T) {
     std::unordered_set<std::string> restricted_samples;
     std::string sample;
     while (std::getline(infile, sample)) {
+        std::cerr << "Checking for presence of sample ";
+        std::cerr << sample; //there's some kind of formatting problem with the fprintf statements. using cerr instead
+        std::cerr << "\n";
+        //fprintf(stderr, "Checking for presence of %s sample\n", sample.c_str());
         if (T.get_node(sample) == NULL) {
-            fprintf(stderr, "ERROR: Sample %s missing in input MAT!\n", sample.c_str());
+            std::cerr << "ERROR: Sample ";
+            std::cerr << sample; 
+            std::cerr << " missing in input MAT!\n";
             exit(1);
         }
         restricted_samples.insert(std::move(sample));
@@ -634,6 +640,12 @@ void annotate_main(po::parsed_options parsed) {
         fprintf(stderr, "Calculating Total Parsimony\n");
         T.total_parsimony = T.get_parsimony_score();
     }
+    //condense_leaves() expects some samples to ignore. We don't have any such samples
+    //this would be space to add an additional argument containing samples to not recondense
+    //for now, just recondense everything
+    std::vector<std::string> preserve;
+    T.condense_leaves(preserve);
+
     // Store final MAT to output file
     if (output_mat_filename != "") {
         fprintf(stderr, "Saving Final Tree\n");
@@ -676,7 +688,6 @@ po::variables_map parse_filter_command(po::parsed_options parsed) {
     return vm;
 }
 
-
 void filter_main(po::parsed_options parsed) {
     //the filter subcommand prunes data from the protobuf based on some threshold, returning a protobuf file that is smaller than the input
     po::variables_map vm = parse_filter_command(parsed);
@@ -696,7 +707,7 @@ void filter_main(po::parsed_options parsed) {
         T = restrictSamples(samples_filename, T);
     }
     //the filter subcommand will be receiving some additional attention in the near future.
-    
+
     // Store final MAT to output file
     if (output_mat_filename != "") {
         fprintf(stderr, "Saving Final Tree\n");
