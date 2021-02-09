@@ -272,7 +272,7 @@ Mutation-annotated tree file generated using UShER.
 
 ### Options
 
-**-i**: Mutation-annotated tree file to convert to VCF (REQUIRED) 
+**-i**: Input mutation-annotated tree file (REQUIRED) 
 
 **-v**: Output VCF file 
 
