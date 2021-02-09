@@ -77,6 +77,7 @@ namespace Mutation_Annotated_Tree {
             size_t level;
             float branch_length;
             std::string identifier;
+            int epps = 0; //JDM-add a new variable attribute, integer, its the epps count. Default 0? 
             Node* parent;
             std::vector<Node*> children;
             std::vector<Mutation> mutations;
@@ -127,6 +128,8 @@ namespace Mutation_Annotated_Tree {
             std::vector<Node*> depth_first_expansion(Node* node=NULL) const;
 
             size_t get_parsimony_score();
+            size_t total_parsimony;
+
             void condense_leaves(std::vector<std::string> = std::vector<std::string>());
             void uncondense_leaves();
             void collapse_tree();

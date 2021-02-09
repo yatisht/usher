@@ -31,7 +31,7 @@ UShER is much faster than existing tools with similar functionality and has now 
       * [Multiple parsimony-optimal placements](#multiple-parsimony-optimal-placements)
       * [Updating multiple input trees](#updating-multiple-input-trees)
 * [Fasta2UShER](#fasta2usher)
-* [MatToVcf](#mattovcf)
+* [matUtils](#matUtils)
 * [Acknowledgement](#acknowledgement)
 * [Reference](#reference)
 
@@ -262,9 +262,9 @@ Merged VCF with missing data for a particular sample denoted as "." in the corre
 
 For the example above, a new VCF *test/test_merged.vcf* is generated (identical to the one already provided), which can be used by UShER to place the new samples.
 
-## MatToVcf
+## matUtils
 
-We also provide a tool, `matToVcf`, that generates a parsimony-resolved VCF file corresponding to UShER's mutation-annotated tree. It can also also output the tree in Newick format corresponding to the mutation-annotated tree.
+We are now providing a toolkit, 'matUtils', which can perform a number of tasks related to manipulating and annotated the mutation annotated tree. These include all functionalities of the deprecated 'matToVcf', which include the generation of a parsimony-resolved VCF file corresponding to UShER's mutation annotated tree, and outputting a Newick format tree text file corresponding to the mutation-annotated tree. 'matUtils' also provides additional functionality, masking out specified samples, calculating the number of equally parsimonious placements for all samples currently included in the tree and the total tree parsimony score.
 
 ### Input
 
@@ -274,20 +274,24 @@ Mutation-annotated tree file generated using UShER.
 
 **-i**: Mutation-annotated tree file to convert to VCF (REQUIRED) 
 
-**-v**: Output VCF file (REQUIRED)
+**-v**: Output VCF file 
 
-**-t**: Output tree file
+**-t**: Output Newick tree file
 
-**-d**: Output directory to dump output and log files (current directory by default)
+**-n**: Do not include sample genotype columns in VCF output. Used only with -v
 
-**-n**: Do not include sample genotype columns in VCF output
+**-p**: Calculate and store total tree parsimony. 
+
+**-e**: Calculate and store equally parsimonious placements for all samples in the tree.
+
+**-s**: Use to mask specific samples from the tree. 
 
 **-h**: Print help messages
 
 ### Usage example
 
 ```
-./build/matToVcf -i global_assignments.pb -v global_assignments.vcf -t global_assignments.nh
+./build/matUtils -i global_assignments.pb -v global_assignments.vcf -t global_assignments.nh
 ```
 
 ### Output
