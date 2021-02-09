@@ -453,7 +453,7 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
         fprintf(stderr, "WARNING: This pb does not include any metadata. Filling in default values\n");
     }
     tree = create_tree_from_newick_string(data.newick());
-    tree.total_parsimony = data.global_parsimony(); //the pb will yield a default value of 0 if unset.
+    tree.total_parsimony = data.global_parsimony(); 
     auto dfs = tree.depth_first_expansion();
     static tbb::affinity_partitioner ap;
     tbb::parallel_for( tbb::blocked_range<size_t>(0, dfs.size()),
@@ -461,12 +461,11 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
             for (size_t idx = r.begin(); idx < r.end(); idx++) {
                auto node = dfs[idx];
                auto mutation_list = data.node_mutations(idx);
-               //JDM- I've updated the Node class to have a new attribute epps, which I will attempt to load with this
                if (hasmeta) {
-                   auto metaobj = data.metadata(idx); //JDM- should produce a specific node_metadata message
-                   node->epps = metaobj.sample_epps(); //JDM- additional metadata extraction lines would go directly after this line, I think               
+                   auto metaobj = data.metadata(idx); 
+                   node->epps = metaobj.sample_epps();
                } else {
-                   node->epps = 0; //fill in the default values.
+                   node->epps = 0; 
                }
                for (int k = 0; k < mutation_list.mutation_size(); k++) {
                   auto mut = mutation_list.mutation(k);
@@ -514,12 +513,12 @@ void Mutation_Annotated_Tree::save_mutation_annotated_tree (Mutation_Annotated_T
     TIMEIT();
     Parsimony::data data;
     data.set_newick(get_newick_string(tree, false, true));
-    data.set_global_parsimony(tree.total_parsimony); //save this metadata value.
+    //save this metadata value.
+    data.set_global_parsimony(tree.total_parsimony); 
 
     auto dfs = tree.depth_first_expansion();
 
     for (size_t idx = 0; idx < dfs.size(); idx++) {
-        //JDM-save the epps value
         auto meta = data.add_metadata();
         meta->set_sample_epps(dfs[idx]->epps);
 
@@ -1035,8 +1034,8 @@ void Mutation_Annotated_Tree::Tree::collapse_tree() {
             auto parent = node->parent;
             for (auto m: mutations) {
                 child->add_mutation(m.copy());
-        }
-        move_node(child->identifier, parent->identifier);
+            }
+            move_node(child->identifier, parent->identifier);
         }
     }
 }
