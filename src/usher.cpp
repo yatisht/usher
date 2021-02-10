@@ -1021,6 +1021,13 @@ int main(int argc, char** argv) {
                                 }
                                 fprintf(stderr, "\n");
                             }
+
+                            for (auto anc: T->rsearch(sample, true)) {
+                                if (anc->clade != "") {
+                                    fprintf (stderr, "This sample falls under the clade: %s\n", anc->clade.c_str());
+                                    break;
+                                }
+                            }
                         }
                         
                         if (max_trees == 1) {

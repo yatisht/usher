@@ -10,8 +10,184 @@
 namespace po = boost::program_options;
 namespace MAT = Mutation_Annotated_Tree;
 
-//Filter subcommands follow
+Timer timer; 
 
+void assignLineages (MAT::Tree& T, const std::string& lineage_filename, float min_freq) {
+    static tbb::affinity_partitioner ap;
+    
+    fprintf(stderr, "Copying tree with uncondensed leaves.\n"); 
+    timer.Start();
+    auto uncondensed_T = MAT::get_tree_copy(T);
+    uncondensed_T.uncondense_leaves();
+    fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+    
+    std::map<std::string, std::vector<MAT::Node*>> lineage_map;
+    std::ifstream infile(lineage_filename);
+    if (!infile) {
+        fprintf(stderr, "ERROR: Could not open the lineage asssignment file: %s!\n", lineage_filename.c_str());
+        exit(1);
+    }    
+    std::string line;
+
+    //Read the lineage assignment file line by line and fill up map values
+    fprintf(stderr, "Reading lineage assignment file.\n"); 
+    timer.Start();
+    while (std::getline(infile, line)) {
+        std::vector<std::string> words;
+        MAT::string_split(line, words);
+        if ((words.size() > 2) || (words.size() == 1)) {
+            fprintf(stderr, "ERROR: Incorrect format for lineage asssignment file: %s!\n", lineage_filename.c_str());
+            exit(1);
+        }
+        else if (words.size() == 2) {
+            auto n = uncondensed_T.get_node(words[1]);
+            if (n != NULL) {
+                if (lineage_map.find(words[0]) == lineage_map.end()) {
+                    lineage_map[words[0]] = std::vector<MAT::Node*>();;
+                }
+                lineage_map[words[0]].emplace_back(n);
+            }
+            else {
+                fprintf(stderr, "WARNING: Sample %s not found in input MAT!\n", words[1].c_str());
+            }
+        }
+    }
+    infile.close();
+    fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+
+
+    for (auto it: lineage_map) {
+        fprintf(stderr, "Finding best node for lineage %s.\n", it.first.c_str()); 
+        timer.Start();
+        
+        std::map<std::string, int> mutation_counts;
+
+        tbb::mutex tbb_lock;
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, it.second.size()),
+        [&](const tbb::blocked_range<size_t> r) {
+            for (size_t i=r.begin(); i<r.end(); ++i){
+                auto n = it.second[i];
+                std::vector<int> anc_positions;                                                                                                                                                                 
+                std::vector<MAT::Mutation> ancestral_mutations;
+
+                // Add ancestral mutations to ancestral mutations. When multiple mutations
+                // at same position are found in the path leading from the root to the
+                // current node, add only the most recent mutation to the vector
+                for (auto anc: uncondensed_T.rsearch(n->identifier, true)) {
+                    for (auto m: anc->mutations) {
+                        if (m.is_masked() || (std::find(anc_positions.begin(), anc_positions.end(), m.position) == anc_positions.end())) {
+                            ancestral_mutations.emplace_back(m);
+                            if (!m.is_masked()) {
+                                anc_positions.emplace_back(m.position);
+                            }
+                        }
+                    }
+                }
+
+                for (auto m: ancestral_mutations) {
+                    if (m.ref_nuc != m.mut_nuc) {
+                        std::string mut_string = m.chrom + "\t" + std::to_string(m.ref_nuc) + "\t" + 
+                                      std::to_string(m.position) + "\t" + std::to_string(m.mut_nuc);
+                        tbb_lock.lock();
+                        if (mutation_counts.find(mut_string) == mutation_counts.end()) {
+                            mutation_counts[mut_string] = 1;
+                        }
+                        else {
+                            mutation_counts[mut_string] += 1;
+                        }
+                        tbb_lock.unlock();
+                    }
+                }
+            }
+        }, ap);
+
+        std::vector<MAT::Mutation> lineage_mutations;
+        for (auto mc: mutation_counts) {
+            if (static_cast<float>(mc.second)/it.second.size() > min_freq) {
+                std::vector<std::string> words;
+                MAT::string_split(mc.first, words);
+                MAT::Mutation m;
+                m.chrom = words[0];
+                m.ref_nuc = static_cast<int8_t>(std::stoi(words[1]));
+                m.par_nuc = m.ref_nuc; 
+                m.position = std::stoi(words[2]);
+                m.mut_nuc = static_cast<int8_t>(std::stoi(words[3]));
+                lineage_mutations.emplace_back(m);
+            }
+        }
+        fprintf(stderr, "Number of mutations above the specified frequency in this clade: %zu \n", lineage_mutations.size());
+        
+        auto dfs = T.depth_first_expansion();
+        size_t total_nodes = dfs.size();
+        
+        size_t best_node_num_leaves = 0;
+        int best_set_difference = 1e9; 
+        size_t best_j = 0;
+        bool best_node_has_unique = false;
+                
+        std::vector<std::vector<MAT::Mutation>> node_excess_mutations(total_nodes);
+        std::vector<std::vector<MAT::Mutation>> node_imputed_mutations(total_nodes);
+
+        std::vector<bool> node_has_unique(total_nodes, false);
+        std::vector<size_t> best_j_vec;
+
+        size_t num_best = 1;
+        MAT::Node* best_node = T.root;
+        best_j_vec.emplace_back(0);
+
+        static tbb::affinity_partitioner ap;
+        tbb::parallel_for( tbb::blocked_range<size_t>(0, total_nodes),
+                [&](tbb::blocked_range<size_t> r) {
+                for (size_t k=r.begin(); k<r.end(); ++k){
+                   mapper2_input inp;
+                   inp.T = &T;
+                   inp.node = dfs[k];
+                   inp.missing_sample_mutations = &lineage_mutations;
+                   inp.excess_mutations = &node_excess_mutations[k];
+                   inp.imputed_mutations = &node_imputed_mutations[k];
+                   inp.best_node_num_leaves = &best_node_num_leaves;
+                   inp.best_set_difference = &best_set_difference;
+                   inp.best_node = &best_node;
+                   inp.best_j =  &best_j;
+                   inp.num_best = &num_best;
+                   inp.j = k;
+                   inp.has_unique = &best_node_has_unique;
+
+                   inp.best_j_vec = &best_j_vec;
+                   inp.node_has_unique = &(node_has_unique);
+
+                   mapper2_body(inp, false);
+                }       
+        }, ap); 
+
+        fprintf(stderr, "Parsimony score at the best node: %d\n", best_set_difference);
+        std::sort(best_j_vec.begin(), best_j_vec.end(), [&](const size_t a, const size_t b) {
+                return (T.get_num_leaves(dfs[a]) > T.get_num_leaves(dfs[b]));
+                });
+
+        if (num_best > 1) {
+            fprintf(stderr, "WARNING: found %zu possible assignments\n", num_best);
+        }
+        
+        bool assigned = false;
+        for (auto j: best_j_vec) {
+            if (dfs[j]->clade == "") {
+                fprintf(stderr, "Assigning %s to node %s\n", it.first.c_str(), dfs[j]->identifier.c_str());
+                dfs[j]->clade = it.first;
+                assigned = true;
+                break;
+            }
+        }
+
+        if (!assigned) {
+            fprintf(stderr, "WARNING: Could not assign a node to clade %s since all possible nodes were already assigned some other clade!\n", it.first.c_str());
+        }
+
+        fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+    }
+}
+
+//Filter subcommands follow
 MAT::Tree restrictSamples (std::string samples_filename, MAT::Tree T) {
     // Load restricted sample names from the input file and add it to the set
     //BUG WARNING
@@ -780,6 +956,63 @@ void convert_main(po::parsed_options parsed) {
     }
 }
 
+po::variables_map parse_assign_command(po::parsed_options parsed) {
+
+    po::variables_map vm;
+    po::options_description filt_desc("assign options");
+    filt_desc.add_options()
+        ("input-mat,i", po::value<std::string>()->required(),
+         "Input mutation-annotated tree file [REQUIRED]")
+        ("output-mat,o", po::value<std::string>()->required(),
+         "Path to output filtered mutation-annotated tree file [REQUIRED]")
+        ("lineage-names,l", po::value<std::string>()->default_value(""),
+         "File containing lineage asssignments of samples ")
+        ("allele-frequency,f", po::value<float>()->default_value(0.9),
+         "Minimum allele frequency in input samples for finding the best clade root ")
+        ("help,h", "Print help messages");
+
+    std::vector<std::string> opts = po::collect_unrecognized(parsed.options, po::include_positional);
+    opts.erase(opts.begin());
+
+    // Run the parser, with try/catch for help
+    try{
+        po::store(po::command_line_parser(opts)
+                  .options(filt_desc)
+                  .run(), vm);
+        po::notify(vm);
+    }
+    catch(std::exception &e){
+        std::cerr << filt_desc << std::endl;
+        // Return with error code 1 unless the user specifies help
+        if (vm.count("help"))
+            exit(0);
+        else
+            exit(1);
+    }
+    return vm;
+}
+
+void assign_main(po::parsed_options parsed) {
+    //the filter subcommand prunes data from the protobuf based on some threshold, returning a protobuf file that is smaller than the input
+    po::variables_map vm = parse_assign_command(parsed);
+    std::string input_mat_filename = vm["input-mat"].as<std::string>();
+    std::string output_mat_filename = vm["output-mat"].as<std::string>();
+    std::string lineage_filename = vm["lineage-names"].as<std::string>();
+    float allele_frequecy = vm["allele-frequency"].as<float>();
+
+    // Load input MAT and uncondense tree
+    MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
+
+    // Assign clades
+    assignLineages(T, lineage_filename, allele_frequecy);
+
+    // Store final MAT to output file
+    if (output_mat_filename != "") {
+        fprintf(stderr, "Saving Final Tree\n");
+        MAT::save_mutation_annotated_tree(T, output_mat_filename);
+    }    
+}
+
 int main (int argc, char** argv) {
     /*
     The new design principle for organizing matUtils is to divide the overall structure into three options. All three take protobuf files as input.
@@ -810,13 +1043,16 @@ int main (int argc, char** argv) {
             convert_main(parsed);
         } else if (cmd == "filter"){
             filter_main(parsed); 
+        } else if (cmd == "assign"){
+            assign_main(parsed); 
         } else {
-            fprintf(stderr, "Invalid command. Please choose from annotate, filter, or convert and try again.\n");
+            fprintf(stderr, "Invalid command. Please choose from annotate, filter, convert or assign and try again.\n");
             exit(1);
         }
     } catch (...) { //not sure this is the best way to catch it when matUtils is called with no positional arguments.
-        fprintf(stderr, "No command selected. Please choose from annotate, filter, or convert and try again.\n");
+        fprintf(stderr, "No command selected. Please choose from annotate, filter, convert or assign and try again.\n");
         exit(0);
     }
+
     return 0;
 }

@@ -20,6 +20,7 @@ message condensed_node {
 
 message node_metadata {
     int32 sample_epps = 1;
+    string clade = 2;
 }
 
 message data {

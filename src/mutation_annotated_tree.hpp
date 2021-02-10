@@ -77,6 +77,7 @@ namespace Mutation_Annotated_Tree {
             size_t level;
             float branch_length;
             std::string identifier;
+            std::string clade;
             int epps = 0; //JDM-add a new variable attribute, integer, its the epps count. Default 0? 
             Node* parent;
             std::vector<Node*> children;
@@ -121,7 +122,7 @@ namespace Mutation_Annotated_Tree {
             Node* create_node (std::string const& identifier, std::string const& parent_id, float branch_length = -1.0, int epps = 0);
             Node* get_node (std::string identifier) const;
             bool is_ancestor (std::string anc_id, std::string nid) const;
-            std::vector<Node*> rsearch (const std::string& nid) const;
+            std::vector<Node*> rsearch (const std::string& nid, bool include_self = false) const;
             void remove_node (std::string nid, bool move_level);
             void move_node (std::string source, std::string destination);
             std::vector<Node*> breadth_first_expansion(std::string nid="");

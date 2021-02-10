@@ -464,8 +464,10 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
                if (hasmeta) {
                    auto metaobj = data.metadata(idx); 
                    node->epps = metaobj.sample_epps();
+                   node->clade = metaobj.clade();
                } else {
                    node->epps = 0; 
+                   node->clade = ""; 
                }
                for (int k = 0; k < mutation_list.mutation_size(); k++) {
                   auto mut = mutation_list.mutation(k);
@@ -521,6 +523,7 @@ void Mutation_Annotated_Tree::save_mutation_annotated_tree (Mutation_Annotated_T
     for (size_t idx = 0; idx < dfs.size(); idx++) {
         auto meta = data.add_metadata();
         meta->set_sample_epps(dfs[idx]->epps);
+        meta->set_clade(dfs[idx]->clade);
 
         auto mutation_list = data.add_node_mutations();
         for (auto m: dfs[idx]->mutations) {
@@ -575,6 +578,7 @@ bool Mutation_Annotated_Tree::Node::is_root() {
 Mutation_Annotated_Tree::Node::Node() {
     level = 0;
     identifier = "";
+    clade = "";
     parent = NULL;
     branch_length = -1.0;
     mutations.clear();
@@ -761,12 +765,15 @@ bool Mutation_Annotated_Tree::Tree::is_ancestor (std::string anc_id, std::string
     return false; 
 }
 
-std::vector<Mutation_Annotated_Tree::Node*> Mutation_Annotated_Tree::Tree::rsearch (const std::string& nid) const {
+std::vector<Mutation_Annotated_Tree::Node*> Mutation_Annotated_Tree::Tree::rsearch (const std::string& nid, bool include_self) const {
     std::vector<Node*> ancestors;
     Node* node = get_node(nid);
     if (node==NULL) {
         return ancestors;
     }    
+    if (include_self) {
+        ancestors.push_back(node);
+    }
     while (node->parent != NULL) {
         ancestors.push_back(node->parent);
         node = node->parent;
