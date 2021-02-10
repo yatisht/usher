@@ -309,78 +309,94 @@ MAT::Tree restrictSamples (std::string samples_filename, MAT::Tree T) {
 //a sample that has several EPPs that are very nearby on the tree will have a small neighborhood size value
 //while a sample that only has two or three EPPs but they are on completely different parts of the tree will have a substantially larger one.
 
-// std::vector<MAT::Node*> get_common_nodes (std::vector<std::vector<MAT::Node*>> nodepaths) {
-//     //to identify common nodes, perform pairwise set intersections repeatedly for all path node vectors
-//     std::vector<MAT::Node*> common_nodes = nodepaths[0];
-//     std::sort(common_nodes.begin(), common_nodes.end()); //needs to be sorted for intersection. These are actually vectors of node POINTERS, so this should be fine.
-//     for (size_t s=1; s<nodepaths.size(); s++) {
-//         std::vector<MAT::Node*> nextint;
-//         std::vector<MAT::Node*> next = nodepaths[s];
-//         std::sort(next.begin(), next.end()); //sort each path
-//         std::set_intersection(common_nodes.begin(), common_nodes.end(), next.begin(), next.end(), std::back_inserter(nextint)); //intersect the values
-//         common_nodes = nextint; //store the intersected vector and move to the next node path vector
-//     }
-//     return common_nodes;
-// }
+std::vector<MAT::Node*> get_common_nodes (std::vector<std::vector<MAT::Node*>> nodepaths) {
+    //to identify common nodes, perform pairwise set intersections repeatedly for all path node vectors
+    std::vector<MAT::Node*> common_nodes = nodepaths[0];
+    std::sort(common_nodes.begin(), common_nodes.end()); //needs to be sorted for intersection. These are actually vectors of node POINTERS, so this should be fine.
+    for (size_t s=1; s<nodepaths.size(); s++) {
+        std::vector<MAT::Node*> nextint;
+        std::vector<MAT::Node*> next = nodepaths[s];
+        std::sort(next.begin(), next.end()); //sort each path
+        std::set_intersection(common_nodes.begin(), common_nodes.end(), next.begin(), next.end(), std::back_inserter(nextint)); //intersect the values
+        common_nodes = nextint; //store the intersected vector and move to the next node path vector
+    }
+    return common_nodes;
+}
 
-// std::vector<float> get_all_distances(MAT::Node* target, std::vector<std::vector<MAT::Node*>> paths){
-//     std::vector<float> distvs;
-//     for (size_t p=0; p<paths.size(); p++) {
-//         //for this path to the common ancestor, count up distances from the start until it is reached
-//         float tdist = 0;
-//         for (size_t i=0;i<paths[p].size();i++) {
-//             if (paths[p][i]->identifier == target->identifier) {
-//                 break; //stop iterating when its reached this common ancestor (remember, path is sorted nearest to root)
-//             tdist += paths[p][i]->branch_length;
-//             }
-//         //then record tdist in distvs
-//         distvs.emplace_back(tdist);
-//         }
-//     }
-//     return distvs;
-// }
+std::vector<float> get_all_distances(MAT::Node* target, std::vector<std::vector<MAT::Node*>> paths){
+    std::vector<float> distvs;
+    for (size_t p=0; p<paths.size(); p++) {
+        //for this path to the target common ancestor, count up distances from the start until it is reached
+        float tdist = 0;
+        assert (paths[p].size() > 0);
+        for (size_t i=0;i<paths[p].size();i++) {
+            if (paths[p][i]->identifier == target->identifier) {
+                break; //stop iterating when its reached this common ancestor (remember, path is sorted nearest to root)
+            }
+            tdist += paths[p][i]->branch_length;
+            
+        //then record tdist in distvs
+        distvs.emplace_back(tdist);
+        }
+    }
+    return distvs;
+}
 
-// size_t get_neighborhood_size(std::vector<MAT::Node*> nodes, MAT::Tree* T) {
-//     //first step for this is collecting the full paths back to the root for all nodes
-//     assert (nodes.size() > 1); //doesn't make sense if there's only one best placement.
-//     std::vector<std::vector<MAT::Node*>> parentvecs;
-//     for (size_t s=0; s<nodes.size(); s++) {
-//         std::vector<MAT::Node*> npath = T->rsearch(nodes[s]->identifier);
-//         parentvecs.emplace_back(npath);
-//     }
-//     //then we need to identify all common elements to all node vectors
-//     std::vector<MAT::Node*> common_nodes = get_common_nodes(parentvecs);
-//     //then for all common nodes, we need to calculate the largest sum of paired distances for all samples to that specific common ancestor
-//     //the smallest of these largest sums is the best neighborhood size value
-//     size_t best_size = T->get_parsimony_score(); //bigger than the biggest maximum limit on neighborhood size. basically a big number
-//     for (size_t s=0; s<common_nodes.size(); s++) {
-//         //get the set of distances between each placement to this common ancestor with the path vectors
-//         std::vector<float> distances = get_all_distances(common_nodes[s], parentvecs);
-//         //now find the biggest sum of shared values for this specific common node
-//         float widest = 0.0;
-//         for (size_t i=0; i<distances.size(); i++) {
-//             for (size_t j=0; j<distances.size(); j++) {
-//                 if (i!=j){
-//                     float spairdist = distances[i] + distances[j];
-//                     if (spairdist > widest){
-//                         widest = spairdist;
-//                     }
-//                 }
-//             }
-//         }
-//         //after that oddness, I now have a value which is the longest path going between any two nodes in the placement set
-//         //which goes through this specific common ancestor
-//         //admittedly this is probably not the fastest way to do this, I should be able to eliminate common ancestors which are directly ancestral to common ancestors between the same complete set without counting them up
-//         //but I'm focusing on results first here
-//         //anyways, assign this longest pair path value to best_size if its smaller than any we've seen for other common ancestors
-//         size_t size_widest = static_cast<size_t>(widest);
-//         if (size_widest < best_size){
-//             best_size = size_widest;
-//         }
-//     }
-//     //at the end, we should be left with the proper neighborhood size value. 
-//     return best_size;
-// }
+size_t get_neighborhood_size(std::vector<MAT::Node*> nodes, MAT::Tree* T) {
+    //first step for this is collecting the full paths back to the root for all nodes
+    assert (nodes.size() > 1); //doesn't make sense if there's only one best placement.
+    std::vector<std::vector<MAT::Node*>> parentvecs;
+    for (size_t s=0; s<nodes.size(); s++) {
+        if (!nodes[s]->is_root()){ //if one of the epps sites is directly off the root, then this doesn't make much sense
+            std::vector<MAT::Node*> npath;
+            npath.emplace_back(nodes[s]); //include the node itself on the path so branch length is correctly accessed
+            for (auto& it: T->rsearch(nodes[s]->identifier)) {
+                npath.emplace_back(it);
+            }
+            parentvecs.emplace_back(npath);
+        } else { //instead, just construct a path of length 1 that contains the root node only
+            std::vector<MAT::Node*> npath;
+            npath.emplace_back(nodes[s]);
+            parentvecs.emplace_back(npath);
+        }
+    }
+    //then we need to identify all common elements to all node vectors
+    std::vector<MAT::Node*> common_nodes = get_common_nodes(parentvecs);
+    assert (common_nodes.size() > 0); //bare minimum this will always include the root. therefore it is always > 0
+    //then for all common nodes, we need to calculate the largest sum of paired distances for all samples to that specific common ancestor
+    //the smallest of these largest sums is the best neighborhood size value
+    size_t best_size = T->get_parsimony_score(); //bigger than the biggest maximum limit on neighborhood size. basically a big number
+    for (size_t s=0; s<common_nodes.size(); s++) {
+        //get the set of distances between each placement to this common ancestor with the path vectors
+        std::vector<float> distances = get_all_distances(common_nodes[s], parentvecs);
+        for (auto i = distances.begin(); i != distances.end(); ++i) {
+            std::cerr << *i << ',';
+        }
+        //now find the biggest sum of shared values for this specific common node
+        float widest = 0.0;
+        for (size_t i=0; i<distances.size(); i++) {
+            for (size_t j=0; j<distances.size(); j++) {
+                if (i!=j){
+                    float spairdist = distances[i] + distances[j];
+                    if (spairdist > widest){
+                        widest = spairdist;
+                    }
+                }
+            }
+        }
+        //after that oddness, I now have a value which is the longest path going between any two nodes in the placement set
+        //which goes through this specific common ancestor
+        //admittedly this is probably not the fastest way to do this, I should be able to eliminate common ancestors which are directly ancestral to common ancestors between the same complete set without counting them up
+        //but I'm focusing on results first here
+        //anyways, assign this longest pair path value to best_size if its smaller than any we've seen for other common ancestors
+        size_t size_widest = static_cast<size_t>(widest);
+        if (size_widest < best_size){
+            best_size = size_widest;
+        }
+    }
+    //at the end, we should be left with the proper neighborhood size value. 
+    return best_size;
+}
 
 MAT::Tree findEPPs (MAT::Tree Tobj) {
     TIMEIT()
@@ -500,22 +516,22 @@ MAT::Tree findEPPs (MAT::Tree Tobj) {
                 //additional metadata value (not even starting to assign it to an attribute yet) is maximum pairwise distance between equally parsimonious placement cluster members
                 //commented out code that was accidentally committed to master
                 //to find this, first we need the nodes.
-                // if (num_best > 1){ //only worth calculating if there's more than one best placement. Otherwise its just 0.
-                //     std::vector<MAT::Node*> best_placements;
-                //     //for every index in best_j_vec, find the corresponding node from dfs
-                //     for (size_t z=0; z<best_j_vec.size(); z++) {
-                //         auto nobj = dfs[best_j_vec[z]];
-                //         best_placements.emplace_back(nobj);
-                //     }
-                    //size_t neighborhood_size = get_neighborhood_size(best_placements, T);
-                    //fprintf(stderr, "Neighborhood Size: %ld\n", neighborhood_size);
-                // } else {
-                //     fprintf(stderr, "Neighborhood Size: 0");
-                // }
+                if (num_best > 1){ //only worth calculating if there's more than one best placement. Otherwise its just 0.
+                    std::vector<MAT::Node*> best_placements;
+                    //for every index in best_j_vec, find the corresponding node from dfs
+                    for (size_t z=0; z<best_j_vec.size(); z++) {
+                        auto nobj = dfs[best_j_vec[z]];
+                        best_placements.emplace_back(nobj);
+                    }
+                    size_t neighborhood_size = get_neighborhood_size(best_placements, T);
+                    fprintf(stderr, "Neighborhood Size: %ld\n", neighborhood_size);
+                } else {
+                    fprintf(stderr, "Neighborhood Size: 0\n");
+                }
 
             } else {
                 node->epps = 1;
-                //fprintf(stderr, "Neighborhood Size: 0");
+                fprintf(stderr, "Neighborhood Size: 0\n");
                 //no mutations for this sample compared to the reference. This means it's leaf off the root/identical to the reference
                 //there's just one place for that, ofc.
             }
