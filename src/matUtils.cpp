@@ -816,7 +816,7 @@ int main (int argc, char** argv) {
         }
     } catch (...) { //not sure this is the best way to catch it when matUtils is called with no positional arguments.
         fprintf(stderr, "No command selected. Please choose from annotate, filter, or convert and try again.\n");
-        exit(1);
+        exit(0);
     }
     return 0;
 }
