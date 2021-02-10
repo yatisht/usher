@@ -14,6 +14,8 @@ namespace MAT = Mutation_Annotated_Tree;
 
 MAT::Tree restrictSamples (std::string samples_filename, MAT::Tree T) {
     // Load restricted sample names from the input file and add it to the set
+    //BUG WARNING
+    //This does not actually work right now- all samples passed in are caught as missing. 
     std::ifstream infile(samples_filename);
     if (!infile) {
         fprintf(stderr, "ERROR: Could not open the restricted samples file: %s!\n", samples_filename.c_str());
@@ -22,14 +24,10 @@ MAT::Tree restrictSamples (std::string samples_filename, MAT::Tree T) {
     std::unordered_set<std::string> restricted_samples;
     std::string sample;
     while (std::getline(infile, sample)) {
-        std::cerr << "Checking for presence of sample ";
-        std::cerr << sample; //there's some kind of formatting problem with the fprintf statements. using cerr instead
-        std::cerr << "\n";
-        //fprintf(stderr, "Checking for presence of %s sample\n", sample.c_str());
+        fprintf(stderr, "Checking for Sample %s\n", sample.c_str());
         if (T.get_node(sample) == NULL) {
-            std::cerr << "ERROR: Sample ";
-            std::cerr << sample; 
-            std::cerr << " missing in input MAT!\n";
+            fprintf(stderr, "ERROR: Sample missing in input MAT!\n");
+            std::cerr << std::endl;
             exit(1);
         }
         restricted_samples.insert(std::move(sample));
