@@ -115,6 +115,8 @@ void assignLineages (MAT::Tree& T, const std::string& lineage_filename, float mi
                 lineage_mutations.emplace_back(m);
             }
         }
+        // Mutations need to be sorted by position before placement
+        std::sort(lineage_mutations.begin(), lineage_mutations.end());
         fprintf(stderr, "Number of mutations above the specified frequency in this clade: %zu \n", lineage_mutations.size());
         
         auto dfs = T.depth_first_expansion();
