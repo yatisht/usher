@@ -271,7 +271,7 @@ namespace Mutation_Annotated_Tree {
             void clear_mutations(){
                 mutations.clear();
             }
-            
+            void add_child(Node* new_child);
 #else
             void add_mutation(Mutation mut);
             void clear_mutations();

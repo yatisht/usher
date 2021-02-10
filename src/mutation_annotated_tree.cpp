@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <iomanip>
 #include <cassert>
+#include <string>
 // Uses one-hot encoding if base is unambiguous
 // A:1,C:2,G:4,T:8
 int8_t Mutation_Annotated_Tree::get_nuc_id (char nuc) {
@@ -1212,3 +1213,17 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_subtree (const Mutati
     return subtree;
 }
 
+void Mutation_Annotated_Tree::Node::add_child(Node *new_child) {
+    if (is_leaf()) {
+        Node *new_node = tree->create_node(
+            std::to_string(++tree->curr_internal_node), this->parent);
+        new_node->mutations.swap(mutations);
+        new_node->children.push_back(this);
+        parent = new_node;
+        new_child->parent = new_node;
+        new_node->children.push_back(new_child);
+        return;
+    }
+    new_child->parent = this;
+    children.push_back(new_child);
+}

@@ -1,81 +1,68 @@
-#include "conflicts.hpp"
 #include "src/mutation_annotated_tree.hpp"
 #include "src/tree_rearrangements/tree_rearrangement_internal.hpp"
+#include <algorithm>
 #include <vector>
-bool check_mut_conflict(MAT::Node *node,
-                        const std::vector<Fitch_Sankoff_Result *> &states) {
-    auto iter = repeatedly_mutating_loci.find(node);
-    if (iter == repeatedly_mutating_loci.end()) {
-        return false;
+typedef std::unordered_set<MAT::Node*> Cross_t;
+typedef std::unordered_map<MAT::Node*, std::unordered_map<int,Move*>> Mut_t;
+struct Move_Comparator{
+    bool operator()(Move* first,Move* second){
+        return first->score_change<second->score_change;
     }
-    const std::unordered_set<int> &subtree_mut_changed = iter->second;
-    for (const Fitch_Sankoff_Result *e : states) {
-        if (subtree_mut_changed.count(e->mutation.position)) {
+};
+static Move* check_mut_conflict(MAT::Node *node,const std::vector<Fitch_Sankoff_Result *> &states,Mut_t& repeatedly_mutating_loci) {
+    while (node) {
+        auto iter = repeatedly_mutating_loci.find(node);
+        if (iter != repeatedly_mutating_loci.end()) {
+            const std::unordered_map<int,Move*> &subtree_mut_changed = iter->second;
+            for (const Fitch_Sankoff_Result *e : states) {
+                auto mut_iter=subtree_mut_changed.find(e->mutation.position);
+                if (mut_iter!=subtree_mut_changed.end()) {
+                    return mut_iter->second;
+                }
+            }
+        }
+        node=node->parent;
+    }
+    return nullptr;
+}
+static bool check_loop_conflict(std::vector<MAT::Node*> path,Cross_t& potential_crosses) {
+    for (auto n:path) {
+        if (potential_crosses.count(n)) {
             return true;
         }
     }
     return false;
 }
-bool check_loop_conflict(MAT::Node *src, MAT::Node *dst) {
-    auto iter = potential_crosses.find(src);
-    if (iter == potential_crosses.end()) {
-        return false;
-    }
-    std::unordered_set<MAT::Node *> &nodes_moved_to_subtree = iter->second;
-    while (dst) {
-        if (nodes_moved_to_subtree.count(dst)) {
-            return true;
-        }
-        dst = dst->parent;
-    }
-    return false;
-}
-void register_mut_conflict(MAT::Node *node,
-                           const std::vector<Fitch_Sankoff_Result *> &states) {
+static void register_mut_conflict(MAT::Node *node,
+                           const std::vector<Fitch_Sankoff_Result *> &states,Move* m,Mut_t& repeatedly_mutating_loci) {
     while (node) {
         auto iter =
-            repeatedly_mutating_loci.insert({node, std::unordered_set<int>()});
-        std::unordered_set<int> &to_insert = iter.first->second;
+            repeatedly_mutating_loci.insert({node, std::unordered_map<int,Move*>()});
+        std::unordered_map<int,Move*> &to_insert = iter.first->second;
         for (const Fitch_Sankoff_Result *e : states) {
-            to_insert.insert(e->mutation.position);
+            to_insert.emplace(e->mutation.position,m);
         }
         node = node->parent;
     }
 }
-void register_loop_conflict(MAT::Node *src, MAT::Node *dst) {
-    while (dst) {
-        auto iter =
-            potential_crosses.emplace(dst, std::unordered_set<MAT::Node *>());
-        iter.first->second.insert(src);
-        dst = dst->parent;
-    }
+static void register_loop_conflict(std::vector<MAT::Node*> path,Cross_t& potential_crosses) {
+    potential_crosses.insert(path.begin(),path.end());
 }
-Profitable_Moves *
-multiple_moves_resolver::operator()(tbb::flow_control fc) const {
-    assert(valid);
-    while (iter != multiple_optimal_deferred.end()) {
-        Profitable_Moves *this_move = *iter;
-        size_t min_level = 0xffffff;
-        Move *min_leve_move = nullptr;
-        MAT::Node *src = this_move->src;
-        for (Move &m : this_move->moves) {
-            if (m.dst->level < min_level) {
-                if (!(check_mut_conflict(src, m.states) ||
-                      check_mut_conflict(m.dst, m.states) ||
-                      check_loop_conflict(src, m.dst))) {
-                    min_leve_move = &m;
-                    min_level = m.dst->level;
-                }
-            }
-        }
-        if(min_leve_move){
-            std::vector<Move> temp({*min_leve_move});
-            this_move->moves.swap(temp);
-            return this_move;
-        }else{
-            postponed.push_back(src);
+void resolve_conflict(tbb::concurrent_vector<Move*>& candidate_moves, std::vector<Move*>& non_conflicting_moves, std::vector<MAT::Node*>& deferred_nodes){
+    Cross_t potential_crosses;
+    Mut_t repeatedly_mutating_loci;
+    std::sort(candidate_moves.begin(),candidate_moves.end(),Move_Comparator());
+    for(auto m:candidate_moves){
+        if (check_mut_conflict(m->src,m->states,repeatedly_mutating_loci)||
+        check_mut_conflict(m->dst,m->states,repeatedly_mutating_loci)||
+        check_loop_conflict(m->path,potential_crosses)) {
+            deferred_nodes.push_back(m->src);
+            delete m;
+        }else {
+            register_loop_conflict(m->path,potential_crosses);
+            register_mut_conflict(m->src,m->states,m,repeatedly_mutating_loci);
+            register_mut_conflict(m->dst,m->states,m,repeatedly_mutating_loci);
+            non_conflicting_moves.push_back(m);
         }
     }
-    fc.stop();
-    return nullptr;
 }

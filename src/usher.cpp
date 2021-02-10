@@ -1,3 +1,4 @@
+#include <boost/program_options/value_semantic.hpp>
 #include <fstream>
 #include <algorithm>
 #include <numeric>
@@ -32,7 +33,7 @@ int main(int argc, char** argv) {
     bool print_uncondensed_tree = false;
     bool print_parsimony_scores = false;
     bool retain_original_branch_len = false;
-    bool refine_trees=false;
+    int refine_trees=0;
     size_t print_subtrees_size=0;
     po::options_description desc{"Options"};
 
@@ -42,7 +43,7 @@ int main(int argc, char** argv) {
         ("tree,t", po::value<std::string>(&tree_filename)->default_value(""), "Input tree file")
         ("outdir,d", po::value<std::string>(&outdir)->default_value("."), "Output directory to dump output and log files [DEFAULT uses current directory]")
         ("load-mutation-annotated-tree,i", po::value<std::string>(&din_filename)->default_value(""), "Load mutation-annotated tree object")
-        ("refine-tree",po::bool_switch(&refine_trees))
+        ("refine-tree",po::value<int>(&refine_trees))
         ("save-mutation-annotated-tree,o", po::value<std::string>(&dout_filename)->default_value(""), "Save output mutation-annotated tree object to the specified filename")
         ("sort-before-placement-1,s", po::bool_switch(&sort_before_placement_1), \
          "Sort new samples based on computed parsimony score and then number of optimal placements before the actual placement [EXPERIMENTAL].")
@@ -1039,7 +1040,7 @@ int main(int argc, char** argv) {
         }
         
     }
-    if(refine_trees) Tree_Rearrangement::refine_trees(optimal_trees);
+    if(refine_trees) Tree_Rearrangement::refine_trees(optimal_trees,refine_trees);
     num_trees = optimal_trees.size();
             
     // If user specified print_parsimony_scores, close corresponding file and

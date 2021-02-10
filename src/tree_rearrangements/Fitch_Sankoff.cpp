@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <array>
 #include <limits.h>
 #include <string>
@@ -58,15 +59,36 @@ Fitch_Sankoff::get_child_score_on_par_nuc(char par_nuc,
     return std::make_pair(min_score, min_state);
 }
 
-static void set_internal_score(const MAT::Node &this_node, Scores_Type &out,
-                               const int start_idx, States_Type &states,char ori_state) {
+static void patch_children(std::vector<MAT::Node*>& in, MAT::Node* changed_child){
+    std::vector<MAT::Node*>::iterator iter=std::find(in.begin(),in.end(),changed_child);
+    if (iter==in.end()) {
+        in.push_back(changed_child);
+    }else {
+        in.erase(iter);
+    }
+}
+
+void Fitch_Sankoff::set_internal_score(const MAT::Node &this_node, Scores_Type &out,
+                        const int start_idx, States_Type &states,MAT::Node* changed_child) {
     // make sure no off by one
     assert(out.size() - 1 == start_idx - this_node.index);
-    bool is_sample=!this_node.not_sample();
     for (char par_nuc = 0; par_nuc < 4; par_nuc++) {
         int score = 0;
         // Children are visited after parent in pre-order DFS
-        for (auto child : this_node.children) {
+        std::vector<MAT::Node*>::const_iterator iter;
+        std::vector<MAT::Node*>::const_iterator end;
+        std::vector<MAT::Node*> patched_children;
+        if(changed_child){
+             patched_children=this_node.children;
+             patch_children(patched_children,changed_child);
+             iter=patched_children.begin();
+             end=patched_children.end();
+        }else{
+            iter=this_node.children.begin();
+            end=this_node.children.end();
+        }
+        for (;iter<end;iter++) {
+            auto child=*iter;
             size_t child_idx = start_idx - child->index;
             // make sure indexes match
             assert(child_idx <= out.size() - 2);
@@ -80,9 +102,6 @@ static void set_internal_score(const MAT::Node &this_node, Scores_Type &out,
             score += temp.first;
             assert((states[child_idx] &(3<<(2* par_nuc)))==0||(states[child_idx] &(3<<(2* par_nuc)))==temp.second);
             states[child_idx] |= (temp.second << (2 * par_nuc));
-        }
-        if(is_sample&&((ori_state&(1<<par_nuc))==0)){
-            score++;
         }
         //assert(out.back().node == &this_node);
         out.back()[par_nuc] = score;
@@ -142,7 +161,7 @@ int Fitch_Sankoff::sankoff_backward_pass(const std::pair<size_t, size_t> &range,
         if ((*iter)->is_leaf()) {
             set_leaf_score(**iter, mutation, score_array,states.back(),*ori_state_iter);
         } else {
-            set_internal_score(**iter, scores, start_idx, states,*ori_state_iter);
+            set_internal_score(**iter, scores, start_idx, states);
         }
         ori_state_iter++;
     }

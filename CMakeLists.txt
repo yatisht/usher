@@ -74,6 +74,7 @@ else()
         src/mutation_annotated_tree.cpp
         src/usher_mapper.cpp
         src/usher.cpp
+        src/Mutation_Collection.cpp
         ${tree_rearrange_src}
         ${PROTO_SRCS}
         ${PROTO_HDRS}
@@ -81,6 +82,7 @@ else()
 
     add_executable(matToVcf
         src/mutation_annotated_tree.cpp
+        src/Mutation_Collection.cpp
         src/matToVcf.cpp
         ${PROTO_SRCS}
         ${PROTO_HDRS}
@@ -89,6 +91,7 @@ else()
     if(COMPILE_UTILS)
         add_executable(matUtils
             src/mutation_annotated_tree.cpp
+            src/Mutation_Collection.cpp
             src/matUtils.cpp
             ${PROTO_SRCS}
             ${PROTO_HDRS}

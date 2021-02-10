@@ -44,6 +44,9 @@ void sankoff_forward_pass(const std::pair<size_t, size_t> &range,
 //,Scores_Type &scores 
 //#endif
 );
+
+void set_internal_score(const MAT::Node &this_node, Scores_Type &out,
+                        const int start_idx, States_Type &states,MAT::Node* changed_child=nullptr);
 std::pair<int, char>
 get_child_score_on_par_nuc(char par_nuc,
                            Score_Type &child_scores);

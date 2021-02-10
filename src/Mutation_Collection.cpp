@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <mutex>
+#include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
 #include <vector>
 using namespace Mutation_Annotated_Tree;
@@ -301,7 +302,7 @@ std::pair<bool,bool> Mutations_Collection::dirty_insert(const Mutation &mut, cha
 }
 void Tree::finalize(){
     auto& dirty_nodes=this->dirty_nodes;
-    tbb::parallel_for(dirty_nodes.range(50),[&dirty_nodes](tbb::blocked_range<size_t> r){
+    tbb::parallel_for(tbb::blocked_range<size_t>(0,dirty_nodes.size()),[&dirty_nodes](tbb::blocked_range<size_t> r){
         for (size_t s=r.begin(); s<=r.end(); s++) {
             dirty_nodes[s]->finalize();
         }

@@ -4,66 +4,39 @@
 #include <queue>
 #include <tuple>
 #include <utility>
-static MAT::Mutation reverse_mutation(MAT::Mutation to_reverse) {
-    auto old_par_nuc = to_reverse.par_nuc;
-    to_reverse.par_nuc = to_reverse.mut_nuc;
-    to_reverse.mut_nuc = old_par_nuc;
-    return to_reverse;
-}
 
-
-static MAT::Mutations_Collection* BFS(MAT::Node* src,MAT::Node* excluded, int radius,std::vector<Dst_Mut>& out){
+static void BFS(MAT::Node* src,MAT::Node* ori_src, int radius,tbb::flow::interface11::internal::multifunction_output<struct Possible_Move *>& out){
     struct queue_content{
         MAT::Node* node;
         MAT::Node* reached_from; //take advantage of the tree, no loops
         int dist;
-        MAT::Mutations_Collection& mutations;
     };
-    MAT::Mutations_Collection* to_search=new MAT::Mutations_Collection;
     std::queue<queue_content> bfs_queue;
-    MAT::Mutations_Collection empty;
-    bfs_queue.push({src,excluded,radius,empty});
+    MAT::Node* excluded=ori_src;
+    bfs_queue.push({src,excluded,radius});
     
-#define bfs_add_node(node,flag) \
-MAT::Mutations_Collection mutation_path;\
-mutations.merge_out(node->mutations, mutation_path,flag);\
-out.push_back({node,mutation_path});\
-bfs_queue.push({node,src,dist,mutation_path});\
-to_search->merge(node->mutations, 1);
+#define bfs_add_node(node) \
+out.try_put(new Possible_Move{src,node});\
+bfs_queue.push({node,src,dist});\
 
     while (!bfs_queue.empty()) {
         MAT::Node* src=bfs_queue.front().node;
         MAT::Node* excluded=bfs_queue.front().reached_from;
         int dist=bfs_queue.front().dist-1;
-        MAT::Mutations_Collection& mutations=bfs_queue.front().mutations;
         bfs_queue.pop();
         if (dist<0) {
             break;
         }
         if (src->parent!=excluded&&src->parent&&src->parent->parent) {
-            bfs_add_node(src->parent,MAT::Mutations_Collection::INVERT_MERGE)
+            bfs_add_node(src->parent)
         }
         for(MAT::Node* c:src->children){
             if(c==excluded) continue;
-            bfs_add_node(c, MAT::Mutations_Collection::MERGE);
+            bfs_add_node(c);
         }
     }
     
 }
-Possible_Moves* Neighbors_Finder::operator()(MAT::Node* src)const{
-    Possible_Moves* result=new Possible_Moves;
-    result->src=src;
-    result->to_search=BFS(src->parent,src,radius,result->dst);
-    
-    auto iter=repeatedly_mutating_loci.find(src);
-    if(iter!=repeatedly_mutating_loci.end()){
-        for(const MAT::Mutation& m:*(result->to_search)){
-            if(iter->second.count(m.position)){
-                postponed.push_back(src);
-                return nullptr;
-            }
-        }
-    }
-    
-    return result;
+void Neighbors_Finder::operator()(MAT::Node* src, Neighbors_Finder_t::output_ports_type& out)const{
+    BFS(src->parent,src,radius,std::get<0>(out));
 }
