@@ -718,7 +718,7 @@ size_t Mutation_Annotated_Tree::Tree::get_num_leaves(Node* node) {
     return num_leaves;
 }
 
-Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Tree::create_node (std::string const& identifier, float branch_len) {
+Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Tree::create_node (std::string const& identifier, float branch_len, int epps) {
     all_nodes.clear();
     Node* n = new Node(identifier, branch_len);
     root = n;
@@ -726,7 +726,7 @@ Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Tree::create_node (std::
     return n;
 }
 
-Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Tree::create_node (std::string const& identifier, Node* par, float branch_len) {
+Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Tree::create_node (std::string const& identifier, Node* par, float branch_len, int epps) {
     Node* n = new Node(identifier, par, branch_len);
     if (all_nodes.find(identifier) != all_nodes.end()) {
         fprintf(stderr, "Error: %s already in the tree!\n", identifier.c_str());
@@ -737,7 +737,7 @@ Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Tree::create_node (std::
     return n;
 }
 
-Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Tree::create_node (std::string const& identifier, std::string const& parent_id, float branch_len) {
+Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Tree::create_node (std::string const& identifier, std::string const& parent_id, float branch_len, int epps) {
     Node* par = all_nodes[parent_id];
     return create_node(identifier, par, branch_len);
 }
@@ -979,7 +979,7 @@ void Mutation_Annotated_Tree::Tree::condense_leaves(std::vector<std::string> mis
             std::string new_node_name = "node_" + std::to_string(1+condensed_nodes.size()) + "_condensed_" + std::to_string(polytomy_nodes.size()) + "_leaves";
             
             auto curr_node = get_node(l1->identifier);
-            auto new_node = create_node(new_node_name, curr_node->parent, l1->branch_length);
+            auto new_node = create_node(new_node_name, curr_node->parent, l1->branch_length, l1->epps);
 
             new_node->clear_mutations();
             
@@ -1008,7 +1008,7 @@ void Mutation_Annotated_Tree::Tree::uncondense_leaves() {
         }
 
         for (size_t s = 1; s < num_samples; s++) {
-            create_node(cn->second[s], par, n->branch_length);
+            create_node(cn->second[s], par, n->branch_length, n->epps);
         }
     }
     condensed_nodes.clear();
@@ -1167,7 +1167,7 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_subtree (const Mutati
             }
             // Add as root of the subtree
             if (subtree_parent == NULL) {
-                Node* new_node = subtree.create_node(n->identifier);
+                Node* new_node = subtree.create_node(n->identifier, -1.0, n->epps);
                 
                 std::vector<Node*> root_to_node = tree.rsearch(n->identifier); 
                 std::reverse(root_to_node.begin(), root_to_node.end());
@@ -1181,7 +1181,7 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_subtree (const Mutati
             }
             // Add to the parent identified
             else {
-                Node* new_node = subtree.create_node(n->identifier, subtree_parent->identifier);
+                Node* new_node = subtree.create_node(n->identifier, subtree_parent->identifier, -1.0, n->epps);
 
                 std::vector<Node*> par_to_node;
                 for (auto anc: tree.rsearch(n->identifier)) {

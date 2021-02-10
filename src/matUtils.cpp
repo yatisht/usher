@@ -10,58 +10,12 @@
 namespace po = boost::program_options;
 namespace MAT = Mutation_Annotated_Tree;
 
-po::variables_map check_options(int argc, char** argv) {
-    // Check command line options and return variable map.
-    po::options_description desc{"Options"};
-    desc.add_options()
-        ("input-mat,i", po::value<std::string>()->required(),
-         "Input mutation-annotated tree file [REQUIRED]")
-        ("output-mat,o", po::value<std::string>()->default_value(""),
-         "Use to output a full processed mutation-annotated tree file.")
-        ("restricted-samples,s", po::value<std::string>()->default_value(""), 
-         "Sample names to restrict. Use to perform masking") //this is now optional, as the Utils may be doing things other than masking. Should still perform the same given the same commands as previous.
-        ("find-epps,e", po::bool_switch(),
-        "Use to calculate and store the number of equally parsimonious placements for all nodes")
-        ("write-vcf,v", po::value<std::string>()->default_value(""),
-         "Output VCF file ")
-        ("no-genotypes,n", po::bool_switch(),
-        "Do not include sample genotype columns in VCF output. Used only with the vcf option")
-        ("write-tree,t", po::value<std::string>()->default_value(""),
-         "Use to write a newick tree to the indicated file.")
-        ("get-parsimony,p", po::bool_switch(),
-        "Use to calculate and save global tree parsimony.")
-        ("help,h", "Print help messages");
-    
-    po::options_description all_options;
-    all_options.add(desc);
-    po::positional_options_description p;
-    po::variables_map vm;
-    try{
-        po::store(po::command_line_parser(argc, argv)
-                  .options(all_options)
-                  .positional(p)
-                  .run(), vm);
-        po::notify(vm);
-    }
-    catch(std::exception &e){
-        std::cerr << desc << std::endl;
-        // Return with error code 1 unless the user specifies help
-        if (vm.count("help"))
-            exit(0);
-        else
-            exit(1);
-    }
-    return vm;
-}
-
-/*
-As a general principle, I intend to write this utility such that each function is modular and self-contained and any or all of them can be called based on command line usage.
-Each relevant function will both take and return a MAT object
-The main() function will only contain MAT and option read in, a series of if() then function calls, and saving the tree at the end
-*/
+//Filter subcommands follow
 
 MAT::Tree restrictSamples (std::string samples_filename, MAT::Tree T) {
-    // Load restricted sampl0e names from the input file and add it to the set
+    // Load restricted sample names from the input file and add it to the set
+    //BUG WARNING
+    //This does not actually work right now- all samples passed in are caught as missing. 
     std::ifstream infile(samples_filename);
     if (!infile) {
         fprintf(stderr, "ERROR: Could not open the restricted samples file: %s!\n", samples_filename.c_str());
@@ -70,8 +24,10 @@ MAT::Tree restrictSamples (std::string samples_filename, MAT::Tree T) {
     std::unordered_set<std::string> restricted_samples;
     std::string sample;
     while (std::getline(infile, sample)) {
+        fprintf(stderr, "Checking for Sample %s\n", sample.c_str());
         if (T.get_node(sample) == NULL) {
-            fprintf(stderr, "ERROR: Sample %s missing in input MAT!\n", sample.c_str());
+            fprintf(stderr, "ERROR: Sample missing in input MAT!\n");
+            std::cerr << std::endl;
             exit(1);
         }
         restricted_samples.insert(std::move(sample));
@@ -166,7 +122,7 @@ MAT::Tree restrictSamples (std::string samples_filename, MAT::Tree T) {
     return T;
 }
 
-//CODE FOR METADATA CALCULATION- JDM
+//Annotate subcommands follow
 
 //The below is commented out because it was accidental that I committed it to my master branch when updating the PR; its not ready and I'm still debugging it on a dedicated branch 
 //do feel free to read through it and comment on the method/concept if you want though
@@ -248,7 +204,6 @@ MAT::Tree restrictSamples (std::string samples_filename, MAT::Tree T) {
 //     return best_size;
 // }
 
-//okay, here's the functional EPPs finding code.
 MAT::Tree findEPPs (MAT::Tree Tobj) {
     TIMEIT()
     //all comments on function JDM
@@ -374,11 +329,11 @@ MAT::Tree findEPPs (MAT::Tree Tobj) {
                 //         auto nobj = dfs[best_j_vec[z]];
                 //         best_placements.emplace_back(nobj);
                 //     }
-                //     size_t neighborhood_size = get_neighborhood_size(best_placements, T);
-                //     fprintf(stderr, "Neighborhood Size: %ld", neighborhood_size);
+                    //size_t neighborhood_size = get_neighborhood_size(best_placements, T);
+                    //fprintf(stderr, "Neighborhood Size: %ld\n", neighborhood_size);
                 // } else {
                 //     fprintf(stderr, "Neighborhood Size: 0");
-                //}
+                // }
 
             } else {
                 node->epps = 1;
@@ -391,7 +346,7 @@ MAT::Tree findEPPs (MAT::Tree Tobj) {
     return Tobj; //return the actual object.
 }
 
-//CODE FOR VCF CONVERSION
+//Convert subcommands follow
 
 void write_vcf_header(FILE *vcf_file, std::vector<Mutation_Annotated_Tree::Node*> &dfs,
                       bool print_genotypes) {
@@ -621,19 +576,122 @@ void make_vcf (MAT::Tree T, std::string vcf_filename, bool no_genotypes) {
     fclose(vcf_file);
 }
 
-int main(int argc, char** argv) {
+//main and parsing functions follow
 
-    // Command line options
-    po::variables_map vm = check_options(argc, argv);
+po::variables_map parse_annotate_command(po::parsed_options parsed) {    
+
+    po::variables_map vm;
+    po::options_description ann_desc("annotate options");
+    ann_desc.add_options()
+        ("input-mat,i", po::value<std::string>()->required(),
+         "Input mutation-annotated tree file [REQUIRED]")
+        ("output-mat,o", po::value<std::string>()->required(),
+         "Path to output processed mutation-annotated tree file [REQUIRED]")
+        ("find-epps,e", po::bool_switch(),
+        "Use to calculate and store the number of equally parsimonious placements for all nodes")
+        ("get-parsimony,p", po::bool_switch(),
+        "Use to calculate and save global tree parsimony.")
+        ("help,h", "Print help messages");
+    // Collect all the unrecognized options from the first pass. This will include the
+    // (positional) command name, so we need to erase that.
+    std::vector<std::string> opts = po::collect_unrecognized(parsed.options, po::include_positional);
+    opts.erase(opts.begin());
+
+    // Run the parser, with try/catch for help
+    try{
+        po::store(po::command_line_parser(opts)
+                  .options(ann_desc)
+                  .run(), vm);
+        po::notify(vm);
+    }
+    catch(std::exception &e){
+        std::cerr << ann_desc << std::endl;
+        // Return with error code 1 unless the user specifies help
+        if (vm.count("help"))
+            exit(0);
+        else
+            exit(1);
+    }
+    return vm;
+}
+
+void annotate_main(po::parsed_options parsed) {
+    //the annotate subcommand calculates and saves information about the tree, returning a protobuf file that is larger than the input
+    po::variables_map vm = parse_annotate_command(parsed);
+    std::string input_mat_filename = vm["input-mat"].as<std::string>();
+    std::string output_mat_filename = vm["output-mat"].as<std::string>();
+    bool get_parsimony = vm["get-parsimony"].as<bool>();
+    bool fepps = vm["find-epps"].as<bool>();
+
+    // Load input MAT and uncondense tree
+    MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
+    //T here is the actual object.
+    if (T.condensed_nodes.size() > 0) {
+      T.uncondense_leaves();
+    }
+    // If the argument to calculate equally parsimonious placements was used, perform this operation
+    if (fepps) {
+        fprintf(stderr, "Calculating EPPs\n");
+        T = findEPPs(T);
+    }
+    if (get_parsimony){
+        fprintf(stderr, "Calculating Total Parsimony\n");
+        T.total_parsimony = T.get_parsimony_score();
+    }
+    //condense_leaves() expects some samples to ignore. We don't have any such samples
+    //this would be space to add an additional argument containing samples to not recondense
+    //for now, just recondense everything
+    std::vector<std::string> preserve;
+    T.condense_leaves(preserve);
+
+    // Store final MAT to output file
+    if (output_mat_filename != "") {
+        fprintf(stderr, "Saving Final Tree\n");
+        MAT::save_mutation_annotated_tree(T, output_mat_filename);
+    }
+}
+
+po::variables_map parse_filter_command(po::parsed_options parsed) {
+
+    po::variables_map vm;
+    po::options_description filt_desc("filter options");
+    filt_desc.add_options()
+        ("input-mat,i", po::value<std::string>()->required(),
+         "Input mutation-annotated tree file [REQUIRED]")
+        ("output-mat,o", po::value<std::string>()->required(),
+         "Path to output filtered mutation-annotated tree file [REQUIRED]")
+        ("restricted-samples,s", po::value<std::string>()->default_value(""), 
+         "Sample names to restrict. Use to perform masking") //this is now optional, as the Utils may be doing things other than masking. Should still perform the same given the same commands as previous.
+        ("help,h", "Print help messages");
+    // Collect all the unrecognized options from the first pass. This will include the
+    // (positional) command name, so we need to erase that.
+    std::vector<std::string> opts = po::collect_unrecognized(parsed.options, po::include_positional);
+    opts.erase(opts.begin());
+
+    // Run the parser, with try/catch for help
+    try{
+        po::store(po::command_line_parser(opts)
+                  .options(filt_desc)
+                  .run(), vm);
+        po::notify(vm);
+    }
+    catch(std::exception &e){
+        std::cerr << filt_desc << std::endl;
+        // Return with error code 1 unless the user specifies help
+        if (vm.count("help"))
+            exit(0);
+        else
+            exit(1);
+    }
+    return vm;
+}
+
+void filter_main(po::parsed_options parsed) {
+    //the filter subcommand prunes data from the protobuf based on some threshold, returning a protobuf file that is smaller than the input
+    po::variables_map vm = parse_filter_command(parsed);
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string output_mat_filename = vm["output-mat"].as<std::string>();
     std::string samples_filename = vm["restricted-samples"].as<std::string>();
-    std::string tree_filename = vm["write-tree"].as<std::string>();
-    std::string vcf_filename = vm["write-vcf"].as<std::string>();
-
-    bool get_parsimony = vm["get-parsimony"].as<bool>();
-    bool fepps = vm["find-epps"].as<bool>();
-    bool no_genotypes = vm["no-genotypes"].as<bool>();
 
     // Load input MAT and uncondense tree
     MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
@@ -646,10 +704,65 @@ int main(int argc, char** argv) {
         fprintf(stderr, "Performing Masking\n");
         T = restrictSamples(samples_filename, T);
     }
-    // If the argument to calculate equally parsimonious placements was used, perform this operation
-    if (fepps) {
-        fprintf(stderr, "Calculating EPPs\n");
-        T = findEPPs(T);
+    //the filter subcommand will be receiving some additional attention in the near future.
+
+    // Store final MAT to output file
+    if (output_mat_filename != "") {
+        fprintf(stderr, "Saving Final Tree\n");
+        MAT::save_mutation_annotated_tree(T, output_mat_filename);
+    }    
+}
+
+po::variables_map parse_convert_command(po::parsed_options parsed) {
+
+    po::variables_map vm;
+    po::options_description conv_desc("convert options");
+    conv_desc.add_options()
+        ("input-mat,i", po::value<std::string>()->required(),
+         "Input mutation-annotated tree file [REQUIRED]")
+        ("write-vcf,v", po::value<std::string>()->default_value(""),
+         "Output VCF file ")
+        ("no-genotypes,n", po::bool_switch(),
+        "Do not include sample genotype columns in VCF output. Used only with the vcf option")
+        ("write-tree,t", po::value<std::string>()->default_value(""),
+         "Use to write a newick tree to the indicated file.")
+        ("help,h", "Print help messages");
+    // Collect all the unrecognized options from the first pass. This will include the
+    // (positional) command name, so we need to erase that.
+    std::vector<std::string> opts = po::collect_unrecognized(parsed.options, po::include_positional);
+    opts.erase(opts.begin());
+
+    // Run the parser, with try/catch for help
+    try{
+        po::store(po::command_line_parser(opts)
+                  .options(conv_desc)
+                  .run(), vm);
+        po::notify(vm);
+    }
+    catch(std::exception &e){
+        std::cerr << conv_desc << std::endl;
+        // Return with error code 1 unless the user specifies help
+        if (vm.count("help"))
+            exit(0);
+        else
+            exit(1);
+    }
+    return vm;
+}
+
+void convert_main(po::parsed_options parsed) {
+    //the convert subcommand converts the protobuf into another file format, returning some other file type that represents an equivalent structure
+    po::variables_map vm = parse_convert_command(parsed);
+    std::string input_mat_filename = vm["input-mat"].as<std::string>();
+    std::string tree_filename = vm["write-tree"].as<std::string>();
+    std::string vcf_filename = vm["write-vcf"].as<std::string>();
+    bool no_genotypes = vm["no-genotypes"].as<bool>();
+
+    // Load input MAT and uncondense tree
+    MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
+    //T here is the actual object.
+    if (T.condensed_nodes.size() > 0) {
+      T.uncondense_leaves();
     }
     //if a vcf filename was given, write a vcf to it
     if (vcf_filename != "") {
@@ -665,15 +778,45 @@ int main(int argc, char** argv) {
             MAT::get_newick_string(T, true, true, true).c_str());
         fclose(tree_file);        
     }
-    if (get_parsimony){
-        fprintf(stderr, "Calculating Total Parsimony\n");
-        T.total_parsimony = T.get_parsimony_score();
-    }
-    // Store final MAT to output file if indicated
-    if (output_mat_filename != "") {
-        fprintf(stderr, "Saving Final Tree\n");
-        MAT::save_mutation_annotated_tree(T, output_mat_filename);
+}
+
+int main (int argc, char** argv) {
+    /*
+    The new design principle for organizing matUtils is to divide the overall structure into three options. All three take protobuf files as input.
+    First there is annotate, which calculates and stores uncertainty metrics and other tree-based metadata into the protobuf file. This returns a protobuf that is larger than the input (in bytes).
+    Second there is filter, which prunes the tree based on threshold arguments and the uncertainty metrics from annotate. This returns a protobuf that is smaller than the input (in bytes).
+    Third there is convert, which produces a different file format than protobuf. This returns non-protobuf files.
+
+    Generally a workflow will call annotate first, then filter, then convert. Or, if metadata is precalculated and saved on our updated global tree, they should be able to call filter then convert without an extended annotate command.
+    Ideally these would be chainable on the command line, though I'm not sure if we can write a protobuf file to stdout/read from stdin. This is something we may want to investigate as a future option.
+    For now, they can use && and intermediate file names to write a simple matUtils pipeline.
+    */
+    po::options_description global("Command options");
+    global.add_options()
+        ("command", po::value<std::string>(), "Command to execute. Valid options are annotate, filter, convert.")
+        ("subargs", po::value<std::vector<std::string> >(), "Command-specific arguments.");
+    po::positional_options_description pos;
+    pos.add("command",1 ).add("subargs", -1);
+    
+    try {
+        po::variables_map vm;
+        po::parsed_options parsed = po::command_line_parser(argc, argv).options(global).positional(pos).allow_unregistered().run();
+
+        po::store(parsed, vm);
+        std::string cmd = vm["command"].as<std::string>();
+        if (cmd == "annotate"){
+            annotate_main(parsed);
+        } else if (cmd == "convert"){
+            convert_main(parsed);
+        } else if (cmd == "filter"){
+            filter_main(parsed); 
+        } else {
+            fprintf(stderr, "Invalid command. Please choose from annotate, filter, or convert and try again.\n");
+            exit(1);
+        }
+    } catch (...) { //not sure this is the best way to catch it when matUtils is called with no positional arguments.
+        fprintf(stderr, "No command selected. Please choose from annotate, filter, or convert and try again.\n");
+        exit(0);
     }
     return 0;
 }
-
