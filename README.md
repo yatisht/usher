@@ -31,7 +31,7 @@ UShER is much faster than existing tools with similar functionality and has now 
       * [Multiple parsimony-optimal placements](#multiple-parsimony-optimal-placements)
       * [Updating multiple input trees](#updating-multiple-input-trees)
 * [Fasta2UShER](#fasta2usher)
-* [MatToVcf](#mattovcf)
+* [matUtils](#matUtils)
 * [Acknowledgement](#acknowledgement)
 * [Reference](#reference)
 
@@ -262,9 +262,9 @@ Merged VCF with missing data for a particular sample denoted as "." in the corre
 
 For the example above, a new VCF *test/test_merged.vcf* is generated (identical to the one already provided), which can be used by UShER to place the new samples.
 
-## MatToVcf
+## matUtils
 
-We also provide a tool, `matToVcf`, that generates a parsimony-resolved VCF file corresponding to UShER's mutation-annotated tree. It can also also output the tree in Newick format corresponding to the mutation-annotated tree.
+We are now providing a toolkit, `matUtils`, which can perform a number of tasks related to manipulating and querying the UShER's mutation-annotated tree, such as the generation of the corresponding Newick tree or parsimony-resolved VCF file, masking out mutations specific to certain samples, calculating the number of equally parsimonious placements for all samples currently included in the mutation-annotated tree as well as the total parsimony score of the tree (see usage options below).
 
 ### Input
 
@@ -272,22 +272,44 @@ Mutation-annotated tree file generated using UShER.
 
 ### Options
 
-**-i**: Mutation-annotated tree file to convert to VCF (REQUIRED) 
+#### Annotate
 
-**-v**: Output VCF file (REQUIRED)
+**-i**: Input mutation-annotated tree file (REQUIRED)
 
-**-t**: Output tree file
+**-o**: Output mutation-annotated tree file (REQUIRED)
 
-**-d**: Output directory to dump output and log files (current directory by default)
+**-p**: Calculate and store total tree parsimony. 
 
-**-n**: Do not include sample genotype columns in VCF output
+**-e**: Calculate and store equally parsimonious placements for all samples in the tree.
+
+**-h**: Print help messages
+
+#### Filter
+
+**-i**: Input mutation-annotated tree file (REQUIRED) 
+
+**-o**: Output mutation-annotated tree file (REQUIRED)
+
+**-s**: Use to mask specific samples from the tree. 
+
+**-h**: Print help messages
+
+#### Convert
+
+**-i**: Input mutation-annotated tree file (REQUIRED) 
+
+**-v**: Output VCF file 
+
+**-t**: Output Newick tree file
+
+**-n**: Do not include sample genotype columns in VCF output. Used only with -v
 
 **-h**: Print help messages
 
 ### Usage example
 
 ```
-./build/matToVcf -i global_assignments.pb -v global_assignments.vcf -t global_assignments.nh
+./build/matUtils convert -i global_assignments.pb -v global_assignments.vcf -t global_assignments.nh
 ```
 
 ### Output

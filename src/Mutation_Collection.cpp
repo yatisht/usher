@@ -173,7 +173,7 @@ void Mutations_Collection::finalize(){
             this_mutation.position < new_inserts_iter->position) {
             mutation_vector_check_order(this_mutation.position);
             switch (*remove_or_replace_iter) {
-                case 0xff: break;
+                case -1: break;
                 case 0: new_content.push_back(this_mutation);
                 default:
                     new_content.back().mut_nuc=(*remove_or_replace_iter)&0xff;
@@ -216,7 +216,7 @@ bool Mutations_Collection::dirty_set_difference(Mutations_Collection& common, Mu
             this_mutation.position < new_inserts_iter->position) {
             mutation_vector_check_order(this_mutation.position);
             switch (*remove_or_replace_iter) {
-                case 0xff: original.mutations.push_back(this_mutation); break;
+                case -1: original.mutations.push_back(this_mutation); break;
                 case 0: common.mutations.push_back(this_mutation); break;
                 default:
                     original.mutations.push_back(this_mutation);
