@@ -513,6 +513,10 @@ int main(int argc, char** argv) {
                 std::vector<size_t> num_best_placements;
 
                 for (size_t s=0; s<missing_samples.size(); s++) {
+
+                    //Sort the missing sample mutations by position
+                    std::sort(missing_sample_mutations[s].begin(), missing_sample_mutations[s].end());
+
                     auto dfs = T->depth_first_expansion();
                     size_t total_nodes = dfs.size();
 
