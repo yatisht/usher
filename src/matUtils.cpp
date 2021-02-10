@@ -369,9 +369,6 @@ size_t get_neighborhood_size(std::vector<MAT::Node*> nodes, MAT::Tree* T) {
     for (size_t s=0; s<common_nodes.size(); s++) {
         //get the set of distances between each placement to this common ancestor with the path vectors
         std::vector<float> distances = get_all_distances(common_nodes[s], parentvecs);
-        for (auto i = distances.begin(); i != distances.end(); ++i) {
-            std::cerr << *i << ',';
-        }
         //now find the biggest sum of shared values for this specific common node
         float widest = 0.0;
         for (size_t i=0; i<distances.size(); i++) {
