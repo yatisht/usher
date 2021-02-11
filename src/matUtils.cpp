@@ -163,16 +163,51 @@ void assignLineages (MAT::Tree& T, const std::string& lineage_filename, float mi
         }, ap); 
 
         fprintf(stderr, "Parsimony score at the best node: %d\n", best_set_difference);
-        std::sort(best_j_vec.begin(), best_j_vec.end(), [&](const size_t a, const size_t b) {
-                return (T.get_num_leaves(dfs[a]) > T.get_num_leaves(dfs[b]));
-                });
+        
+        struct Node_freq {
+            size_t best_j;
+            size_t freq;
+            Node_freq (size_t a, size_t b) 
+            {
+                best_j = a;
+                freq = b;
+            }
+            // To sort with highest frequency first
+            inline bool operator< (const Node_freq& n) const {
+                return ((*this).freq > n.freq);
+            }
+        };
 
+        std::vector<Node_freq> best_node_frequencies;
         if (num_best > 1) {
             fprintf(stderr, "WARNING: found %zu possible assignments\n", num_best);
+            for (auto j: best_j_vec) {
+                size_t freq = 0;
+
+                tbb::parallel_for(tbb::blocked_range<size_t>(0, it.second.size()),
+                        [&](const tbb::blocked_range<size_t> r) {
+                        for (size_t i=r.begin(); i<r.end(); ++i){
+                            if (T.is_ancestor(dfs[j]->identifier, it.second[i]->identifier)) {
+                                //__sync_fetch_and_add(&freq, 1);
+                            }
+                        }
+                    }, ap);
+
+                Node_freq n(j, freq);
+                best_node_frequencies.push_back(n);
+
+            }
+        }
+        else {
+            Node_freq n(best_j, 0);
+            best_node_frequencies.push_back(n);
         }
         
+        std::sort(best_node_frequencies.begin(), best_node_frequencies.end());
+
         bool assigned = false;
-        for (auto j: best_j_vec) {
+        for (auto n: best_node_frequencies) {
+            auto j = n.best_j;
             if (dfs[j]->clade == "") {
                 fprintf(stderr, "Assigning %s to node %s\n", it.first.c_str(), dfs[j]->identifier.c_str());
                 dfs[j]->clade = it.first;
@@ -507,7 +542,7 @@ MAT::Tree findEPPs (MAT::Tree Tobj) {
                             }
                         }       
                         }); 
-                node->epps = num_best; //save the value.
+                //node->epps = num_best; //save the value.
                 //additional metadata attribute assigning related to remapping would go here.
 
                 //additional metadata value (not even starting to assign it to an attribute yet) is maximum pairwise distance between equally parsimonious placement cluster members
@@ -520,21 +555,23 @@ MAT::Tree findEPPs (MAT::Tree Tobj) {
                         auto nobj = dfs[best_j_vec[z]];
                         best_placements.emplace_back(nobj);
                     }
-                    size_t neighborhood_size = get_neighborhood_size(best_placements, T);
-                    node->neighborhood_size = neighborhood_size;
+                    //size_t neighborhood_size = get_neighborhood_size(best_placements, T);
+                    //node->neighborhood_size = neighborhood_size;
                     //fprintf(stderr, "Neighborhood Size: %ld\n", neighborhood_size);
-                } else {
-                    node->neighborhood_size = 0;
+                } 
+                //else {
+                    //node->neighborhood_size = 0;
                     //fprintf(stderr, "Neighborhood Size: 0\n");
-                }
+                //}
 
-            } else {
-                node->epps = 1;
-                node->neighborhood_size = 0;
+            } 
+            //else {
+                //node->epps = 1;
+                //node->neighborhood_size = 0;
                 //fprintf(stderr, "Neighborhood Size: 0\n");
                 //no mutations for this sample compared to the reference. This means it's leaf off the root/identical to the reference
                 //there's just one place for that, ofc.
-            }
+            //}
         }
     }
     return Tobj; //return the actual object.
@@ -781,11 +818,7 @@ po::variables_map parse_annotate_command(po::parsed_options parsed) {
          "Input mutation-annotated tree file [REQUIRED]")
         ("output-mat,o", po::value<std::string>()->required(),
          "Path to output processed mutation-annotated tree file [REQUIRED]")
-        ("find-epps,e", po::bool_switch(),
-        "Use to calculate and store the number of equally parsimonious placements for all nodes")
-        ("get-parsimony,p", po::bool_switch(),
-        "Use to calculate and save global tree parsimony.")
-        ("lineage-names,l", po::value<std::string>()->default_value(""),
+        ("lineage-names,l", po::value<std::string>()->required(),
          "Path to a file containing lineage asssignments of samples. Use to locate and annotate clade root nodes")
         ("allele-frequency,f", po::value<float>()->default_value(0.9),
          "Minimum allele frequency in input samples for finding the best clade root. Used only with -l")
@@ -820,8 +853,8 @@ void annotate_main(po::parsed_options parsed) {
     std::string output_mat_filename = vm["output-mat"].as<std::string>();
     std::string lineage_filename = vm["lineage-names"].as<std::string>();
     float allele_frequency = vm["allele-frequency"].as<float>();
-    bool get_parsimony = vm["get-parsimony"].as<bool>();
-    bool fepps = vm["find-epps"].as<bool>();
+    //    bool get_parsimony = vm["get-parsimony"].as<bool>();
+    //    bool fepps = vm["find-epps"].as<bool>();
 
     // Load input MAT and uncondense tree
     MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
@@ -830,24 +863,27 @@ void annotate_main(po::parsed_options parsed) {
       T.uncondense_leaves();
     }
     // If the argument to calculate equally parsimonious placements was used, perform this operation
-    if (fepps) {
-        fprintf(stderr, "Calculating EPPs\n");
-        T = findEPPs(T);
-    }
-    if (get_parsimony){
-        fprintf(stderr, "Calculating Total Parsimony\n");
-        T.total_parsimony = T.get_parsimony_score();
-    }
+    //    if (fepps) {
+    //        fprintf(stderr, "Calculating EPPs\n");
+    //        T = findEPPs(T);
+    //    }
+    //    if (get_parsimony){
+    //        //fprintf(stderr, "Calculating Total Parsimony\n");
+    //        //T.total_parsimony = T.get_parsimony_score();
+    //    }
     if (lineage_filename != "") {
         fprintf(stderr, "Annotating Lineage Root Nodes\n");
         assignLineages(T, lineage_filename, allele_frequency);
+    }
+    else {
+        fprintf(stderr, "ERROR: must specifiy lineage-names!\n");
+        exit(1);
     }
 
     //condense_leaves() expects some samples to ignore. We don't have any such samples
     //this would be space to add an additional argument containing samples to not recondense
     //for now, just recondense everything
-    std::vector<std::string> preserve;
-    T.condense_leaves(preserve);
+    T.condense_leaves(std::vector<std::string>());
 
     // Store final MAT to output file
     if (output_mat_filename != "") {
@@ -867,8 +903,8 @@ po::variables_map parse_filter_command(po::parsed_options parsed) {
          "Path to output filtered mutation-annotated tree file [REQUIRED]")
         ("restricted-samples,s", po::value<std::string>()->default_value(""), 
          "Sample names to restrict. Use to perform masking") 
-        ("placement-confidence,c", po::value<int>()->default_value(0),
-        "Maximum number of equally parsimonious placements among nodes included in the tree (lower values is better, with 1 as highest confidence). Set to 0 to skip filtering. Default 0")
+//        ("placement-confidence,c", po::value<int>()->default_value(0),
+//        "Maximum number of equally parsimonious placements among nodes included in the tree (lower values is better, with 1 as highest confidence). Set to 0 to skip filtering. Default 0")
         ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
     // (positional) command name, so we need to erase that.
@@ -899,7 +935,7 @@ void filter_main(po::parsed_options parsed) {
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string output_mat_filename = vm["output-mat"].as<std::string>();
     std::string samples_filename = vm["restricted-samples"].as<std::string>();
-    int maxcon = vm["placement-confidence"].as<int>();
+    //int maxcon = vm["placement-confidence"].as<int>();
 
     // Load input MAT and uncondense tree
     MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
@@ -913,17 +949,17 @@ void filter_main(po::parsed_options parsed) {
         T = restrictSamples(samples_filename, T);
     }
     //there's a very simple filtering procedure which doesn't require a dedicated function
-    if (maxcon > 0) { //value of 0 means skip this procedure (default behavior)
-        fprintf(stderr, "Removing nodes with more than %d equally parsimonious placements", maxcon);
+    // if (maxcon > 0) { //value of 0 means skip this procedure (default behavior)
+        //fprintf(stderr, "Removing nodes with more than %d equally parsimonious placements", maxcon);
         //just get all nodes, and for each one with an EPPs greater than maxcon, remove it.
         //for the smallest possible maximum, 1, this should retain about 84% of samples. More for any other value
-        auto dfs = T.depth_first_expansion(); //technically for now I would want to get just all leaves, but I think the epps concept could be extended to internal nodes that aren't true samples with some thought in the future
-        for (auto it: dfs) {
-            if (it->epps > maxcon) {
-                T.remove_node(it->identifier, false); //fairly sure I want this to be false for leaves
-            }
-        }
-    }
+        // auto dfs = T.depth_first_expansion(); //technically for now I would want to get just all leaves, but I think the epps concept could be extended to internal nodes that aren't true samples with some thought in the future
+        //for (auto it: dfs) {
+            //if (it->epps > maxcon) {
+            //    T.remove_node(it->identifier, false); //fairly sure I want this to be false for leaves
+            //}
+        //}
+    //}
 
     // Store final MAT to output file
     if (output_mat_filename != "") {
