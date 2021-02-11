@@ -29,6 +29,8 @@ FIND_PACKAGE(Boost COMPONENTS program_options iostreams filesystem REQUIRED)
 
 INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIRS})
 
+file(GLOB MATUTIL_SRCS "src/matUtils/*.cpp" "src/matUtils/*.hpp")
+
 if(DEFINED Protobuf_PATH)
     add_executable(usher
         src/mutation_annotated_tree.cpp
@@ -39,7 +41,7 @@ if(DEFINED Protobuf_PATH)
     add_executable(matUtils
         src/mutation_annotated_tree.cpp
         src/usher_mapper.cpp
-        src/matUtils.cpp
+        ${MATUTIL_SRCS}
         )
 
     protobuf_generate(
@@ -67,7 +69,7 @@ else()
     add_executable(matUtils
         src/mutation_annotated_tree.cpp
         src/usher_mapper.cpp
-        src/matUtils.cpp
+        ${MATUTIL_SRCS}
         ${PROTO_SRCS}
         ${PROTO_HDRS}
         )
