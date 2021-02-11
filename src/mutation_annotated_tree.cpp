@@ -1078,6 +1078,7 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_tree_copy(const Mutat
             for (size_t k=r.begin(); k<r.end(); ++k){
               auto n1 = dfs1[k];
               auto n2 = dfs2[k];
+              n2->clade = n1->clade;
               for (auto m: n1->mutations) {
                 Mutation m2 = m.copy();
                 n2->add_mutation(m2);
@@ -1190,17 +1191,13 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_subtree (const Mutati
             else {
                 Node* new_node = subtree.create_node(n->identifier, subtree_parent->identifier, -1.0, n->epps);
 
-                std::vector<Node*> par_to_node;
-                for (auto anc: tree.rsearch(n->identifier)) {
-                    if (anc == subtree_parent) {
-                        break;
-                    }
-                    par_to_node.emplace_back(anc);
-                }
+                auto par_to_node = tree.rsearch(n->identifier, true);
                 std::reverse(par_to_node.begin(), par_to_node.end());
-                par_to_node.emplace_back(n);
 
                 for (auto curr: par_to_node) {
+                    if (curr->clade != "") {
+                        new_node->clade = curr->clade;
+                    }
                     for (auto m: curr->mutations) {
                         new_node->add_mutation(m);
                     }
