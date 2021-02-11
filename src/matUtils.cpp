@@ -521,14 +521,17 @@ MAT::Tree findEPPs (MAT::Tree Tobj) {
                         best_placements.emplace_back(nobj);
                     }
                     size_t neighborhood_size = get_neighborhood_size(best_placements, T);
-                    fprintf(stderr, "Neighborhood Size: %ld\n", neighborhood_size);
+                    node->neighborhood_size = neighborhood_size;
+                    //fprintf(stderr, "Neighborhood Size: %ld\n", neighborhood_size);
                 } else {
-                    fprintf(stderr, "Neighborhood Size: 0\n");
+                    node->neighborhood_size = 0;
+                    //fprintf(stderr, "Neighborhood Size: 0\n");
                 }
 
             } else {
                 node->epps = 1;
-                fprintf(stderr, "Neighborhood Size: 0\n");
+                node->neighborhood_size = 0;
+                //fprintf(stderr, "Neighborhood Size: 0\n");
                 //no mutations for this sample compared to the reference. This means it's leaf off the root/identical to the reference
                 //there's just one place for that, ofc.
             }
@@ -782,6 +785,10 @@ po::variables_map parse_annotate_command(po::parsed_options parsed) {
         "Use to calculate and store the number of equally parsimonious placements for all nodes")
         ("get-parsimony,p", po::bool_switch(),
         "Use to calculate and save global tree parsimony.")
+        ("lineage-names,l", po::value<std::string>()->default_value(""),
+         "Path to a file containing lineage asssignments of samples. Use to locate and annotate clade root nodes")
+        ("allele-frequency,f", po::value<float>()->default_value(0.9),
+         "Minimum allele frequency in input samples for finding the best clade root. Used only with -l")
         ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
     // (positional) command name, so we need to erase that.
@@ -811,6 +818,8 @@ void annotate_main(po::parsed_options parsed) {
     po::variables_map vm = parse_annotate_command(parsed);
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string output_mat_filename = vm["output-mat"].as<std::string>();
+    std::string lineage_filename = vm["lineage-names"].as<std::string>();
+    float allele_frequency = vm["allele-frequency"].as<float>();
     bool get_parsimony = vm["get-parsimony"].as<bool>();
     bool fepps = vm["find-epps"].as<bool>();
 
@@ -829,6 +838,11 @@ void annotate_main(po::parsed_options parsed) {
         fprintf(stderr, "Calculating Total Parsimony\n");
         T.total_parsimony = T.get_parsimony_score();
     }
+    if (lineage_filename != "") {
+        fprintf(stderr, "Annotating Lineage Root Nodes\n");
+        assignLineages(T, lineage_filename, allele_frequency);
+    }
+
     //condense_leaves() expects some samples to ignore. We don't have any such samples
     //this would be space to add an additional argument containing samples to not recondense
     //for now, just recondense everything
@@ -852,7 +866,9 @@ po::variables_map parse_filter_command(po::parsed_options parsed) {
         ("output-mat,o", po::value<std::string>()->required(),
          "Path to output filtered mutation-annotated tree file [REQUIRED]")
         ("restricted-samples,s", po::value<std::string>()->default_value(""), 
-         "Sample names to restrict. Use to perform masking") //this is now optional, as the Utils may be doing things other than masking. Should still perform the same given the same commands as previous.
+         "Sample names to restrict. Use to perform masking") 
+        ("placement-confidence,c", po::value<int>()->default_value(0),
+        "Maximum number of equally parsimonious placements among nodes included in the tree (lower values is better, with 1 as highest confidence). Set to 0 to skip filtering. Default 0")
         ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
     // (positional) command name, so we need to erase that.
@@ -883,6 +899,7 @@ void filter_main(po::parsed_options parsed) {
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string output_mat_filename = vm["output-mat"].as<std::string>();
     std::string samples_filename = vm["restricted-samples"].as<std::string>();
+    int maxcon = vm["placement-confidence"].as<int>();
 
     // Load input MAT and uncondense tree
     MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
@@ -895,7 +912,18 @@ void filter_main(po::parsed_options parsed) {
         fprintf(stderr, "Performing Masking\n");
         T = restrictSamples(samples_filename, T);
     }
-    //the filter subcommand will be receiving some additional attention in the near future.
+    //there's a very simple filtering procedure which doesn't require a dedicated function
+    if (maxcon > 0) { //value of 0 means skip this procedure (default behavior)
+        fprintf(stderr, "Removing nodes with more than %d equally parsimonious placements", maxcon);
+        //just get all nodes, and for each one with an EPPs greater than maxcon, remove it.
+        //for the smallest possible maximum, 1, this should retain about 84% of samples. More for any other value
+        auto dfs = T.depth_first_expansion(); //technically for now I would want to get just all leaves, but I think the epps concept could be extended to internal nodes that aren't true samples with some thought in the future
+        for (auto it: dfs) {
+            if (it->epps > maxcon) {
+                T.remove_node(it->identifier, false); //fairly sure I want this to be false for leaves
+            }
+        }
+    }
 
     // Store final MAT to output file
     if (output_mat_filename != "") {
@@ -971,63 +999,6 @@ void convert_main(po::parsed_options parsed) {
     }
 }
 
-po::variables_map parse_assign_command(po::parsed_options parsed) {
-
-    po::variables_map vm;
-    po::options_description filt_desc("assign options");
-    filt_desc.add_options()
-        ("input-mat,i", po::value<std::string>()->required(),
-         "Input mutation-annotated tree file [REQUIRED]")
-        ("output-mat,o", po::value<std::string>()->required(),
-         "Path to output filtered mutation-annotated tree file [REQUIRED]")
-        ("lineage-names,l", po::value<std::string>()->default_value(""),
-         "File containing lineage asssignments of samples ")
-        ("allele-frequency,f", po::value<float>()->default_value(0.9),
-         "Minimum allele frequency in input samples for finding the best clade root ")
-        ("help,h", "Print help messages");
-
-    std::vector<std::string> opts = po::collect_unrecognized(parsed.options, po::include_positional);
-    opts.erase(opts.begin());
-
-    // Run the parser, with try/catch for help
-    try{
-        po::store(po::command_line_parser(opts)
-                  .options(filt_desc)
-                  .run(), vm);
-        po::notify(vm);
-    }
-    catch(std::exception &e){
-        std::cerr << filt_desc << std::endl;
-        // Return with error code 1 unless the user specifies help
-        if (vm.count("help"))
-            exit(0);
-        else
-            exit(1);
-    }
-    return vm;
-}
-
-void assign_main(po::parsed_options parsed) {
-    //the filter subcommand prunes data from the protobuf based on some threshold, returning a protobuf file that is smaller than the input
-    po::variables_map vm = parse_assign_command(parsed);
-    std::string input_mat_filename = vm["input-mat"].as<std::string>();
-    std::string output_mat_filename = vm["output-mat"].as<std::string>();
-    std::string lineage_filename = vm["lineage-names"].as<std::string>();
-    float allele_frequecy = vm["allele-frequency"].as<float>();
-
-    // Load input MAT and uncondense tree
-    MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
-
-    // Assign clades
-    assignLineages(T, lineage_filename, allele_frequecy);
-
-    // Store final MAT to output file
-    if (output_mat_filename != "") {
-        fprintf(stderr, "Saving Final Tree\n");
-        MAT::save_mutation_annotated_tree(T, output_mat_filename);
-    }    
-}
-
 int main (int argc, char** argv) {
     /*
     The new design principle for organizing matUtils is to divide the overall structure into three options. All three take protobuf files as input.
@@ -1058,14 +1029,15 @@ int main (int argc, char** argv) {
             convert_main(parsed);
         } else if (cmd == "filter"){
             filter_main(parsed); 
-        } else if (cmd == "assign"){
-            assign_main(parsed); 
+        } else if (cmd == "help" || cmd == "--help" || cmd == "-h") { //trying to catch some of the intuitive things people will try.
+            fprintf(stderr, "matUtils has three major subcommands: annotate, filter, and convert. All three take a MAT .pb file as input.\nAnnotate adds information to the MAT. Use annotate when you have information you want to calculate or incorporate into the MAT .pb. The command 'matUtils annotate --help' will describe related options.\nFilter removes nodes or samples from the MAT. Use filter when you want to strip out low-quality samples or mask samples you want to avoid. The command 'matUtils filter --help' will describe related options.\nConvert produces files which are not MAT .pb format, such as .vcf or newick text files. Use convert when you want other file types. The command 'matUtils convert --help' will describe related options.\n"); //very open to alternative wording/formatting to make this nicer/clearer.
+            exit(0);
         } else {
-            fprintf(stderr, "Invalid command. Please choose from annotate, filter, convert or assign and try again.\n");
+            fprintf(stderr, "Invalid command. Please choose from annotate, filter, convert, or help and try again.\n");
             exit(1);
         }
     } catch (...) { //not sure this is the best way to catch it when matUtils is called with no positional arguments.
-        fprintf(stderr, "No command selected. Please choose from annotate, filter, convert or assign and try again.\n");
+        fprintf(stderr, "No command selected. Please choose from annotate, filter, convert, or help and try again.\n");
         exit(0);
     }
 
