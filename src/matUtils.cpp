@@ -309,78 +309,91 @@ MAT::Tree restrictSamples (std::string samples_filename, MAT::Tree T) {
 //a sample that has several EPPs that are very nearby on the tree will have a small neighborhood size value
 //while a sample that only has two or three EPPs but they are on completely different parts of the tree will have a substantially larger one.
 
-// std::vector<MAT::Node*> get_common_nodes (std::vector<std::vector<MAT::Node*>> nodepaths) {
-//     //to identify common nodes, perform pairwise set intersections repeatedly for all path node vectors
-//     std::vector<MAT::Node*> common_nodes = nodepaths[0];
-//     std::sort(common_nodes.begin(), common_nodes.end()); //needs to be sorted for intersection. These are actually vectors of node POINTERS, so this should be fine.
-//     for (size_t s=1; s<nodepaths.size(); s++) {
-//         std::vector<MAT::Node*> nextint;
-//         std::vector<MAT::Node*> next = nodepaths[s];
-//         std::sort(next.begin(), next.end()); //sort each path
-//         std::set_intersection(common_nodes.begin(), common_nodes.end(), next.begin(), next.end(), std::back_inserter(nextint)); //intersect the values
-//         common_nodes = nextint; //store the intersected vector and move to the next node path vector
-//     }
-//     return common_nodes;
-// }
+std::vector<MAT::Node*> get_common_nodes (std::vector<std::vector<MAT::Node*>> nodepaths) {
+    //to identify common nodes, perform pairwise set intersections repeatedly for all path node vectors
+    std::vector<MAT::Node*> common_nodes = nodepaths[0];
+    std::sort(common_nodes.begin(), common_nodes.end()); //needs to be sorted for intersection. These are actually vectors of node POINTERS, so this should be fine.
+    for (size_t s=1; s<nodepaths.size(); s++) {
+        std::vector<MAT::Node*> nextint;
+        std::vector<MAT::Node*> next = nodepaths[s];
+        std::sort(next.begin(), next.end()); //sort each path
+        std::set_intersection(common_nodes.begin(), common_nodes.end(), next.begin(), next.end(), std::back_inserter(nextint)); //intersect the values
+        common_nodes = nextint; //store the intersected vector and move to the next node path vector
+    }
+    return common_nodes;
+}
 
-// std::vector<float> get_all_distances(MAT::Node* target, std::vector<std::vector<MAT::Node*>> paths){
-//     std::vector<float> distvs;
-//     for (size_t p=0; p<paths.size(); p++) {
-//         //for this path to the common ancestor, count up distances from the start until it is reached
-//         float tdist = 0;
-//         for (size_t i=0;i<paths[p].size();i++) {
-//             if (paths[p][i]->identifier == target->identifier) {
-//                 break; //stop iterating when its reached this common ancestor (remember, path is sorted nearest to root)
-//             tdist += paths[p][i]->branch_length;
-//             }
-//         //then record tdist in distvs
-//         distvs.emplace_back(tdist);
-//         }
-//     }
-//     return distvs;
-// }
+std::vector<float> get_all_distances(MAT::Node* target, std::vector<std::vector<MAT::Node*>> paths){
+    std::vector<float> distvs;
+    for (size_t p=0; p<paths.size(); p++) {
+        //for this path to the target common ancestor, count up distances from the start until it is reached
+        float tdist = 0;
+        assert (paths[p].size() > 0);
+        for (size_t i=0;i<paths[p].size();i++) {
+            if (paths[p][i]->identifier == target->identifier) {
+                break; //stop iterating when its reached this common ancestor (remember, path is sorted nearest to root)
+            }
+            tdist += paths[p][i]->branch_length;
+            
+        //then record tdist in distvs
+        distvs.emplace_back(tdist);
+        }
+    }
+    return distvs;
+}
 
-// size_t get_neighborhood_size(std::vector<MAT::Node*> nodes, MAT::Tree* T) {
-//     //first step for this is collecting the full paths back to the root for all nodes
-//     assert (nodes.size() > 1); //doesn't make sense if there's only one best placement.
-//     std::vector<std::vector<MAT::Node*>> parentvecs;
-//     for (size_t s=0; s<nodes.size(); s++) {
-//         std::vector<MAT::Node*> npath = T->rsearch(nodes[s]->identifier);
-//         parentvecs.emplace_back(npath);
-//     }
-//     //then we need to identify all common elements to all node vectors
-//     std::vector<MAT::Node*> common_nodes = get_common_nodes(parentvecs);
-//     //then for all common nodes, we need to calculate the largest sum of paired distances for all samples to that specific common ancestor
-//     //the smallest of these largest sums is the best neighborhood size value
-//     size_t best_size = T->get_parsimony_score(); //bigger than the biggest maximum limit on neighborhood size. basically a big number
-//     for (size_t s=0; s<common_nodes.size(); s++) {
-//         //get the set of distances between each placement to this common ancestor with the path vectors
-//         std::vector<float> distances = get_all_distances(common_nodes[s], parentvecs);
-//         //now find the biggest sum of shared values for this specific common node
-//         float widest = 0.0;
-//         for (size_t i=0; i<distances.size(); i++) {
-//             for (size_t j=0; j<distances.size(); j++) {
-//                 if (i!=j){
-//                     float spairdist = distances[i] + distances[j];
-//                     if (spairdist > widest){
-//                         widest = spairdist;
-//                     }
-//                 }
-//             }
-//         }
-//         //after that oddness, I now have a value which is the longest path going between any two nodes in the placement set
-//         //which goes through this specific common ancestor
-//         //admittedly this is probably not the fastest way to do this, I should be able to eliminate common ancestors which are directly ancestral to common ancestors between the same complete set without counting them up
-//         //but I'm focusing on results first here
-//         //anyways, assign this longest pair path value to best_size if its smaller than any we've seen for other common ancestors
-//         size_t size_widest = static_cast<size_t>(widest);
-//         if (size_widest < best_size){
-//             best_size = size_widest;
-//         }
-//     }
-//     //at the end, we should be left with the proper neighborhood size value. 
-//     return best_size;
-// }
+size_t get_neighborhood_size(std::vector<MAT::Node*> nodes, MAT::Tree* T) {
+    //first step for this is collecting the full paths back to the root for all nodes
+    assert (nodes.size() > 1); //doesn't make sense if there's only one best placement.
+    std::vector<std::vector<MAT::Node*>> parentvecs;
+    for (size_t s=0; s<nodes.size(); s++) {
+        if (!nodes[s]->is_root()){ //if one of the epps sites is directly off the root, then this doesn't make much sense
+            std::vector<MAT::Node*> npath;
+            npath.emplace_back(nodes[s]); //include the node itself on the path so branch length is correctly accessed
+            for (auto& it: T->rsearch(nodes[s]->identifier)) {
+                npath.emplace_back(it);
+            }
+            parentvecs.emplace_back(npath);
+        } else { //instead, just construct a path of length 1 that contains the root node only
+            std::vector<MAT::Node*> npath;
+            npath.emplace_back(nodes[s]);
+            parentvecs.emplace_back(npath);
+        }
+    }
+    //then we need to identify all common elements to all node vectors
+    std::vector<MAT::Node*> common_nodes = get_common_nodes(parentvecs);
+    assert (common_nodes.size() > 0); //bare minimum this will always include the root. therefore it is always > 0
+    //then for all common nodes, we need to calculate the largest sum of paired distances for all samples to that specific common ancestor
+    //the smallest of these largest sums is the best neighborhood size value
+    size_t best_size = T->get_parsimony_score(); //bigger than the biggest maximum limit on neighborhood size. basically a big number
+    for (size_t s=0; s<common_nodes.size(); s++) {
+        //get the set of distances between each placement to this common ancestor with the path vectors
+        std::vector<float> distances = get_all_distances(common_nodes[s], parentvecs);
+        //now find the biggest sum of shared values for this specific common node
+        float widest = 0.0;
+        for (size_t i=0; i<distances.size(); i++) {
+            for (size_t j=0; j<distances.size(); j++) {
+                if (i!=j){
+                    float spairdist = distances[i] + distances[j];
+                    if (spairdist > widest){
+                        widest = spairdist;
+                    }
+                }
+            }
+        }
+        //after that oddness, I now have a value which is the longest path going between any two nodes in the placement set
+        //which goes through this specific common ancestor
+        //admittedly this is probably not the fastest way to do this, I should be able to eliminate common ancestors which are directly ancestral to common ancestors between the same complete set without counting them up
+        //but I'm focusing on results first here
+        //anyways, assign this longest pair path value to best_size if its smaller than any we've seen for other common ancestors
+        size_t size_widest = static_cast<size_t>(widest);
+        if (size_widest < best_size){
+            best_size = size_widest;
+        }
+    }
+    //at the end, we should be left with the proper neighborhood size value. 
+    return best_size;
+}
 
 MAT::Tree findEPPs (MAT::Tree Tobj) {
     TIMEIT()
@@ -500,22 +513,25 @@ MAT::Tree findEPPs (MAT::Tree Tobj) {
                 //additional metadata value (not even starting to assign it to an attribute yet) is maximum pairwise distance between equally parsimonious placement cluster members
                 //commented out code that was accidentally committed to master
                 //to find this, first we need the nodes.
-                // if (num_best > 1){ //only worth calculating if there's more than one best placement. Otherwise its just 0.
-                //     std::vector<MAT::Node*> best_placements;
-                //     //for every index in best_j_vec, find the corresponding node from dfs
-                //     for (size_t z=0; z<best_j_vec.size(); z++) {
-                //         auto nobj = dfs[best_j_vec[z]];
-                //         best_placements.emplace_back(nobj);
-                //     }
-                    //size_t neighborhood_size = get_neighborhood_size(best_placements, T);
+                if (num_best > 1){ //only worth calculating if there's more than one best placement. Otherwise its just 0.
+                    std::vector<MAT::Node*> best_placements;
+                    //for every index in best_j_vec, find the corresponding node from dfs
+                    for (size_t z=0; z<best_j_vec.size(); z++) {
+                        auto nobj = dfs[best_j_vec[z]];
+                        best_placements.emplace_back(nobj);
+                    }
+                    size_t neighborhood_size = get_neighborhood_size(best_placements, T);
+                    node->neighborhood_size = neighborhood_size;
                     //fprintf(stderr, "Neighborhood Size: %ld\n", neighborhood_size);
-                // } else {
-                //     fprintf(stderr, "Neighborhood Size: 0");
-                // }
+                } else {
+                    node->neighborhood_size = 0;
+                    //fprintf(stderr, "Neighborhood Size: 0\n");
+                }
 
             } else {
                 node->epps = 1;
-                //fprintf(stderr, "Neighborhood Size: 0");
+                node->neighborhood_size = 0;
+                //fprintf(stderr, "Neighborhood Size: 0\n");
                 //no mutations for this sample compared to the reference. This means it's leaf off the root/identical to the reference
                 //there's just one place for that, ofc.
             }
@@ -769,6 +785,10 @@ po::variables_map parse_annotate_command(po::parsed_options parsed) {
         "Use to calculate and store the number of equally parsimonious placements for all nodes")
         ("get-parsimony,p", po::bool_switch(),
         "Use to calculate and save global tree parsimony.")
+        ("lineage-names,l", po::value<std::string>()->default_value(""),
+         "Path to a file containing lineage asssignments of samples. Use to locate and annotate clade root nodes")
+        ("allele-frequency,f", po::value<float>()->default_value(0.9),
+         "Minimum allele frequency in input samples for finding the best clade root. Used only with -l")
         ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
     // (positional) command name, so we need to erase that.
@@ -798,6 +818,8 @@ void annotate_main(po::parsed_options parsed) {
     po::variables_map vm = parse_annotate_command(parsed);
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string output_mat_filename = vm["output-mat"].as<std::string>();
+    std::string lineage_filename = vm["lineage-names"].as<std::string>();
+    float allele_frequency = vm["allele-frequency"].as<float>();
     bool get_parsimony = vm["get-parsimony"].as<bool>();
     bool fepps = vm["find-epps"].as<bool>();
 
@@ -816,6 +838,11 @@ void annotate_main(po::parsed_options parsed) {
         fprintf(stderr, "Calculating Total Parsimony\n");
         T.total_parsimony = T.get_parsimony_score();
     }
+    if (lineage_filename != "") {
+        fprintf(stderr, "Annotating Lineage Root Nodes\n");
+        assignLineages(T, lineage_filename, allele_frequency);
+    }
+
     //condense_leaves() expects some samples to ignore. We don't have any such samples
     //this would be space to add an additional argument containing samples to not recondense
     //for now, just recondense everything
@@ -839,7 +866,9 @@ po::variables_map parse_filter_command(po::parsed_options parsed) {
         ("output-mat,o", po::value<std::string>()->required(),
          "Path to output filtered mutation-annotated tree file [REQUIRED]")
         ("restricted-samples,s", po::value<std::string>()->default_value(""), 
-         "Sample names to restrict. Use to perform masking") //this is now optional, as the Utils may be doing things other than masking. Should still perform the same given the same commands as previous.
+         "Sample names to restrict. Use to perform masking") 
+        ("placement-confidence,c", po::value<int>()->default_value(0),
+        "Maximum number of equally parsimonious placements among nodes included in the tree (lower values is better, with 1 as highest confidence). Set to 0 to skip filtering. Default 0")
         ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
     // (positional) command name, so we need to erase that.
@@ -870,6 +899,7 @@ void filter_main(po::parsed_options parsed) {
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string output_mat_filename = vm["output-mat"].as<std::string>();
     std::string samples_filename = vm["restricted-samples"].as<std::string>();
+    int maxcon = vm["placement-confidence"].as<int>();
 
     // Load input MAT and uncondense tree
     MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
@@ -882,7 +912,18 @@ void filter_main(po::parsed_options parsed) {
         fprintf(stderr, "Performing Masking\n");
         T = restrictSamples(samples_filename, T);
     }
-    //the filter subcommand will be receiving some additional attention in the near future.
+    //there's a very simple filtering procedure which doesn't require a dedicated function
+    if (maxcon > 0) { //value of 0 means skip this procedure (default behavior)
+        fprintf(stderr, "Removing nodes with more than %d equally parsimonious placements", maxcon);
+        //just get all nodes, and for each one with an EPPs greater than maxcon, remove it.
+        //for the smallest possible maximum, 1, this should retain about 84% of samples. More for any other value
+        auto dfs = T.depth_first_expansion(); //technically for now I would want to get just all leaves, but I think the epps concept could be extended to internal nodes that aren't true samples with some thought in the future
+        for (auto it: dfs) {
+            if (it->epps > maxcon) {
+                T.remove_node(it->identifier, false); //fairly sure I want this to be false for leaves
+            }
+        }
+    }
 
     // Store final MAT to output file
     if (output_mat_filename != "") {
@@ -958,63 +999,6 @@ void convert_main(po::parsed_options parsed) {
     }
 }
 
-po::variables_map parse_assign_command(po::parsed_options parsed) {
-
-    po::variables_map vm;
-    po::options_description filt_desc("assign options");
-    filt_desc.add_options()
-        ("input-mat,i", po::value<std::string>()->required(),
-         "Input mutation-annotated tree file [REQUIRED]")
-        ("output-mat,o", po::value<std::string>()->required(),
-         "Path to output filtered mutation-annotated tree file [REQUIRED]")
-        ("lineage-names,l", po::value<std::string>()->default_value(""),
-         "File containing lineage asssignments of samples ")
-        ("allele-frequency,f", po::value<float>()->default_value(0.9),
-         "Minimum allele frequency in input samples for finding the best clade root ")
-        ("help,h", "Print help messages");
-
-    std::vector<std::string> opts = po::collect_unrecognized(parsed.options, po::include_positional);
-    opts.erase(opts.begin());
-
-    // Run the parser, with try/catch for help
-    try{
-        po::store(po::command_line_parser(opts)
-                  .options(filt_desc)
-                  .run(), vm);
-        po::notify(vm);
-    }
-    catch(std::exception &e){
-        std::cerr << filt_desc << std::endl;
-        // Return with error code 1 unless the user specifies help
-        if (vm.count("help"))
-            exit(0);
-        else
-            exit(1);
-    }
-    return vm;
-}
-
-void assign_main(po::parsed_options parsed) {
-    //the filter subcommand prunes data from the protobuf based on some threshold, returning a protobuf file that is smaller than the input
-    po::variables_map vm = parse_assign_command(parsed);
-    std::string input_mat_filename = vm["input-mat"].as<std::string>();
-    std::string output_mat_filename = vm["output-mat"].as<std::string>();
-    std::string lineage_filename = vm["lineage-names"].as<std::string>();
-    float allele_frequecy = vm["allele-frequency"].as<float>();
-
-    // Load input MAT and uncondense tree
-    MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
-
-    // Assign clades
-    assignLineages(T, lineage_filename, allele_frequecy);
-
-    // Store final MAT to output file
-    if (output_mat_filename != "") {
-        fprintf(stderr, "Saving Final Tree\n");
-        MAT::save_mutation_annotated_tree(T, output_mat_filename);
-    }    
-}
-
 int main (int argc, char** argv) {
     /*
     The new design principle for organizing matUtils is to divide the overall structure into three options. All three take protobuf files as input.
@@ -1045,14 +1029,15 @@ int main (int argc, char** argv) {
             convert_main(parsed);
         } else if (cmd == "filter"){
             filter_main(parsed); 
-        } else if (cmd == "assign"){
-            assign_main(parsed); 
+        } else if (cmd == "help" || cmd == "--help" || cmd == "-h") { //trying to catch some of the intuitive things people will try.
+            fprintf(stderr, "matUtils has three major subcommands: annotate, filter, and convert. All three take a MAT .pb file as input.\nAnnotate adds information to the MAT. Use annotate when you have information you want to calculate or incorporate into the MAT .pb. The command 'matUtils annotate --help' will describe related options.\nFilter removes nodes or samples from the MAT. Use filter when you want to strip out low-quality samples or mask samples you want to avoid. The command 'matUtils filter --help' will describe related options.\nConvert produces files which are not MAT .pb format, such as .vcf or newick text files. Use convert when you want other file types. The command 'matUtils convert --help' will describe related options.\n"); //very open to alternative wording/formatting to make this nicer/clearer.
+            exit(0);
         } else {
-            fprintf(stderr, "Invalid command. Please choose from annotate, filter, convert or assign and try again.\n");
+            fprintf(stderr, "Invalid command. Please choose from annotate, filter, convert, or help and try again.\n");
             exit(1);
         }
     } catch (...) { //not sure this is the best way to catch it when matUtils is called with no positional arguments.
-        fprintf(stderr, "No command selected. Please choose from annotate, filter, convert or assign and try again.\n");
+        fprintf(stderr, "No command selected. Please choose from annotate, filter, convert, or help and try again.\n");
         exit(0);
     }
 

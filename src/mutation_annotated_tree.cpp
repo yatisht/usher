@@ -465,6 +465,7 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
                    auto metaobj = data.metadata(idx); 
                    node->epps = metaobj.sample_epps();
                    node->clade = metaobj.clade();
+                   node->neighborhood_size = metaobj.neighborhood_size();
                } else {
                    node->epps = 0; 
                    node->clade = ""; 
@@ -524,7 +525,7 @@ void Mutation_Annotated_Tree::save_mutation_annotated_tree (Mutation_Annotated_T
         auto meta = data.add_metadata();
         meta->set_sample_epps(dfs[idx]->epps);
         meta->set_clade(dfs[idx]->clade);
-
+        meta->set_neighborhood_size(dfs[idx]->neighborhood_size);
         auto mutation_list = data.add_node_mutations();
         for (auto m: dfs[idx]->mutations) {
             auto mut = mutation_list->add_mutation();
