@@ -188,7 +188,7 @@ void assignLineages (MAT::Tree& T, const std::string& lineage_filename, float mi
                         [&](const tbb::blocked_range<size_t> r) {
                         for (size_t i=r.begin(); i<r.end(); ++i){
                             if (T.is_ancestor(dfs[j]->identifier, it.second[i]->identifier)) {
-                                //__sync_fetch_and_add(&freq, 1);
+                                __sync_fetch_and_add(&freq, 1);
                             }
                         }
                     }, ap);
