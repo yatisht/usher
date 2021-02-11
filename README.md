@@ -280,7 +280,11 @@ Mutation-annotated tree file generated using UShER.
 
 **-p**: Calculate and store total tree parsimony. 
 
-**-e**: Calculate and store equally parsimonious placements for all samples in the tree.
+**-e**: Calculate and store equally parsimonious placements and placement neighborhood sizes for all samples in the tree.
+
+**-l**: Provide a path to a file assigning lineages to samples to locate and annotate clade root nodes.
+
+**-f**: Set the minimum allele frequency in samples to find the best clade root node. Used only with -l.
 
 **-h**: Print help messages
 
