@@ -419,6 +419,10 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::create_tree_from_newick_s
         }
     }
 
+    if (T.root == NULL) {
+        fprintf(stderr, "WARNING: Tree found empty!\n");
+    }
+
     return T;
 }
 
@@ -792,6 +796,9 @@ void Mutation_Annotated_Tree::Tree::remove_node_helper (std::string nid, bool mo
         else if (move_level && (curr_parent->children.size() == 1)) {
             auto child = curr_parent->children[0];
             if (curr_parent->parent != NULL) {
+                if (child->clade == "") {
+                    child->clade = curr_parent->clade;
+                }
                 child->parent = curr_parent->parent;
                 child->level = curr_parent->parent->level + 1;
                 child->branch_length += curr_parent->branch_length;

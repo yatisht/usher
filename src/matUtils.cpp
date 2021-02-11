@@ -12,7 +12,7 @@ namespace MAT = Mutation_Annotated_Tree;
 
 Timer timer; 
 
-void assignLineages (MAT::Tree& T, const std::string& lineage_filename, float min_freq) {
+void assignLineages (MAT::Tree& T, const std::string& lineage_filename, float min_freq, float set_overlap) {
     static tbb::affinity_partitioner ap;
     
     fprintf(stderr, "Copying tree with uncondensed leaves.\n"); 
@@ -103,7 +103,7 @@ void assignLineages (MAT::Tree& T, const std::string& lineage_filename, float mi
 
         std::vector<MAT::Mutation> lineage_mutations;
         for (auto mc: mutation_counts) {
-            if (static_cast<float>(mc.second)/it.second.size() > min_freq) {
+            if (static_cast<float>(mc.second)/it.second.size() >= min_freq) {
                 std::vector<std::string> words;
                 MAT::string_split(mc.first, words);
                 MAT::Mutation m;
@@ -166,41 +166,45 @@ void assignLineages (MAT::Tree& T, const std::string& lineage_filename, float mi
         
         struct Node_freq {
             size_t best_j;
-            size_t freq;
-            Node_freq (size_t a, size_t b) 
+            float freq;
+            float overlap;
+            Node_freq (size_t a, float b, float c) 
             {
                 best_j = a;
                 freq = b;
+                overlap = c;
             }
             // To sort with highest frequency first
             inline bool operator< (const Node_freq& n) const {
-                return ((*this).freq > n.freq);
+                return ((this->freq > n.freq) || ((this->freq == n.freq) && (this->best_j < n.best_j)));
             }
         };
 
         std::vector<Node_freq> best_node_frequencies;
         if (num_best > 1) {
             fprintf(stderr, "WARNING: found %zu possible assignments\n", num_best);
-            for (auto j: best_j_vec) {
-                size_t freq = 0;
+        }
+        
+        float freq = 0;
+        float overlap = 0;
+            
+        for (auto j: best_j_vec) {
+            size_t num_desc = 0;
 
-                tbb::parallel_for(tbb::blocked_range<size_t>(0, it.second.size()),
-                        [&](const tbb::blocked_range<size_t> r) {
-                        for (size_t i=r.begin(); i<r.end(); ++i){
-                            if (T.is_ancestor(dfs[j]->identifier, it.second[i]->identifier)) {
-                                __sync_fetch_and_add(&freq, 1);
-                            }
-                        }
+            tbb::parallel_for(tbb::blocked_range<size_t>(0, it.second.size()),
+                    [&](const tbb::blocked_range<size_t> r) {
+                    for (size_t i=r.begin(); i<r.end(); ++i){
+                    if (T.is_ancestor(dfs[j]->identifier, it.second[i]->identifier)) {
+                    __sync_fetch_and_add(&num_desc, 1.0);
+                    }
+                    }
                     }, ap);
 
-                Node_freq n(j, freq);
-                best_node_frequencies.push_back(n);
-
+            overlap = (static_cast<float>(num_desc) / it.second.size());
+            if (overlap >= set_overlap) {
+                freq = (static_cast<float>(num_desc) / T.get_num_leaves(dfs[j])); 
+                best_node_frequencies.push_back(Node_freq(j, freq, overlap));
             }
-        }
-        else {
-            Node_freq n(best_j, 0);
-            best_node_frequencies.push_back(n);
         }
         
         std::sort(best_node_frequencies.begin(), best_node_frequencies.end());
@@ -210,6 +214,7 @@ void assignLineages (MAT::Tree& T, const std::string& lineage_filename, float mi
             auto j = n.best_j;
             if (dfs[j]->clade == "") {
                 fprintf(stderr, "Assigning %s to node %s\n", it.first.c_str(), dfs[j]->identifier.c_str());
+                fprintf(stderr, "%f fraction of the lineage samples are descendants of the assigned node %s\n", n.overlap, dfs[j]->identifier.c_str());
                 dfs[j]->clade = it.first;
                 assigned = true;
                 break;
@@ -217,7 +222,12 @@ void assignLineages (MAT::Tree& T, const std::string& lineage_filename, float mi
         }
 
         if (!assigned) {
-            fprintf(stderr, "WARNING: Could not assign a node to clade %s since all possible nodes were already assigned some other clade!\n", it.first.c_str());
+            if (best_node_frequencies.size() > 0) {
+                fprintf(stderr, "WARNING: Could not assign a node to clade %s since all possible nodes were already assigned some other clade!\n", it.first.c_str());
+            }
+            else {
+                fprintf(stderr, "WARNING: Could not assign a node to clade %s since placement node(s) did not overlap with enough lineage samples!\n", it.first.c_str());
+            }
         }
 
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
@@ -811,6 +821,9 @@ void make_vcf (MAT::Tree T, std::string vcf_filename, bool no_genotypes) {
 
 po::variables_map parse_annotate_command(po::parsed_options parsed) {    
 
+    uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
+    std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
+
     po::variables_map vm;
     po::options_description ann_desc("annotate options");
     ann_desc.add_options()
@@ -820,8 +833,11 @@ po::variables_map parse_annotate_command(po::parsed_options parsed) {
          "Path to output processed mutation-annotated tree file [REQUIRED]")
         ("lineage-names,l", po::value<std::string>()->required(),
          "Path to a file containing lineage asssignments of samples. Use to locate and annotate clade root nodes")
-        ("allele-frequency,f", po::value<float>()->default_value(0.9),
+        ("allele-frequency,f", po::value<float>()->default_value(0.8),
          "Minimum allele frequency in input samples for finding the best clade root. Used only with -l")
+        ("set-overlap,s", po::value<float>()->default_value(0.9),
+        "Minimum fraction of the lineage samples that should be desecendants of the assigned clade root")
+        ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
         ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
     // (positional) command name, so we need to erase that.
@@ -853,8 +869,12 @@ void annotate_main(po::parsed_options parsed) {
     std::string output_mat_filename = vm["output-mat"].as<std::string>();
     std::string lineage_filename = vm["lineage-names"].as<std::string>();
     float allele_frequency = vm["allele-frequency"].as<float>();
+    float set_overlap = vm["set-overlap"].as<float>();
     //    bool get_parsimony = vm["get-parsimony"].as<bool>();
     //    bool fepps = vm["find-epps"].as<bool>();
+    uint32_t num_threads = vm["threads"].as<uint32_t>();
+
+    tbb::task_scheduler_init init(num_threads);
 
     // Load input MAT and uncondense tree
     MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
@@ -873,7 +893,7 @@ void annotate_main(po::parsed_options parsed) {
     //    }
     if (lineage_filename != "") {
         fprintf(stderr, "Annotating Lineage Root Nodes\n");
-        assignLineages(T, lineage_filename, allele_frequency);
+        assignLineages(T, lineage_filename, allele_frequency, set_overlap);
     }
     else {
         fprintf(stderr, "ERROR: must specifiy lineage-names!\n");
@@ -894,6 +914,9 @@ void annotate_main(po::parsed_options parsed) {
 
 po::variables_map parse_filter_command(po::parsed_options parsed) {
 
+    uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
+    std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
+
     po::variables_map vm;
     po::options_description filt_desc("filter options");
     filt_desc.add_options()
@@ -905,6 +928,7 @@ po::variables_map parse_filter_command(po::parsed_options parsed) {
          "Sample names to restrict. Use to perform masking") 
 //        ("placement-confidence,c", po::value<int>()->default_value(0),
 //        "Maximum number of equally parsimonious placements among nodes included in the tree (lower values is better, with 1 as highest confidence). Set to 0 to skip filtering. Default 0")
+        ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
         ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
     // (positional) command name, so we need to erase that.
@@ -936,6 +960,9 @@ void filter_main(po::parsed_options parsed) {
     std::string output_mat_filename = vm["output-mat"].as<std::string>();
     std::string samples_filename = vm["restricted-samples"].as<std::string>();
     //int maxcon = vm["placement-confidence"].as<int>();
+    uint32_t num_threads = vm["threads"].as<uint32_t>();
+
+    tbb::task_scheduler_init init(num_threads);
 
     // Load input MAT and uncondense tree
     MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
@@ -970,6 +997,9 @@ void filter_main(po::parsed_options parsed) {
 
 po::variables_map parse_convert_command(po::parsed_options parsed) {
 
+    uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
+    std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
+
     po::variables_map vm;
     po::options_description conv_desc("convert options");
     conv_desc.add_options()
@@ -981,6 +1011,7 @@ po::variables_map parse_convert_command(po::parsed_options parsed) {
         "Do not include sample genotype columns in VCF output. Used only with the vcf option")
         ("write-tree,t", po::value<std::string>()->default_value(""),
          "Use to write a newick tree to the indicated file.")
+        ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
         ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
     // (positional) command name, so we need to erase that.
@@ -1012,6 +1043,9 @@ void convert_main(po::parsed_options parsed) {
     std::string tree_filename = vm["write-tree"].as<std::string>();
     std::string vcf_filename = vm["write-vcf"].as<std::string>();
     bool no_genotypes = vm["no-genotypes"].as<bool>();
+    uint32_t num_threads = vm["threads"].as<uint32_t>();
+
+    tbb::task_scheduler_init init(num_threads);
 
     // Load input MAT and uncondense tree
     MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
