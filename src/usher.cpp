@@ -462,7 +462,7 @@ int main(int argc, char** argv) {
         fprintf(stderr, "Writing condensed input tree to file %s\n", condensed_tree_filename.c_str());
         
         FILE* condensed_tree_file = fopen(condensed_tree_filename.c_str(), "w");
-        fprintf(condensed_tree_file, "%s\n", MAT::get_newick_string(*T, true, true, retain_original_branch_len).c_str());
+        fprintf(condensed_tree_file, "%s\n", MAT::get_newick_string(*T, T->root, true, true, retain_original_branch_len).c_str());
         fclose(condensed_tree_file);
 
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
@@ -519,6 +519,8 @@ int main(int argc, char** argv) {
 
                     auto dfs = T->depth_first_expansion();
                     size_t total_nodes = dfs.size();
+
+                    fprintf(stderr, "Total nodes in the tree: %zu\n", total_nodes);
 
                     // Stores the excess mutations to place the sample at each
                     // node of the tree in DFS order. When placement is as a
@@ -647,6 +649,8 @@ int main(int argc, char** argv) {
 
                 auto dfs = T->depth_first_expansion();
                 size_t total_nodes = dfs.size();
+
+                fprintf(stderr, "Total nodes in the tree: %zu\n", total_nodes);
 
                 // Stores the excess mutations to place the sample at each
                 // node of the tree in DFS order. When placement is as a

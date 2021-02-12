@@ -1140,7 +1140,7 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_subtree (const Mutati
             [&](tbb::blocked_range<size_t> r) {
             for (size_t k=r.begin(); k<r.end(); ++k){
                subtree_nodes.insert(tree.get_node(samples[k]));
-               for (auto anc: tree.rsearch(samples[k])) {
+               for (auto anc: tree.rsearch(samples[k], true)) {
                    all_ancestors[k].insert(anc);
                }
             }
@@ -1150,7 +1150,7 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_subtree (const Mutati
             [&](tbb::blocked_range<size_t> r) {
             for (size_t i=r.begin(); i<r.end(); ++i){
                for (size_t j=i+1; j<samples.size(); ++j){
-                   for (auto anc: tree.rsearch(samples[i])) {
+                   for (auto anc: tree.rsearch(samples[i], true)) {
                       if (all_ancestors[j].find(anc) != all_ancestors[j].end()) {
                          subtree_nodes.insert(anc);
                          break;

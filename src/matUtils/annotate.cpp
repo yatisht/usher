@@ -17,7 +17,7 @@ po::variables_map parse_annotate_command(po::parsed_options parsed) {
          "Path to a file containing lineage asssignments of samples. Use to locate and annotate clade root nodes")
         ("allele-frequency,f", po::value<float>()->default_value(0.8),
          "Minimum allele frequency in input samples for finding the best clade root. Used only with -l")
-        ("set-overlap,s", po::value<float>()->default_value(0.9),
+        ("set-overlap,s", po::value<float>()->default_value(0.6),
         "Minimum fraction of the lineage samples that should be desecendants of the assigned clade root")
         ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
         ("help,h", "Print help messages");
@@ -296,19 +296,20 @@ void assignLineages (MAT::Tree& T, const std::string& lineage_filename, float mi
             auto j = n.best_j;
             if (dfs[j]->clade == "") {
                 fprintf(stderr, "Assigning %s to node %s\n", it.first.c_str(), dfs[j]->identifier.c_str());
-                fprintf(stderr, "%f fraction of the lineage samples are descendants of the assigned node %s\n", n.overlap, dfs[j]->identifier.c_str());
+                fprintf(stderr, "%f fraction of %zu clade samples are descendants of the assigned node %s\n", n.overlap, it.second.size(), dfs[j]->identifier.c_str());
                 dfs[j]->clade = it.first;
                 assigned = true;
+
                 break;
             }
         }
 
         if (!assigned) {
             if (best_node_frequencies.size() > 0) {
-                fprintf(stderr, "WARNING: Could not assign a node to clade %s since all possible nodes were already assigned some other clade!\n", it.first.c_str());
+                fprintf(stderr, "WARNING: Could not assign a node to clade %s with %zu samples since all possible nodes were already assigned some other clade!\n", it.first.c_str(), it.second.size());
             }
             else {
-                fprintf(stderr, "WARNING: Could not assign a node to clade %s since placement node(s) did not overlap with enough lineage samples!\n", it.first.c_str());
+                fprintf(stderr, "WARNING: Could not assign a node to clade %s with %zu samples since placement node(s) did not overlap with enough lineage samples!\n", it.first.c_str(), it.second.size());
             }
         }
 
