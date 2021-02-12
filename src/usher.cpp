@@ -520,8 +520,6 @@ int main(int argc, char** argv) {
                     auto dfs = T->depth_first_expansion();
                     size_t total_nodes = dfs.size();
 
-                    fprintf(stderr, "Total nodes in the tree: %zu\n", total_nodes);
-
                     // Stores the excess mutations to place the sample at each
                     // node of the tree in DFS order. When placement is as a
                     // child, it only contains parsimony-increasing mutations in
@@ -649,8 +647,6 @@ int main(int argc, char** argv) {
 
                 auto dfs = T->depth_first_expansion();
                 size_t total_nodes = dfs.size();
-
-                fprintf(stderr, "Total nodes in the tree: %zu\n", total_nodes);
 
                 // Stores the excess mutations to place the sample at each
                 // node of the tree in DFS order. When placement is as a
