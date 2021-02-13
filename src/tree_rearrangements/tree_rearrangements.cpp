@@ -42,25 +42,31 @@ static void feed_nodes(std::vector<MAT::Node *> &to_feed,
         this_round_idx.reserve(to_feed.size());
         for (auto node : to_feed) {
             auto parent = node->parent;
-            if (parent)
+            if (parent&&parent->parent)
                 this_round_idx.push_back(parent->index);
         }
-        std::sort(this_round_idx.begin(), this_round_idx.end());
     }
     while (!this_round_idx.empty()) {
+    std::sort(this_round_idx.begin(), this_round_idx.end());
     for (auto iter = this_round_idx.begin(); iter < this_round_idx.end()-1; iter++) {
         auto next_ele=*(iter+1);
         if(next_ele==*iter){
             continue;
         }
         if (!check_grand_parent(dfs_ordered_nodes[next_ele],dfs_ordered_nodes[*iter])) {
-            input_node.try_put(dfs_ordered_nodes[*iter]);
+            MAT::Node* this_node=dfs_ordered_nodes[*iter];
+            input_node.try_put(this_node);
+            this_node=this_node->parent;
+            if(this_node->parent){
+            next_round_idx.push_back(this_node->index);
+            }
         } else {
             next_round_idx.push_back(*iter);
         }
     }
     input_node.try_put(dfs_ordered_nodes[this_round_idx.back()]);
     this_round_idx.swap(next_round_idx);
+    next_round_idx.clear();
     }
 }
 
@@ -93,14 +99,25 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
             search_graph.wait_for_all();
             std::vector<Move *> non_conflicting_moves;
             resolve_conflict(profitable_moves, non_conflicting_moves, to_optimize);
+            if(!non_conflicting_moves.empty()){
             Pending_Moves_t tree_edits;
-            tbb::parallel_for(tbb::blocked_range<size_t>(0, non_conflicting_moves.size()), Move_Executor{dfs_ordered_nodes,this_tree,non_conflicting_moves,tree_edits});
+            //tbb::parallel_for(tbb::blocked_range<size_t>(0, non_conflicting_moves.size()), Move_Executor{dfs_ordered_nodes,this_tree,non_conflicting_moves,tree_edits});
+            Move_Executor temp{dfs_ordered_nodes,this_tree,non_conflicting_moves,tree_edits};
+            tbb::blocked_range<size_t> range_temp (0,non_conflicting_moves.size());
+            temp(range_temp);
             this_tree.finalize();
             tbb::parallel_for_each(tree_edits.begin(),tree_edits.end(),[&this_tree](const std::pair<MAT::Node*,ConfirmedMove>& in){
                 finalize_children(const_cast<MAT::Node*>(in.first),const_cast<ConfirmedMove&>(in.second),&this_tree);
             });
+            dfs_ordered_nodes=this_tree.depth_first_expansion();
+            #ifndef NDEBUG
+            Sample_Mut_Type copy(ori);
+            check_samples(this_tree.root, copy);
+            #endif
+            }
         }
 
+        check_samples(this_tree.root, ori);
         fprintf(stderr, "After refinement: %zu \n",
                 this_tree.get_parsimony_score());
         this_tree.reassign_level();

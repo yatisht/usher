@@ -6,7 +6,7 @@
 namespace MAT = Mutation_Annotated_Tree;
 char get_genotype(MAT::Node* node, const Mutation_Annotated_Tree::Mutation& m);
 namespace Fitch_Sankoff {
-/*#ifndef NDEBUG
+#ifndef NDEBUG
 struct State_Type {
     char state;
     const MAT::Node *const node;
@@ -24,25 +24,24 @@ struct Score_Type {
     Score_Type() : Score_Type(nullptr) { score[0] = -1; }
     int &operator[](size_t a) { return score[a]; }
 };
-#else*/
+#else
 typedef char State_Type;
 typedef std::array<int, 4> Score_Type;
-//#endif
+#endif
 typedef std::vector<State_Type> States_Type;
 typedef std::vector<Score_Type> Scores_Type;
 
 std::pair<size_t, size_t> dfs_range(const MAT::Node *start,std::vector<MAT::Node *> &dfs_ordered_nodes);
 
 int sankoff_backward_pass(const std::pair<size_t, size_t> &range,
-                           const MAT::Mutation &mutation,
                            const std::vector<MAT::Node *> &dfs_ordered_nodes,
                            Scores_Type &scores, States_Type &states,std::vector<char> original_state);
 void sankoff_forward_pass(const std::pair<size_t, size_t> &range,
                           States_Type &states,
                           std::vector<MAT::Node *> &dfs_ordered_nodes,const MAT::Mutation &mutation,std::vector<char> original_state
-//#ifndef NDEBUG
-//,Scores_Type &scores 
-//#endif
+#ifndef NDEBUG
+,Scores_Type &scores 
+#endif
 );
 
 void set_internal_score(const MAT::Node &this_node, Scores_Type &out,

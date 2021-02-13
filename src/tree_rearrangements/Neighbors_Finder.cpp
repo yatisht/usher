@@ -16,7 +16,7 @@ static void BFS(MAT::Node* src,MAT::Node* ori_src, int radius,tbb::flow::interfa
     bfs_queue.push({src,excluded,radius});
     
 #define bfs_add_node(node) \
-out.try_put(new Possible_Move{src,node});\
+out.try_put(new Possible_Move{ori_src,node});\
 bfs_queue.push({node,src,dist});\
 
     while (!bfs_queue.empty()) {
@@ -27,7 +27,7 @@ bfs_queue.push({node,src,dist});\
         if (dist<0) {
             break;
         }
-        if (src->parent!=excluded&&src->parent&&src->parent->parent) {
+        if (src->parent&&src->parent->parent&&src->parent!=excluded) {
             bfs_add_node(src->parent)
         }
         for(MAT::Node* c:src->children){

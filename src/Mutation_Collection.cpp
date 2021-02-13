@@ -6,6 +6,11 @@
 #include <tbb/parallel_for.h>
 #include <vector>
 using namespace Mutation_Annotated_Tree;
+struct Mutation_Comparator{
+    bool operator()(const Mutation& first,const Mutation& second)const{
+        return first.position<second.position;
+    }
+};
 void Mutations_Collection::merge_out(const Mutations_Collection &other,
                                      Mutations_Collection &out,
                                      char keep_self) const {
@@ -155,6 +160,7 @@ void Mutations_Collection::finalize(){
     std::lock_guard<mutex_type> lock(mutex);
     if(!is_dirty()) return;
     std::vector<Mutation> new_content;
+    std::sort(new_inserts.begin(),new_inserts.end(),Mutation_Comparator());
     new_content.reserve(mutations.size()+new_inserts.size());
     auto new_inserts_iter = new_inserts.begin();
     auto remove_or_replace_iter=remove_or_replace.begin();
@@ -194,6 +200,7 @@ void Mutations_Collection::finalize(){
     remove_or_replace.clear();
     mutations.swap(new_content);
 }
+/*
 bool Mutations_Collection::dirty_set_difference(Mutations_Collection& common, Mutations_Collection& original){
     std::vector<Mutation> changes;
     common.reserve(mutations.size());
@@ -240,7 +247,7 @@ bool Mutations_Collection::dirty_set_difference(Mutations_Collection& common, Mu
     mutations.swap(changes);
     return true;
 }
-
+*/
 Mutations_Collection::iterator Mutations_Collection::find_next(int pos) {
 #ifndef NDEBUG
     int lastPos = 0;
@@ -323,7 +330,7 @@ bool Node::dirty_insert(const Mutation &mut, char keep_self) {
     }
     return result.first;
 }
-
+/*
 void Node::finalize(){
     if (not_sample()) {
         mutations.finalize();
@@ -339,3 +346,4 @@ void Node::finalize(){
         mutations.dirty_set_difference(common->mutations,sample->mutations);
     }
 }
+*/

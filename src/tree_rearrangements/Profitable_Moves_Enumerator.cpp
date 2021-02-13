@@ -56,7 +56,7 @@ MAT::Node* get_mutation_path(MAT::Mutations_Collection& mutations,MAT::Node* src
     std::unordered_set<MAT::Node*> src_to_root;
     std::vector<MAT::Node*> src_to_root_path;
     assert(src!=dst);
-    MAT::Node* LCA=src->parent;
+    MAT::Node* LCA=src;
     while (LCA) {
         src_to_root.insert(LCA);
         src_to_root_path.push_back(LCA);
@@ -69,18 +69,18 @@ MAT::Node* get_mutation_path(MAT::Mutations_Collection& mutations,MAT::Node* src
         dst_to_root_path.push_back(LCA);
         LCA=LCA->parent;
     }
-    assert(dst_to_root_path.back()->parent==LCA);
+    assert(dst_to_root_path.empty()||dst_to_root_path.back()->parent==LCA);
     
-    mutations=src->mutations;
+    mutations.clear();
     for(MAT::Node* n:src_to_root_path){
-        mutations.merge(n->mutations, MAT::Mutations_Collection::INVERT_MERGE);
         if (n==LCA) {
             break;
         }
+        mutations.merge(n->mutations, MAT::Mutations_Collection::KEEP_SELF);
     }
 
     for (auto iter=dst_to_root_path.rbegin(); iter<dst_to_root_path.rend(); iter++) {
-        mutations.merge((*iter)->mutations, MAT::Mutations_Collection::MERGE);
+        mutations.merge((*iter)->mutations, MAT::Mutations_Collection::KEEP_SELF);
     }
 
     return LCA;
@@ -89,16 +89,18 @@ MAT::Node* get_mutation_path(MAT::Mutations_Collection& mutations,MAT::Node* src
 static void patch_sankoff_result(size_t start_idx, Fitch_Sankoff_Result* out, MAT::Node* src, MAT::Node* dst){
     Fitch_Sankoff::set_internal_score(*dst, out->scores, start_idx, out->states, src);
     MAT::Node* changing_node=dst->parent;
-    while (changing_node->index>=start_idx) {
+    while (changing_node&&changing_node->index>=start_idx) {
         Fitch_Sankoff::set_internal_score(*changing_node, out->scores, start_idx, out->states);
+        changing_node=changing_node->parent;
     }
 }
 static int calculate_parsimony_score_change(std::pair<size_t, size_t>& range, Fitch_Sankoff_Result* out, MAT::Node* src, MAT::Node* dst,char par_nuc){
     int start_idx=range.second-1;
-    int original_parsimony_score=out->scores.back()[par_nuc];
+    char par_nuc_idx=one_hot_to_two_bit(par_nuc);
+    int original_parsimony_score=out->scores.back()[par_nuc_idx];
     patch_sankoff_result(start_idx, out, src, src->parent);
     patch_sankoff_result(start_idx, out, src, dst);
-    return out->scores.back()[par_nuc]-original_parsimony_score;
+    return out->scores.back()[par_nuc_idx]-original_parsimony_score;
 }
 
 void Profitable_Moves_Enumerator::operator() (Possible_Move* in)const{
@@ -111,7 +113,8 @@ void Profitable_Moves_Enumerator::operator() (Possible_Move* in)const{
     std::vector<Fitch_Sankoff_Result*> moved_states(mutations.size());
     tbb::parallel_for(tbb::blocked_range<size_t>(0,mutations.size()),[&](tbb::blocked_range<size_t> r){
         for (size_t i=r.begin();i<r.end() ; i++) {
-            Fitch_Sankoff::sankoff_backward_pass(range, mutations[i], dfs_ordered_nodes, unchanged_states[i]->scores, unchanged_states[i]->states, original_states[i]);
+            unchanged_states[i]=new Fitch_Sankoff_Result;
+            Fitch_Sankoff::sankoff_backward_pass(range, dfs_ordered_nodes, unchanged_states[i]->scores, unchanged_states[i]->states, original_states[i]);
             Fitch_Sankoff_Result* patched=new Fitch_Sankoff_Result(*unchanged_states[i]);
             int this_change=calculate_parsimony_score_change(range,patched,in->src,in->dst,get_genotype(LCA->parent, mutations[i]));
             moved_states[i]=patched;
@@ -124,6 +127,7 @@ void Profitable_Moves_Enumerator::operator() (Possible_Move* in)const{
         out->src=in->src;
         out->dst=in->dst;
         for (size_t i=0; i<mutations.size(); i++) {
+            moved_states[i]->range=range;
             moved_states[i]->mutation=mutations[i];
             moved_states[i]->original_state.swap(original_states[i]);
         }

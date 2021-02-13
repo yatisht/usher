@@ -183,7 +183,7 @@ namespace Mutation_Annotated_Tree {
         }
         std::pair<bool,bool> dirty_remove(int pos);
         std::pair<bool,bool> dirty_insert(const Mutation &mut, char keep_self = NO_DUPLICATE);
-        bool dirty_set_difference(Mutations_Collection& common, Mutations_Collection& original);
+        //bool dirty_set_difference(Mutations_Collection& common, Mutations_Collection& original);
         bool remove(int pos){
             auto iter=find(pos);
             if(iter==mutations.end()){
@@ -260,14 +260,8 @@ namespace Mutation_Annotated_Tree {
             }
             bool dirty_remove(int pos);
             bool dirty_insert(const Mutation &mut, char keep_self = -1);
-            void finalize();
-            // HACK: try to identify whether a node is a sample from name
-            bool not_sample() const{
-                for (auto c : this->identifier) {
-                    if (!std::isdigit(c))
-                        return false;
-                }
-                return true;
+            void finalize(){
+                mutations.finalize();
             }
             void clear_mutations(){
                 mutations.clear();

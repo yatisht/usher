@@ -76,6 +76,7 @@ void finalize_children(MAT::Node* parent,ConfirmedMove& edits,MAT::Tree* tree){
             parent->add_child(*iter);
         }
     }
+    possible_merges.pop_back();
     
     if(possible_merges.size()>=1){
         std::unordered_map<MAT::Node*,MAT::Node*> merged_nodes;

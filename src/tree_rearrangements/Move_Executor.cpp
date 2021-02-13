@@ -4,11 +4,12 @@ void Move_Executor::operator()(tbb::blocked_range<size_t> &r) const {
     for (auto i = r.begin(); i < r.end(); i++) {
         Move *this_move = moves[i];
         // conflicts checked at the last step
-        for (auto m : this_move->states) {
+        for (size_t j=0;j<this_move->states.size();j++) {
+            Fitch_Sankoff_Result* m=this_move->states[j];
             Fitch_Sankoff::sankoff_forward_pass(m->range, m->states,
                                                 dfs_ordered_nodes, m->mutation,
-                                                m->original_state);
-            delete m;
+                                                m->original_state,m->scores);
+            //delete m;
         }
         // Register Move
         ConfirmedMove temp;
