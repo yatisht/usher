@@ -6,11 +6,6 @@
 #include <tbb/parallel_for.h>
 #include <vector>
 using namespace Mutation_Annotated_Tree;
-struct Mutation_Comparator{
-    bool operator()(const Mutation& first,const Mutation& second)const{
-        return first.position<second.position;
-    }
-};
 void Mutations_Collection::merge_out(const Mutations_Collection &other,
                                      Mutations_Collection &out,
                                      char keep_self) const {
@@ -160,7 +155,7 @@ void Mutations_Collection::finalize(){
     std::lock_guard<mutex_type> lock(mutex);
     if(!is_dirty()) return;
     std::vector<Mutation> new_content;
-    std::sort(new_inserts.begin(),new_inserts.end(),Mutation_Comparator());
+    std::sort(new_inserts.begin(),new_inserts.end());
     new_content.reserve(mutations.size()+new_inserts.size());
     auto new_inserts_iter = new_inserts.begin();
     auto remove_or_replace_iter=remove_or_replace.begin();

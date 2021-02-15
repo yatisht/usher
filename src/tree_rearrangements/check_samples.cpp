@@ -1,9 +1,12 @@
 #include "check_samples.hpp"
 #include "../mutation_annotated_tree.hpp"
+#include "src/tree_rearrangements/tree_rearrangement_internal.hpp"
 #include <cstdio>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
+#include <vector>
 
 static void ins_mut(Mutation_Set &parent_mutations,
                     Mutation_Annotated_Tree::Mutation &m) {
@@ -31,18 +34,94 @@ static void insert_samples_worker(Mutation_Annotated_Tree::Node *root,
     }
 }
 
-static void check_samples_worker(Mutation_Annotated_Tree::Node *root,
+void get_mutation_set(Mutation_Annotated_Tree::Node* node, Mutation_Set& out){
+    while (node) {
+        for(Mutation_Annotated_Tree::Mutation& m : node->mutations){
+            out.insert(m);
+        }
+        node=node->parent;
+    }
+}
+
+void check_samples_worker_with_pending_moves(Mutation_Annotated_Tree::Node *root,
                                  Mutation_Set parent_mutations,
-                                 Sample_Mut_Type &samples) {
+                                 Sample_Mut_Type &samples,const Pending_Moves_t& pending_moves) {
     for (Mutation_Annotated_Tree::Mutation &m : root->mutations) {
         ins_mut(parent_mutations, m);
     }
     if (root->is_leaf()) {
+        auto leaf_iter=pending_moves.find(root);
+        if(leaf_iter!=pending_moves.end()){
+            std::string& old_identifier=root->identifier;
+            root=leaf_iter->second.added.front();
+            assert(old_identifier==root->identifier);
+            for (Mutation_Annotated_Tree::Mutation &m : root->mutations) {
+                ins_mut(parent_mutations, m);
+            }
+        }
+
         auto iter = samples.find(root->identifier);
         if (iter == samples.end()) {
             fprintf(stderr, "[ERROR] Extra Sample %s ? \n",
                     root->identifier.c_str());
         } else {
+            for (auto m : parent_mutations) {
+                auto m_iter = iter->second.find(m);
+                if (m_iter == iter->second.end()) {
+                    fprintf(
+                        stderr,
+                        "[ERROR] Extra mutation to\t%c\t%d\t of Sample\t%s at index \t%zu \n",
+                        Mutation_Annotated_Tree::get_nuc(m.mut_nuc), m.position,
+                        root->identifier.c_str(),root->index);
+                } else {
+                    iter->second.erase(m_iter);
+                }
+            }
+            for (auto m_left : iter->second) {
+                fprintf(stderr,
+                        "[ERROR] Lost mutation to\t%c\t%d\t of Sample\t%s at index \t %zu ? \n",
+                        Mutation_Annotated_Tree::get_nuc(m_left.mut_nuc),
+                        m_left.position, root->identifier.c_str(),root->index);
+            }
+            samples.erase(iter);
+        }
+    }
+    auto iter=pending_moves.find(root);
+    if(iter==pending_moves.end()){
+     for (auto child : root->children) {
+        assert(child->parent=root);
+        check_samples_worker_with_pending_moves(child, parent_mutations, samples,pending_moves);
+    }
+    }else{
+    const ConfirmedMove& pending_move_this_node=iter->second;
+    const std::vector<MAT::Node*>& removed_nodes=pending_move_this_node.removed;
+    for (auto child : root->children) {
+        if(std::find(removed_nodes.begin(),removed_nodes.end(),child)==removed_nodes.end()){
+        assert(child->parent=root);
+        check_samples_worker_with_pending_moves(child, parent_mutations, samples,pending_moves);
+        }
+    }
+    for(auto new_child:pending_move_this_node.added){
+        check_samples_worker_with_pending_moves(new_child, parent_mutations, samples, pending_moves);
+    }
+    }
+}
+
+void check_samples_worker(Mutation_Annotated_Tree::Node *root,
+                                 Mutation_Set parent_mutations,
+                                 Sample_Mut_Type &samples) {
+    for (Mutation_Annotated_Tree::Mutation &m : root->mutations) {
+        ins_mut(parent_mutations, m);
+    }
+
+    if (root->is_leaf()) {
+        auto iter = samples.find(root->identifier);
+        if (iter == samples.end()) {
+            fprintf(stderr, "[ERROR] Extra Sample %s ? \n",
+                    root->identifier.c_str());
+        }
+
+        else {
             for (auto m : parent_mutations) {
                 auto m_iter = iter->second.find(m);
                 if (m_iter == iter->second.end()) {
@@ -55,20 +134,24 @@ static void check_samples_worker(Mutation_Annotated_Tree::Node *root,
                     iter->second.erase(m_iter);
                 }
             }
+
             for (auto m_left : iter->second) {
                 fprintf(stderr,
                         "[ERROR] Lost mutation to\t%c\t%d\t of Sample\t%s at index %zu ? \n",
                         Mutation_Annotated_Tree::get_nuc(m_left.mut_nuc),
                         m_left.position, root->identifier.c_str(),root->index);
             }
+
             samples.erase(iter);
         }
     }
+
     for (auto child : root->children) {
         assert(child->parent=root);
         check_samples_worker(child, parent_mutations, samples);
     }
 }
+
 void check_samples(Mutation_Annotated_Tree::Node *root,
                    Sample_Mut_Type &samples) {
     Mutation_Set mutations;

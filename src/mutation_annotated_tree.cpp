@@ -6,7 +6,9 @@
 #include <string>
 // Uses one-hot encoding if base is unambiguous
 // A:1,C:2,G:4,T:8
-int8_t Mutation_Annotated_Tree::get_nuc_id (char nuc) {
+using Mutation_Annotated_Tree::Node;
+
+int8_t Mutation_Annotated_Tree::get_nuc_id(char nuc) {
     int8_t ret = 0b1111;
     switch(nuc) {
         case 'a':
@@ -567,7 +569,7 @@ void Mutation_Annotated_Tree::save_mutation_annotated_tree (Mutation_Annotated_T
 }
 
 /* === Node === */
-bool Mutation_Annotated_Tree::Node::is_leaf () {
+bool Mutation_Annotated_Tree::Node::is_leaf () const {
     return (children.size() == 0);
 }
 
@@ -917,7 +919,9 @@ std::vector<Mutation_Annotated_Tree::Node*> Mutation_Annotated_Tree::Tree::bread
 }
 
 static void depth_first_expansion_helper(Mutation_Annotated_Tree::Node* node, std::vector<Mutation_Annotated_Tree::Node*>& vec, size_t& index) {
+    assert(std::find(vec.begin(),vec.end(),node)==vec.end());
     vec.push_back(node);
+    assert(vec.size()-1==index);
     node->index=index;
     index++;
     for (auto c: node->children) {
@@ -1229,17 +1233,25 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_subtree (const Mutati
     return subtree;
 }
 
-void Mutation_Annotated_Tree::Node::add_child(Node *new_child) {
+Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Node::add_child(Node *new_child) {
     if (is_leaf()) {
-        Node *new_node = tree->create_node(
-            std::to_string(++tree->curr_internal_node), this->parent);
-        new_node->mutations.swap(mutations);
-        new_node->children.push_back(this);
-        parent = new_node;
-        new_child->parent = new_node;
-        new_node->children.push_back(new_child);
-        return;
+        std::string old_name(identifier);
+        tree->rename_node(identifier, std::to_string(++tree->curr_internal_node));
+        Mutation_Annotated_Tree::Node* sample_node=tree->create_node(old_name,this);
+        children.push_back(new_child);
+        return sample_node;
     }
     new_child->parent = this;
     children.push_back(new_child);
+    return nullptr;
+}
+Mutation_Annotated_Tree::Node::Node(const Node &other, Node *parent, Tree *tree)
+    : level(other.level), branch_length(other.branch_length),
+      identifier(other.identifier), epps(other.epps), parent(parent),
+      mutations(other.mutations), tree(tree) {
+    children.reserve(other.children.size());
+    for (auto c : other.children) {
+        children.push_back(new Node(*c, this, tree));
+    }
+    tree->all_nodes.emplace(other.identifier,this);
 }

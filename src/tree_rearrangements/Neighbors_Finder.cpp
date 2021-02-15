@@ -14,7 +14,7 @@ static void BFS(MAT::Node* src,MAT::Node* ori_src, int radius,tbb::flow::interfa
     std::queue<queue_content> bfs_queue;
     MAT::Node* excluded=ori_src;
     bfs_queue.push({src,excluded,radius});
-    
+
 #define bfs_add_node(node) \
 out.try_put(new Possible_Move{ori_src,node});\
 bfs_queue.push({node,src,dist});\
@@ -35,7 +35,7 @@ bfs_queue.push({node,src,dist});\
             bfs_add_node(c);
         }
     }
-    
+
 }
 void Neighbors_Finder::operator()(MAT::Node* src, Neighbors_Finder_t::output_ports_type& out)const{
     BFS(src->parent,src,radius,std::get<0>(out));

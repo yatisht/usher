@@ -90,8 +90,8 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
         tbb::flow::make_edge(input,neighbors_finder);
         tbb::flow::interface11::function_node<Possible_Move*> profitable_move_enumerator(search_graph,tbb::flow::unlimited,Profitable_Moves_Enumerator{dfs_ordered_nodes,profitable_moves});
         tbb::flow::make_edge(neighbors_finder,profitable_move_enumerator);
-        
-        
+
+
         while (!to_optimize.empty()) {
             profitable_moves.clear();
             pending_moves.clear();
@@ -100,20 +100,35 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
             std::vector<Move *> non_conflicting_moves;
             resolve_conflict(profitable_moves, non_conflicting_moves, to_optimize);
             if(!non_conflicting_moves.empty()){
-            Pending_Moves_t tree_edits;
-            //tbb::parallel_for(tbb::blocked_range<size_t>(0, non_conflicting_moves.size()), Move_Executor{dfs_ordered_nodes,this_tree,non_conflicting_moves,tree_edits});
-            Move_Executor temp{dfs_ordered_nodes,this_tree,non_conflicting_moves,tree_edits};
-            tbb::blocked_range<size_t> range_temp (0,non_conflicting_moves.size());
-            temp(range_temp);
-            this_tree.finalize();
-            tbb::parallel_for_each(tree_edits.begin(),tree_edits.end(),[&this_tree](const std::pair<MAT::Node*,ConfirmedMove>& in){
-                finalize_children(const_cast<MAT::Node*>(in.first),const_cast<ConfirmedMove&>(in.second),&this_tree);
-            });
-            dfs_ordered_nodes=this_tree.depth_first_expansion();
-            #ifndef NDEBUG
-            Sample_Mut_Type copy(ori);
-            check_samples(this_tree.root, copy);
-            #endif
+                Pending_Moves_t tree_edits;
+                // tbb::parallel_for(tbb::blocked_range<size_t>(0,
+                // non_conflicting_moves.size()),
+                // Move_Executor{dfs_ordered_nodes,this_tree,non_conflicting_moves,tree_edits});
+                Move_Executor temp{dfs_ordered_nodes, this_tree,
+                                   non_conflicting_moves, tree_edits, ori};
+                tbb::blocked_range<size_t> range_temp(
+                    0, non_conflicting_moves.size());
+                temp(range_temp);
+                // this_tree.finalize();
+                /*
+                tbb::parallel_for_each(
+                    tree_edits.begin(), tree_edits.end(),
+                    [&this_tree,
+                     &ori](const std::pair<MAT::Node *, ConfirmedMove> &in) {
+                   });
+                */
+                for (Pending_Moves_t::const_iterator iter=tree_edits.begin(); iter!=tree_edits.end(); iter++) {
+                    finalize_children(reinterpret_cast<MAT::Node *>(iter->first),
+                                      const_cast<ConfirmedMove &>(iter->second),
+                                      &this_tree, ori);
+                }
+                dfs_ordered_nodes = this_tree.depth_first_expansion();
+#ifndef NDEBUG
+                Sample_Mut_Type copy(ori);
+                check_samples(this_tree.root, copy);
+        fprintf(stderr, "Before refinement: %zu \n",
+                this_tree.get_parsimony_score());
+#endif
             }
         }
 

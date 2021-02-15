@@ -93,6 +93,7 @@ namespace Mutation_Annotated_Tree {
 
 #ifndef matToVCF
     class Mutations_Collection{
+        public:
         std::vector<Mutation> mutations;
         static const char IS_DIRTY_MASK=1;
         static const char DIRTY_INIT_MASK=2;
@@ -117,7 +118,6 @@ namespace Mutation_Annotated_Tree {
             assert(dirty_flag&DIRTY_INIT_MASK);
             dirty_flag=(IS_DIRTY_MASK|DIRTY_INIT_MASK);
         }
-        public:
         typedef tbb::mutex mutex_type;
         mutex_type mutex;
         static const char NO_DUPLICATE=-1;
@@ -149,6 +149,9 @@ namespace Mutation_Annotated_Tree {
         }
         void clear(){
             mutations.clear();
+        }
+        bool empty() const{
+            return mutations.empty();
         }
         void reserve(size_t n){
             mutations.reserve(n);
@@ -241,7 +244,7 @@ namespace Mutation_Annotated_Tree {
             std::vector<Node*> children;
             Mutations_Collection mutations;
             size_t index; //index in dfs pre-order
-            bool is_leaf();
+            bool is_leaf() const;
             bool is_root();
             Tree* tree;
             Node();
@@ -255,6 +258,7 @@ namespace Mutation_Annotated_Tree {
             Node(const std::string& id, float l,Tree* tree):Node(id,nullptr,l,tree){}
             
             Node(const std::string& id, Node* p,float l,Tree* tree):level(p?p->level+1:1),branch_length(l),identifier(id),parent(p),tree(tree){}
+            Node(const Node& other, Node* parent,Tree* tree);
             void add_mutation(Mutation& mut){
                 mutations.insert(mut);
             }
@@ -266,7 +270,7 @@ namespace Mutation_Annotated_Tree {
             void clear_mutations(){
                 mutations.clear();
             }
-            void add_child(Node* new_child);
+            Node* add_child(Node* new_child);
 #else
             void add_mutation(Mutation mut);
             void clear_mutations();
@@ -276,8 +280,8 @@ namespace Mutation_Annotated_Tree {
     class Tree {
         private:
             void remove_node_helper (std::string nid, bool move_level);
-            std::unordered_map <std::string, Node*> all_nodes;
         public:
+            std::unordered_map <std::string, Node*> all_nodes;
             tbb::concurrent_vector<Node*> dirty_nodes;
             Tree() {
                 root = NULL;
@@ -285,6 +289,7 @@ namespace Mutation_Annotated_Tree {
             }
 
             Tree (Node* n);
+            Tree (Tree* other):root(new Node(*other->root,nullptr,this)),curr_internal_node(other->curr_internal_node){}
             std::vector<Node*> new_nodes;
             size_t max_level;
 
@@ -318,6 +323,7 @@ namespace Mutation_Annotated_Tree {
             void collapse_tree();
             
             void finalize();
+            friend class Node;
     };
     
     std::string get_newick_string(const Tree& T, bool b1, bool b2, bool b3=false, bool b4=false);
@@ -350,7 +356,12 @@ static bool check_grand_parent(const Mutation_Annotated_Tree::Node* node,const M
 
 }
 
-
+template<>
+struct std::hash<Mutation_Annotated_Tree::Mutation> {
+    size_t operator()(const Mutation_Annotated_Tree::Mutation &in) const {
+        return in.position;
+    }
+};
 
 
 static char one_hot_to_two_bit(char arg) {return 31-__builtin_clz((unsigned int)arg);}

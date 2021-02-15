@@ -9,7 +9,8 @@ namespace Fitch_Sankoff {
 #ifndef NDEBUG
 struct State_Type {
     char state;
-    const MAT::Node *const node;
+    const MAT::Node *node;
+    State_Type(char state,const MAT::Node *n) :state(state),node(n) {}
     State_Type(const MAT::Node *n) : node(n) {
         state=0;
     }
@@ -17,6 +18,7 @@ struct State_Type {
     operator char &() { return state; }
     char operator=(char a) { return (state = a); }
 };
+
 struct Score_Type {
     std::array<int, 4> score;
     const MAT::Node *const node;
@@ -25,8 +27,8 @@ struct Score_Type {
     int &operator[](size_t a) { return score[a]; }
 };
 #else
-typedef char State_Type;
 typedef std::array<int, 4> Score_Type;
+typedef char State_Type;
 #endif
 typedef std::vector<State_Type> States_Type;
 typedef std::vector<Score_Type> Scores_Type;
@@ -35,17 +37,13 @@ std::pair<size_t, size_t> dfs_range(const MAT::Node *start,std::vector<MAT::Node
 
 int sankoff_backward_pass(const std::pair<size_t, size_t> &range,
                            const std::vector<MAT::Node *> &dfs_ordered_nodes,
-                           Scores_Type &scores, States_Type &states,std::vector<char> original_state);
+                           Scores_Type &scores,States_Type original_state);
 void sankoff_forward_pass(const std::pair<size_t, size_t> &range,
-                          States_Type &states,
-                          std::vector<MAT::Node *> &dfs_ordered_nodes,const MAT::Mutation &mutation,std::vector<char> original_state
-#ifndef NDEBUG
-,Scores_Type &scores 
-#endif
-);
+                          std::vector<MAT::Node *> &dfs_ordered_nodes,const MAT::Mutation &mutation,States_Type original_state,
+                          Scores_Type &scores,char starting_node_parent_state,MAT::Node* to_move,MAT::Node* dst, MAT::Node* new_leaf);
 
 void set_internal_score(const MAT::Node &this_node, Scores_Type &out,
-                        const int start_idx, States_Type &states,MAT::Node* changed_child=nullptr);
+                        const int start_idx,MAT::Node* changed_child=nullptr,Score_Type* leaf_score=nullptr);
 std::pair<int, char>
 get_child_score_on_par_nuc(char par_nuc,
                            Score_Type &child_scores);

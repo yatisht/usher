@@ -4,6 +4,7 @@
 #include "src/mutation_annotated_tree.hpp"
 #include <tbb/blocked_range.h>
 #include <tbb/concurrent_unordered_map.h>
+#include "check_samples.hpp"
 #include <tbb/concurrent_vector.h>
 #include <tbb/pipeline.h>
 #include <unordered_map>
@@ -15,7 +16,8 @@
 struct Fitch_Sankoff_Result{
     MAT::Mutation mutation;
     std::pair<size_t, size_t> range;
-    std::vector<char> original_state;
+    Fitch_Sankoff::States_Type original_state;
+    char LCA_parent_state;
     Fitch_Sankoff::States_Type states;
     Fitch_Sankoff::Scores_Type scores;
 };
@@ -29,6 +31,7 @@ struct Move{
     int score_change;
     MAT::Node* src;
     MAT::Node* dst;
+    MAT::Node* LCA;
     std::vector<MAT::Node*> path;
     std::vector<Fitch_Sankoff_Result*> states;
 };
@@ -56,14 +59,17 @@ struct Profitable_Moves_Enumerator{
     void operator() (Possible_Move*)const;
 };
 
-typedef tbb::concurrent_unordered_map<MAT::Node*,ConfirmedMove> Pending_Moves_t;
 struct Move_Executor{
     std::vector<MAT::Node *>& dfs_ordered_nodes;
     MAT::Tree& tree;
     std::vector<Move*>& moves;
     Pending_Moves_t& tree_edits;
+    const Sample_Mut_Type& ori;
+    mutable std::unordered_map<void*,void*> new_parents_map;
     void operator()(tbb::blocked_range<size_t>&)const;
+    private:
+    MAT::Node* get_parent(MAT::Node*) const;
 };
 void resolve_conflict(tbb::concurrent_vector<Move*>& candidate_moves, std::vector<Move*>& non_conflicting_moves, std::vector<MAT::Node*>& deferred_nodes);
-void finalize_children(MAT::Node* parent,ConfirmedMove& edits,MAT::Tree* tree);
+void finalize_children(MAT::Node* parent,ConfirmedMove& edits,MAT::Tree* tree,const Sample_Mut_Type& checker);
 #endif

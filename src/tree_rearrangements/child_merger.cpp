@@ -1,4 +1,5 @@
 #include "src/mutation_annotated_tree.hpp"
+#include "src/tree_rearrangements/check_samples.hpp"
 #include "tree_rearrangement_internal.hpp"
 #include <algorithm>
 #include <string>
@@ -32,32 +33,65 @@ static bool check_mergable(MAT::Node* this_node, MAT::Node* merge_with,std::vect
     return true;
 }
 
-static void remove_child(MAT::Node* child_to_remove){
-        auto parent=child_to_remove->parent;
+static void remove_child(MAT::Node* child_to_remove,MAT::Node* parent){
         auto iter=std::find(parent->children.begin(),parent->children.end(),child_to_remove);
         if(iter!=parent->children.end()) parent->children.erase(iter);
 }
 static MAT::Node* execute_merge(Merge_Discriptor& merge, MAT::Tree* tree,MAT::Node* parent){
     MAT::Node* merged_node=tree->create_node(std::to_string(++tree->curr_internal_node),parent);
     merged_node->mutations.swap(merge.shared_mutations);
-    remove_child(merge.to_merge_with);
-    
+    remove_child(merge.to_merge_with,parent);
+
     merged_node->children.push_back(merge.this_child);
     merge.this_child->parent=merged_node;
     merge.this_child->mutations.swap(merge.src_unique_mutations);
-    
+
     merged_node->children.push_back(merge.to_merge_with);
     merge.to_merge_with->parent=merged_node;
     merge.to_merge_with->mutations.swap(merge.to_merge_width_unique_mutations);
-    
+
     return merged_node;
 }
 
-void finalize_children(MAT::Node* parent,ConfirmedMove& edits,MAT::Tree* tree){
+void finalize_children(MAT::Node* parent,ConfirmedMove& edits,MAT::Tree* tree,const Sample_Mut_Type& checker){
+    if(parent->is_leaf()){
+        assert(edits.removed.empty());
+        assert(edits.added.front()->identifier==parent->identifier);
+        tree->rename_node(parent->identifier, std::to_string(++tree->curr_internal_node));
+        MAT::Node* sample_node=edits.added.front();
+        sample_node->tree=tree;
+        tree->all_nodes.emplace(sample_node->identifier,sample_node);
+    }
+
     //remove children
     for(MAT::Node* child_to_remove:edits.removed){
-        remove_child(child_to_remove);
+        //assert(child_to_remove->parent==parent);
+        remove_child(child_to_remove,parent);
     }
+
+    #ifndef NDEBUG
+    Sample_Mut_Type copy(checker);
+    Mutation_Set parent_mutations;
+    get_mutation_set(parent, parent_mutations);
+    #endif 
+
+    //plain add, forgoing merge for testing
+    for(MAT::Node* to_add:edits.added){
+        to_add->parent=parent;
+        parent->children.push_back(to_add);
+#ifndef NDEBUG
+        check_samples_worker(to_add, parent_mutations, copy);
+#endif
+    }
+    
+    if(parent->children.empty()){
+        tree->all_nodes.erase(parent->identifier);
+        std::vector<MAT::Node*>& parent_children=parent->parent->children;
+        parent_children.erase(std::find(parent_children.begin(),parent_children.end(),parent));
+        delete parent;
+    }
+
+    /*
     //add children
     Merge_Discriptor merge;
     std::vector<Merge_Discriptor> possible_merges;
@@ -74,10 +108,13 @@ void finalize_children(MAT::Node* parent,ConfirmedMove& edits,MAT::Tree* tree){
         }
         if (!this_mergable) {
             parent->add_child(*iter);
+            #ifndef NDEBUG
+            check_samples_worker(*iter, parent_mutations, copy);
+            #endif
         }
     }
     possible_merges.pop_back();
-    
+
     if(possible_merges.size()>=1){
         std::unordered_map<MAT::Node*,MAT::Node*> merged_nodes;
         std::unordered_set<MAT::Node*> finished_nodes;
@@ -94,6 +131,9 @@ void finalize_children(MAT::Node* parent,ConfirmedMove& edits,MAT::Tree* tree){
             auto iter=merged_nodes.find(m.to_merge_with);
             if(iter==merged_nodes.end()){
                 MAT::Node* new_node=execute_merge(m, tree,parent);
+#ifndef NDEBUG
+                check_samples_worker(new_node, parent_mutations, copy);
+#endif
                 finished_nodes.insert(m.this_child);
                 finished_nodes.insert(m.to_merge_with);
                 merged_nodes.emplace(m.to_merge_with,new_node);
@@ -112,7 +152,18 @@ void finalize_children(MAT::Node* parent,ConfirmedMove& edits,MAT::Tree* tree){
         for(MAT::Node* c:merge_conflicted_children){
             if (!finished_nodes.count(c)) {
                 parent->add_child(c);
+#ifndef NDEBUG
+                check_samples_worker(c, parent_mutations, copy);
+#endif
+
             }
         }
     }
+    {
+        Mutation_Set parent_mutations;
+        Sample_Mut_Type copy(checker);
+        get_mutation_set(parent->parent, parent_mutations);
+        check_samples_worker(parent, parent_mutations, copy);
+    }
+    */
 }
