@@ -278,9 +278,9 @@ Mutation-annotated tree file generated using UShER.
 
 **-o**: Output mutation-annotated tree file (REQUIRED)
 
-**-p**: Calculate and store total tree parsimony. 
+**-l**: Provide a path to a file assigning lineages to samples to locate and annotate clade root nodes (REQUIRED)
 
-**-e**: Calculate and store equally parsimonious placements for all samples in the tree.
+**-f**: Set the minimum allele frequency in samples to find the best clade root node (default = 0.9)
 
 **-h**: Print help messages
 

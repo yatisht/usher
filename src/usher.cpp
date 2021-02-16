@@ -465,7 +465,7 @@ int main(int argc, char** argv) {
         fprintf(stderr, "Writing condensed input tree to file %s\n", condensed_tree_filename.c_str());
         
         FILE* condensed_tree_file = fopen(condensed_tree_filename.c_str(), "w");
-        fprintf(condensed_tree_file, "%s\n", MAT::get_newick_string(*T, true, true, retain_original_branch_len).c_str());
+        fprintf(condensed_tree_file, "%s\n", MAT::get_newick_string(*T, T->root, true, true, retain_original_branch_len).c_str());
         fclose(condensed_tree_file);
 
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
@@ -516,6 +516,10 @@ int main(int argc, char** argv) {
                 std::vector<size_t> num_best_placements;
 
                 for (size_t s=0; s<missing_samples.size(); s++) {
+
+                    //Sort the missing sample mutations by position
+                    std::sort(missing_sample_mutations[s].begin(), missing_sample_mutations[s].end());
+
                     auto dfs = T->depth_first_expansion();
                     size_t total_nodes = dfs.size();
 
@@ -1026,6 +1030,13 @@ int main(int argc, char** argv) {
                                     }
                                 }
                                 fprintf(stderr, "\n");
+                            }
+
+                            for (auto anc: T->rsearch(sample, true)) {
+                                if (anc->clade != "") {
+                                    fprintf (stderr, "This sample falls under the clade: %s\n", anc->clade.c_str());
+                                    break;
+                                }
                             }
                         }
                         

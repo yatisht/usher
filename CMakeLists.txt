@@ -3,10 +3,9 @@ cmake_minimum_required (VERSION 3.8)
 
 project(strain_phylogenetics)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -std=c++11 -Wall -ggdb3 -Wno-unused-function -pipe")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -std=c++11 -Wall -g -Wno-unused-function")
 set(CMAKE_INCLUDE_CURRENT_DIR ON) 
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -fsanitize=address  -fsanitize=undefined")
-set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-DNDEBUG")
 
 if(DEFINED Protobuf_PATH) 
     find_package(Protobuf REQUIRED HINTS ${Protobuf_PATH}) 
@@ -26,11 +25,13 @@ tbb_build(TBB_ROOT ${TBB_DIR} CONFIG_DIR TBB_DIR MAKE_ARGS tbb_cpf=1)
 find_package(TBB REQUIRED tbbmalloc tbbmalloc_proxy tbb_preview)
 
 FIND_PACKAGE(Boost COMPONENTS program_options iostreams filesystem REQUIRED)
-AUX_SOURCE_DIRECTORY(src/tree_rearrangements tree_rearrange_src) 
 
 #find_package(OpenMP REQUIRED)
 
 INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIRS})
+
+AUX_SOURCE_DIRECTORY(src/tree_rearrangements tree_rearrange_src) 
+file(GLOB MATUTIL_SRCS "src/matUtils/*.cpp" "src/matUtils/*.hpp")
 
 if(DEFINED Protobuf_PATH)
     add_executable(usher
@@ -43,9 +44,8 @@ if(DEFINED Protobuf_PATH)
 
     add_executable(matUtils
         src/mutation_annotated_tree.cpp
-        src/Mutation_Collection.cpp
         src/usher_mapper.cpp
-        src/matUtils.cpp
+        ${MATUTIL_SRCS}
         )
 
     protobuf_generate(
@@ -64,9 +64,10 @@ else()
 
     add_executable(usher
         src/mutation_annotated_tree.cpp
-        src/usher_mapper.cpp
         src/Mutation_Collection.cpp
         ${tree_rearrange_src}
+        src/mutation_annotated_tree.cpp
+        src/usher_mapper.cpp
         src/usher.cpp
         ${PROTO_SRCS}
         ${PROTO_HDRS}
@@ -76,7 +77,7 @@ else()
         src/mutation_annotated_tree.cpp
         src/usher_mapper.cpp
         src/Mutation_Collection.cpp
-        src/matUtils.cpp
+        ${MATUTIL_SRCS}
         ${PROTO_SRCS}
         ${PROTO_HDRS}
         )
