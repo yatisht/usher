@@ -2,6 +2,7 @@
 #include "tree_rearrangement_internal.hpp"
 #include <algorithm>
 #include <cstddef>
+#include <string>
 #include <tbb/blocked_range.h>
 #include <tbb/concurrent_hash_map.h>
 #include <tbb/concurrent_vector.h>
@@ -10,6 +11,7 @@
 #include <tbb/pipeline.h>
 #include "check_samples.hpp"
 #include <tbb/flow_graph.h>
+#include <vector>
 #include "Twice_Bloom_Filter.hpp"
 #include "src/tree_rearrangement.hpp"
 tbb::concurrent_vector<MAT::Node*> postponed;
@@ -29,6 +31,19 @@ static void find_nodes_with_recurrent_mutations(std::vector<MAT::Node *>& all_no
                 break;
             }
         }
+    }
+}
+static void fix_condensed_nodes(MAT::Tree* tree){
+    std::vector<MAT::Node*> nodes_to_fix;
+    for(auto iter:tree->all_nodes){
+        if (tree->condensed_nodes.count(iter.first)&&(!iter.second->mutations.empty())) {
+            nodes_to_fix.push_back(iter.second);
+        }
+    }
+    for(auto node:nodes_to_fix){
+        std::string ori_identifier(node->identifier);
+        tree->rename_node(ori_identifier, std::to_string(++tree->curr_internal_node));
+        tree->create_node(ori_identifier,node);
     }
 }
 
@@ -73,7 +88,7 @@ static void feed_nodes(std::vector<MAT::Node *> &to_feed,
 
 void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int radius) {
 
-    for (auto this_tree : optimal_trees) {
+    for (MAT::Tree& this_tree : optimal_trees) {
         fprintf(stderr, "Before refinement: %zu \n",
                 this_tree.get_parsimony_score());
         auto dfs_ordered_nodes = this_tree.depth_first_expansion();
@@ -138,6 +153,7 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
         check_samples(this_tree.root, ori,&this_tree);
         fprintf(stderr, "After refinement: %zu \n",
                 this_tree.get_parsimony_score());
+        fix_condensed_nodes(&this_tree);
         this_tree.reassign_level();
     }
 }

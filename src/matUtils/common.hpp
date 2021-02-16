@@ -1,3 +1,4 @@
+#define matUtils
 #include <array>
 #include <fstream>
 #include <iostream>

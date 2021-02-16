@@ -91,7 +91,7 @@ namespace Mutation_Annotated_Tree {
         }
     };
 
-#ifndef matToVCF
+#ifndef matUtils
     class Mutations_Collection{
         public:
         std::vector<Mutation> mutations;
@@ -250,7 +250,7 @@ namespace Mutation_Annotated_Tree {
             Node();
             Node(std::string id, float l);
             Node(std::string id, Node* p, float l);
-#ifndef matToVCF
+#ifndef matUtils
             Node(Tree* tree):Node("",-1,tree){
                 level=0;
             }
@@ -289,7 +289,9 @@ namespace Mutation_Annotated_Tree {
             }
 
             Tree (Node* n);
+#ifndef matUtils
             Tree (Tree* other):root(new Node(*other->root,nullptr,this)),curr_internal_node(other->curr_internal_node){}
+#endif
             std::vector<Node*> new_nodes;
             size_t max_level;
 

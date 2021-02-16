@@ -117,7 +117,7 @@ void check_samples_worker(Mutation_Annotated_Tree::Node *root,
     if (root->is_leaf()) {
         auto iter = samples.find(root->identifier);
         if (iter == samples.end()) {
-            fprintf(stderr, "[ERROR] Extra Sample %s ? \n",
+            fprintf(stderr, "[ERROR] Extra Sample %s \n",
                     root->identifier.c_str());
         }
 
@@ -127,17 +127,20 @@ void check_samples_worker(Mutation_Annotated_Tree::Node *root,
                 if (m_iter == iter->second.end()) {
                     fprintf(
                         stderr,
-                        "[ERROR] Extra mutation to\t%c\%d\t of Sample\t%s at index %zu? \n",
+                        "[ERROR] Extra mutation to\t%c\%d\t of Sample\t%s at index %zu \n",
                         Mutation_Annotated_Tree::get_nuc(m.mut_nuc), m.position,
                         root->identifier.c_str(),root->index);
                 } else {
+                    if (m.mut_nuc!=m_iter->mut_nuc) {
+                        fprintf(stderr, "Mut Nuc Mismatch at \t %d of sample \t %s at index \t %zu: original \t %c , altered :\t %c \n",m.position,root->identifier.c_str(),root->index,Mutation_Annotated_Tree::get_nuc(m_iter->mut_nuc),MAT::get_nuc(m.mut_nuc));
+                    }
                     iter->second.erase(m_iter);
                 }
             }
 
             for (auto m_left : iter->second) {
                 fprintf(stderr,
-                        "[ERROR] Lost mutation to\t%c\t%d\t of Sample\t%s at index %zu ? \n",
+                        "[ERROR] Lost mutation to\t%c\t%d\t of Sample\t%s at index %zu \n",
                         Mutation_Annotated_Tree::get_nuc(m_left.mut_nuc),
                         m_left.position, root->identifier.c_str(),root->index);
             }
@@ -161,7 +164,7 @@ void check_samples(Mutation_Annotated_Tree::Node *root,
     } else {
         check_samples_worker(root, mutations, samples,tree);
         for (auto s : samples) {
-            fprintf(stderr, "[ERROR] Missing Sample %s ? \n",
+            fprintf(stderr, "[ERROR] Missing Sample %s \n",
                     s.first.c_str());
         }
     }

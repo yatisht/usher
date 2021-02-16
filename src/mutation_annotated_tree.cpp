@@ -1,6 +1,7 @@
 #include "mutation_annotated_tree.hpp"
 #include <algorithm>
 #include <cstddef>
+#include <cstdio>
 #include <iomanip>
 #include <cassert>
 #include <string>
@@ -733,7 +734,7 @@ Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Tree::create_node (std::
 }
 
 Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Tree::create_node (std::string const& identifier, Node* par, float branch_len) {
-    Node* n = new Node(identifier, par, branch_len);
+    Node* n = new Node(identifier, par, branch_len,this);
     if (all_nodes.find(identifier) != all_nodes.end()) {
         fprintf(stderr, "Error: %s already in the tree!\n", identifier.c_str());
         exit(1);
