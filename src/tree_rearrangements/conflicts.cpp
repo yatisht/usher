@@ -61,7 +61,6 @@ void resolve_conflict(tbb::concurrent_vector<Move*>& candidate_moves, std::vecto
             register_loop_conflict(m->path,potential_crosses);
             register_mut_conflict(m->LCA,m->states,m,repeatedly_mutating_loci);
             non_conflicting_moves.push_back(m);
-            deferred_nodes.push_back(m->src);
         }
     }
 }

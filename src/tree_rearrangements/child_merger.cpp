@@ -60,7 +60,9 @@ void finalize_children(MAT::Node* parent,ConfirmedMove& edits,MAT::Tree* tree,co
         tree->rename_node(parent->identifier, std::to_string(++tree->curr_internal_node));
         MAT::Node* sample_node=edits.added.front();
         sample_node->tree=tree;
-        tree->all_nodes.emplace(sample_node->identifier,sample_node);
+        auto result=tree->all_nodes.emplace(sample_node->identifier,sample_node);
+        assert(result.second);
+        assert(tree->get_node(sample_node->identifier)==sample_node);
     }
 
     //remove children

@@ -751,8 +751,12 @@ Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Tree::create_node (std::
 }
 
 Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Tree::get_node (std::string nid) const {
-    if (all_nodes.find(nid) != all_nodes.end()) {
-        return all_nodes.at(nid);
+    auto iter=all_nodes.find(nid);
+    if (iter != all_nodes.end()) {
+        if(iter->second->identifier!=nid){
+            fprintf(stderr,"looking for %s but get %s \n",nid.c_str(),iter->second->identifier.c_str());
+        }
+        return iter->second;
     }
     return NULL;
 

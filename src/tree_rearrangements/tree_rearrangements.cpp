@@ -79,8 +79,7 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
         auto dfs_ordered_nodes = this_tree.depth_first_expansion();
         Sample_Mut_Type ori;
         std::vector<MAT::Node*>& to_optimize=this_tree.new_nodes;
-        find_nodes_with_recurrent_mutations(dfs_ordered_nodes, to_optimize);
-        check_samples(this_tree.root, ori);
+        check_samples(this_tree.root, ori,&this_tree);
         Pending_Moves_t pending_moves;
         tbb::concurrent_vector<Move*> profitable_moves;
         //building pipeline
@@ -91,7 +90,10 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
         tbb::flow::interface11::function_node<Possible_Move*> profitable_move_enumerator(search_graph,tbb::flow::unlimited,Profitable_Moves_Enumerator{dfs_ordered_nodes,profitable_moves});
         tbb::flow::make_edge(neighbors_finder,profitable_move_enumerator);
 
-
+        bool have_improvement=true;
+        while (have_improvement) {
+            have_improvement=false;
+            find_nodes_with_recurrent_mutations(dfs_ordered_nodes, to_optimize);
         while (!to_optimize.empty()) {
             profitable_moves.clear();
             pending_moves.clear();
@@ -125,14 +127,15 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
                 dfs_ordered_nodes = this_tree.depth_first_expansion();
 #ifndef NDEBUG
                 Sample_Mut_Type copy(ori);
-                check_samples(this_tree.root, copy);
+                check_samples(this_tree.root, copy,&this_tree);
         fprintf(stderr, "Before refinement: %zu \n",
                 this_tree.get_parsimony_score());
 #endif
             }
         }
+        }
 
-        check_samples(this_tree.root, ori);
+        check_samples(this_tree.root, ori,&this_tree);
         fprintf(stderr, "After refinement: %zu \n",
                 this_tree.get_parsimony_score());
         this_tree.reassign_level();

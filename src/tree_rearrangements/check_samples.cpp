@@ -109,7 +109,7 @@ void check_samples_worker_with_pending_moves(Mutation_Annotated_Tree::Node *root
 
 void check_samples_worker(Mutation_Annotated_Tree::Node *root,
                                  Mutation_Set parent_mutations,
-                                 Sample_Mut_Type &samples) {
+                                 Sample_Mut_Type &samples,MAT::Tree* tree) {
     for (Mutation_Annotated_Tree::Mutation &m : root->mutations) {
         ins_mut(parent_mutations, m);
     }
@@ -147,18 +147,19 @@ void check_samples_worker(Mutation_Annotated_Tree::Node *root,
     }
 
     for (auto child : root->children) {
+        assert((!tree)||tree->get_node(child->identifier)==child);
         assert(child->parent=root);
         check_samples_worker(child, parent_mutations, samples);
     }
 }
 
 void check_samples(Mutation_Annotated_Tree::Node *root,
-                   Sample_Mut_Type &samples) {
+                   Sample_Mut_Type &samples,MAT::Tree* tree) {
     Mutation_Set mutations;
     if (samples.empty()) {
         insert_samples_worker(root, mutations, samples);
     } else {
-        check_samples_worker(root, mutations, samples);
+        check_samples_worker(root, mutations, samples,tree);
         for (auto s : samples) {
             fprintf(stderr, "[ERROR] Missing Sample %s ? \n",
                     s.first.c_str());

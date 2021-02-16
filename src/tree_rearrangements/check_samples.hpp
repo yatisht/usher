@@ -36,11 +36,11 @@ typedef std::unordered_map<std::string, Mutation_Set>
     Sample_Mut_Type;
 void check_samples(
     Mutation_Annotated_Tree::Node *root,
-    Sample_Mut_Type &samples);
+    Sample_Mut_Type &samples,Mutation_Annotated_Tree::Tree* tree);
 void get_mutation_set(Mutation_Annotated_Tree::Node* node, Mutation_Set& out);
 void check_samples_worker(Mutation_Annotated_Tree::Node *root,
                                  Mutation_Set parent_mutations,
-                                 Sample_Mut_Type &samples);
+                                 Sample_Mut_Type &samples,Mutation_Annotated_Tree::Tree* tree=nullptr);
 void check_samples_worker_with_pending_moves(Mutation_Annotated_Tree::Node *root,
                                  Mutation_Set parent_mutations,
                                  Sample_Mut_Type &samples,const Pending_Moves_t& pending_moves);

@@ -10,7 +10,7 @@ MAT::Node* Move_Executor::get_parent(MAT::Node* node) const{
             return (MAT::Node*)iter->second;
         }
 }
-
+#ifndef NDEBUG
 void check_original_states(Fitch_Sankoff::States_Type original_states, Mutation_Annotated_Tree::Mutation& mutation,const Sample_Mut_Type& mut){
     for(Fitch_Sankoff::State_Type& state:original_states){
         auto iter=mut.find(state.node->identifier);
@@ -27,16 +27,18 @@ void check_original_states(Fitch_Sankoff::States_Type original_states, Mutation_
         }
     }
 }
-
+#endif
 void Move_Executor::operator()(tbb::blocked_range<size_t> &r) const {
     for (auto i = r.begin(); i < r.end(); i++) {
         Move *this_move = moves[i];
 
         MAT::Node* new_leaf=nullptr;
+        #ifndef NDEBUG
         for(auto m:tree_edits){
             const auto& other_removed=m.second.removed;
             assert(std::find(other_removed.begin(),other_removed.end(),this_move->src)==other_removed.end());
         }
+        #endif
         // Register Move
         ConfirmedMove temp;
         auto op_node = tree_edits.insert(std::make_pair(this_move->src->parent, temp));
@@ -61,7 +63,9 @@ void Move_Executor::operator()(tbb::blocked_range<size_t> &r) const {
         // conflicts checked at the last step
         for (size_t j=0;j<this_move->states.size();j++) {
             Fitch_Sankoff_Result* m=this_move->states[j];
+#ifndef NDEBUG
             check_original_states(m->original_state, m->mutation, ori);
+#endif
             Fitch_Sankoff::sankoff_forward_pass(
                 m->range, dfs_ordered_nodes, m->mutation, m->original_state,
                 m->scores, m->LCA_parent_state, this_move->src, this_move->dst,new_leaf);
@@ -75,8 +79,9 @@ void Move_Executor::operator()(tbb::blocked_range<size_t> &r) const {
             parental.insert(ancestor->mutations.begin(),ancestor->mutations.end());
             ancestor=get_parent(ancestor);
         }
+#ifndef NDEBUG
         check_samples_worker_with_pending_moves(this_move->LCA, parental, copy,tree_edits);
-
+#endif
         delete this_move;
     }
 }
