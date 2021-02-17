@@ -46,7 +46,12 @@ static void fix_condensed_nodes(MAT::Tree* tree){
         tree->create_node(ori_identifier,node);
     }
 }
-
+static void push_all_nodes(MAT::Tree* tree,std::vector<MAT::Node*> nodes){
+    nodes.clear();
+    for(auto a:tree->all_nodes){
+        nodes.push_back(a.second);
+    }
+}
 static void feed_nodes(std::vector<MAT::Node *> &to_feed,
                          tbb::flow::buffer_node<MAT::Node*>& input_node,
                          std::vector<MAT::Node *> &dfs_ordered_nodes) {
@@ -57,8 +62,8 @@ static void feed_nodes(std::vector<MAT::Node *> &to_feed,
         this_round_idx.reserve(to_feed.size());
         for (auto node : to_feed) {
             auto parent = node->parent;
-            if (parent&&parent->parent)
-                this_round_idx.push_back(parent->index);
+            if (parent)
+                this_round_idx.push_back(node->index);
         }
     }
     while (!this_round_idx.empty()) {
@@ -108,7 +113,8 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
         bool have_improvement=true;
         while (have_improvement) {
             have_improvement=false;
-            find_nodes_with_recurrent_mutations(dfs_ordered_nodes, to_optimize);
+            //find_nodes_with_recurrent_mutations(dfs_ordered_nodes, to_optimize);
+            push_all_nodes(&this_tree, to_optimize);
         while (!to_optimize.empty()) {
             profitable_moves.clear();
             pending_moves.clear();

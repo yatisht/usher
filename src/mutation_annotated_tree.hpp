@@ -318,7 +318,8 @@ namespace Mutation_Annotated_Tree {
             std::vector<Node*> depth_first_expansion(Node* node=NULL) const;
 
             size_t get_parsimony_score();
-
+            
+            void write_newick_with_mutations(FILE* f);
             void condense_leaves(std::vector<std::string> = std::vector<std::string>());
             void uncondense_leaves();
             void collapse_tree();

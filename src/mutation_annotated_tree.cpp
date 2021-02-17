@@ -1261,3 +1261,28 @@ Mutation_Annotated_Tree::Node::Node(const Node &other, Node *parent, Tree *tree)
     }
     tree->all_nodes.emplace(other.identifier,this);
 }
+
+static void write_newick_with_mutations_helper(FILE *f,Mutation_Annotated_Tree::Node* node){
+    if(!node->children.empty()){
+        fputc('(',f);
+        bool first=true;
+        for(auto child:node->children){
+            if (first) {
+                first=false;
+            }else{
+                fputc(',',f);
+            }
+            write_newick_with_mutations_helper(f, child);
+        }
+        fputc(')',f);
+    }
+    fputs(node->identifier.c_str(),f);
+    for(const Mutation_Annotated_Tree::Mutation& m:node->mutations){
+        fprintf(f, "_%c%d%c",Mutation_Annotated_Tree::get_nuc(m.par_nuc),m.position,Mutation_Annotated_Tree::get_nuc(m.mut_nuc));
+    }
+    fprintf(f,":%zu",node->mutations.size());
+}
+void Mutation_Annotated_Tree::Tree::write_newick_with_mutations(FILE *f){
+    write_newick_with_mutations_helper(f, root);
+    fclose(f);
+}

@@ -1112,7 +1112,9 @@ int main(int argc, char** argv) {
             }
             auto parsimony_score = T->get_parsimony_score();
             fprintf(stderr, "The parsimony score for this tree is: %zu \n", parsimony_score);
-            //FILE* final_tree_file = fopen(final_tree_filename.c_str(), "w");
+            std::string final_tree_debug(final_tree_filename);
+            final_tree_debug.append("_debug");
+            T->write_newick_with_mutations( fopen(final_tree_debug.c_str(), "w"));
             //fprintf(final_tree_file, "%s\n", MAT::get_newick_string(*T, true, true, retain_original_branch_len).c_str());
             //fclose(final_tree_file);
             std::ofstream final_tree_file(final_tree_filename.c_str(), std::ofstream::out);
