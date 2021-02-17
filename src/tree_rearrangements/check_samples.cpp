@@ -41,6 +41,13 @@ void get_mutation_set(Mutation_Annotated_Tree::Node* node, Mutation_Set& out){
         }
         node=node->parent;
     }
+    for (auto iter=out.begin(); iter!=out.end();) {
+        auto old_iter = iter;
+        iter++;
+        if (old_iter->ref_nuc==old_iter->mut_nuc) {
+           out.erase(old_iter);
+        }
+    }
 }
 
 void check_samples_worker_with_pending_moves(Mutation_Annotated_Tree::Node *root,
