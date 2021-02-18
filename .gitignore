@@ -6,3 +6,4 @@ cmake-3*
 oneTBB-*
 protobuf-*
 outdir
+testout
