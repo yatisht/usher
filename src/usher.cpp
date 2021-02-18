@@ -1226,6 +1226,24 @@ int main(int argc, char** argv) {
 
             T = &optimal_trees[t_idx];
 
+            // We split the subtree size into two: one half for nearest sequences to
+            // the samples and the other half randomly sampled
+            size_t random_subtree_size = print_subtrees_size/2;
+            size_t nearest_subtree_size = print_subtrees_size - random_subtree_size;
+
+
+            // Randomly shuffle the leaves for selecting the random subtree
+            auto all_leaves = T->get_leaves();
+            std::unordered_set<MAT::Node*> random_ordered_leaves(random_subtree_size);
+            for (size_t i=0; i< all_leaves.size(); i++) {
+                auto l = all_leaves.begin();
+                std::advance(l, rand() % all_leaves.size());
+                random_ordered_leaves.insert(*l);
+                if (random_ordered_leaves.size() >= print_subtrees_size) {
+                    break;
+                }
+            }
+
             // Bool vector to mark which newly placed samples have already been
             // displayed in a subtree (initialized to false)
             std::vector<bool> displayed_mising_sample (missing_samples.size(), false);
@@ -1245,19 +1263,19 @@ int main(int argc, char** argv) {
                     continue;
                 }
 
-                MAT::Node* last_anc;
+                MAT::Node* last_anc = NULL;
                 std::vector<std::string> leaves_to_keep;
 
                 // Keep moving up the tree till a subtree of required size is
                 // found
                 for (auto anc: T->rsearch(missing_samples[i])) {
                     size_t num_leaves = T->get_num_leaves(anc);
-                    if (num_leaves < print_subtrees_size) {
+                    if (num_leaves < nearest_subtree_size) {
                         last_anc = anc;
                         continue;
                     }
 
-                    if (num_leaves > print_subtrees_size) {
+                    if (num_leaves > nearest_subtree_size) {
                         for (auto l: T->get_leaves(last_anc->identifier)) {
                             leaves_to_keep.emplace_back(l->identifier);
                         }
@@ -1275,11 +1293,24 @@ int main(int argc, char** argv) {
                             }
                         }
 
-                        leaves_to_keep.resize(print_subtrees_size);
+                        leaves_to_keep.resize(nearest_subtree_size);
                     }
                     else {
                         for (auto l: T->get_leaves(anc->identifier)) {
                             leaves_to_keep.emplace_back(l->identifier);
+                        }
+                    }
+
+                    // Add non-overlapping random subtree samples
+                    for (auto l: random_ordered_leaves) {
+                        if (leaves_to_keep.size() < print_subtrees_size) {
+                            if (std::find(leaves_to_keep.begin(), leaves_to_keep.end(), l->identifier) == leaves_to_keep.end()) {
+                                leaves_to_keep.emplace_back(l->identifier);
+                            }
+                        }
+
+                        if (leaves_to_keep.size() >= print_subtrees_size) {
+                            break;
                         }
                     }
                     

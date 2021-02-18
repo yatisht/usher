@@ -75,8 +75,8 @@ void mutation_paths(const MAT::Tree& T, std::string mutation_paths_filename) {
         else {
             auto sample = words[0];
             if (T.get_node(sample) == NULL) {
-                fprintf(stderr, "ERROR: Input sample %s not found in the tree!\n", sample.c_str());
-                exit(1);
+                fprintf(stderr, "WARNING: Input sample %s not found in the tree!\n", sample.c_str());
+                //exit(1);
             }
             else {
                 auto root_to_sample = T.rsearch(sample, true);
