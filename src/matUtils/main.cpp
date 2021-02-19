@@ -3,6 +3,7 @@
 #include "convert.hpp"
 #include "prune.hpp"
 #include "describe.hpp"
+#include "uncertainty.hpp"
 
 Timer timer; 
 
@@ -30,16 +31,18 @@ int main (int argc, char** argv) {
             prune_main(parsed); 
         } else if (cmd == "describe"){
             describe_main(parsed); 
+        } else if (cmd == "uncertainty") {
+            uncertainty_main(parsed);
         } else if (cmd == "help" || cmd == "--help" || cmd == "-h") { 
             // TODO: improve this message
-            fprintf(stderr, "matUtils has three major subcommands: annotate, filter, convert, prune and describe. All three take a MAT .pb file as input.\nAnnotate adds information to the MAT. Use annotate when you have information you want to calculate or incorporate into the MAT .pb. The command 'matUtils annotate --help' will describe related options.\nFilter removes nodes or samples from the MAT. Use filter when you want to strip out low-quality samples or mask samples you want to avoid. The command 'matUtils filter --help' will describe related options.\nConvert produces files which are not MAT .pb format, such as .vcf or newick text files. Use convert when you want other file types. The command 'matUtils convert --help' will describe related options.\n");
+            fprintf(stderr, "matUtils has several major subcommands: annotate, filter, convert, prune, uncertainty, and describe.\nIndividual command options can be accessed with matUtils command --help, e.g. matUtils annotate --help will show annotation-specific help messages.");
             exit(0);
         } else {
-            fprintf(stderr, "Invalid command. Please choose from annotate, filter, convert, prune, describe or help and try again.\n");
+            fprintf(stderr, "Invalid command. Please choose from annotate, filter, convert, prune, describe, uncertainty, or help and try again.\n");
             exit(1);
         }
     } catch (...) { //not sure this is the best way to catch it when matUtils is called with no positional arguments.
-        fprintf(stderr, "No command selected. Please choose from annotate, filter, convert, prune, describe or help and try again.\n");
+        fprintf(stderr, "No command selected. Please choose from annotate, filter, convert, prune, describe, uncertainty, or help and try again.\n");
         exit(0);
     }
 
