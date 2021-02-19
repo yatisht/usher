@@ -1262,7 +1262,7 @@ int main(int argc, char** argv) {
                 // found
                 for (auto anc: T->rsearch(missing_samples[i])) {
                     size_t num_leaves = T->get_num_leaves(anc);
-                    if (num_leaves < nearest_subtree_size) {
+                    if (num_leaves <= nearest_subtree_size) {
                         last_anc = anc;
                         continue;
                     }
