@@ -6,14 +6,14 @@
 #include <unordered_set>
 #include <utility>
 struct ConfirmedMove;
-struct MutationComparator {
+struct Mutation_Pos_Only_Comparator {
     bool operator()(const Mutation_Annotated_Tree::Mutation &first,
                     const Mutation_Annotated_Tree::Mutation &second) const {
         return (first.position == second.position) &&
                (first.chrom == second.chrom);
     }
 };
-struct MutationHash {
+struct Mutation_Pos_Only_Hash {
     size_t operator()(const Mutation_Annotated_Tree::Mutation &in) const {
         return in.position;
     }
@@ -31,17 +31,17 @@ struct Node_Idx_Eq{
 };
 
 typedef tbb::concurrent_unordered_map<Mutation_Annotated_Tree::Node*,ConfirmedMove,Node_Idx_Hash,Node_Idx_Eq> Pending_Moves_t;
-typedef std::unordered_set<Mutation_Annotated_Tree::Mutation, MutationHash, MutationComparator> Mutation_Set;
+typedef std::unordered_set<Mutation_Annotated_Tree::Mutation, Mutation_Pos_Only_Hash, Mutation_Pos_Only_Comparator> Mutation_Set;
 typedef std::unordered_map<std::string, Mutation_Set>
-    Sample_Mut_Type;
+    Original_State_t;
 void check_samples(
     Mutation_Annotated_Tree::Node *root,
-    Sample_Mut_Type &samples,Mutation_Annotated_Tree::Tree* tree);
+    Original_State_t &samples,Mutation_Annotated_Tree::Tree* tree);
 void get_mutation_set(Mutation_Annotated_Tree::Node* node, Mutation_Set& out);
 void check_samples_worker(Mutation_Annotated_Tree::Node *root,
                                  Mutation_Set parent_mutations,
-                                 Sample_Mut_Type &samples,Mutation_Annotated_Tree::Tree* tree=nullptr);
+                                 Original_State_t &samples,Mutation_Annotated_Tree::Tree* tree=nullptr);
 void check_samples_worker_with_pending_moves(Mutation_Annotated_Tree::Node *root,
                                  Mutation_Set parent_mutations,
-                                 Sample_Mut_Type &samples,const Pending_Moves_t& pending_moves);
+                                 Original_State_t &samples,const Pending_Moves_t& pending_moves);
 #endif

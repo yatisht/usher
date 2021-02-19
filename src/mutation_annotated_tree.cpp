@@ -1286,3 +1286,14 @@ void Mutation_Annotated_Tree::Tree::write_newick_with_mutations(FILE *f){
     write_newick_with_mutations_helper(f, root);
     fclose(f);
 }
+#ifndef NDEBUG
+void Node::delete_this(){
+    for(Node* n:children){
+        n->delete_this();
+    }
+    delete this;
+}
+void Mutation_Annotated_Tree::Tree::delete_nodes(){
+    root->delete_this();
+}
+#endif

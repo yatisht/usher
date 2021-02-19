@@ -53,7 +53,7 @@ static MAT::Node* execute_merge(Merge_Discriptor& merge, MAT::Tree* tree,MAT::No
     return merged_node;
 }
 
-void finalize_children(MAT::Node* parent,ConfirmedMove& edits,MAT::Tree* tree,const Sample_Mut_Type& checker){
+void finalize_children(MAT::Node* parent,ConfirmedMove& edits,MAT::Tree* tree,const Original_State_t& checker){
     if(parent->is_leaf()){
         assert(edits.removed.empty());
         assert(edits.added.front()->identifier==parent->identifier);
@@ -72,7 +72,7 @@ void finalize_children(MAT::Node* parent,ConfirmedMove& edits,MAT::Tree* tree,co
     }
 
     #ifndef NDEBUG
-    Sample_Mut_Type copy(checker);
+    Original_State_t copy(checker);
     Mutation_Set parent_mutations;
     get_mutation_set(parent, parent_mutations);
     #endif 

@@ -3,6 +3,7 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include "check_samples.hpp"
 namespace MAT = Mutation_Annotated_Tree;
 char get_genotype(MAT::Node* node, const Mutation_Annotated_Tree::Mutation& m);
 namespace Fitch_Sankoff {
@@ -37,9 +38,9 @@ std::pair<size_t, size_t> dfs_range(const MAT::Node *start,std::vector<MAT::Node
 
 int sankoff_backward_pass(const std::pair<size_t, size_t> &range,
                            const std::vector<MAT::Node *> &dfs_ordered_nodes,
-                           Scores_Type &scores,States_Type original_state);
+                           Scores_Type &scores,const Original_State_t& original_state,const MAT::Mutation& mutation,char starting_node_parent_state);
 void sankoff_forward_pass(const std::pair<size_t, size_t> &range,
-                          std::vector<MAT::Node *> &dfs_ordered_nodes,const MAT::Mutation &mutation,States_Type original_state,
+                          std::vector<MAT::Node *> &dfs_ordered_nodes,const MAT::Mutation &mutation,const Original_State_t& original_state,
                           Scores_Type &scores,char starting_node_parent_state,MAT::Node* to_move,MAT::Node* dst, MAT::Node* new_leaf);
 
 void set_internal_score(const MAT::Node &this_node, Scores_Type &out,

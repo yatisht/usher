@@ -156,7 +156,7 @@ namespace Mutation_Annotated_Tree {
         void reserve(size_t n){
             mutations.reserve(n);
         }
-        void push_back(Mutation& m){
+        void push_back(const Mutation& m){
             assert(m.position>mutations.back().position);
             mutations.push_back(m);
         }
@@ -271,6 +271,9 @@ namespace Mutation_Annotated_Tree {
                 mutations.clear();
             }
             Node* add_child(Node* new_child);
+            #ifndef NDEBUG
+            void delete_this();
+            #endif
 #else
             void add_mutation(Mutation mut);
             void clear_mutations();
@@ -326,6 +329,9 @@ namespace Mutation_Annotated_Tree {
             
             void finalize();
             friend class Node;
+            #ifndef NDEBUG
+            void delete_nodes();
+            #endif
     };
     
     std::string get_newick_string(const Tree& T, bool b1, bool b2, bool b3=false, bool b4=false);

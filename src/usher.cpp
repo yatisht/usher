@@ -1451,9 +1451,12 @@ int main(int argc, char** argv) {
         }
     }
     */
-
+    #ifndef NDEBUG
+    for(MAT::Tree& t:optimal_trees){
+        t.delete_nodes();
+    }
     google::protobuf::ShutdownProtobufLibrary();
-
+    #endif
 #if SAVE_PROFILE == 1
     Instrumentor::Get().EndSession();
 #endif

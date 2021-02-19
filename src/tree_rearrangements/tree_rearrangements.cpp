@@ -97,18 +97,20 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
         fprintf(stderr, "Before refinement: %zu \n",
                 this_tree.get_parsimony_score());
         auto dfs_ordered_nodes = this_tree.depth_first_expansion();
-        Sample_Mut_Type ori;
+        Original_State_t ori;
         std::vector<MAT::Node*>& to_optimize=this_tree.new_nodes;
         check_samples(this_tree.root, ori,&this_tree);
         Pending_Moves_t pending_moves;
-        tbb::concurrent_vector<Move*> profitable_moves;
+        tbb::concurrent_vector<Profitable_Move*> profitable_moves;
         //building pipeline
         tbb::flow::graph search_graph;
         tbb::flow::buffer_node<MAT::Node*> input(search_graph);
-        Neighbors_Finder_t neighbors_finder(search_graph,tbb::flow::unlimited,Neighbors_Finder{radius});
+        tbb::flow::function_node<MAT::Node*,Possible_Moves*> neighbors_finder(search_graph,tbb::flow::unlimited,Neighbors_Finder(radius));
         tbb::flow::make_edge(input,neighbors_finder);
-        tbb::flow::interface11::function_node<Possible_Move*> profitable_move_enumerator(search_graph,tbb::flow::unlimited,Profitable_Moves_Enumerator{dfs_ordered_nodes,profitable_moves});
-        tbb::flow::make_edge(neighbors_finder,profitable_move_enumerator);
+        tbb::flow::function_node<Possible_Moves*,Candidate_Moves*> parsimony_score_calculator(search_graph,tbb::flow::unlimited,Parsimony_Score_Calculator{ori,dfs_ordered_nodes});
+        tbb::flow::make_edge(neighbors_finder,parsimony_score_calculator);
+        tbb::flow::interface11::function_node<Candidate_Moves*> profitable_move_enumerator(search_graph,tbb::flow::unlimited,Profitable_Moves_Enumerator{dfs_ordered_nodes,profitable_moves});
+        tbb::flow::make_edge(parsimony_score_calculator,profitable_move_enumerator);
 
         bool have_improvement=true;
         while (have_improvement) {
@@ -120,7 +122,7 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
             pending_moves.clear();
             feed_nodes(to_optimize,input,dfs_ordered_nodes);
             search_graph.wait_for_all();
-            std::vector<Move *> non_conflicting_moves;
+            std::vector<Profitable_Move *> non_conflicting_moves;
             resolve_conflict(profitable_moves, non_conflicting_moves, to_optimize);
             if(!non_conflicting_moves.empty()){
                 Pending_Moves_t tree_edits;
@@ -147,7 +149,7 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
                 }
                 dfs_ordered_nodes = this_tree.depth_first_expansion();
 #ifndef NDEBUG
-                Sample_Mut_Type copy(ori);
+                Original_State_t copy(ori);
                 check_samples(this_tree.root, copy,&this_tree);
         fprintf(stderr, "Before refinement: %zu \n",
                 this_tree.get_parsimony_score());

@@ -5,7 +5,7 @@
 #include <tuple>
 #include <utility>
 
-static void BFS(MAT::Node* src,MAT::Node* ori_src, int radius,tbb::flow::interface11::internal::multifunction_output<struct Possible_Move *>& out){
+static void BFS(MAT::Node* src,MAT::Node* ori_src, int radius,std::vector<MAT::Node*>& out){
     struct queue_content{
         MAT::Node* node;
         MAT::Node* reached_from; //take advantage of the tree, no loops
@@ -16,7 +16,7 @@ static void BFS(MAT::Node* src,MAT::Node* ori_src, int radius,tbb::flow::interfa
     bfs_queue.push({src,excluded,radius});
 
 #define bfs_add_node(node) \
-out.try_put(new Possible_Move{ori_src,node});\
+out.emplace_back(node);\
 bfs_queue.push({node,src,dist});\
 
     while (!bfs_queue.empty()) {
@@ -37,6 +37,9 @@ bfs_queue.push({node,src,dist});\
     }
 
 }
-void Neighbors_Finder::operator()(MAT::Node* src, Neighbors_Finder_t::output_ports_type& out)const{
-    BFS(src->parent,src,radius,std::get<0>(out));
+Possible_Moves* Neighbors_Finder::operator()(MAT::Node* src)const{
+    Possible_Moves* result=new Possible_Moves;
+    result->src=src;
+    BFS(src->parent,src,radius,result->dsts);
+    return result;
 }

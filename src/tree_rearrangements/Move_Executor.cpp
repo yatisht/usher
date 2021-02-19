@@ -10,8 +10,9 @@ MAT::Node* Move_Executor::get_parent(MAT::Node* node) const{
             return (MAT::Node*)iter->second;
         }
 }
+/*
 #ifndef NDEBUG
-void check_original_states(Fitch_Sankoff::States_Type original_states, Mutation_Annotated_Tree::Mutation& mutation,const Sample_Mut_Type& mut){
+void check_original_states(Fitch_Sankoff::States_Type& original_states, Mutation_Annotated_Tree::Mutation& mutation,const Original_State_t& mut){
     for(Fitch_Sankoff::State_Type& state:original_states){
         auto iter=mut.find(state.node->identifier);
         if (iter!=mut.end()) {
@@ -28,9 +29,10 @@ void check_original_states(Fitch_Sankoff::States_Type original_states, Mutation_
     }
 }
 #endif
+*/
 void Move_Executor::operator()(tbb::blocked_range<size_t> &r) const {
     for (auto i = r.begin(); i < r.end(); i++) {
-        Move *this_move = moves[i];
+        Profitable_Move *this_move = moves[i];
 
         MAT::Node* new_leaf=nullptr;
         #ifndef NDEBUG
@@ -62,17 +64,13 @@ void Move_Executor::operator()(tbb::blocked_range<size_t> &r) const {
         assert(new_parents_map.insert(std::make_pair((void*)this_move->src, (void*)this_move->dst)).second);
         // conflicts checked at the last step
         for (size_t j=0;j<this_move->states.size();j++) {
-            Fitch_Sankoff_Result* m=this_move->states[j];
-#ifndef NDEBUG
-            check_original_states(m->original_state, m->mutation, ori);
-#endif
+            Fitch_Sankoff_Result_Final& m=this_move->states[j];
             Fitch_Sankoff::sankoff_forward_pass(
-                m->range, dfs_ordered_nodes, m->mutation, m->original_state,
-                m->scores, m->LCA_parent_state, this_move->src, this_move->dst,new_leaf);
-            delete m;
+                this_move->range, dfs_ordered_nodes, m.mutation, ori,
+                m.scores, m.LCA_parent_state, this_move->src, this_move->dst,new_leaf);
         }
 
-        Sample_Mut_Type copy(ori);
+        Original_State_t copy(ori);
         Mutation_Set parental;
         MAT::Node* ancestor=get_parent(this_move->LCA);
         while(ancestor){

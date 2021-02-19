@@ -3,19 +3,19 @@
 #include <algorithm>
 #include <vector>
 typedef std::unordered_set<MAT::Node*,Node_Idx_Hash,Node_Idx_Eq> Cross_t;
-typedef std::unordered_map<MAT::Node*, std::unordered_map<int,Move*>,Node_Idx_Hash,Node_Idx_Eq> Mut_t;
+typedef std::unordered_map<MAT::Node*, std::unordered_map<int,Profitable_Move*>,Node_Idx_Hash,Node_Idx_Eq> Mut_t;
 struct Move_Comparator{
-    bool operator()(Move* first,Move* second){
+    bool operator()(Profitable_Move* first,Profitable_Move* second){
         return first->score_change<second->score_change;
     }
 };
-static Move* check_mut_conflict(MAT::Node *node,const std::vector<Fitch_Sankoff_Result *> &states,const Mut_t& repeatedly_mutating_loci) {
+static Profitable_Move* check_mut_conflict(MAT::Node *node,const std::vector<Fitch_Sankoff_Result_Final> &states,const Mut_t& repeatedly_mutating_loci) {
     while (node) {
         auto iter = repeatedly_mutating_loci.find(node);
         if (iter != repeatedly_mutating_loci.end()) {
-            const std::unordered_map<int,Move*> &subtree_mut_changed = iter->second;
-            for (const Fitch_Sankoff_Result *e : states) {
-                auto mut_iter=subtree_mut_changed.find(e->mutation.position);
+            const std::unordered_map<int,Profitable_Move*> &subtree_mut_changed = iter->second;
+            for (const Fitch_Sankoff_Result_Final& e : states) {
+                auto mut_iter=subtree_mut_changed.find(e.mutation.position);
                 if (mut_iter!=subtree_mut_changed.end()) {
                     return mut_iter->second;
                 }
@@ -34,13 +34,13 @@ static bool check_loop_conflict(std::vector<MAT::Node*> path,const Cross_t& pote
     return false;
 }
 static void register_mut_conflict(MAT::Node *node,
-                           const std::vector<Fitch_Sankoff_Result *> &states,Move* m,Mut_t& repeatedly_mutating_loci) {
+                           const std::vector<Fitch_Sankoff_Result_Final> &states,Profitable_Move* m,Mut_t& repeatedly_mutating_loci) {
     while (node) {
         auto iter =
-            repeatedly_mutating_loci.insert({node, std::unordered_map<int,Move*>()});
-        std::unordered_map<int,Move*> &to_insert = iter.first->second;
-        for (const Fitch_Sankoff_Result *e : states) {
-            to_insert.emplace(e->mutation.position,m);
+            repeatedly_mutating_loci.insert({node, std::unordered_map<int,Profitable_Move*>()});
+        std::unordered_map<int,Profitable_Move*> &to_insert = iter.first->second;
+        for (const Fitch_Sankoff_Result_Final& e : states) {
+            to_insert.emplace(e.mutation.position,m);
         }
         node = node->parent;
     }
@@ -48,7 +48,7 @@ static void register_mut_conflict(MAT::Node *node,
 static void register_loop_conflict(std::vector<MAT::Node*> path,Cross_t& potential_crosses) {
     potential_crosses.insert(path.begin(),path.end());
 }
-void resolve_conflict(tbb::concurrent_vector<Move*>& candidate_moves, std::vector<Move*>& non_conflicting_moves, std::vector<MAT::Node*>& deferred_nodes){
+void resolve_conflict(tbb::concurrent_vector<Profitable_Move*>& candidate_moves, std::vector<Profitable_Move*>& non_conflicting_moves, std::vector<MAT::Node*>& deferred_nodes){
     deferred_nodes.clear();
     Cross_t potential_crosses;
     Mut_t repeatedly_mutating_loci;

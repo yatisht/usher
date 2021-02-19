@@ -22,7 +22,7 @@ static void ins_mut(Mutation_Set &parent_mutations,
 
 static void insert_samples_worker(Mutation_Annotated_Tree::Node *root,
                                   Mutation_Set parent_mutations,
-                                  Sample_Mut_Type &samples) {
+                                  Original_State_t &samples) {
     for (Mutation_Annotated_Tree::Mutation &m : root->mutations) {
         ins_mut(parent_mutations, m);
     }
@@ -52,7 +52,7 @@ void get_mutation_set(Mutation_Annotated_Tree::Node* node, Mutation_Set& out){
 
 void check_samples_worker_with_pending_moves(Mutation_Annotated_Tree::Node *root,
                                  Mutation_Set parent_mutations,
-                                 Sample_Mut_Type &samples,const Pending_Moves_t& pending_moves) {
+                                 Original_State_t &samples,const Pending_Moves_t& pending_moves) {
     for (Mutation_Annotated_Tree::Mutation &m : root->mutations) {
         ins_mut(parent_mutations, m);
     }
@@ -116,7 +116,7 @@ void check_samples_worker_with_pending_moves(Mutation_Annotated_Tree::Node *root
 
 void check_samples_worker(Mutation_Annotated_Tree::Node *root,
                                  Mutation_Set parent_mutations,
-                                 Sample_Mut_Type &samples,MAT::Tree* tree) {
+                                 Original_State_t &samples,MAT::Tree* tree) {
     for (Mutation_Annotated_Tree::Mutation &m : root->mutations) {
         ins_mut(parent_mutations, m);
     }
@@ -164,7 +164,7 @@ void check_samples_worker(Mutation_Annotated_Tree::Node *root,
 }
 
 void check_samples(Mutation_Annotated_Tree::Node *root,
-                   Sample_Mut_Type &samples,MAT::Tree* tree) {
+                   Original_State_t &samples,MAT::Tree* tree) {
     Mutation_Set mutations;
     if (samples.empty()) {
         insert_samples_worker(root, mutations, samples);
