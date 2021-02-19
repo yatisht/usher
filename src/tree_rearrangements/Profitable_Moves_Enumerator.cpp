@@ -141,6 +141,7 @@ void Profitable_Moves_Enumerator::operator() (Possible_Move* in)const{
     assert(LCA!=in->src);
     if(mutations.empty()){
         delete in;
+        delete out;
         return;
     }
     std::pair<size_t, size_t> range=Fitch_Sankoff::dfs_range(LCA,dfs_ordered_nodes);

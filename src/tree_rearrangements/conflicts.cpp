@@ -56,6 +56,9 @@ void resolve_conflict(tbb::concurrent_vector<Move*>& candidate_moves, std::vecto
     for(auto m:candidate_moves){
         if (check_loop_conflict(m->path,potential_crosses)||check_mut_conflict(m->LCA,m->states,repeatedly_mutating_loci)) {
             deferred_nodes.push_back(m->src);
+            for (size_t i=0; i<m->states.size(); i++) {
+                delete m->states[i];
+            }
             delete m;
         }else {
             register_loop_conflict(m->path,potential_crosses);
