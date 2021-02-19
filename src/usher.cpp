@@ -1255,7 +1255,7 @@ int main(int argc, char** argv) {
                     continue;
                 }
 
-                MAT::Node* last_anc = NULL;
+                MAT::Node* last_anc = T->root;
                 std::vector<std::string> leaves_to_keep;
 
                 // Keep moving up the tree till a subtree of required size is
