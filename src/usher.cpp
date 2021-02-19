@@ -1260,7 +1260,7 @@ int main(int argc, char** argv) {
 
                 // Keep moving up the tree till a subtree of required size is
                 // found
-                for (auto anc: T->rsearch(missing_samples[i])) {
+                for (auto anc: T->rsearch(missing_samples[i], true)) {
                     size_t num_leaves = T->get_num_leaves(anc);
                     if (num_leaves <= nearest_subtree_size) {
                         last_anc = anc;
