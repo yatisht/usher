@@ -1224,12 +1224,15 @@ int main(int argc, char** argv) {
             size_t nearest_subtree_size = print_subtrees_size - random_subtree_size;
 
 
+            //Set a constant random seed
+            std::srand(0);
+
             // Randomly shuffle the leaves for selecting the random subtree
             auto all_leaves = T->get_leaves();
             std::unordered_set<MAT::Node*> random_ordered_leaves(random_subtree_size);
             for (size_t i=0; i< all_leaves.size(); i++) {
                 auto l = all_leaves.begin();
-                std::advance(l, rand() % all_leaves.size());
+                std::advance(l, std::rand() % all_leaves.size());
                 random_ordered_leaves.insert(*l);
                 if (random_ordered_leaves.size() >= print_subtrees_size) {
                     break;
