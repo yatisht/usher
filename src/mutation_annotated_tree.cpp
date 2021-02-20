@@ -1204,7 +1204,7 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_subtree (const Mutati
             if (subtree_parent == NULL) {
                 Node* new_node = subtree.create_node(n->identifier);
                 
-                std::vector<Node*> root_to_node = tree.rsearch(n->identifier); 
+                std::vector<Node*> root_to_node = tree.rsearch(n->identifier, true); 
                 std::reverse(root_to_node.begin(), root_to_node.end());
                 root_to_node.emplace_back(n);
 
@@ -1220,6 +1220,8 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_subtree (const Mutati
 
                 auto par_to_node = tree.rsearch(n->identifier, true);
                 std::reverse(par_to_node.begin(), par_to_node.end());
+                par_to_node.erase(par_to_node.begin(), std::find(par_to_node.begin(), par_to_node.end(), subtree_parent)+1);
+
 
                 for (auto curr: par_to_node) {
                     if (curr->clade != "") {
