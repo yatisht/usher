@@ -33,6 +33,7 @@ int main(int argc, char** argv) {
     bool print_parsimony_scores = false;
     bool retain_original_branch_len = false;
     size_t print_subtrees_size=0;
+    size_t print_subtrees_single=0;
     po::options_description desc{"Options"};
 
     std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
@@ -54,7 +55,9 @@ int main(int argc, char** argv) {
          "Maximum number of equally parsimonious placements allowed per sample beyond which the sample is ignored")
         ("write-uncondensed-final-tree,u", po::bool_switch(&print_uncondensed_tree), "Write the final tree in uncondensed format and save to file uncondensed-final-tree.nh in outdir")
         ("write-subtrees-size,k", po::value<size_t>(&print_subtrees_size)->default_value(0), \
-         "Write minimum set of subtrees covering the newly added samples of size equal to or larger than this value")
+         "Write minimum set of subtrees covering the newly added samples of size equal to this value")
+        ("write-single-subtree,K", po::value<size_t>(&print_subtrees_single)->default_value(0), \
+         "Similar to write-subtrees-size but produces a single subtree with all newly added samples along with random samples up to the value specified by this argument")
         ("write-parsimony-scores-per-node,p", po::bool_switch(&print_parsimony_scores), \
          "Write the parsimony scores for adding new samples at each existing node in the tree without modifying the tree in a file names parsimony-scores.tsv in outdir")
         ("multiple-placements,M", po::value<uint32_t>(&max_trees)->default_value(1), \
@@ -1201,6 +1204,106 @@ int main(int argc, char** argv) {
             fclose(mutation_paths_file);
 
             fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+        }
+    }
+
+    if ((print_subtrees_single > 1) && (missing_samples.size() > 0)) {
+        fprintf(stderr, "Computing the single subtree for added samples with %zu random leaves. \n\n", print_subtrees_single);
+
+        // For each final tree, write a subtree of user-specified size around
+        // each newly placed sample in newick format
+        for (size_t t_idx = 0; t_idx < num_trees; t_idx++) {
+            timer.Start();
+
+            if (num_trees > 1) {
+                fprintf(stderr, "==Tree %zu=== \n", t_idx+1);
+            }
+
+            T = &optimal_trees[t_idx];
+
+            std::set<MAT::Node*> leaves_to_keep_set;
+            for (size_t i = 0; i < missing_samples.size(); i++) {
+                leaves_to_keep_set.insert(T->get_node(missing_samples[i]));
+            }
+
+            auto all_leaves = T->get_leaves();
+            for (size_t i=0; i< all_leaves.size(); i++) {
+                auto l = all_leaves.begin();
+                std::advance(l, std::rand() % all_leaves.size());
+                leaves_to_keep_set.insert(*l);
+                if (leaves_to_keep_set.size() >= print_subtrees_single + missing_samples.size()) {
+                    break;
+                }
+            }
+
+            std::vector<std::string> leaves_to_keep;
+            for (auto l: leaves_to_keep_set) {
+                leaves_to_keep.emplace_back(l->identifier);
+            }
+
+            auto new_T = MAT::get_subtree(*T, leaves_to_keep);
+
+            // Write subtree to file
+            auto subtree_filename = outdir + "/single-subtree.nh";
+            if (num_trees > 1) {
+                subtree_filename = outdir + "/" + "tree-" + std::to_string(t_idx+1) + "-single-subtree.nh";
+            }
+            fprintf(stderr, "Writing single subtree with %zu randomly added leaves to file %s.\n", print_subtrees_single, subtree_filename.c_str());
+
+            std::ofstream subtree_file(subtree_filename.c_str(), std::ofstream::out);
+            std::stringstream newick_ss;
+            write_newick_string(newick_ss, new_T, new_T.root, true, true, retain_original_branch_len);
+            subtree_file << newick_ss.rdbuf(); 
+            subtree_file.close();
+
+
+            // Write list of mutations on the subtree to file
+            auto subtree_mutations_filename = outdir + "/single-subtree-mutations.txt";
+            if (num_trees > 1) {
+                subtree_mutations_filename = outdir + "/" + "tree-" + std::to_string(t_idx+1) + "-single-subtree-mutations.txt";;
+            }
+            fprintf(stderr, "Writing list of mutations at the nodes of the single subtree to file %s\n", subtree_mutations_filename.c_str());
+            FILE* subtree_mutations_file = fopen(subtree_mutations_filename.c_str(), "w");
+
+            for (auto n: new_T.depth_first_expansion()) {
+                size_t tot_mutations = n->mutations.size();
+                fprintf(subtree_mutations_file, "%s: ", n->identifier.c_str());
+                for (size_t idx = 0; idx < tot_mutations; idx++) {
+                    auto m = n->mutations[idx];
+                    fprintf(subtree_mutations_file, "%s", m.get_string().c_str());
+                    if (idx+1 <tot_mutations) {
+                        fprintf(subtree_mutations_file, ",");
+                    }
+                }
+                fprintf(subtree_mutations_file, "\n");
+            }
+
+            fclose(subtree_mutations_file);
+
+            // Expand internal nodes that are condensed
+            bool has_condensed = false;
+            FILE* subtree_expanded_file = NULL;
+            for (auto l: new_T.get_leaves()) {
+                if (T->condensed_nodes.find(l->identifier) != T->condensed_nodes.end()) {
+                    if (!has_condensed) {
+                        auto subtree_expanded_filename = outdir + "/single-subtree-expanded.txt";
+                        if (num_trees > 1) {
+                            subtree_expanded_filename = outdir + "/tree-" + std::to_string(1+t_idx) + "-single-subtree-expanded.txt";
+                        }
+                        fprintf(stderr, "Subtree has condensed nodes.\nExpanding the condensed nodes for the single subtree in file %s\n", subtree_expanded_filename.c_str());
+                        subtree_expanded_file = fopen(subtree_expanded_filename.c_str(), "w");
+                        has_condensed = true;
+                    }
+                    fprintf(subtree_expanded_file, "%s: ", l->identifier.c_str());
+                    for (auto n: T->condensed_nodes[l->identifier]) {
+                        fprintf(subtree_expanded_file, "%s ", n.c_str());
+                    }
+                    fprintf(subtree_expanded_file, "\n");
+                }
+            }
+            if (has_condensed) {
+                fclose(subtree_expanded_file);
+            }
         }
     }
 
