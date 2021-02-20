@@ -1304,6 +1304,7 @@ int main(int argc, char** argv) {
             if (has_condensed) {
                 fclose(subtree_expanded_file);
             }
+            fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
         }
     }
 
