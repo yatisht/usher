@@ -90,25 +90,24 @@ size_t get_neighborhood_size(std::vector<MAT::Node*> nodes, MAT::Tree* T) {
 }
 
 void findEPPs (MAT::Tree Tobj, std::string sample_file, std::string fepps, std::string fneigh) {
-    TIMEIT()
-    //all comments on function JDM
-    //first, need to iterate through all leaf nodes, including condensed nodes and single leaves
-    //internal nodes have metadata objects but those are just gonna be default values 0 for epps for now which should indicate high confidence anyways
-    //the simplest way to do this is to iterate through all nodes and check whether each one is a leaf
-
+    timer.Start();
     std::ofstream eppfile;
     std::ofstream neighfile;
     if (fepps != ""){
         eppfile.open(fepps);
+        //add column names
+        //auspice doesn't care what's actually in column 1 name, but it does for column 2
+        eppfile << "sample\tepps\n";
     }
     if (fneigh != ""){
         neighfile.open(fneigh);
+        neighfile << "sample\tneighborhood_size\n";
     }
     
     MAT::Tree* T = &Tobj; //mapper wants a pointer.
 
     std::vector<MAT::Node*> fdfs;
-    
+
     if (sample_file != "") { //read in the samples files and get the nodes corresponding to each sample.
         std::ifstream infile(sample_file);
         if (!infile) {
@@ -135,20 +134,13 @@ void findEPPs (MAT::Tree Tobj, std::string sample_file, std::string fepps, std::
             fdfs.emplace_back(T->get_node(sample));
         }
     } else {
-        fprintf(stderr, "No sample file specified; calculating metrics for all samples\n");
+        //if unspecified, it does it for all samples in the MAT
+        //which can take several hours on the full reference tree
+        //this is useful default behavior for future subtree MATs though
+        fprintf(stderr, "No sample file specified; calculating metrics for all samples in the tree\n");
         fdfs = Tobj.depth_first_expansion();
-        //have it print some test samples so I can see what's actually in the tree for debugging.
-        // std::ofstream test_samples ("samples_from_tree.txt");
-        // for (size_t i=0; i<25; i++) {
-        //     assert (T->get_node(fdfs[i]->identifier) != NULL);
-        //     if (fdfs[i]->is_leaf()) {
-        //         test_samples << fdfs[i]->identifier << "\n";
-        //     }
-        // }
-        // test_samples.close();
-        // exit(1);
     }
-    fprintf(stderr, "Calculating uncertainty for %ld samples\n", fdfs.size());
+    fprintf(stderr, "Processing %ld samples\n", fdfs.size());
 
     for (size_t s=0; s<fdfs.size(); s++){ //this loop is not a parallel for because its going to contain a parallel for.
         //get the node object.
@@ -267,11 +259,13 @@ void findEPPs (MAT::Tree Tobj, std::string sample_file, std::string fepps, std::
                         size_t neighborhood_size = get_neighborhood_size(best_placements, T);
                         neighfile << node->identifier << "\t" << neighborhood_size << "\n";
                     } else {
+                        //one best placement, total distance is 0
                         neighfile << node->identifier << "\t0\n";
                     }
                 }
             } 
             else {
+                //save default values 
                 if (fepps != "") {
                     eppfile << node->identifier << "\t1\n";
                 }
@@ -279,8 +273,6 @@ void findEPPs (MAT::Tree Tobj, std::string sample_file, std::string fepps, std::
                     neighfile << node->identifier << "\t0\n";
                 }
 
-                //no mutations for this sample compared to the reference. This means it's leaf off the root/identical to the reference
-                //there's just one place for that, ofc.
             }
         }
     }
@@ -290,6 +282,7 @@ void findEPPs (MAT::Tree Tobj, std::string sample_file, std::string fepps, std::
     if (fneigh != ""){
         neighfile.close();
     }
+    fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 }
 
 po::variables_map parse_uncertainty_command(po::parsed_options parsed) {    
@@ -336,7 +329,8 @@ po::variables_map parse_uncertainty_command(po::parsed_options parsed) {
 }
 
 void uncertainty_main(po::parsed_options parsed) {
-    //the annotate subcommand calculates and saves information about the tree, returning a protobuf file that is larger than the input
+    //the uncertainty command, for now, produces Auspice-compatible TSV files for visualization
+    //in the future I would like it to be able to produce a metadata-annotated JSON file if indicated
     po::variables_map vm = parse_uncertainty_command(parsed);
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string sample_file = vm["samples"].as<std::string>();
