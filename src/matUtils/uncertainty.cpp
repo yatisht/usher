@@ -60,10 +60,10 @@ size_t get_neighborhood_size(std::vector<MAT::Node*> nodes, MAT::Tree* T) {
     for (size_t s=0; s<common_nodes.size(); s++) {
         //get the set of distances between each placement to this common ancestor with the path vectors
         std::vector<float> distances = get_all_distances(common_nodes[s], parentvecs);
-        for (auto i = distances.begin(); i != distances.end(); ++i) {
-            std::cerr << *i << ',';
-        }
-        //now find the biggest sum of shared values for this specific common node
+        // for (auto i = distances.begin(); i != distances.end(); ++i) {
+        //     std::cerr << *i << ',';
+        // }
+        // //now find the biggest sum of shared values for this specific common node
         float widest = 0.0;
         for (size_t i=0; i<distances.size(); i++) {
             for (size_t j=0; j<distances.size(); j++) {
@@ -115,21 +115,40 @@ void findEPPs (MAT::Tree Tobj, std::string sample_file, std::string fepps, std::
             fprintf(stderr, "ERROR: could not open the indicated sample file\n");
             exit(1);
         }
+        std::string psample;
         std::string sample;
-        while (std::getline(infile, sample)) {
+        while (std::getline(infile, psample)) {
+            //adding code to handle carriage returns in the sample text file
+            //in case a text file edited on Windows is uploaded or passed into matUtils
+            if (psample.size() && psample[psample.size()-1] == '\r') {
+                sample = psample.substr(0,psample.size()-1);
+            } else {
+                sample = psample;
+            }
+
             if (T->get_node(sample) == NULL) {
-                fprintf(stderr, "ERROR: Sample %s missing in input MAT!\n");
+                fprintf(stderr, "ERROR: Sample missing in input MAT!\n");
                 std::cerr << sample;
                 std::cerr << std::endl;
                 exit(1);
-            fdfs.emplace_back(T->get_node(sample));
             }
+            fdfs.emplace_back(T->get_node(sample));
         }
     } else {
-        fprintf(stderr, "No sample file specified; calculating metrics for all samples");
+        fprintf(stderr, "No sample file specified; calculating metrics for all samples\n");
         fdfs = Tobj.depth_first_expansion();
+        //have it print some test samples so I can see what's actually in the tree for debugging.
+        // std::ofstream test_samples ("samples_from_tree.txt");
+        // for (size_t i=0; i<25; i++) {
+        //     assert (T->get_node(fdfs[i]->identifier) != NULL);
+        //     if (fdfs[i]->is_leaf()) {
+        //         test_samples << fdfs[i]->identifier << "\n";
+        //     }
+        // }
+        // test_samples.close();
+        // exit(1);
     }
-    fprintf(stderr, "Calculating uncertainty for %ld samples", fdfs.size());
+    fprintf(stderr, "Calculating uncertainty for %ld samples\n", fdfs.size());
 
     for (size_t s=0; s<fdfs.size(); s++){ //this loop is not a parallel for because its going to contain a parallel for.
         //get the node object.
@@ -237,16 +256,20 @@ void findEPPs (MAT::Tree Tobj, std::string sample_file, std::string fepps, std::
                     eppfile << node->identifier << "\t" << num_best << "\n";
                 }
 
-                if (num_best > 1 && fneigh != ""){ //only worth calculating if there's more than one best placement. Otherwise its just 0.
-                    std::vector<MAT::Node*> best_placements;
-                    //for every index in best_j_vec, find the corresponding node from dfs
-                    for (size_t z=0; z<best_j_vec.size(); z++) {
-                        auto nobj = dfs[best_j_vec[z]];
-                        best_placements.emplace_back(nobj);
+                if (fneigh != "") { 
+                    if (num_best > 1) { //only worth calculating if there's more than one best placement. Otherwise its just 0.
+                        std::vector<MAT::Node*> best_placements;
+                        //for every index in best_j_vec, find the corresponding node from dfs
+                        for (size_t z=0; z<best_j_vec.size(); z++) {
+                            auto nobj = dfs[best_j_vec[z]];
+                            best_placements.emplace_back(nobj);
+                        }
+                        size_t neighborhood_size = get_neighborhood_size(best_placements, T);
+                        neighfile << node->identifier << "\t" << neighborhood_size << "\n";
+                    } else {
+                        neighfile << node->identifier << "\t0\n";
                     }
-                    size_t neighborhood_size = get_neighborhood_size(best_placements, T);
-                    neighfile << node->identifier << "\t" << neighborhood_size << "\n";
-                } 
+                }
             } 
             else {
                 if (fepps != "") {
