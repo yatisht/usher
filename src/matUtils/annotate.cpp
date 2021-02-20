@@ -45,15 +45,13 @@ po::variables_map parse_annotate_command(po::parsed_options parsed) {
 }
 
 void annotate_main(po::parsed_options parsed) {
-    //the annotate subcommand calculates and saves information about the tree, returning a protobuf file that is larger than the input
+    //the annotate subcommand assigns samples to lineages and saves it as MAT metadata
     po::variables_map vm = parse_annotate_command(parsed);
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string output_mat_filename = vm["output-mat"].as<std::string>();
     std::string clade_filename = vm["clade-names"].as<std::string>();
     float allele_frequency = vm["allele-frequency"].as<float>();
     float set_overlap = vm["set-overlap"].as<float>();
-    //    bool get_parsimony = vm["get-parsimony"].as<bool>();
-    //    bool fepps = vm["find-epps"].as<bool>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
 
     tbb::task_scheduler_init init(num_threads);
@@ -64,15 +62,6 @@ void annotate_main(po::parsed_options parsed) {
     if (T.condensed_nodes.size() > 0) {
       T.uncondense_leaves();
     }
-    // If the argument to calculate equally parsimonious placements was used, perform this operation
-    //    if (fepps) {
-    //        fprintf(stderr, "Calculating EPPs\n");
-    //        T = findEPPs(T);
-    //    }
-    //    if (get_parsimony){
-    //        //fprintf(stderr, "Calculating Total Parsimony\n");
-    //        //T.total_parsimony = T.get_parsimony_score();
-    //    }
     if (clade_filename != "") {
         fprintf(stderr, "Annotating Lineage Root Nodes\n");
         assignLineages(T, clade_filename, allele_frequency, set_overlap);
