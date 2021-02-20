@@ -137,7 +137,6 @@ static int calculate_parsimony_score_change(std::pair<size_t, size_t>& range, Fi
 void Profitable_Moves_Enumerator::operator() (Possible_Move* in)const{
     MAT::Mutations_Collection mutations;
     Move *out = new Move;
-    printf("test move from %s to %d \n",in->src->identifier.c_str(),in->dst->identifier.c_str());
     MAT::Node* LCA=get_mutation_path(mutations, in->src, in->dst,out->path);
     assert(LCA!=in->src);
     if(mutations.empty()){
