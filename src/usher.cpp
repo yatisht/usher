@@ -1078,6 +1078,8 @@ int main(int argc, char** argv) {
                 fprintf(stderr, "Writing uncondensed final tree to file %s \n", uncondensed_final_tree_filename.c_str());
             }
 
+            auto parsimony_score = T->get_parsimony_score();
+            fprintf(stderr, "The parsimony score for this tree is: %zu \n", parsimony_score);
             //FILE* uncondensed_final_tree_file = fopen(uncondensed_final_tree_filename.c_str(), "w");
                 
             //fprintf(uncondensed_final_tree_file, "%s\n", MAT::get_newick_string(*T, true, true, retain_original_branch_len, true).c_str());
