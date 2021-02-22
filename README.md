@@ -264,57 +264,7 @@ For the example above, a new VCF *test/test_merged.vcf* is generated (identical 
 
 ## matUtils
 
-We are now providing a toolkit, `matUtils`, which can perform a number of tasks related to manipulating and querying the UShER's mutation-annotated tree, such as the generation of the corresponding Newick tree or parsimony-resolved VCF file, masking out mutations specific to certain samples, calculating the number of equally parsimonious placements for all samples currently included in the mutation-annotated tree as well as the total parsimony score of the tree (see usage options below).
-
-### Input
-
-Mutation-annotated tree file generated using UShER.
-
-### Options
-
-#### Annotate
-
-**-i**: Input mutation-annotated tree file (REQUIRED)
-
-**-o**: Output mutation-annotated tree file (REQUIRED)
-
-**-l**: Provide a path to a file assigning lineages to samples to locate and annotate clade root nodes (REQUIRED)
-
-**-f**: Set the minimum allele frequency in samples to find the best clade root node (default = 0.9)
-
-**-h**: Print help messages
-
-#### Filter
-
-**-i**: Input mutation-annotated tree file (REQUIRED) 
-
-**-o**: Output mutation-annotated tree file (REQUIRED)
-
-**-s**: Use to mask specific samples from the tree. 
-
-**-h**: Print help messages
-
-#### Convert
-
-**-i**: Input mutation-annotated tree file (REQUIRED) 
-
-**-v**: Output VCF file 
-
-**-t**: Output Newick tree file
-
-**-n**: Do not include sample genotype columns in VCF output. Used only with -v
-
-**-h**: Print help messages
-
-### Usage example
-
-```
-./build/matUtils convert -i global_assignments.pb -v global_assignments.vcf -t global_assignments.nh
-```
-
-### Output
-
-The above example command generates a VCF file named `global_assignments.vcf` and the output tree named `global_assignments.nh`.
+We are now providing a toolkit, `matUtils`, which can perform a number of tasks related to manipulating and querying the UShER's mutation-annotated tree, such as the generation of the corresponding Newick tree or parsimony-resolved VCF file, masking out mutations, or calculating the number of equally parsimonious placements for a specific set of samples. Full documentation for this toolkit can be found under [src/matUtils](https://github.com/yatisht/usher/blob/master/src/matUtils/README.md).
 
 ## Acknowledgement
 
