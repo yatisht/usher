@@ -1212,4 +1212,3 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_subtree (const Mutati
 
     return subtree;
 }
-
