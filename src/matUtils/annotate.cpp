@@ -99,7 +99,7 @@ void assignLineages (MAT::Tree& T, const std::string& clade_filename, float min_
     for (size_t idx = 0; idx < total_nodes; idx++) {
         dfs_idx[dfs[idx]->identifier] = idx;
         // Add a new entry in annotations
-        dfs[idx]->annotations.emplace_back("");
+        dfs[idx]->clade_annotations.emplace_back("");
     }
     size_t num_annotations = T.get_num_annotations();
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
@@ -348,10 +348,10 @@ void assignLineages (MAT::Tree& T, const std::string& clade_filename, float min_
         bool assigned = false;
         for (auto n: c.best_node_frequencies) {
             auto j = n.best_j;
-            if (dfs[j]->annotations[num_annotations-1] == "") {
+            if (dfs[j]->clade_annotations[num_annotations-1] == "") {
                 fprintf(stderr, "\nAssigning %s to node %s\n", c.clade_name.c_str(), dfs[j]->identifier.c_str());
                 fprintf(stderr, "%f fraction of %zu clade samples are descendants of the assigned node %s\n", n.overlap, c.clade_size, dfs[j]->identifier.c_str());
-                dfs[j]->annotations[num_annotations-1] = c.clade_name;
+                dfs[j]->clade_annotations[num_annotations-1] = c.clade_name;
                 assigned = true;
 
                 break;

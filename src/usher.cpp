@@ -1211,13 +1211,13 @@ int main(int argc, char** argv) {
             if (num_annotations > 0) {
                 timer.Start();
 
-                auto annotations_filename = outdir + "/annotations.txt";
+                auto annotations_filename = outdir + "/clades.txt";
                 if (num_trees > 1) {
-                    annotations_filename = outdir + "/annotations" + std::to_string(t_idx+1) + ".txt"; 
-                    fprintf(stderr, "Writing annotations for tree %zu to file %s \n", (t_idx+1), annotations_filename.c_str());
+                    annotations_filename = outdir + "/clades" + std::to_string(t_idx+1) + ".txt"; 
+                    fprintf(stderr, "Writing clade annotations for tree %zu to file %s \n", (t_idx+1), annotations_filename.c_str());
                 }
                 else {
-                    fprintf(stderr, "Writing annotations to file %s \n", annotations_filename.c_str());
+                    fprintf(stderr, "Writing clade annotations to file %s \n", annotations_filename.c_str());
                 }
 
                 FILE* annotations_file = fopen(annotations_filename.c_str(), "w");
@@ -1228,8 +1228,8 @@ int main(int argc, char** argv) {
                     for (auto anc: T->rsearch(sample, true)) {
                         for (size_t k=0; k<num_annotations; k++) {
                             //fprintf(stderr, "%zu %zu %zu\n", k, anc->annotations.size(), sample_annotations.size());
-                            if ((anc->annotations[k] != "") && (sample_annotations[k] == "UNDEFINED")) {
-                                sample_annotations[k] = anc->annotations[k];
+                            if ((anc->clade_annotations[k] != "") && (sample_annotations[k] == "UNDEFINED")) {
+                                sample_annotations[k] = anc->clade_annotations[k];
                             }
                         }
                     }

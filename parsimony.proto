@@ -19,7 +19,7 @@ message condensed_node {
 }
 
 message node_metadata {
-    repeated string annotations = 1;
+    repeated string clade_annotations = 1;
 }
 
 message data {

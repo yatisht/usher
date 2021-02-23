@@ -77,7 +77,7 @@ namespace Mutation_Annotated_Tree {
             size_t level;
             float branch_length;
             std::string identifier;
-            std::vector<std::string> annotations;
+            std::vector<std::string> clade_annotations;
             Node* parent;
             std::vector<Node*> children;
             std::vector<Mutation> mutations;
