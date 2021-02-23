@@ -1224,11 +1224,11 @@ int main(int argc, char** argv) {
 
                 for (size_t s=0; s<missing_samples.size(); s++) {
                     auto sample = missing_samples[s];
-                    std::vector<std::string> sample_annotations(num_annotations, "");
+                    std::vector<std::string> sample_annotations(num_annotations, "UNDEFINED");
                     for (auto anc: T->rsearch(sample, true)) {
                         for (size_t k=0; k<num_annotations; k++) {
                             //fprintf(stderr, "%zu %zu %zu\n", k, anc->annotations.size(), sample_annotations.size());
-                            if ((anc->annotations[k] != "") && (sample_annotations[k] == "")) {
+                            if ((anc->annotations[k] != "") && (sample_annotations[k] == "UNDEFINED")) {
                                 sample_annotations[k] = anc->annotations[k];
                             }
                         }
