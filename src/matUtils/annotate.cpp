@@ -93,6 +93,11 @@ void assignLineages (MAT::Tree& T, const std::string& clade_filename, float min_
     
     auto dfs = T.depth_first_expansion();
     size_t total_nodes = dfs.size();
+    
+    std::unordered_map<std::string, size_t> dfs_idx;
+    for (size_t idx = 0; idx < total_nodes; idx++) {
+        dfs_idx[dfs[idx]->identifier] = idx;
+    }
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     
     std::map<std::string, std::vector<MAT::Node*>> clade_map;
@@ -141,7 +146,7 @@ void assignLineages (MAT::Tree& T, const std::string& clade_filename, float min_
         }
         // To sort with highest frequency first
         inline bool operator< (const Node_freq& n) const {
-            return ((this->freq > n.freq) || ((this->freq == n.freq) && (this->best_j < n.best_j)));
+            return ((this->freq > n.freq) || ((this->freq == n.freq) && (this->overlap > n.overlap)));
         }
     };
 
@@ -250,6 +255,7 @@ void assignLineages (MAT::Tree& T, const std::string& clade_filename, float min_
         MAT::Node* best_node = T.root;
         best_j_vec.emplace_back(0);
 
+        // Find the best placement(s)
         static tbb::affinity_partitioner ap;
         tbb::parallel_for( tbb::blocked_range<size_t>(0, total_nodes),
                 [&](tbb::blocked_range<size_t> r) {
@@ -284,27 +290,43 @@ void assignLineages (MAT::Tree& T, const std::string& clade_filename, float min_
         
         float freq = 0;
         float overlap = 0;
+        float best_freq = -1.0;
             
+        std::stable_sort(best_j_vec.begin(), best_j_vec.end());
+
         for (auto j: best_j_vec) {
-            size_t num_desc = 0;
+           // for each placement, this for loop traverses the ancestors of the
+           // placement node all the way up the the root as long as the
+           // frequency at which the clade sammples occur in each descendants
+           // monotonically increases, and adds each of those ancestors to clade
+           // assignments for consideration.
+           for (auto anc: T.rsearch(dfs[j]->identifier, true)) {
+               size_t num_desc = 0;
 
-            tbb::parallel_for(tbb::blocked_range<size_t>(0, it.second.size()),
-                    [&](const tbb::blocked_range<size_t> r) {
-                    for (size_t i=r.begin(); i<r.end(); ++i){
-                    if (T.is_ancestor(dfs[j]->identifier, it.second[i]->identifier)) {
-                    __sync_fetch_and_add(&num_desc, 1.0);
+               tbb::parallel_for(tbb::blocked_range<size_t>(0, it.second.size()),
+                       [&](const tbb::blocked_range<size_t> r) {
+                       for (size_t i=r.begin(); i<r.end(); ++i){
+                          if (T.is_ancestor(anc->identifier, it.second[i]->identifier)) {
+                          __sync_fetch_and_add(&num_desc, 1.0);
+                       }
                     }
-                    }
-                    }, ap);
+               }, ap);
 
-            overlap = (static_cast<float>(num_desc) / it.second.size());
-            if (overlap >= set_overlap) {
-                freq = (static_cast<float>(num_desc) / T.get_num_leaves(dfs[j])); 
-                clade_assignments[curr_idx].best_node_frequencies.push_back(Node_freq(j, freq, overlap));
-            }
+               freq = (static_cast<float>(num_desc) / T.get_num_leaves(anc)); 
+               overlap = (static_cast<float>(num_desc) / it.second.size());
+
+               if ((freq >= best_freq) && (overlap >= set_overlap)) {
+                   clade_assignments[curr_idx].best_node_frequencies.push_back(Node_freq(dfs_idx[anc->identifier], freq, overlap));
+                   best_freq = freq;
+               }
+               else {
+                   break;
+               }
+           }
         }
         
-        tbb::parallel_sort(clade_assignments[curr_idx].best_node_frequencies.begin(), clade_assignments[curr_idx].best_node_frequencies.end());
+        // prioritize the assignments with the highest frequency and overlap
+        std::stable_sort(clade_assignments[curr_idx].best_node_frequencies.begin(), clade_assignments[curr_idx].best_node_frequencies.end());
 
 
         curr_idx++;
@@ -341,6 +363,7 @@ void assignLineages (MAT::Tree& T, const std::string& clade_filename, float min_
             }
         }
     }
+
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
-    
 }
+
