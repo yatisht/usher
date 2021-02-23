@@ -1028,13 +1028,6 @@ int main(int argc, char** argv) {
                                 }
                                 fprintf(stderr, "\n");
                             }
-
-                            for (auto anc: T->rsearch(sample, true)) {
-                                if (anc->clade != "") {
-                                    fprintf (stderr, "This sample falls under the clade: %s\n", anc->clade.c_str());
-                                    break;
-                                }
-                            }
                         }
                         
                         if (max_trees == 1) {
@@ -1206,6 +1199,55 @@ int main(int argc, char** argv) {
             fclose(mutation_paths_file);
 
             fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+            
+        }
+
+        // For each final tree write the annotations for each sample
+        for (size_t t_idx = 0; t_idx < num_trees; t_idx++) {
+            T = &optimal_trees[t_idx];
+
+            size_t num_annotations = T->get_num_annotations();
+
+            if (num_annotations > 0) {
+                timer.Start();
+
+                auto annotations_filename = outdir + "/annotations.txt";
+                if (num_trees > 1) {
+                    annotations_filename = outdir + "/annotations" + std::to_string(t_idx+1) + ".txt"; 
+                    fprintf(stderr, "Writing annotations for tree %zu to file %s \n", (t_idx+1), annotations_filename.c_str());
+                }
+                else {
+                    fprintf(stderr, "Writing annotations to file %s \n", annotations_filename.c_str());
+                }
+
+                FILE* annotations_file = fopen(annotations_filename.c_str(), "w");
+
+                for (size_t s=0; s<missing_samples.size(); s++) {
+                    auto sample = missing_samples[s];
+                    std::vector<std::string> sample_annotations(num_annotations, "");
+                    for (auto anc: T->rsearch(sample, true)) {
+                        for (size_t k=0; k<num_annotations; k++) {
+                            //fprintf(stderr, "%zu %zu %zu\n", k, anc->annotations.size(), sample_annotations.size());
+                            if ((anc->annotations[k] != "") && (sample_annotations[k] == "")) {
+                                sample_annotations[k] = anc->annotations[k];
+                            }
+                        }
+                    }
+
+                    fprintf(annotations_file, "%s\t", sample.c_str());
+                    for (size_t k=0; k< num_annotations; k++) {
+                        fprintf(annotations_file, "%s", sample_annotations[k].c_str());
+                        if (k+1 < num_annotations) {
+                            fprintf(annotations_file, "\t");
+                        }
+                    }
+                    fprintf(annotations_file, "\n");
+                }
+                
+                fclose(annotations_file);
+
+                fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+            }
         }
     }
 

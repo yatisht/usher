@@ -77,7 +77,7 @@ namespace Mutation_Annotated_Tree {
             size_t level;
             float branch_length;
             std::string identifier;
-            std::string clade;
+            std::vector<std::string> annotations;
             Node* parent;
             std::vector<Node*> children;
             std::vector<Mutation> mutations;
@@ -111,12 +111,13 @@ namespace Mutation_Annotated_Tree {
             tbb::concurrent_unordered_set<std::string> condensed_leaves;
 
             size_t curr_internal_node;
-            size_t get_max_level ();
+            size_t get_max_level () const;
+            size_t get_num_annotations () const;
             void rename_node(std::string old_nid, std::string new_nid);
             std::vector<Node*> get_leaves(std::string nid="");
             std::vector<std::string> get_leaves_ids(std::string nid="");
             size_t get_num_leaves(Node* node=NULL);
-            Node* create_node (std::string const& identifier, float branch_length = -1.0); 
+            Node* create_node (std::string const& identifier, float branch_length = -1.0, size_t num_annotations=0); 
             Node* create_node (std::string const& identifier, Node* par, float branch_length = -1.0);
             Node* create_node (std::string const& identifier, std::string const& parent_id, float branch_length = -1.0);
             Node* get_node (std::string identifier) const;

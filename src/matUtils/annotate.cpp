@@ -93,11 +93,15 @@ void assignLineages (MAT::Tree& T, const std::string& clade_filename, float min_
     
     auto dfs = T.depth_first_expansion();
     size_t total_nodes = dfs.size();
+
     
     std::unordered_map<std::string, size_t> dfs_idx;
     for (size_t idx = 0; idx < total_nodes; idx++) {
         dfs_idx[dfs[idx]->identifier] = idx;
+        // Add a new entry in annotations
+        dfs[idx]->annotations.emplace_back("");
     }
+    size_t num_annotations = T.get_num_annotations();
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     
     std::map<std::string, std::vector<MAT::Node*>> clade_map;
@@ -344,10 +348,10 @@ void assignLineages (MAT::Tree& T, const std::string& clade_filename, float min_
         bool assigned = false;
         for (auto n: c.best_node_frequencies) {
             auto j = n.best_j;
-            if (dfs[j]->clade == "") {
+            if (dfs[j]->annotations[num_annotations-1] == "") {
                 fprintf(stderr, "\nAssigning %s to node %s\n", c.clade_name.c_str(), dfs[j]->identifier.c_str());
                 fprintf(stderr, "%f fraction of %zu clade samples are descendants of the assigned node %s\n", n.overlap, c.clade_size, dfs[j]->identifier.c_str());
-                dfs[j]->clade = c.clade_name;
+                dfs[j]->annotations[num_annotations-1] = c.clade_name;
                 assigned = true;
 
                 break;

@@ -465,10 +465,10 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
                auto node = dfs[idx];
                auto mutation_list = data.node_mutations(idx);
                if (hasmeta) {
-                   node->clade = data.metadata(idx).clade(); 
-               } else {
-                   node->clade = ""; 
-               }
+                   for (int k = 0; k < data.metadata(idx).annotations_size(); k++) {
+                       node->annotations.emplace_back(data.metadata(idx).annotations(k)); 
+                   }
+               } 
                for (int k = 0; k < mutation_list.mutation_size(); k++) {
                   auto mut = mutation_list.mutation(k);
                   Mutation m;
@@ -520,7 +520,9 @@ void Mutation_Annotated_Tree::save_mutation_annotated_tree (Mutation_Annotated_T
 
     for (size_t idx = 0; idx < dfs.size(); idx++) {
         auto meta = data.add_metadata();
-        meta->set_clade(dfs[idx]->clade);
+        for (size_t k = 0; k < dfs[idx]->annotations.size(); k++) {
+            meta->add_annotations(dfs[idx]->annotations[k]);
+        }
         auto mutation_list = data.add_node_mutations();
         for (auto m: dfs[idx]->mutations) {
             auto mut = mutation_list->add_mutation();
@@ -574,9 +576,9 @@ bool Mutation_Annotated_Tree::Node::is_root() {
 Mutation_Annotated_Tree::Node::Node() {
     level = 0;
     identifier = "";
-    clade = "";
     parent = NULL;
     branch_length = -1.0;
+    annotations.clear();
     mutations.clear();
 }
 
@@ -632,7 +634,7 @@ void Mutation_Annotated_Tree::Node::clear_mutations() {
 }
 
 /* === Tree === */
-size_t Mutation_Annotated_Tree::Tree::get_max_level () {
+size_t Mutation_Annotated_Tree::Tree::get_max_level () const {
     size_t max_level = 0;
     for (auto x: all_nodes) {
         if (x.second->level > max_level) {
@@ -640,6 +642,14 @@ size_t Mutation_Annotated_Tree::Tree::get_max_level () {
         }
     }
     return max_level;
+}
+        
+size_t Mutation_Annotated_Tree::Tree::get_num_annotations () const {
+    size_t ret = 0;
+    if (root != NULL) {
+        ret = root->annotations.size();
+    }
+    return ret;
 }
         
 void Mutation_Annotated_Tree::Tree::rename_node(std::string old_nid, std::string new_nid) {
@@ -718,19 +728,26 @@ size_t Mutation_Annotated_Tree::Tree::get_num_leaves(Node* node) {
     return num_leaves;
 }
 
-Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Tree::create_node (std::string const& identifier, float branch_len) {
+Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Tree::create_node (std::string const& identifier, float branch_len, size_t num_annotations) {
     all_nodes.clear();
     Node* n = new Node(identifier, branch_len);
+    for (size_t k=0; k < num_annotations; k++) {
+        n->annotations.emplace_back("");
+    }
     root = n;
     all_nodes[identifier] = root;
     return n;
 }
 
 Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Tree::create_node (std::string const& identifier, Node* par, float branch_len) {
-    Node* n = new Node(identifier, par, branch_len);
     if (all_nodes.find(identifier) != all_nodes.end()) {
         fprintf(stderr, "Error: %s already in the tree!\n", identifier.c_str());
         exit(1);
+    }
+    Node* n = new Node(identifier, par, branch_len);
+    size_t num_annotations = get_num_annotations();
+    for (size_t k=0; k < num_annotations; k++) {
+        n->annotations.emplace_back("");
     }
     all_nodes[identifier] = n;
     par->children.push_back(n);
@@ -796,8 +813,10 @@ void Mutation_Annotated_Tree::Tree::remove_node_helper (std::string nid, bool mo
         else if (move_level && (curr_parent->children.size() == 1)) {
             auto child = curr_parent->children[0];
             if (curr_parent->parent != NULL) {
-                if (child->clade == "") {
-                    child->clade = curr_parent->clade;
+                for (size_t k=0; k < curr_parent->annotations.size(); k++) {
+                    if (child->annotations[k] == "") {
+                        child->annotations[k] = curr_parent->annotations[k];
+                    }
                 }
                 child->parent = curr_parent->parent;
                 child->level = curr_parent->parent->level + 1;
@@ -1077,7 +1096,10 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_tree_copy(const Mutat
             for (size_t k=r.begin(); k<r.end(); ++k){
               auto n1 = dfs1[k];
               auto n2 = dfs2[k];
-              n2->clade = n1->clade;
+              n2->annotations.resize(n1->annotations.size());
+              for (size_t i=0; i<n1->annotations.size(); i++) {
+                 n2->annotations[i] = n1->annotations[i];
+              }
               for (auto m: n1->mutations) {
                 Mutation m2 = m.copy();
                 n2->add_mutation(m2);
@@ -1161,6 +1183,8 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_subtree (const Mutati
     }, ap);
     
     auto dfs = tree.depth_first_expansion();
+    size_t num_annotations = tree.get_num_annotations();
+
     std::stack<Node*> last_subtree_node;
     for (auto n: dfs) {
         // If the node is in subtree_nodes, it should be added to the subtree
@@ -1174,7 +1198,8 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_subtree (const Mutati
             }
             // Add as root of the subtree
             if (subtree_parent == NULL) {
-                Node* new_node = subtree.create_node(n->identifier);
+                // for root node, need to size the annotations vector
+                Node* new_node = subtree.create_node(n->identifier, -1.0, num_annotations);
                 
                 std::vector<Node*> root_to_node = tree.rsearch(n->identifier, true); 
                 std::reverse(root_to_node.begin(), root_to_node.end());
@@ -1196,8 +1221,10 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_subtree (const Mutati
 
 
                 for (auto curr: par_to_node) {
-                    if (curr->clade != "") {
-                        new_node->clade = curr->clade;
+                    for (size_t k = 0; k < num_annotations; k++) {
+                        if (curr->annotations[k] != "") {
+                            new_node->annotations[k] = curr->annotations[k];
+                        }
                     }
                     for (auto m: curr->mutations) {
                         new_node->add_mutation(m);
@@ -1212,3 +1239,4 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_subtree (const Mutati
 
     return subtree;
 }
+
