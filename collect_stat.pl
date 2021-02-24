@@ -10,7 +10,7 @@ sub get_stat{
 	my $realtime;
 	my $usertime;
 	while(<$FH>){
-		if($_=~/Before refinement: (\d+)/){
+		if($_=~/Before refinement: (\d+)/ and (not defined $before)){
 			$before=$1;
 		}
 		if($_=~/After refinement: (\d+)/){
