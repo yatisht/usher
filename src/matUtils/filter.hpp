@@ -1,5 +1,7 @@
 #include "common.hpp"
 
-po::variables_map parse_filter_command(po::parsed_options parsed);
-void filter_main(po::parsed_options parsed);
-void restrictSamples (std::string samples_filename, MAT::Tree& T);
+po::variables_map parse_prune_command(po::parsed_options parsed);
+void prune_main(po::parsed_options parsed);
+MAT::Tree prune_leaves (const MAT::Tree& T, std::vector<std::string> sample_names);
+MAT::Tree get_sample_subtree (const MAT::Tree& T, std::vector<std::string> sample_names);
+MAT::Tree get_sample_prune (const MAT::Tree& T, std::vector<std::string> sample_names);
