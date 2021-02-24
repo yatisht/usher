@@ -35,12 +35,12 @@ struct Move_info{
     MAT::Node* LCA;
     std::vector<MAT::Node*> path;
     //Mutation_Annotated_Tree::Mutations_Collection mutations;
-    std::vector<Fitch_Sankoff_Result*> FS_results;
+    std::vector<std::shared_ptr<Fitch_Sankoff_Result>> FS_results;
 };
 struct Candidate_Moves{
     MAT::Node* src;
     std::vector<Move_info> moves;
-    std::vector<Fitch_Sankoff_Result> container;
+    //std::vector<Fitch_Sankoff_Result> container;
 };
 
 struct Fitch_Sankoff_Result_Final{

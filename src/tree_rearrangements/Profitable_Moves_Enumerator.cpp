@@ -8,6 +8,7 @@
 #include <ios>
 #include <iterator>
 #include <list>
+#include <memory>
 #include <mutex>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
@@ -122,8 +123,10 @@ struct Test_Move_Profitable {
                         Fitch_Sankoff::Scores_Type &patched =
                             moved_states[mut_idx].scores;
                         patched.clear();
-                        Fitch_Sankoff_Result *parent_fs_result =
+                        std::shared_ptr<Fitch_Sankoff_Result>& parent_fs_result_managing_ptr=
                             in->FS_results[mut_idx];
+                        Fitch_Sankoff_Result *parent_fs_result =parent_fs_result_managing_ptr.get();
+                        moved_states[mut_idx].mutation=parent_fs_result->mutation;
                         bool clear_after=parent_fs_result->scores.empty();
                         if(clear_after){
                             Fitch_Sankoff::sankoff_backward_pass(parent_fs_result->range, dfs_ordered_nodes,parent_fs_result->scores,original_states,parent_fs_result->mutation,parent_fs_result->LCA_parent_state);
@@ -135,10 +138,7 @@ struct Test_Move_Profitable {
                         int this_change = calculate_parsimony_score_change(
                             range, patched, all_moves->src, in->dst,
                             LCA_parent_state, LCA);
-                        if(clear_after){
-                            parent_fs_result->scores.clear();
-                            parent_fs_result->scores.shrink_to_fit();
-                        }
+                        parent_fs_result_managing_ptr.reset();
                         score_changes.fetch_add(this_change,
                                                 std::memory_order_relaxed);
                     }
@@ -202,9 +202,6 @@ struct Test_Move_Profitable {
                 out->dst = in->dst;
                 out->path.swap(in->path);
                 out->range = range;
-                for (size_t i = 0; i < in->FS_results.size(); i++) {
-                    moved_states[i].mutation = in->FS_results[i]->mutation;
-                }
                 out->states.swap(moved_states);
                 {
                     tbb::queuing_rw_mutex::scoped_lock lock(mutex,false);

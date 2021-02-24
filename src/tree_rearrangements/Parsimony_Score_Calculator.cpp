@@ -12,8 +12,7 @@
 struct FS_result_container{
     size_t start_node_idx;
     const Mutation_Annotated_Tree::Mutation* mutation;
-    std::vector<Fitch_Sankoff_Result**> targets;
-    size_t idx;
+    std::vector<std::shared_ptr<Fitch_Sankoff_Result>*> targets;
 };
 /*
 struct Node_Collate_Sorter{
@@ -29,7 +28,7 @@ struct Mutation_Collate_Sorter{
 };
 struct FS_targe_t{
     size_t LCA_id;
-    Fitch_Sankoff_Result** move;
+    std::shared_ptr<Fitch_Sankoff_Result>* move;
     bool operator<(const FS_targe_t& other)const{
         return LCA_id<other.LCA_id;
     }
@@ -117,13 +116,11 @@ MAT::Node* get_mutation_path(MAT::Mutations_Collection& mutations,MAT::Node* src
 }
 
 static void plan_FS(Pending_FS_t& mut_LCA,std::vector<FS_result_container>& out,const std::vector<MAT::Node*>& dfs_ordered_nodes){
-    size_t idx=0;
     for(auto& mut_targets:mut_LCA){
         auto& targets=mut_targets.second;
         auto& mut=mut_targets.first;
         std::sort(targets.begin(),targets.end());
-        out.push_back(FS_result_container{targets[0].LCA_id,&mut,std::vector<Fitch_Sankoff_Result**>({targets[0].move}),idx});
-        idx++;
+        out.push_back(FS_result_container{targets[0].LCA_id,&mut,std::vector<std::shared_ptr<Fitch_Sankoff_Result>*>({targets[0].move})});
         for (auto iter=targets.begin()+1; iter<targets.end(); iter++) {
             size_t this_node_idx=iter->LCA_id;
             size_t last_node_idx=out.back().start_node_idx;
@@ -131,8 +128,7 @@ static void plan_FS(Pending_FS_t& mut_LCA,std::vector<FS_result_container>& out,
                 //Will have result ready from FS of last_node
                 out.back().targets.push_back(iter->move);
             }else {
-                out.push_back(FS_result_container{this_node_idx,&mut,std::vector<Fitch_Sankoff_Result**>({iter->move}),idx});
-                idx++;
+                out.push_back(FS_result_container{this_node_idx,&mut,std::vector<std::shared_ptr<Fitch_Sankoff_Result>*>({iter->move})});
             }
         }
     }
@@ -175,11 +171,11 @@ static void find_parental_states(std::vector<FS_result_container>& fs_results,st
     });
 }
 */
-static void execute_FS(std::vector<FS_result_container>& fs_results,std::vector<MAT::Node*> dfs_ordered_nodes,std::vector<Fitch_Sankoff_Result>& repo,const Original_State_t& ori){
-    repo=std::vector<Fitch_Sankoff_Result>(fs_results.size());
+static void execute_FS(std::vector<FS_result_container>& fs_results,std::vector<MAT::Node*> dfs_ordered_nodes,const Original_State_t& ori){
     tbb::parallel_for(tbb::blocked_range<size_t>(0,fs_results.size()),[&](const tbb::blocked_range<size_t>& range){
         for (size_t container_idx=range.begin(); container_idx<range.end(); container_idx++) {
-            Fitch_Sankoff_Result* this_result=&(repo[fs_results[container_idx].idx]);
+            Fitch_Sankoff_Result* this_result=new Fitch_Sankoff_Result;
+            std::shared_ptr<Fitch_Sankoff_Result> this_ptr(this_result);
             MAT::Node* this_node=dfs_ordered_nodes[fs_results[container_idx].start_node_idx];
             this_result->mutation=*(fs_results[container_idx].mutation);
             this_result->LCA_parent_state=get_genotype(this_node->parent, this_result->mutation);
@@ -189,8 +185,8 @@ static void execute_FS(std::vector<FS_result_container>& fs_results,std::vector<
             }else{
                 assert(this_result->scores.empty());
             }
-            for(Fitch_Sankoff_Result** store:fs_results[container_idx].targets){
-                *store=this_result;
+            for(std::shared_ptr<Fitch_Sankoff_Result>* store:fs_results[container_idx].targets){
+                *store=this_ptr;
             }
         }
     });
@@ -211,7 +207,7 @@ Candidate_Moves* Parsimony_Score_Calculator::operator()(Possible_Moves* in)const
         if(mutations.empty()){
             continue;
         }
-        to_push.push_back(Move_info{dst,LCA,std::vector<MAT::Node*>(),std::vector<Fitch_Sankoff_Result*>(mutations.size())});
+        to_push.push_back(Move_info{dst,LCA,std::vector<MAT::Node*>(),std::vector<std::shared_ptr<Fitch_Sankoff_Result>>(mutations.size())});
         Move_info& move=to_push.back();
         move.path.swap(path);
 
@@ -237,7 +233,7 @@ Candidate_Moves* Parsimony_Score_Calculator::operator()(Possible_Moves* in)const
         }
     }
     */
-    execute_FS(fs_results, dfs_ordered_nodes,result->container,original_states);
+    execute_FS(fs_results, dfs_ordered_nodes,original_states);
     delete in;
     return result;
 }
