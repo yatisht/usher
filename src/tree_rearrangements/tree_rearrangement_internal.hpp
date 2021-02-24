@@ -2,7 +2,7 @@
 #define tree_rearrangement_internal
 #include "Fitch_Sankoff.hpp"
 #include "src/mutation_annotated_tree.hpp"
-#include <bits/types/FILE.h>
+#include <cstdio>
 #include <condition_variable>
 #include <string>
 #include <sys/mman.h>

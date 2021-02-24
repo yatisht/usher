@@ -48,10 +48,10 @@ if(DEFINED Protobuf_PATH)
         ${MATUTIL_SRCS}
         )
     
-    add_executable(serializer_test
-        src/serializer_check.cpp
-        src/tree_rearrangements/Profitable_Move_Cacher.cpp
-    )
+    #add_executable(serializer_test
+    #    src/serializer_check.cpp
+    #    src/tree_rearrangements/Profitable_Move_Cacher.cpp
+    #)
     protobuf_generate(
         LANGUAGE cpp
         TARGET usher 
@@ -86,10 +86,10 @@ else()
         ${PROTO_HDRS}
         )
         
-    add_executable(serializer_test
-        src/serializer_check.cpp
-        src/tree_rearrangements/Profitable_Move_Cacher.cpp
-    )
+    #add_executable(serializer_test
+    #    src/serializer_check.cpp
+    #    src/tree_rearrangements/Profitable_Move_Cacher.cpp
+    #)
     
 endif()
 
@@ -108,7 +108,7 @@ else(SAVE_PROFILE)
 endif(SAVE_PROFILE)
 
 TARGET_LINK_LIBRARIES(usher PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
-TARGET_LINK_LIBRARIES(serializer_test PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
+#TARGET_LINK_LIBRARIES(serializer_test PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
 
 TARGET_COMPILE_OPTIONS(matUtils PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
 TARGET_LINK_LIBRARIES(matUtils PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
