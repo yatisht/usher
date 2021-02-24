@@ -184,7 +184,11 @@ static void execute_FS(std::vector<FS_result_container>& fs_results,std::vector<
             this_result->mutation=*(fs_results[container_idx].mutation);
             this_result->LCA_parent_state=get_genotype(this_node->parent, this_result->mutation);
             this_result->range=Fitch_Sankoff::dfs_range(this_node, dfs_ordered_nodes);
+            if(fs_results[container_idx].targets.size()>1){
             Fitch_Sankoff::sankoff_backward_pass(this_result->range, dfs_ordered_nodes,this_result->scores,ori,this_result->mutation,this_result->LCA_parent_state);
+            }else{
+                assert(this_result->scores.empty());
+            }
             for(Fitch_Sankoff_Result** store:fs_results[container_idx].targets){
                 *store=this_result;
             }

@@ -1,4 +1,5 @@
 #include "src/mutation_annotated_tree.hpp"
+#include "src/tree_rearrangements/check_samples.hpp"
 #include "tree_rearrangement_internal.hpp"
 #include <algorithm>
 #include <atomic>
@@ -102,6 +103,7 @@ struct Test_Move_Profitable {
     tbb::concurrent_vector<Profitable_Move *> &profitable_moves;
     Candidate_Moves *all_moves;
     tbb::queuing_rw_mutex& mutex;
+    const Original_State_t& original_states;
     void operator()(tbb::blocked_range<size_t> &range) const {
         for (size_t move_idx = range.begin(); move_idx < range.end();
              move_idx++) {
@@ -120,14 +122,23 @@ struct Test_Move_Profitable {
                         Fitch_Sankoff::Scores_Type &patched =
                             moved_states[mut_idx].scores;
                         patched.clear();
-                        const Fitch_Sankoff_Result *parent_fs_result =
+                        Fitch_Sankoff_Result *parent_fs_result =
                             in->FS_results[mut_idx];
+                        bool clear_after=parent_fs_result->scores.empty();
+                        if(clear_after){
+                            Fitch_Sankoff::sankoff_backward_pass(parent_fs_result->range, dfs_ordered_nodes,parent_fs_result->scores,original_states,parent_fs_result->mutation,parent_fs_result->LCA_parent_state);
+                            
+                        }
                         copy_scores(*parent_fs_result, patched, range);
                         char LCA_parent_state =(LCA==dfs_ordered_nodes[parent_fs_result->range.first])?parent_fs_result->LCA_parent_state:get_genotype(LCA->parent, parent_fs_result->mutation);
                         moved_states[mut_idx].LCA_parent_state=LCA_parent_state;
                         int this_change = calculate_parsimony_score_change(
                             range, patched, all_moves->src, in->dst,
                             LCA_parent_state, LCA);
+                        if(clear_after){
+                            parent_fs_result->scores.clear();
+                            parent_fs_result->scores.shrink_to_fit();
+                        }
                         score_changes.fetch_add(this_change,
                                                 std::memory_order_relaxed);
                     }
@@ -205,6 +216,6 @@ struct Test_Move_Profitable {
 };
 
 void Profitable_Moves_Enumerator::operator()(Candidate_Moves * in)const{
-    tbb::parallel_for(tbb::blocked_range<size_t>(0,in->moves.size()),Test_Move_Profitable{dfs_ordered_nodes,profitable_moves,in,mutex});
+    tbb::parallel_for(tbb::blocked_range<size_t>(0,in->moves.size()),Test_Move_Profitable{dfs_ordered_nodes,profitable_moves,in,mutex,original_states});
     delete in;
 }

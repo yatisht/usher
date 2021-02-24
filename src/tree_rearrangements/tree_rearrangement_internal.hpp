@@ -94,6 +94,7 @@ struct Profitable_Moves_Enumerator{
     std::vector<MAT::Node *>& dfs_ordered_nodes;
     tbb::concurrent_vector<Profitable_Move*>& profitable_moves;  
     tbb::queuing_rw_mutex& mutex;
+    const Original_State_t& original_states;
     void operator() (Candidate_Moves*)const;
 };
 
