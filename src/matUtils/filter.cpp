@@ -1,11 +1,11 @@
-#include "prune.hpp"
+#include "filter.hpp"
 
-po::variables_map parse_prune_command(po::parsed_options parsed) {
+po::variables_map parse_filter_command(po::parsed_options parsed) {
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
     std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
 
     po::variables_map vm;
-    po::options_description conv_desc("prune options");
+    po::options_description conv_desc("filter options");
     conv_desc.add_options()
         ("input-mat,i", po::value<std::string>()->required(),
          "Input mutation-annotated tree file [REQUIRED]")
@@ -62,8 +62,8 @@ void read_sample_names (std::string sample_filename, std::vector<std::string>& s
     infile.close();
 }
 
-void prune_main(po::parsed_options parsed) {
-    po::variables_map vm = parse_prune_command(parsed);
+void filter_main(po::parsed_options parsed) {
+    po::variables_map vm = parse_filter_command(parsed);
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string output_mat_filename = vm["output-mat"].as<std::string>();
     std::string sample_filename = vm["samples"].as<std::string>();
