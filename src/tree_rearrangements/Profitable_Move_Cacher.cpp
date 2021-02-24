@@ -3,7 +3,10 @@
 #include <algorithm>
 #include <chrono>
 #include <cstddef>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <string>
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <tbb/concurrent_vector.h>
@@ -22,12 +25,14 @@
 #define RANGE_FIRST_OFFSET 3
 #define RANGE_SECOND_OFFSET 4
 #define MOVE_META_SIZE 5
-
-static void serialize_FS_Results(const std::vector<Fitch_Sankoff_Result_Final>& to_serialize,int fd,size_t& offset){
+static void serialize_FS_Results(const std::vector<Fitch_Sankoff_Result_Final>& to_serialize,FILE* fd,size_t& offset){
     char temp[META_SIZE];
     size_t n_states=to_serialize.size();
-    offset+=write(fd, &n_states, sizeof(n_states));
-    for(const Fitch_Sankoff_Result_Final& result:to_serialize){
+    offset+=fwrite(&n_states, 1,sizeof(n_states),fd);
+    size_t dist=to_serialize[0].scores.size();
+    size_t ori_offset=offset;
+    for(size_t state_idx=0;state_idx<n_states;state_idx++){
+        const Fitch_Sankoff_Result_Final& result=to_serialize[state_idx];
         //0-3 bytes position
         *((int*)temp+POS_OFFSET)=result.mutation.position;
         //4-6 byte mut_nuc
@@ -36,18 +41,25 @@ static void serialize_FS_Results(const std::vector<Fitch_Sankoff_Result_Final>& 
         temp[PAR_NUC_OFFSET]=result.mutation.par_nuc;
         //7 byte LCA
         temp[LCA_PARENT_STATE_OFFSET]=result.LCA_parent_state;
-        offset+=write(fd, temp, META_SIZE);
-        size_t dist=result.scores.size();
+        offset+=fwrite(temp, 1,META_SIZE,fd);
+        assert(dist==result.scores.size());
+    }
+    size_t meta_end=ori_offset+META_SIZE*n_states;
+    assert(meta_end==offset);
+    for(size_t state_idx=0;state_idx<n_states;state_idx++){
+        const Fitch_Sankoff_Result_Final& result=to_serialize[state_idx];
         assert(result.scores.size()==dist);
-        offset+=write(fd, result.scores.data(), dist*sizeof(Fitch_Sankoff::Score_Type));
+        assert(offset==meta_end+(dist*sizeof(Fitch_Sankoff::Score_Type)*state_idx));
+        offset+=fwrite(result.scores.data(),1, sizeof(Fitch_Sankoff::Score_Type)*dist,fd);
     }
 }
 
-static void deserialize_FS_Results(std::vector<Fitch_Sankoff_Result_Final>& out,size_t dist,const char* in){
+static void deserialize_FS_Results(std::vector<Fitch_Sankoff_Result_Deserialized>& out,size_t dist,const char* in,std::string& chrom){
     size_t n_states=*((size_t*) in);
     in+=sizeof(size_t);
+    const char* meta_end=in+META_SIZE*n_states;
     out.reserve(n_states);
-    for(;n_states>0;n_states--){
+    for(size_t state_idx=0;state_idx<n_states;state_idx++){
         out.emplace_back();
         //0-3 bytes position
         MAT::Mutation& mut=out.back().mutation;
@@ -57,10 +69,10 @@ static void deserialize_FS_Results(std::vector<Fitch_Sankoff_Result_Final>& out,
         mut.is_missing=in[REF_NUC_OFFSET]&0x80;
         mut.ref_nuc=in[REF_NUC_OFFSET]&0x7f;
         mut.par_nuc=in[PAR_NUC_OFFSET];
+        mut.chrom=chrom;
         out.back().LCA_parent_state=in[LCA_PARENT_STATE_OFFSET];
         in+=META_SIZE;
-        out.back().scores=Fitch_Sankoff::Scores_Type(dist);
-        memcpy(out.back().scores.data(), in,dist*sizeof(Fitch_Sankoff::Score_Type));
+        out.back().scores=(Fitch_Sankoff::Score_Type*)(meta_end+(dist*sizeof(Fitch_Sankoff::Score_Type)*state_idx));
     }
 }
 
@@ -71,33 +83,59 @@ struct Move_Sorter{
     }
 };
 
-static void serialize_profitable_moves(tbb::concurrent_vector<Profitable_Move>& to_serialize,size_t& offset,std::vector<std::pair<int, size_t>>& file_offsets,int fd){
+static void serialize_profitable_moves(tbb::concurrent_vector<Profitable_Move*>& to_serialize,size_t& offset,std::vector<std::pair<int, size_t>>& file_offsets,FILE* fd,std::string& chrom){
     size_t temp[MOVE_META_SIZE];
-    for(Profitable_Move& ind:to_serialize){
+    for(const Profitable_Move* ind:to_serialize){
         //save offset
-        file_offsets.emplace_back(ind.score_change,offset);
+        file_offsets.emplace_back(ind->score_change,offset);
+        assert(offset==ftell(fd));
         //save path first
-        size_t n_hope=ind.path.size();
-        offset+=write(fd, &n_hope, sizeof(size_t));
-        offset+=write(fd, ind.path.data(), n_hope*(sizeof(MAT::Node*)));
+        size_t n_hope=ind->path.size();
+        offset+=fwrite( &n_hope, 1,sizeof(size_t),fd);
+        offset+=fwrite(ind->path.data(),1, (sizeof(MAT::Node*))*n_hope,fd);
         //save src, dst and LCA
-        temp[SRC_OFFSET]=(size_t)ind.src;
-        temp[DST_OFFSET]=(size_t)ind.dst;
-        temp[LCA_OFFSET]=(size_t)ind.LCA;
-        temp[RANGE_FIRST_OFFSET]=ind.range.first;
-        temp[RANGE_SECOND_OFFSET]=ind.range.second;
-        offset+=write(fd, temp, MOVE_META_SIZE*(sizeof(MAT::Node*)));
+        temp[SRC_OFFSET]=(size_t)ind->src;
+        temp[DST_OFFSET]=(size_t)ind->dst;
+        temp[LCA_OFFSET]=(size_t)ind->LCA;
+        temp[RANGE_FIRST_OFFSET]=ind->range.first;
+        temp[RANGE_SECOND_OFFSET]=ind->range.second;
+        chrom=ind->states.begin()->mutation.chrom;
+        offset+=fwrite(temp, 1,(sizeof(size_t))*MOVE_META_SIZE,fd);
         //save Fitch Sankoff results
-        serialize_FS_Results(ind.states,fd,offset);
+        serialize_FS_Results(ind->states,fd,offset);
+        delete ind;
     }
+    to_serialize.clear();
 }
 
-void Profitable_Moves_Cacher::get_path(std::vector<MAT::Node*>& out){
-    
+static void deserialize_profitable_moves(char* start,Profitable_Move_Deserialized* out,std::string& chrom){
+    //assuming seeked pass path
+    MAT::Node** recasted=(MAT::Node**)start;
+    out->src=recasted[SRC_OFFSET];
+    out->dst=recasted[DST_OFFSET];
+    out->LCA=recasted[LCA_OFFSET];
+    out->range.first=(size_t)recasted[RANGE_FIRST_OFFSET];
+    out->range.second=(size_t)recasted[RANGE_SECOND_OFFSET];
+    deserialize_FS_Results(out->states,out->range.second-out->range.first, start+MOVE_META_SIZE*sizeof(size_t),chrom);
 }
+
+size_t Profitable_Moves_Cacher::get_path(MAT::Node*** out){
+    *out=(MAT::Node**)(mapped_address+file_offsets_iter->second+sizeof(size_t));
+    return *((size_t*)(mapped_address+file_offsets_iter->second));
+}
+
+Profitable_Move_Deserialized* Profitable_Moves_Cacher::operator*(){
+    MAT::Node** start;
+    size_t path_len=get_path(&start);
+    start+=path_len;
+    Profitable_Move_Deserialized* out=new Profitable_Move_Deserialized;
+    deserialize_profitable_moves((char*)start, out,chrom);
+    return out;
+}
+
 void Profitable_Moves_Cacher::operator()(){
-    size_t offset=lseek(fd, 0, SEEK_SET);
-    tbb::concurrent_vector<Profitable_Move> to_swap;
+    size_t offset=fseek(fd, 0, SEEK_SET);
+    tbb::concurrent_vector<Profitable_Move*> to_swap;
     while (true) {
         std::unique_lock<std::mutex> finished_lock(finish_mutex);
         finish_cv.wait_for(finished_lock,std::chrono::seconds(1));
@@ -113,28 +151,36 @@ void Profitable_Moves_Cacher::operator()(){
                 
                 lock.release();
             }
-            serialize_profitable_moves(to_monitor, offset, file_offsets, fd);
+            serialize_profitable_moves(to_swap, offset, file_offsets, fd,chrom);
         }
     }
-    serialize_profitable_moves(to_monitor, offset, file_offsets, fd);
+    serialize_profitable_moves(to_monitor, offset, file_offsets, fd,chrom);
     std::sort(file_offsets.begin(),file_offsets.end(),Move_Sorter());
-    mapped_address=mmap(nullptr, offset, PROT_READ, MAP_SHARED, fd, 0);
+    file_offsets_iter=file_offsets.begin();
+    fflush(fd);
+    mapped_address=(char*)mmap(nullptr, offset, PROT_READ, MAP_SHARED, raw_fd, 0);
+    fclose(fd);
 }
 
 void Profitable_Moves_Cacher::run(){
         this_thread=std::thread(std::ref(*this));
 }
-Profitable_Moves_Cacher::Profitable_Moves_Cacher(tbb::concurrent_vector<Profitable_Move>& to_monitor,tbb::queuing_rw_mutex& rw_mutex):to_monitor(to_monitor),swap_lock(rw_mutex),finished(false){
-        filename=(char*)malloc(10);
-        filename="XXXXXX";
-        fd=mkstemp(filename);
+Profitable_Moves_Cacher::Profitable_Moves_Cacher(tbb::concurrent_vector<Profitable_Move*>& to_monitor,tbb::queuing_rw_mutex& rw_mutex):to_monitor(to_monitor),swap_lock(rw_mutex),finished(false){
+        filename=(char*)malloc(15);
+        strcpy(filename, "aXXXXXXXXX");
+        raw_fd=mkstemp(filename);
+        fd=fdopen(raw_fd,"w");
     }
 void Profitable_Moves_Cacher::finish(){
+    {
         std::lock_guard<std::mutex> finish_lock(finish_mutex);
         finished=true;
-        this_thread.join();
+    }
+    finish_cv.notify_all();
+    this_thread.join();
 }
 Profitable_Moves_Cacher::~Profitable_Moves_Cacher(){
         munmap(mapped_address, length);
+        unlink(filename);
         free(filename);
 }

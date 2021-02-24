@@ -41,7 +41,7 @@ int sankoff_backward_pass(const std::pair<size_t, size_t> &range,
                            Scores_Type &scores,const Original_State_t& original_state,const MAT::Mutation& mutation,char starting_node_parent_state);
 void sankoff_forward_pass(const std::pair<size_t, size_t> &range,
                           std::vector<MAT::Node *> &dfs_ordered_nodes,const MAT::Mutation &mutation,const Original_State_t& original_state,
-                          Scores_Type &scores,char starting_node_parent_state,MAT::Node* to_move,MAT::Node* dst, MAT::Node* new_leaf);
+                          Score_Type *scores,char starting_node_parent_state,MAT::Node* to_move,MAT::Node* dst, MAT::Node* new_leaf);
 
 void set_internal_score(const MAT::Node &this_node, Scores_Type &out,
                         const int start_idx,MAT::Node* changed_child=nullptr,Score_Type* leaf_score=nullptr);

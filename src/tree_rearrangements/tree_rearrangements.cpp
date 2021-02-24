@@ -11,6 +11,8 @@
 #include <tbb/pipeline.h>
 #include "check_samples.hpp"
 #include <tbb/flow_graph.h>
+#include <tbb/queuing_rw_mutex.h>
+#include <utility>
 #include <vector>
 #include "Twice_Bloom_Filter.hpp"
 #include "src/tree_rearrangement.hpp"
@@ -58,6 +60,13 @@ static void feed_nodes(std::vector<MAT::Node *> &to_feed,
     std::vector<size_t> this_round_idx;
     std::vector<size_t> next_round_idx;
 
+#define output_node(this_node) \
+input_node.try_put(this_node);\
+this_node=this_node->parent;\
+if(this_node->parent){\
+    next_round_idx.push_back(this_node->index);\
+}
+
     {
         this_round_idx.reserve(to_feed.size());
         for (auto node : to_feed) {
@@ -75,16 +84,13 @@ static void feed_nodes(std::vector<MAT::Node *> &to_feed,
         }
         if (!check_grand_parent(dfs_ordered_nodes[next_ele],dfs_ordered_nodes[*iter])) {
             MAT::Node* this_node=dfs_ordered_nodes[*iter];
-            input_node.try_put(this_node);
-            this_node=this_node->parent;
-            if(this_node->parent){
-            next_round_idx.push_back(this_node->index);
-            }
+            output_node(this_node);
         } else {
             next_round_idx.push_back(*iter);
         }
     }
-    input_node.try_put(dfs_ordered_nodes[this_round_idx.back()]);
+    MAT::Node* last_node=dfs_ordered_nodes[this_round_idx.back()];
+    output_node(last_node);
     this_round_idx.swap(next_round_idx);
     next_round_idx.clear();
     }
@@ -103,13 +109,14 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
         Pending_Moves_t pending_moves;
         tbb::concurrent_vector<Profitable_Move*> profitable_moves;
         //building pipeline
+        tbb::queuing_rw_mutex mutex;
         tbb::flow::graph search_graph;
         tbb::flow::buffer_node<MAT::Node*> input(search_graph);
         tbb::flow::function_node<MAT::Node*,Possible_Moves*> neighbors_finder(search_graph,tbb::flow::unlimited,Neighbors_Finder(radius));
         tbb::flow::make_edge(input,neighbors_finder);
         tbb::flow::function_node<Possible_Moves*,Candidate_Moves*> parsimony_score_calculator(search_graph,tbb::flow::unlimited,Parsimony_Score_Calculator{ori,dfs_ordered_nodes});
         tbb::flow::make_edge(neighbors_finder,parsimony_score_calculator);
-        tbb::flow::interface11::function_node<Candidate_Moves*> profitable_move_enumerator(search_graph,tbb::flow::unlimited,Profitable_Moves_Enumerator{dfs_ordered_nodes,profitable_moves});
+        tbb::flow::interface11::function_node<Candidate_Moves*> profitable_move_enumerator(search_graph,tbb::flow::unlimited,Profitable_Moves_Enumerator{dfs_ordered_nodes,profitable_moves,mutex});
         tbb::flow::make_edge(parsimony_score_calculator,profitable_move_enumerator);
 
         bool have_improvement=true;
@@ -118,13 +125,17 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
             find_nodes_with_recurrent_mutations(dfs_ordered_nodes, to_optimize);
             //push_all_nodes(&this_tree, to_optimize);
         while (!to_optimize.empty()) {
+            Profitable_Moves_Cacher cacher(profitable_moves,mutex);
+            cacher.run();
             profitable_moves.clear();
             pending_moves.clear();
             feed_nodes(to_optimize,input,dfs_ordered_nodes);
             search_graph.wait_for_all();
-            std::vector<Profitable_Move *> non_conflicting_moves;
-            resolve_conflict(profitable_moves, non_conflicting_moves, to_optimize);
-            if(!non_conflicting_moves.empty()){
+            std::vector<Profitable_Move_Deserialized *> non_conflicting_moves;
+            cacher.finish();
+            to_optimize.clear();
+            if(!cacher.eof()){
+                resolve_conflict(cacher, non_conflicting_moves, to_optimize);
                 Pending_Moves_t tree_edits;
                 // tbb::parallel_for(tbb::blocked_range<size_t>(0,
                 // non_conflicting_moves.size()),
@@ -142,10 +153,18 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
                      &ori](const std::pair<MAT::Node *, ConfirmedMove> &in) {
                    });
                 */
+                std::vector<std::pair<MAT::Node*, MAT::Node*>> deleted_map;
                 for (Pending_Moves_t::const_iterator iter=tree_edits.begin(); iter!=tree_edits.end(); iter++) {
                     finalize_children(reinterpret_cast<MAT::Node *>(iter->first),
                                       const_cast<ConfirmedMove &>(iter->second),
-                                      &this_tree, ori);
+                                      &this_tree, ori,deleted_map);
+                }
+                for(MAT::Node*& next_node:to_optimize){
+                    for(const auto& deleted:deleted_map){
+                        if(next_node==deleted.first){
+                            next_node=deleted.second;
+                        }
+                    }
                 }
                 dfs_ordered_nodes = this_tree.depth_first_expansion();
 #ifndef NDEBUG
@@ -154,6 +173,7 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
         fprintf(stderr, "Before refinement: %zu \n",
                 this_tree.get_parsimony_score());
 #endif
+            have_improvement=true;
             }
         }
         }

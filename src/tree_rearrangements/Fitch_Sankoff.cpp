@@ -208,7 +208,7 @@ static void set_mutation(MAT::Node *node, char state, char par_state, const MAT:
 #define get_score_idx(dfs_idx) (score_offset-(dfs_idx))
 #define get_state_idx(dfs_idx) ((dfs_idx)-state_offset)
 
-static void fill_dst_states(MAT::Node* to_fill,const size_t score_offset,const size_t state_offset,const MAT::Mutation& mutation,Scores_Type& scores,States_Type& states,MAT::Node* to_move,MAT::Node* dst){
+static void fill_dst_states(MAT::Node* to_fill,const size_t score_offset,const size_t state_offset,const MAT::Mutation& mutation,Score_Type* scores,States_Type& states,MAT::Node* to_move,MAT::Node* dst){
     assert(to_fill==dst||(!to_fill->is_leaf()));
 
     size_t this_state_idx = get_state_idx(to_fill->index);
@@ -238,12 +238,12 @@ static void fill_dst_states(MAT::Node* to_fill,const size_t score_offset,const s
 
 void Fitch_Sankoff::sankoff_forward_pass(const std::pair<size_t, size_t> &range,
                           std::vector<MAT::Node *> &dfs_ordered_nodes,const MAT::Mutation &mutation,const Original_State_t& original_states,
-                          Scores_Type &scores, char starting_node_parent_state,MAT::Node* to_move,MAT::Node* dst,MAT::Node* new_leaf
+                          Score_Type* scores, char starting_node_parent_state,MAT::Node* to_move,MAT::Node* dst,MAT::Node* new_leaf
 ) {
     // Score vector runs backward
     //first node->last element
     //index=size-1-(dfs_index-first_element_index)
-    size_t score_offset=scores.size()-1+range.first;
+    size_t score_offset=-1+range.second;
 
     //States in 2bit format , original_states vector in one-hot format goes forward
     #ifndef NDEBUG
@@ -264,8 +264,9 @@ void Fitch_Sankoff::sankoff_forward_pass(const std::pair<size_t, size_t> &range,
     starting_node_parent_state=one_hot_to_two_bit(starting_node_parent_state);
 
     assert(states[0].node==dfs_ordered_nodes[range.first]);
-    states[0]=get_child_score_on_par_nuc(starting_node_parent_state, scores.back()).second;
-    assert(scores.back().node==dfs_ordered_nodes[range.first]);
+    Score_Type& last_score=scores[range.second-range.first-1];
+    states[0]=get_child_score_on_par_nuc(starting_node_parent_state, last_score).second;
+    assert(last_score.node==dfs_ordered_nodes[range.first]);
     set_mutation(dfs_ordered_nodes[range.first], 1<<states[0], 1<<starting_node_parent_state, mutation);
 
     for (size_t dfs_idx=range.first+1; dfs_idx<range.second; dfs_idx++) {

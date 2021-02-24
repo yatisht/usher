@@ -53,7 +53,7 @@ static MAT::Node* execute_merge(Merge_Discriptor& merge, MAT::Tree* tree,MAT::No
     return merged_node;
 }
 
-void finalize_children(MAT::Node* parent,ConfirmedMove& edits,MAT::Tree* tree,const Original_State_t& checker){
+void finalize_children(MAT::Node* parent,ConfirmedMove& edits,MAT::Tree* tree,const Original_State_t& checker,std::vector<std::pair<MAT::Node*, MAT::Node*>>& deleted_map){
     if(parent->is_leaf()){
         assert(edits.removed.empty());
         assert(edits.added.front()->identifier==parent->identifier);
@@ -90,6 +90,7 @@ void finalize_children(MAT::Node* parent,ConfirmedMove& edits,MAT::Tree* tree,co
         tree->all_nodes.erase(parent->identifier);
         std::vector<MAT::Node*>& parent_children=parent->parent->children;
         parent_children.erase(std::find(parent_children.begin(),parent_children.end(),parent));
+        deleted_map.emplace_back(parent,parent->parent);
         delete parent;
     }
 

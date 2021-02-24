@@ -10,6 +10,7 @@
 #include <mutex>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
+#include <tbb/queuing_rw_mutex.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -100,6 +101,7 @@ struct Test_Move_Profitable {
     std::vector<MAT::Node *> &dfs_ordered_nodes;
     tbb::concurrent_vector<Profitable_Move *> &profitable_moves;
     Candidate_Moves *all_moves;
+    tbb::queuing_rw_mutex& mutex;
     void operator()(tbb::blocked_range<size_t> &range) const {
         for (size_t move_idx = range.begin(); move_idx < range.end();
              move_idx++) {
@@ -193,13 +195,16 @@ struct Test_Move_Profitable {
                     moved_states[i].mutation = in->FS_results[i]->mutation;
                 }
                 out->states.swap(moved_states);
-                profitable_moves.push_back(out);
+                {
+                    tbb::queuing_rw_mutex::scoped_lock lock(mutex,false);
+                    profitable_moves.push_back(out);
+                }
             }
         }
     }
 };
 
 void Profitable_Moves_Enumerator::operator()(Candidate_Moves * in)const{
-    tbb::parallel_for(tbb::blocked_range<size_t>(0,in->moves.size()),Test_Move_Profitable{dfs_ordered_nodes,profitable_moves,in});
+    tbb::parallel_for(tbb::blocked_range<size_t>(0,in->moves.size()),Test_Move_Profitable{dfs_ordered_nodes,profitable_moves,in,mutex});
     delete in;
 }
