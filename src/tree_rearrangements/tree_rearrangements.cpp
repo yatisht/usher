@@ -17,8 +17,7 @@
 #include "Twice_Bloom_Filter.hpp"
 #include "src/tree_rearrangement.hpp"
 tbb::concurrent_vector<MAT::Node*> postponed;
-
-
+extern uint32_t num_cores;
 static void find_nodes_with_recurrent_mutations(std::vector<MAT::Node *>& all_nodes, std::vector<MAT::Node *>& output){
     Twice_Bloom_Filter filter;
     for(MAT::Node* n:all_nodes){
@@ -114,9 +113,11 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
         tbb::flow::buffer_node<MAT::Node*> input(search_graph);
         tbb::flow::function_node<MAT::Node*,Possible_Moves*> neighbors_finder(search_graph,tbb::flow::unlimited,Neighbors_Finder(radius));
         tbb::flow::make_edge(input,neighbors_finder);
+        
         tbb::flow::function_node<Possible_Moves*,Candidate_Moves*> parsimony_score_calculator(search_graph,tbb::flow::unlimited,Parsimony_Score_Calculator{ori,dfs_ordered_nodes});
         tbb::flow::make_edge(neighbors_finder,parsimony_score_calculator);
-        tbb::flow::interface11::function_node<Candidate_Moves*> profitable_move_enumerator(search_graph,tbb::flow::unlimited,Profitable_Moves_Enumerator{dfs_ordered_nodes,profitable_moves,mutex,ori});
+        
+        tbb::flow::interface11::function_node<Candidate_Moves*,tbb::flow::continue_msg,tbb::flow::rejecting> profitable_move_enumerator(search_graph,num_cores,Profitable_Moves_Enumerator{dfs_ordered_nodes,profitable_moves,mutex,ori});
         tbb::flow::make_edge(parsimony_score_calculator,profitable_move_enumerator);
 
         bool have_improvement=true;

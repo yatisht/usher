@@ -271,7 +271,7 @@ namespace Mutation_Annotated_Tree {
                 mutations.clear();
             }
             Node* add_child(Node* new_child);
-            #ifndef NDEBUG
+            #ifdef MEMDEBUG
             void delete_this();
             #endif
 #else
@@ -329,7 +329,7 @@ namespace Mutation_Annotated_Tree {
             
             void finalize();
             friend class Node;
-            #ifndef NDEBUG
+            #ifdef MEMDEBUG
             void delete_nodes();
             #endif
     };

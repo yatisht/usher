@@ -155,6 +155,7 @@ void Profitable_Moves_Cacher::operator()(){
         }
     }
     serialize_profitable_moves(to_monitor, offset, file_offsets, fd,chrom);
+    length=offset;
     std::sort(file_offsets.begin(),file_offsets.end(),Move_Sorter());
     file_offsets_iter=file_offsets.begin();
     fflush(fd);

@@ -14,7 +14,7 @@
 #include "tree_rearrangement.hpp"
 namespace po = boost::program_options;
 namespace MAT = Mutation_Annotated_Tree;
-
+uint32_t num_cores;
 int main(int argc, char** argv) {
     //Variables to load command-line options using Boost program_options
     std::string tree_filename;
@@ -22,7 +22,7 @@ int main(int argc, char** argv) {
     std::string dout_filename;
     std::string outdir;
     std::string vcf_filename;
-    uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
+    num_cores = tbb::task_scheduler_init::default_num_threads();
     uint32_t num_threads;
     uint32_t max_trees;
     uint32_t max_uncertainty;
@@ -1451,7 +1451,7 @@ int main(int argc, char** argv) {
         }
     }
     */
-    #ifndef NDEBUG
+    #ifdef MEMDEBUG
     for(MAT::Tree& t:optimal_trees){
         t.delete_nodes();
     }
