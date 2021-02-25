@@ -65,26 +65,37 @@ void write_clade_table(MAT::Tree& T, std::string filename) {
     cladefile.open(filename);
     cladefile << "clade\tcount\n";
     //clades will be a map object.
-    std::map<std::string, int> cladecounts;
+    std::map<std::string, size_t> cladecounts;
     
     auto dfs = T.depth_first_expansion();
     for (auto s: dfs) {
-        if (s->is_leaf()) {
-            for (auto c: s->clade_annotations) {
-                if (cladecounts.find(c) != cladecounts.end()) {
-                    cladecounts[c]++; //increment should work?
-                } else {
-                    cladecounts[c] = 1;
-                }
+        std::vector<std::string> canns = s->clade_annotations;
+        if (canns.size() > 0) {
+            if (canns.size() > 1 || canns[0] != "") {
+                //the empty string is the default clade identifier attribute
+                //skip entries which are annotated with 1 clade but that clade is empty
+                //but don't skip entries which are annotated with 1 clade and its not empty
+                //get the set of samples descended from this clade root
+                std::vector<std::string> sids = T.get_leaves_ids(s->identifier);
+                for (auto c: canns) {
+                    //the emptry string is a default clade identifier
+                    //make sure not to include it.
+                    if (cladecounts.find(c) != cladecounts.end() && c != "") {
+                        cladecounts[c] = cladecounts[c] + sids.size();
+                    } else if (c != "") {
+                        cladecounts[c] = sids.size();
+                    }
+                }        
             }
         }
-    }
+    }   
     //write the contents of map to the file.
     for (auto const &clade : cladecounts) {
         cladefile << clade.first << "\t" << clade.second << "\n";
     }
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 }
+
 void write_mutation_table(MAT::Tree& T, std::string filename) {
     timer.Start();
     fprintf(stderr, "Writing mutations to output %s\n", filename.c_str());
