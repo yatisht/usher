@@ -40,15 +40,15 @@ po::variables_map parse_summary_command(po::parsed_options parsed) {
     return vm;
 }
 
-void write_sample_table(const& MAT::Tree T, std::string filename) {
+void write_sample_table(MAT::Tree& T, std::string filename) {
     timer.Start();
-    fprintf(stderr, "Writing samples to output %s", filename.c_str());
+    fprintf(stderr, "Writing samples to output %s\n", filename.c_str());
     std::ofstream samplefile;
     samplefile.open(filename);
     //print a quick column header (makes this specific file auspice compatible also!)
     samplefile << "sample\tparsimony\n";
 
-    dfs = T.depth_first_expansion();
+    auto dfs = T.depth_first_expansion();
     for (auto s: dfs) {
         if (s->is_leaf()) {
             //leaves are samples (on the uncondensed tree)
@@ -58,16 +58,16 @@ void write_sample_table(const& MAT::Tree T, std::string filename) {
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 }
 
-void write_clade_table(const& MAT::Tree T, std::string filename) {
+void write_clade_table(MAT::Tree& T, std::string filename) {
     timer.Start();
-    fprintf(stderr, "Writing clades to output %s", filename.c_str());
+    fprintf(stderr, "Writing clades to output %s\n", filename.c_str());
     std::ofstream cladefile;
     cladefile.open(filename);
     cladefile << "clade\tcount\n";
     //clades will be a map object.
     std::map<std::string, int> cladecounts;
     
-    dfs = T.depth_first_expansion();
+    auto dfs = T.depth_first_expansion();
     for (auto s: dfs) {
         if (s->is_leaf()) {
             for (auto c: s->clade_annotations) {
@@ -81,20 +81,20 @@ void write_clade_table(const& MAT::Tree T, std::string filename) {
     }
     //write the contents of map to the file.
     for (auto const &clade : cladecounts) {
-        cladefile << clade.first << "\t" << clade.second << "\n";s
+        cladefile << clade.first << "\t" << clade.second << "\n";
     }
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 }
-void write_mutation_table(const& MAT::Tree T, std::string filename) {
+void write_mutation_table(MAT::Tree& T, std::string filename) {
     timer.Start();
-    fprintf(stderr, "Writing mutations to output %s", filename.cstr());
+    fprintf(stderr, "Writing mutations to output %s\n", filename.c_str());
     std::ofstream mutfile;
     mutfile.open(filename);
     mutfile << "ID\toccurrence\n";
     //mutations will be a map object, similar to clades, since we're looking for counts
     std::map<std::string, int> mutcounts;
 
-    dfs = T.depth_first_expansion();
+    auto dfs = T.depth_first_expansion();
     for (auto s: dfs) {
         //occurrence here is the number of times a mutation occurred 
         //during the history of the pandemic
@@ -105,10 +105,13 @@ void write_mutation_table(const& MAT::Tree T, std::string filename) {
         //happen again and again that may be positively selected.
         //want to include internal nodes this time.
         for (auto m: s->mutations) {
-            if (mutcounts.find(c) != mutcounts.end()) {
-                mutcounts[c]++ ;
-            } else {
-                mutcounts[c] = 1;
+            std::string mname = m.get_string();
+            if (mname != "MASKED") {
+                if (mutcounts.find(mname) != mutcounts.end()) {
+                    mutcounts[mname]++ ;
+                } else {
+                    mutcounts[mname] = 1;
+                }
             }
         }
     }
@@ -137,13 +140,36 @@ void summary_main(po::parsed_options parsed) {
     T.uncondense_leaves();
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 
+    bool no_print = true;
     if (clades != "" ) {
         write_clade_table(T, clades);
+        no_print = false;
     }
     if (samples != "") {
         write_sample_table(T, samples);
+        no_print = false;
     }
     if (mutations != "") {
         write_mutation_table(T, mutations);
+        no_print = false;
+    }  
+        
+    if (no_print) {
+        //just count the number of nodes in the tree and the number of leaves (samples)
+        //additional basic statistics can also go in this code block (total tree depth?)
+        timer.Start();
+        fprintf(stderr, "No arguments set; getting basic statistics...\n");
+        int nodecount = 0;
+        int samplecount = 0;
+        auto dfs = T.depth_first_expansion();
+        for (auto s: dfs) {
+            nodecount++;
+            if (s->is_leaf()){
+                samplecount++;
+            }
+        }
+        fprintf(stderr, "Total Nodes in Tree: %d\n", nodecount);
+        fprintf(stderr, "Total Samples in Tree: %d\n", samplecount);
+        fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
 }
