@@ -117,7 +117,7 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
         tbb::flow::function_node<Possible_Moves*,Candidate_Moves*> parsimony_score_calculator(search_graph,tbb::flow::unlimited,Parsimony_Score_Calculator{ori,dfs_ordered_nodes});
         tbb::flow::make_edge(neighbors_finder,parsimony_score_calculator);
         
-        tbb::flow::interface11::function_node<Candidate_Moves*,tbb::flow::continue_msg,tbb::flow::rejecting> profitable_move_enumerator(search_graph,num_cores,Profitable_Moves_Enumerator{dfs_ordered_nodes,profitable_moves,mutex,ori});
+        tbb::flow::function_node<Candidate_Moves*,tbb::flow::continue_msg,tbb::flow::rejecting> profitable_move_enumerator(search_graph,num_cores,Profitable_Moves_Enumerator{dfs_ordered_nodes,profitable_moves,mutex,ori});
         tbb::flow::make_edge(parsimony_score_calculator,profitable_move_enumerator);
 
         bool have_improvement=true;
