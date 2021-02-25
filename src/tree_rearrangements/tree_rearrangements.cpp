@@ -113,12 +113,16 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
         tbb::flow::buffer_node<MAT::Node*> input(search_graph);
         tbb::flow::function_node<MAT::Node*,Possible_Moves*> neighbors_finder(search_graph,tbb::flow::unlimited,Neighbors_Finder(radius));
         tbb::flow::make_edge(input,neighbors_finder);
+
+        tbb::flow::limiter_node<Possible_Moves*> memory_limit(search_graph,num_cores+1);
+        tbb::flow::make_edge(neighbors_finder,memory_limit);
         
         tbb::flow::function_node<Possible_Moves*,Candidate_Moves*> parsimony_score_calculator(search_graph,tbb::flow::unlimited,Parsimony_Score_Calculator{ori,dfs_ordered_nodes});
-        tbb::flow::make_edge(neighbors_finder,parsimony_score_calculator);
+        tbb::flow::make_edge(memory_limit,parsimony_score_calculator);
         
-        tbb::flow::function_node<Candidate_Moves*,tbb::flow::continue_msg,tbb::flow::rejecting> profitable_move_enumerator(search_graph,num_cores,Profitable_Moves_Enumerator{dfs_ordered_nodes,profitable_moves,mutex,ori});
+        tbb::flow::function_node<Candidate_Moves*,tbb::flow::continue_msg,tbb::flow::rejecting> profitable_move_enumerator(search_graph,tbb::flow::unlimited,Profitable_Moves_Enumerator{dfs_ordered_nodes,profitable_moves,mutex,ori});
         tbb::flow::make_edge(parsimony_score_calculator,profitable_move_enumerator);
+        tbb::flow::make_edge(profitable_move_enumerator,memory_limit.decrement);
 
         bool have_improvement=true;
         while (have_improvement) {
