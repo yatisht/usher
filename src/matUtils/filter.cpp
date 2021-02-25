@@ -11,10 +11,12 @@ po::variables_map parse_filter_command(po::parsed_options parsed) {
          "Input mutation-annotated tree file [REQUIRED]")
         ("output-mat,o", po::value<std::string>()->required(),
          "Output mutation-annotated tree file [REQUIRED]")
-        ("samples,s", po::value<std::string>()->required(),
+        ("samples,s", po::value<std::string>()->default_value(""),
         "File containing names of samples (one per line).")
         ("prune,p", po::bool_switch(),
         "Use to remove the indicated samples from the tree. Default is to return a subtree MAT containing only the indicated samples.")
+        ("clade,c", po::value<std::string>()->default_value(""),
+        "Use to remove or return a subtree for all samples associated with the indicated clade, if annotated in the MAT.")
         ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
         ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
@@ -67,6 +69,7 @@ void filter_main(po::parsed_options parsed) {
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string output_mat_filename = vm["output-mat"].as<std::string>();
     std::string sample_filename = vm["samples"].as<std::string>();
+    std::string clade = vm["clade"].as<std::string>();
     bool prune = vm["prune"].as<bool>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
 
@@ -80,11 +83,24 @@ void filter_main(po::parsed_options parsed) {
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 
     std::vector<std::string> sample_names;
-    timer.Start();
-    fprintf(stderr, "Loading sample names from %s.\n", sample_filename.c_str()); 
-    read_sample_names(sample_filename, sample_names);
-    fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
-
+    if (sample_filename != "" && clade != "") {
+        fprintf(stderr, "Cannot set both sample and clade parameters. Choose one to select filter by and try again\n");
+        exit(1);
+    } else if (sample_filename != "") {
+        timer.Start();
+        fprintf(stderr, "Loading sample names from %s.\n", sample_filename.c_str()); 
+        read_sample_names(sample_filename, sample_names);
+        fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+    } else if (clade != "") {
+        timer.Start();
+        fprintf(stderr, "Finding samples associated with %s.\n", clade.c_str()); 
+        sample_names = get_clade_samples(T, clade);
+        fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+    } else {
+        fprintf(stderr, "No sample selection method indicated. Please set --clade or --samples and try again.");
+        exit(1);
+    }
+   
     MAT::Tree subtree;
     if (prune) {
         subtree = prune_leaves(T, sample_names);
@@ -117,6 +133,7 @@ MAT::Tree prune_leaves (const MAT::Tree& T, std::vector<std::string> sample_name
             fprintf(stderr, "ERROR: Sample %s not found in the tree!\n", s.c_str()); 
         }
         else {
+            assert (subtree.get_node(s)->is_leaf());
             subtree.remove_node(s, true);
         }
     }
@@ -157,4 +174,20 @@ MAT::Tree get_sample_prune (const MAT::Tree& T, std::vector<std::string> sample_
     }    
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     return subtree;
+}
+
+std::vector<std::string> get_clade_samples (const MAT::Tree& T, std::string clade_name) {
+    //fetch the set of sample names associated with a clade name to pass downstream in lieu of reading in a sample file.
+
+    std::vector<std::string> csamples;
+    auto dfs = T.depth_first_expansion();
+    for (auto s: dfs) {
+        if (s->is_leaf()) {
+            //check if the clade name is listed anywhere in the annotation vector.
+            if (std::find(s->clade_annotations.begin(), s->clade_annotations.end(), clade_name) != s->clade_annotations.end()) {
+                csamples.push_back(s->identifier);
+            }
+        }
+    }
+    return csamples;
 }
