@@ -176,17 +176,17 @@ MAT::Tree get_sample_prune (const MAT::Tree& T, std::vector<std::string> sample_
     return subtree;
 }
 
-std::vector<std::string> get_clade_samples (const MAT::Tree& T, std::string clade_name) {
+std::vector<std::string> get_clade_samples (MAT::Tree& T, std::string clade_name) {
     //fetch the set of sample names associated with a clade name to pass downstream in lieu of reading in a sample file.
 
     std::vector<std::string> csamples;
     auto dfs = T.depth_first_expansion();
     for (auto s: dfs) {
-        if (s->is_leaf()) {
-            //check if the clade name is listed anywhere in the annotation vector.
-            if (std::find(s->clade_annotations.begin(), s->clade_annotations.end(), clade_name) != s->clade_annotations.end()) {
-                csamples.push_back(s->identifier);
-            }
+        if (std::find(s->clade_annotations.begin(), s->clade_annotations.end(), clade_name) != s->clade_annotations.end()) {
+            //this is the root for this clade, grab its children
+            csamples = T.get_leaves_ids(s->identifier);
+            //can stop searching, assuming there's only one root node per clade...
+            break;
         }
     }
     return csamples;
