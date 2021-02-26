@@ -31,7 +31,7 @@ UShER is much faster than existing tools with similar functionality and has now 
       * [Multiple parsimony-optimal placements](#multiple-parsimony-optimal-placements)
       * [Updating multiple input trees](#updating-multiple-input-trees)
 * [Fasta2UShER](#fasta2usher)
-* [MatToVcf](#mattovcf)
+* [matUtils](#matUtils)
 * [Acknowledgement](#acknowledgement)
 * [Reference](#reference)
 
@@ -262,37 +262,9 @@ Merged VCF with missing data for a particular sample denoted as "." in the corre
 
 For the example above, a new VCF *test/test_merged.vcf* is generated (identical to the one already provided), which can be used by UShER to place the new samples.
 
-## MatToVcf
+## matUtils
 
-We also provide a tool, `matToVcf`, that generates a parsimony-resolved VCF file corresponding to UShER's mutation-annotated tree. It can also also output the tree in Newick format corresponding to the mutation-annotated tree.
-
-### Input
-
-Mutation-annotated tree file generated using UShER.
-
-### Options
-
-**-i**: Mutation-annotated tree file to convert to VCF (REQUIRED) 
-
-**-v**: Output VCF file (REQUIRED)
-
-**-t**: Output tree file
-
-**-d**: Output directory to dump output and log files (current directory by default)
-
-**-n**: Do not include sample genotype columns in VCF output
-
-**-h**: Print help messages
-
-### Usage example
-
-```
-./build/matToVcf -i global_assignments.pb -v global_assignments.vcf -t global_assignments.nh
-```
-
-### Output
-
-The above example command generates a VCF file named `global_assignments.vcf` and the output tree named `global_assignments.nh`.
+We are now providing a toolkit, `matUtils`, which can perform a number of tasks related to manipulating and querying the UShER's mutation-annotated tree, such as the generation of the corresponding Newick tree or parsimony-resolved VCF file, masking out mutations, or calculating the number of equally parsimonious placements for a specific set of samples. Full documentation for this toolkit can be found under [src/matUtils](https://github.com/yatisht/usher/blob/master/src/matUtils/README.md).
 
 ## Acknowledgement
 

@@ -7,6 +7,7 @@
 #include <sys/time.h>
 #include <tbb/mutex.h>
 
+#pragma once
 //extern std::mutex data_lock;
 
 namespace MAT = Mutation_Annotated_Tree;

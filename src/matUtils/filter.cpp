@@ -1,40 +1,37 @@
-#include <array>
-#include <fstream>
-#include <iostream>
-#include <memory>
-#include <vector>
-#include <boost/program_options.hpp> 
-#include <boost/filesystem.hpp>
-#include "mutation_annotated_tree.hpp"
+#include "filter.hpp"
 
-namespace po = boost::program_options;
-namespace MAT = Mutation_Annotated_Tree;
+po::variables_map parse_filter_command(po::parsed_options parsed) {
 
-po::variables_map check_options(int argc, char** argv) {
-    // Check command line options and return variable map.
-    po::options_description desc{"Options"};
-    desc.add_options()
-        ("input-mat,i", po::value<std::string>()->required(),
-         "Input mutation-annotated tree file to mask [REQUIRED]")
-        ("output-mat,o", po::value<std::string>()->required(),
-         "Output masked mutation-annotated tree file [REQUIRED]")
-        ("restricted-samples,s", po::value<std::string>()->required(),
-         "[REQUIRED]")
-        ("help,h", "Print help messages");
-    
-    po::options_description all_options;
-    all_options.add(desc);
-    po::positional_options_description p;
+    uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
+    std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
+
     po::variables_map vm;
+    po::options_description filt_desc("filter options");
+    filt_desc.add_options()
+        ("input-mat,i", po::value<std::string>()->required(),
+         "Input mutation-annotated tree file [REQUIRED]")
+        ("output-mat,o", po::value<std::string>()->required(),
+         "Path to output filtered mutation-annotated tree file [REQUIRED]")
+        ("restricted-samples,s", po::value<std::string>()->default_value(""), 
+         "Sample names to restrict. Use to perform masking") 
+//        ("placement-confidence,c", po::value<int>()->default_value(0),
+//        "Maximum number of equally parsimonious placements among nodes included in the tree (lower values is better, with 1 as highest confidence). Set to 0 to skip filtering. Default 0")
+        ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
+        ("help,h", "Print help messages");
+    // Collect all the unrecognized options from the first pass. This will include the
+    // (positional) command name, so we need to erase that.
+    std::vector<std::string> opts = po::collect_unrecognized(parsed.options, po::include_positional);
+    opts.erase(opts.begin());
+
+    // Run the parser, with try/catch for help
     try{
-        po::store(po::command_line_parser(argc, argv)
-                  .options(all_options)
-                  .positional(p)
+        po::store(po::command_line_parser(opts)
+                  .options(filt_desc)
                   .run(), vm);
         po::notify(vm);
     }
     catch(std::exception &e){
-        std::cerr << desc << std::endl;
+        std::cerr << filt_desc << std::endl;
         // Return with error code 1 unless the user specifies help
         if (vm.count("help"))
             exit(0);
@@ -44,31 +41,64 @@ po::variables_map check_options(int argc, char** argv) {
     return vm;
 }
 
-int main(int argc, char** argv) {
-
-    // Command line options
-    po::variables_map vm = check_options(argc, argv);
+void filter_main(po::parsed_options parsed) {
+    //the filter subcommand prunes data from the protobuf based on some threshold, returning a protobuf file that is smaller than the input
+    po::variables_map vm = parse_filter_command(parsed);
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string output_mat_filename = vm["output-mat"].as<std::string>();
     std::string samples_filename = vm["restricted-samples"].as<std::string>();
+    //int maxcon = vm["placement-confidence"].as<int>();
+    uint32_t num_threads = vm["threads"].as<uint32_t>();
+
+    tbb::task_scheduler_init init(num_threads);
 
     // Load input MAT and uncondense tree
-    auto T = MAT::load_mutation_annotated_tree(input_mat_filename);
+    MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
+    //T here is the actual object.
     if (T.condensed_nodes.size() > 0) {
       T.uncondense_leaves();
     }
+    // If a restricted samples file was provided, perform masking procedure
+    if (samples_filename != "") {
+        fprintf(stderr, "Performing Masking\n");
+        restrictSamples(samples_filename, T);
+    }
+    //there's a very simple filtering procedure which doesn't require a dedicated function
+    // if (maxcon > 0) { //value of 0 means skip this procedure (default behavior)
+        //fprintf(stderr, "Removing nodes with more than %d equally parsimonious placements", maxcon);
+        //just get all nodes, and for each one with an EPPs greater than maxcon, remove it.
+        //for the smallest possible maximum, 1, this should retain about 84% of samples. More for any other value
+        // auto dfs = T.depth_first_expansion(); //technically for now I would want to get just all leaves, but I think the epps concept could be extended to internal nodes that aren't true samples with some thought in the future
+        //for (auto it: dfs) {
+            //if (it->epps > maxcon) {
+            //    T.remove_node(it->identifier, false); //fairly sure I want this to be false for leaves
+            //}
+        //}
+    //}
 
+    // Store final MAT to output file
+    if (output_mat_filename != "") {
+        fprintf(stderr, "Saving Final Tree\n");
+        MAT::save_mutation_annotated_tree(T, output_mat_filename);
+    }    
+}
+
+void restrictSamples (std::string samples_filename, MAT::Tree& T) {
     // Load restricted sample names from the input file and add it to the set
-    std::unordered_set<std::string> restricted_samples;
+    //BUG WARNING
+    //This does not actually work right now- all samples passed in are caught as missing. 
     std::ifstream infile(samples_filename);
     if (!infile) {
-        fprintf(stderr, "ERROR: Could not open the restricted sampels file: %s!\n", samples_filename.c_str());
+        fprintf(stderr, "ERROR: Could not open the restricted samples file: %s!\n", samples_filename.c_str());
         exit(1);
-    }
+    }    
+    std::unordered_set<std::string> restricted_samples;
     std::string sample;
     while (std::getline(infile, sample)) {
+        fprintf(stderr, "Checking for Sample %s\n", sample.c_str());
         if (T.get_node(sample) == NULL) {
-            fprintf(stderr, "ERROR: Sample %s missing in input MAT!\n", sample.c_str());
+            fprintf(stderr, "ERROR: Sample missing in input MAT!\n");
+            std::cerr << std::endl;
             exit(1);
         }
         restricted_samples.insert(std::move(sample));
@@ -160,10 +190,6 @@ int main(int argc, char** argv) {
             }
         }
     }
-
-    // Store final MAT to output file 
-    MAT::save_mutation_annotated_tree(T, output_mat_filename);
-
-    return 0;
 }
+
 
