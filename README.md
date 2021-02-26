@@ -234,7 +234,7 @@ MSA file or unaligned full SARS-CoV-2 genomic sequence(s) in fasta format
 
 ### Options
 
-**-inpath**: Path to directory containing ONLY multiple sequence alignment or unaligned files in fasta format (make sure no other files exist in this directory).
+**-inpath**: Path to directory containing ONLY multiple sequence alignment or unaligned files in fasta format **(Make sure no other files exist in this directory. Please also make sure your SARS-CoV-2 reference genome is not in this directory.)**.
 
 **-output**: Output VCF file name
 
