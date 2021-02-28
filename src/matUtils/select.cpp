@@ -23,7 +23,7 @@ std::vector<std::string> read_sample_names (std::string sample_filename) {
             warned = true;
         }
         //remove carriage returns from the input to handle windows os 
-        sname = words[0];
+        auto sname = words[0];
         if (sname[sname.size()-1] == '\r') {
             sname = sname.substr(0,sname.size()-1);
         }
@@ -33,7 +33,7 @@ std::vector<std::string> read_sample_names (std::string sample_filename) {
     return sample_names;
 }
 
-std::vector<std::string> get_clade_samples (const MAT::Tree& T, std::string clade_name) {
+std::vector<std::string> get_clade_samples (MAT::Tree T, std::string clade_name) {
     //fetch the set of sample names associated with a clade name to pass downstream in lieu of reading in a sample file.
 
     std::vector<std::string> csamples;
@@ -49,12 +49,12 @@ std::vector<std::string> get_clade_samples (const MAT::Tree& T, std::string clad
     return csamples;
 }
 
-std::vector<std::string> get_mutation_samples (const MAT::Tree& T, std::string mutation_id) {
+std::vector<std::string> get_mutation_samples (MAT::Tree T, std::string mutation_id) {
     //fetch the set of sample names which contain a given mutation.
     //this is a naive implementation parallel to describe::mutation_paths
     std::vector<std::string> good_samples;
 
-    for (auto node: T->get_leaves()) {
+    for (auto node: T.get_leaves()) {
         bool assigned = false;
         //first, check if this specific sample has the mutation 
         for (auto m: node->mutations) {
@@ -65,7 +65,7 @@ std::vector<std::string> get_mutation_samples (const MAT::Tree& T, std::string m
             }
         } 
         if (!assigned) {
-            std::vector<MAT::Node*> path = T->rsearch(node);
+            std::vector<MAT::Node*> path = T.rsearch(node->identifier);
             //for every ancestor up to the root, check if they have the mutation
             //if they do, break, save the name, move to the next sample
             for (auto anc_node: path) {
@@ -84,16 +84,16 @@ std::vector<std::string> get_mutation_samples (const MAT::Tree& T, std::string m
     return good_samples;
 }
 
-std::vector<std::string> get_samples_epps (const MAT::Tree& T, size_t max_epps) {
+std::vector<std::string> get_samples_epps (MAT::Tree T, size_t max_epps) {
     //calculate uncertainty for all samples in the tree
     //and return the set of samples which have EPPs less than max_epps
     //default filter value is 1, which 85% of samples have
     std::vector<std::string> good_samples;
-    auto dfs = T->depth_first_expansion();
+    auto dfs = T.depth_first_expansion();
     for (auto n: dfs) {
         size_t nb;
         size_t ns;
-        findEPPs(T, n, false, &nb, &ns);
+        findEPPs(&T, n, false, &nb, &ns);
         if (nb <= max_epps) {
             good_samples.push_back(n->identifier);
         }

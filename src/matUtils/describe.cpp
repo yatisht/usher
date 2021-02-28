@@ -53,50 +53,92 @@ void describe_main(po::parsed_options parsed) {
 
     timer.Start();
     fprintf(stderr, "Displaying mutation paths for the samples in the input file %s.\n", mutation_paths_filename.c_str()); 
-    mutation_paths(T, mutation_paths_filename);
+    std::vector<std::string> samples = read_sample_names(mutation_paths_filename);
+    std::vector<std::string> pathstring = mutation_paths(T, samples);
+    for (auto s: pathstring) {
+        std::cout << s << "\n";
+    }
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 }
 
-void mutation_paths(const MAT::Tree& T, std::string mutation_paths_filename) {
-    std::ifstream infile(mutation_paths_filename);
-    if (!infile) {
-        fprintf(stderr, "ERROR: Could not open the file: %s!\n", mutation_paths_filename.c_str());
-        exit(1);
-    }    
-    std::string line;
-
-    while (std::getline(infile, line)) {
-        std::vector<std::string> words;
-        MAT::string_split(line, words);
-        if (words.size() != 1) {
-            fprintf(stderr, "ERROR: Incorrect format for input file: %s!\n", mutation_paths_filename.c_str());
-            exit(1);
-        }
-        else {
-            auto sample = words[0];
-            if (T.get_node(sample) == NULL) {
-                fprintf(stderr, "WARNING: Input sample %s not found in the tree!\n", sample.c_str());
-                //exit(1);
+std::vector<std::string> mutation_paths(const MAT::Tree& T, std::vector<std::string> samples) {
+    std::vector<std::string> mpaths;
+    for (auto sample: samples) {
+        std::string cpath = sample + ": ";
+        auto root_to_sample = T.rsearch(sample, true);
+        std::reverse(root_to_sample.begin(), root_to_sample.end());
+        //fprintf(stdout, "%s: ", sample.c_str());
+        for (auto n: root_to_sample) {
+            for (size_t i=0; i<n->mutations.size(); i++) {
+                cpath += n->mutations[i].get_string();
+                //fprintf(stdout, "%s", n->mutations[i].get_string().c_str());
+                if (i+1 < n->mutations.size()) {
+                    cpath += ",";
+                    //fprintf(stdout, ",");
+                }
             }
-            else {
-                auto root_to_sample = T.rsearch(sample, true);
-                std::reverse(root_to_sample.begin(), root_to_sample.end());
-                fprintf(stdout, "%s: ", sample.c_str());
-                for (auto n: root_to_sample) {
+            if (n != root_to_sample.back()) {
+                cpath += " > ";
+                //fprintf(stdout, " > ");
+            }
+        }
+        mpaths.push_back(cpath);
+        //fprintf(stdout, "\n");
+    }
+    return mpaths;
+}
+
+std::vector<std::string> clade_paths(MAT::Tree T, std::vector<std::string> clades) {
+    //get the set of clade path strings for printing
+    //similar to the above, construct a series of strings to be printed or redirected later on
+    std::vector<std::string> clpaths;
+    clpaths.push_back("clade\tspecific\tfrom_root");
+    //do a breadth-first search
+    //the first time a clade that is in clades is encountered, that's the root;
+    //get the path of mutations to that root (rsearch), save the unique mutations + that path
+    //unique mutations being ones that occurred in the clade root, and the path being all mutations from that root back to the tree root
+    //then continue. if a clade has already been encountered in the breadth first, its
+    //not clade root, and should be skipped.
+    std::unordered_set<std::string> clades_seen;
+
+    auto dfs = T.breadth_first_expansion();
+    for (auto n: dfs) {
+        std::string curpath = n->identifier + "\t";
+        for (auto ann: n->clade_annotations) {
+            if (ann != "") {
+                //if its one of our target clades and it hasn't been seen...
+                if (std::find(clades.begin(), clades.end(), ann) != clades.end() && clades_seen.find(ann) != clades_seen.end()){
+                    //get its own mutations, if there are any
+                    std::string unique = "";
                     for (size_t i=0; i<n->mutations.size(); i++) {
-                        fprintf(stdout, "%s", n->mutations[i].get_string().c_str());
+                        unique += n->mutations[i].get_string();
                         if (i+1 < n->mutations.size()) {
-                            fprintf(stdout, ",");
+                            unique += ",";
                         }
                     }
-                    if (n != root_to_sample.back()) {
-                        fprintf(stdout, " > ");
+                    curpath += unique + "\t";
+                    //get the ancestral mutations back to the root
+                    std::string root = "";
+                    auto root_to_sample = T.rsearch(n->identifier, true);
+                    for (auto n: root_to_sample) {
+                        for (size_t i=0; i<n->mutations.size(); i++) {
+                            root += n->mutations[i].get_string();
+                            if (i+1 < n->mutations.size()) {
+                                root += ",";
+                            }
+                        }
+                        if (n != root_to_sample.back()) {
+                            root += " > ";
+                        }
                     }
+                    //save values to the string, mark the clade as seen, and save the string
+                    curpath += unique;
+                    curpath += root;
+                    clades_seen.insert(ann);
+                    clpaths.push_back(curpath);
                 }
-                fprintf(stdout, "\n");
             }
         }
     }
-    infile.close();
+    return clpaths;
 }
-
