@@ -20,6 +20,8 @@ po::variables_map parse_annotate_command(po::parsed_options parsed) {
         ("set-overlap,s", po::value<float>()->default_value(0.6),
         "Minimum fraction of the clade samples that should be desecendants of the assigned clade root")
         ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
+        ("clear-current,l", po::bool_switch(),
+        "Use to remove current annotations before applying new values.")
         ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
     // (positional) command name, so we need to erase that.
@@ -50,6 +52,7 @@ void annotate_main(po::parsed_options parsed) {
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string output_mat_filename = vm["output-mat"].as<std::string>();
     std::string clade_filename = vm["clade-names"].as<std::string>();
+    bool clear_current = vm["clear-current"].as<bool>();
     float allele_frequency = vm["allele-frequency"].as<float>();
     float set_overlap = vm["set-overlap"].as<float>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
@@ -64,7 +67,7 @@ void annotate_main(po::parsed_options parsed) {
     }
     if (clade_filename != "") {
         fprintf(stderr, "Annotating Lineage Root Nodes\n");
-        assignLineages(T, clade_filename, allele_frequency, set_overlap);
+        assignLineages(T, clade_filename, allele_frequency, set_overlap, clear_current);
     }
     else {
         fprintf(stderr, "ERROR: must specifiy clade-names!\n");
@@ -83,7 +86,7 @@ void annotate_main(po::parsed_options parsed) {
     }
 }
 
-void assignLineages (MAT::Tree& T, const std::string& clade_filename, float min_freq, float set_overlap) {
+void assignLineages (MAT::Tree& T, const std::string& clade_filename, float min_freq, float set_overlap, bool clear_current) {
     static tbb::affinity_partitioner ap;
     
     fprintf(stderr, "Copying tree with uncondensed leaves.\n"); 
@@ -97,6 +100,11 @@ void assignLineages (MAT::Tree& T, const std::string& clade_filename, float min_
     
     std::unordered_map<std::string, size_t> dfs_idx;
     for (size_t idx = 0; idx < total_nodes; idx++) {
+        //remove the current annotations if unwanted.
+        if (clear_current) {
+            dfs[idx]->clade_annotations.clear();
+        }
+
         dfs_idx[dfs[idx]->identifier] = idx;
         // Add a new entry in annotations
         dfs[idx]->clade_annotations.emplace_back("");
