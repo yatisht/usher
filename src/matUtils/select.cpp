@@ -1,5 +1,4 @@
 #include "select.hpp"
-#include "uncertainty.hpp"
 
 /*
 Functions in this module take a variety of arguments, usually including a MAT
@@ -79,23 +78,6 @@ std::vector<std::string> get_mutation_samples (MAT::Tree T, std::string mutation
                     break;
                 }
             }
-        }
-    }
-    return good_samples;
-}
-
-std::vector<std::string> get_samples_epps (MAT::Tree T, size_t max_epps) {
-    //calculate uncertainty for all samples in the tree
-    //and return the set of samples which have EPPs less than max_epps
-    //default filter value is 1, which 85% of samples have
-    std::vector<std::string> good_samples;
-    auto dfs = T.depth_first_expansion();
-    for (auto n: dfs) {
-        size_t nb;
-        size_t ns;
-        findEPPs(&T, n, false, &nb, &ns);
-        if (nb <= max_epps) {
-            good_samples.push_back(n->identifier);
         }
     }
     return good_samples;
