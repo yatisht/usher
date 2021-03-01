@@ -42,11 +42,11 @@ int main (int argc, char** argv) {
             fprintf(stderr, "matUtils has several major subcommands: annotate, mask, convert, prune, uncertainty, and describe.\nIndividual command options can be accessed with matUtils command --help, e.g. matUtils annotate --help will show annotation-specific help messages.");
             exit(0);
         } else {
-            fprintf(stderr, "Invalid command. Please choose from annotate, mask, convert, prune, describe, uncertainty, or help and try again.\n");
+            fprintf(stderr, "Invalid command. Please choose from annotate, mask, convert, filter, describe, uncertainty, summary, or help and try again.\n"););
             exit(1);
         }
     } catch (...) { //not sure this is the best way to catch it when matUtils is called with no positional arguments.
-        fprintf(stderr, "No command selected. Please choose from annotate, mask, convert, prune, describe, uncertainty, or help and try again.\n");
+        fprintf(stderr, "No command selected. Please choose from annotate, mask, convert, filter, describe, uncertainty, summary, or help and try again.\n");
         exit(0);
     }
 
