@@ -797,7 +797,7 @@ std::vector<Mutation_Annotated_Tree::Node*> Mutation_Annotated_Tree::Tree::rsear
 void Mutation_Annotated_Tree::Tree::remove_node_helper (std::string nid, bool move_level) { 
     auto it = all_nodes.find(nid);
     if (it == all_nodes.end()) {
-        fprintf(stderr, "ERROR: Node identifier %s not found!\n", nid.c_str());
+        fprintf(stderr, "ERROR: Tried to remove node identifier %s but it was not found!\n", nid.c_str());
         exit(1);
     }
     Node* source = it->second;
