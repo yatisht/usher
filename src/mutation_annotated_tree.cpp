@@ -796,6 +796,10 @@ std::vector<Mutation_Annotated_Tree::Node*> Mutation_Annotated_Tree::Tree::rsear
 
 void Mutation_Annotated_Tree::Tree::remove_node_helper (std::string nid, bool move_level) { 
     auto it = all_nodes.find(nid);
+    if (it == all_nodes.end()) {
+        fprintf(stderr, "ERROR: Node identifier %s not found!\n", nid.c_str());
+        exit(1);
+    }
     Node* source = it->second;
     Node* curr_parent = source->parent;
     
@@ -807,6 +811,10 @@ void Mutation_Annotated_Tree::Tree::remove_node_helper (std::string nid, bool mo
 
         // Remove parent if it no longer has any children
         if (curr_parent->children.size() == 0) {
+            if (curr_parent == root) {
+                fprintf(stderr, "ERROR: Tree empty!\n");
+                exit(1);
+            }
             remove_node_helper (curr_parent->identifier, move_level);
         }
         // Move the remaining child one level up if it is the only child of its parent 
