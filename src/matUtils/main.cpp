@@ -4,7 +4,6 @@
 #include "filter.hpp"
 #include "describe.hpp"
 #include "uncertainty.hpp"
-#include "select.hpp"
 #include "summary.hpp"
 
 Timer timer; 
