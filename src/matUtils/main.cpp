@@ -4,7 +4,7 @@
 #include "filter.hpp"
 #include "describe.hpp"
 #include "uncertainty.hpp"
-#include "summary.hpp"
+#include "select.hpp"
 
 Timer timer; 
 
@@ -22,7 +22,6 @@ int main (int argc, char** argv) {
 
         po::store(parsed, vm);
         std::string cmd = vm["command"].as<std::string>();
-        //starting to think this should be a switch?...
         if (cmd == "annotate"){
             annotate_main(parsed);
         } else if (cmd == "convert"){
@@ -35,8 +34,6 @@ int main (int argc, char** argv) {
             describe_main(parsed); 
         } else if (cmd == "uncertainty") {
             uncertainty_main(parsed);
-        } else if (cmd == "summary") {
-            summary_main(parsed);
         } else if (cmd == "help" || cmd == "--help" || cmd == "-h") { 
             // TODO: improve this message
             fprintf(stderr, "matUtils has several major subcommands: annotate, mask, convert, prune, uncertainty, and describe.\nIndividual command options can be accessed with matUtils command --help, e.g. matUtils annotate --help will show annotation-specific help messages.");
