@@ -1368,7 +1368,10 @@ int main(int argc, char** argv) {
 
             // We split the subtree size into two: one half for nearest sequences to
             // the samples and the other half randomly sampled
-            size_t random_subtree_size = print_subtrees_size/2;
+            //size_t random_subtree_size = print_subtrees_size/2;
+            //size_t nearest_subtree_size = print_subtrees_size - random_subtree_size;
+            
+            size_t random_subtree_size = 0;
             size_t nearest_subtree_size = print_subtrees_size - random_subtree_size;
 
             //Set a constant random seed
