@@ -22,7 +22,6 @@ int main (int argc, char** argv) {
 
         po::store(parsed, vm);
         std::string cmd = vm["command"].as<std::string>();
-        //starting to think this should be a switch?...
         if (cmd == "annotate"){
             annotate_main(parsed);
         } else if (cmd == "convert"){
@@ -39,14 +38,14 @@ int main (int argc, char** argv) {
             summary_main(parsed);
         } else if (cmd == "help" || cmd == "--help" || cmd == "-h") { 
             // TODO: improve this message
-            fprintf(stderr, "matUtils has several major subcommands: annotate, mask, convert, prune, uncertainty, and describe.\nIndividual command options can be accessed with matUtils command --help, e.g. matUtils annotate --help will show annotation-specific help messages.");
+            fprintf(stderr, "matUtils has several major subcommands: annotate, mask, convert, filter, uncertainty, summary, and describe.\nIndividual command options can be accessed with matUtils command --help, e.g. matUtils annotate --help will show annotation-specific help messages.");
             exit(0);
         } else {
-            fprintf(stderr, "Invalid command. Please choose from annotate, mask, convert, prune, describe, uncertainty, or help and try again.\n");
+            fprintf(stderr, "Invalid command. Please choose from annotate, mask, convert, filter, describe, uncertainty, summary, or help and try again.\n");
             exit(1);
         }
     } catch (...) { //not sure this is the best way to catch it when matUtils is called with no positional arguments.
-        fprintf(stderr, "No command selected. Please choose from annotate, mask, convert, prune, describe, uncertainty, or help and try again.\n");
+        fprintf(stderr, "No command selected. Please choose from annotate, mask, convert, filter, describe, uncertainty, summary, or help and try again.\n");
         exit(0);
     }
 
