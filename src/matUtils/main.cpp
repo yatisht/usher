@@ -5,6 +5,7 @@
 #include "describe.hpp"
 #include "uncertainty.hpp"
 #include "select.hpp"
+#include "summary.hpp"
 
 Timer timer; 
 
@@ -36,7 +37,7 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
          "Output VCF file representing selected subtree. Default is full tree")
         ("no-genotypes,n", po::bool_switch(),
         "Do not include sample genotype columns in VCF output. Used only with the vcf option")
-        ("write-mat,r", po::value<std::string>()->default_value(""),
+        ("write-mat,o", po::value<std::string>()->default_value(""),
         "Write the selected tree as a new protobuf to the target file.")
         ("write-tree,t", po::value<std::string>()->default_value(""),
          "Use to write a newick tree to the indicated file.")
@@ -64,7 +65,7 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
     }
     return vm;
 }
-
+ 
 void extract_main (po::parsed_options parsed) {
     //main argument for the complex extract command
     //uses included code from multiple modules
@@ -296,6 +297,8 @@ int main (int argc, char** argv) {
             mask_main(parsed); 
         } else if (cmd == "uncertainty") {
             uncertainty_main(parsed);
+        } else if (cmd == "summary") {
+            summary_main(parsed);
         } else if (cmd == "help" || cmd == "--help" || cmd == "-h") { 
             // TODO: improve this message
             fprintf(stderr, "matUtils has several major subcommands: annotate, mask, extract, summary, and uncertainty.\nIndividual command options can be accessed with matUtils command --help, e.g. matUtils annotate --help will show annotation-specific help messages.");
