@@ -33,9 +33,9 @@ The convert subcommand yields non-protobuf format files representing the tree. T
 
 **-n**: Do not include sample genotype columns in VCF output. Used only with -v
 
-## Filter
+## Mask
 
-The filter subcommand restricts indicated sample names and returns a masked protobuf.
+The mask subcommand restricts indicated sample names and returns a masked protobuf.
 
 ### Specific Options
 
@@ -51,9 +51,9 @@ Describe fetches the path of mutations associated with each indicated sample's p
  
 **-m**: File containing sample names for which mutation paths should be displayed (REQUIRED)
 
-## Prune
+## Filter
 
-Prune removes an indicated set of samples from the input MAT, returning a smaller MAT.
+Filter removes an indicated set of samples from the input MAT, returning a smaller MAT.
 
 ### Specific Options
 
@@ -76,3 +76,15 @@ The uncertainty command calculates placement quality metrics for a set of sample
 **-e**: Name for an output Nextstrain Auspice-compatible .tsv file of the number of equally parsimonious placement values for each indicated sample- smaller is better, best is 1 (requires -s).
 
 **-n**: Name for an output Nextstrain Auspice-compatible .tsv file of neighborhood size scores for the equally parsimonious placements for each indicated sample- smaller is better, best is 0 (requires -s).
+
+## Summary
+
+This command gets basic statistics about the input MAT.
+
+### Specific Options
+
+**-s**: Write a tsv listing all samples in the tree and their parsimony scores (terminal branch length).
+
+**-c**: Write a tsv listing all clades in the tree and their occurrence over nodes in the tree.
+
+**-m**: Write a tsv listing all mutations in the tree and their occurrence count.
