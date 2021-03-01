@@ -343,18 +343,21 @@ void findEPPs_wrapper (MAT::Tree Tobj, std::string sample_file, std::string fepp
 }
 
 //a variation on sample selection specific to uncertainty metrics.
-std::vector<std::string> get_samples_epps (MAT::Tree T, size_t max_epps) {
+std::vector<std::string> get_samples_epps (MAT::Tree T, size_t max_epps, std::vector<std::string> to_check) {
     //calculate uncertainty for all samples in the tree
     //and return the set of samples which have EPPs less than max_epps
     //default filter value is 1, which 85% of samples have
     std::vector<std::string> good_samples;
     auto dfs = T.depth_first_expansion();
     for (auto n: dfs) {
-        size_t nb;
-        size_t ns;
-        findEPPs(&T, n, false, &nb, &ns);
-        if (nb <= max_epps) {
-            good_samples.push_back(n->identifier);
+        //check every sample if the ones to check is unset, else only calculate for the input sample set to_check
+        if (to_check.size() == 0 || std::find(to_check.begin(), to_check.end(), n->identifier) != to_check.end()) {
+            size_t nb;
+            size_t ns;
+            findEPPs(&T, n, false, &nb, &ns);
+            if (nb <= max_epps) {
+                good_samples.push_back(n->identifier);
+            }
         }
     }
     return good_samples;

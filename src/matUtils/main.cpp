@@ -149,17 +149,12 @@ void extract_main (po::parsed_options parsed) {
     }
     if (max_epps > 0) {
         if (samples.size() == 0) {
-            samples = get_samples_epps(T, max_epps);
+            //if no samples are indicated, you get it for the whole tree. This does take several hours.
+            samples = get_samples_epps(T, max_epps, samples);
         } else {
-            auto esamples = get_samples_epps(T, max_epps);
-            //only retain samples that are in both the current and new sets.
-            std::vector<std::string> nsamples;
-            for (auto s: samples) {
-                if (std::find(esamples.begin(), esamples.end(), s) != esamples.end()) {
-                    nsamples.push_back(s);
-                }
-            }
-            samples = nsamples;
+            //this specific sample parser implicitly only calculates for values present in samples argument
+            //so it doesn't need any intersection code
+            samples = get_samples_epps(T, max_epps, samples);
             //check to make sure we haven't emptied our sample file; if we have, throw an error
             if (samples.size() == 0) {
                 fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
