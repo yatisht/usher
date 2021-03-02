@@ -162,6 +162,9 @@ void Mutation_Annotated_Tree::write_newick_string (std::stringstream& ss, const 
     for (auto n: traversal) {
         size_t level = n->level-level_offset;
         float branch_length = n->branch_length;
+        if (branch_length == 0) {
+            fprintf(stderr, "Found 0 branch length at node %s!\n", n->identifier.c_str());
+        }
         if (!retain_original_branch_len) {
             branch_length = static_cast<float>(n->mutations.size());
         }

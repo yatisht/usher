@@ -29,6 +29,7 @@ int main(int argc, char** argv) {
     bool sort_before_placement_2 = false;
     bool reverse_sort = false;
     bool collapse_tree=false;
+    bool collapse_output_tree=false;
     bool print_uncondensed_tree = false;
     bool print_parsimony_scores = false;
     bool retain_original_branch_len = false;
@@ -51,6 +52,8 @@ int main(int argc, char** argv) {
          "Reverse the sorting order of sorting options (sort-before-placement-1 or sort-before-placement-2) [EXPERIMENTAL]")
         ("collapse-tree,c", po::bool_switch(&collapse_tree), \
          "Collapse internal nodes of the input tree with no mutations and condense identical sequences in polytomies into a single node and the save the tree to file condensed-tree.nh in outdir")
+        ("collapse-output-tree,C", po::bool_switch(&collapse_output_tree), \
+         "Collapse internal nodes of the output tree with no mutations before the saving the tree to file final-tree.nh in outdir")
         ("max-uncertainty-per-sample,e", po::value<uint32_t>(&max_uncertainty)->default_value(1e6), \
          "Maximum number of equally parsimonious placements allowed per sample beyond which the sample is ignored")
         ("write-uncondensed-final-tree,u", po::bool_switch(&print_uncondensed_tree), "Write the final tree in uncondensed format and save to file uncondensed-final-tree.nh in outdir")
@@ -114,7 +117,7 @@ int main(int argc, char** argv) {
             return 1;
         }
     
-        if (sort_before_placement_1 || sort_before_placement_2 || collapse_tree || print_uncondensed_tree || (print_subtrees_size > 0) || (dout_filename != "")) {
+        if (sort_before_placement_1 || sort_before_placement_2 || collapse_tree || collapse_output_tree || print_uncondensed_tree || (print_subtrees_size > 0) || (dout_filename != "")) {
             fprintf (stderr, "WARNING: --print-parsimony-scores-per-node is set. Will terminate without modifying the original tree.\n");
         }
     }
@@ -1053,6 +1056,27 @@ int main(int argc, char** argv) {
         return 0;
     }
 
+    // Collapse the output tree
+    if (collapse_output_tree) {
+        timer.Start();
+        
+        for (size_t t_idx = 0; t_idx < num_trees; t_idx++) {
+            timer.Start();
+            
+            T = &optimal_trees[t_idx];
+            
+            if (num_trees > 1) {
+                fprintf(stderr, "Collapsing output tree %lu.\n", t_idx+1);
+            }
+            else {
+                fprintf(stderr, "Collapsing output tree.\n");
+            }
+
+            T->collapse_tree();
+
+            fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+        }
+    }
 
     // If user need uncondensed tree output, write uncondensed tree(s) to
     // file(s)
