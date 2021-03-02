@@ -90,6 +90,10 @@ void extract_main (po::parsed_options parsed) {
     bool prune_samples = vm["prune"].as<bool>();
     bool get_representative = vm["get-representative"].as<bool>();
     std::string dir_prefix = vm["output-directory"].as<std::string>();
+    //if the input on dir_prefix doesn't end with a /, go ahead and add that manually
+    if (dir_prefix[dir_prefix.size()-1] != '/') {
+        dir_prefix.append("/");
+    }
     std::string sample_path_filename = dir_prefix + vm["sample-paths"].as<std::string>();
     std::string clade_path_filename = dir_prefix + vm["clade-paths"].as<std::string>();
     std::string tree_filename = dir_prefix + vm["write-tree"].as<std::string>();
