@@ -162,6 +162,9 @@ void Mutation_Annotated_Tree::write_newick_string (std::stringstream& ss, const 
     for (auto n: traversal) {
         size_t level = n->level-level_offset;
         float branch_length = n->branch_length;
+        if (branch_length == 0) {
+            fprintf(stderr, "Found 0 branch length at node %s!\n", n->identifier.c_str());
+        }
         if (!retain_original_branch_len) {
             branch_length = static_cast<float>(n->mutations.size());
         }
@@ -796,6 +799,10 @@ std::vector<Mutation_Annotated_Tree::Node*> Mutation_Annotated_Tree::Tree::rsear
 
 void Mutation_Annotated_Tree::Tree::remove_node_helper (std::string nid, bool move_level) { 
     auto it = all_nodes.find(nid);
+    if (it == all_nodes.end()) {
+        fprintf(stderr, "ERROR: Tried to remove node identifier %s but it was not found!\n", nid.c_str());
+        exit(1);
+    }
     Node* source = it->second;
     Node* curr_parent = source->parent;
     
@@ -807,6 +814,10 @@ void Mutation_Annotated_Tree::Tree::remove_node_helper (std::string nid, bool mo
 
         // Remove parent if it no longer has any children
         if (curr_parent->children.size() == 0) {
+            if (curr_parent == root) {
+                fprintf(stderr, "ERROR: Tree empty!\n");
+                exit(1);
+            }
             remove_node_helper (curr_parent->identifier, move_level);
         }
         // Move the remaining child one level up if it is the only child of its parent 
