@@ -103,6 +103,8 @@ void extract_main (po::parsed_options parsed) {
     fprintf(stderr, "Parsing and applying sample selection arguments\n");
     //TODO: the intersection code is repetitive. There's probably some way to restructure it to reuse
     //the code blocks for checking intersection and whether the sample selection is empty after intersection
+    //also, sample select code could take a previous list of samples to check in some cases like what EPPs does
+    //which could save on runtime compared to getting instances across the whole tree and intersecting
     std::vector<std::string> samples;
     if (input_samples_file != "") {
         samples = read_sample_names(input_samples_file);
@@ -110,6 +112,7 @@ void extract_main (po::parsed_options parsed) {
     if (clade_choice != "") {
         if (samples.size() == 0) {
             samples = get_clade_samples(T, clade_choice);
+            //fprintf(stderr, "DEBUG: %ld samples in vector after clade choice\n", samples.size());
         } else {
             auto cladesamples = get_clade_samples(T, clade_choice);
             //only retain samples that are in both the current and new sets.
@@ -227,19 +230,20 @@ void extract_main (po::parsed_options parsed) {
                 if (canns.size() > 0) {
                     if (canns.size() > 1 || canns[0] != "") {
                         for (auto c: canns) {
-                            if (c != "" && std::find(cladenames.begin(), cladenames.end(), c) != cladenames.end()) {
+                            if (c != "" && std::find(cladenames.begin(), cladenames.end(), c) == cladenames.end()) {
                                 cladenames.push_back(c);
                             }
                         }
                     }
                 }
             }
+            //fprintf(stderr, "DEBUG: %ld clades detected", cladenames.size());
             std::ofstream outfile (clade_path_filename);
             //maybe better to update clade_paths to take an "all current clades" option.
             //should be more computationally efficient at least.
             auto cpaths = clade_paths(subtree, cladenames);
             for (auto cstr: cpaths) {
-                outfile << cstr << "\n";
+                outfile << cstr;
             }
             outfile.close(); 
         }

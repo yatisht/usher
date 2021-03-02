@@ -31,7 +31,9 @@ std::vector<std::string> clade_paths(MAT::Tree T, std::vector<std::string> clade
     //get the set of clade path strings for printing
     //similar to the above, construct a series of strings to be printed or redirected later on
     std::vector<std::string> clpaths;
-    clpaths.push_back("clade\tspecific\tfrom_root");
+    //NOTE: setting aside functionality of getting unique mutations for clarity for the moment, may reimplement later.
+    clpaths.push_back("clade\troot_id\tfrom_tree_root");
+    //clpaths.push_back("clade\troot_id\tspecific\tfrom_tree_root");
     //do a breadth-first search
     //the first time a clade that is in clades is encountered, that's the root;
     //get the path of mutations to that root (rsearch), save the unique mutations + that path
@@ -42,23 +44,27 @@ std::vector<std::string> clade_paths(MAT::Tree T, std::vector<std::string> clade
 
     auto dfs = T.breadth_first_expansion();
     for (auto n: dfs) {
-        std::string curpath = n->identifier + "\t";
+        std::string curpath;
         for (auto ann: n->clade_annotations) {
             if (ann != "") {
                 //if its one of our target clades and it hasn't been seen...
-                if (std::find(clades.begin(), clades.end(), ann) != clades.end() && clades_seen.find(ann) != clades_seen.end()){
-                    //get its own mutations, if there are any
-                    std::string unique = "";
-                    for (size_t i=0; i<n->mutations.size(); i++) {
-                        unique += n->mutations[i].get_string();
-                        if (i+1 < n->mutations.size()) {
-                            unique += ",";
-                        }
-                    }
-                    curpath += unique + "\t";
+                if (std::find(clades.begin(), clades.end(), ann) != clades.end() && clades_seen.find(ann) == clades_seen.end()) {
+                    //record the name of the clade
+                    curpath += ann + "\t";
+                    curpath += n->identifier + "\t";
+                    // //get its own mutations, if there are any
+                    // std::string unique = "";
+                    // for (size_t i=0; i<n->mutations.size(); i++) {
+                    //     unique += n->mutations[i].get_string();
+                    //     if (i+1 < n->mutations.size()) {
+                    //         unique += ",";
+                    //     }
+                    // }
+                    // curpath += unique + "\t";
                     //get the ancestral mutations back to the root
                     std::string root = "";
                     auto root_to_sample = T.rsearch(n->identifier, true);
+                    std::reverse(root_to_sample.begin(), root_to_sample.end());
                     for (auto n: root_to_sample) {
                         for (size_t i=0; i<n->mutations.size(); i++) {
                             root += n->mutations[i].get_string();
@@ -71,10 +77,9 @@ std::vector<std::string> clade_paths(MAT::Tree T, std::vector<std::string> clade
                         }
                     }
                     //save values to the string, mark the clade as seen, and save the string
-                    curpath += unique;
                     curpath += root;
                     clades_seen.insert(ann);
-                    clpaths.push_back(curpath);
+                    clpaths.push_back(curpath + "\n");
                 }
             }
         }
