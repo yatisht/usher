@@ -327,9 +327,14 @@ int main (int argc, char** argv) {
         uncertainty_main(parsed);
     } else if (cmd == "summary") {
         summary_main(parsed);
-    } else if (cmd == "help" || cmd == "--help" || cmd == "-h") { 
-        // TODO: improve this message
-        fprintf(stderr, "matUtils has several major subcommands: annotate, mask, extract, summary, and uncertainty.\nIndividual command options can be accessed with matUtils command --help, e.g. matUtils annotate --help will show annotation-specific help messages.");
+    } else if (cmd == "help") { 
+        fprintf(stderr, "matUtils has several valid subcommands: \n\n"
+        "extract: subsets the input MAT on various conditions and converts to other tree formats\n\n"
+        "summary: calculates basic statistics and counts members in the input MAT\n\n"
+        "annotate: assigns clade identities to nodes, directly or by inference\n\n"
+        "uncertainty: calculates sample placement uncertainty metrics and writes the results to tsv\n\n"
+        "mask: masks the input samples\n\n"
+        "Individual command options can be accessed with matUtils command --help, e.g. matUtils annotate --help will show annotation-specific help messages.\n");
         exit(0);
     } else {
         fprintf(stderr, "Invalid command. Please choose from annotate, mask, extract, summary, uncertainty, or help and try again.\n");
