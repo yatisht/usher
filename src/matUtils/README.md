@@ -19,7 +19,7 @@ This command selects subtrees from the MAT based on clade identification, sample
 
 **-m**: Select samples to extract by whether they contain the indicated mutation.
 
-**-e**: Select samples to extract by whether they have less than the indicated number of equally parsimonious placements.
+**-e**: Select samples to extract by whether they have less than the indicated number of equally parsimonious placements. Note: adds significantly to runtime with large sample selections.
 
 **-a**: Select samples to extract by whether their parsimony score (terminal branch length) is less than the indicated value.
 
@@ -33,7 +33,7 @@ This command selects subtrees from the MAT based on clade identification, sample
 
 **--clade-paths**: Write the path of mutations defining each clade in the subtree after sample extraction to a file.
 
-**-v**: Convert the subtree to a VCF and write to this file.
+**-v**: Convert the subtree to a VCF and write it to the indicated file.
 
 **-n**: Do not include sample genotype columns in the VCF output. Used only with -v
 
