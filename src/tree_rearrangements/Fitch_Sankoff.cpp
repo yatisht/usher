@@ -65,7 +65,7 @@ static void set_leaf_score(MAT::Node &this_node,
 
 std::pair<int, char>
 Fitch_Sankoff::get_child_score_on_par_nuc(char par_nuc,
-                           Score_Type &child_scores) {
+                           const Score_Type &child_scores) {
     assert(par_nuc<4);
     int min_score = INT_MAX;
     char min_state = -1;
@@ -138,7 +138,7 @@ void Fitch_Sankoff::set_internal_score(const MAT::Node &this_node, Scores_Type &
     }
 }
 
-std::pair<size_t, size_t> Fitch_Sankoff::dfs_range(const MAT::Node *start,std::vector<MAT::Node *> &dfs_ordered_nodes) {
+std::pair<size_t, size_t> Fitch_Sankoff::dfs_range(const MAT::Node *start,const std::vector<MAT::Node *> &dfs_ordered_nodes) {
     size_t start_idx = start->index;
     size_t stop_idx = INT_MAX;
     if (!start->parent) {

@@ -67,6 +67,7 @@ namespace Mutation_Annotated_Tree {
         Mutation () {
             chrom = "";
             is_missing = false;
+            position=-1;
         }
 
         bool operator==(const Mutation& other) const{
@@ -126,6 +127,7 @@ namespace Mutation_Annotated_Tree {
         static const char MERGE=2;
         static const char INVERT_MERGE=3;
         typedef std::vector<Mutation>::iterator iterator;
+        typedef std::vector<Mutation>::const_iterator const_iterator;
         size_t size() const {return mutations.size();}
         Mutations_Collection():dirty_flag(0){}
         Mutations_Collection(const Mutations_Collection& ori):mutations(ori.mutations),dirty_flag(0){
@@ -138,6 +140,9 @@ namespace Mutation_Annotated_Tree {
         Mutation& operator[] (size_t idx){
             return mutations[idx];
         }
+        const Mutation& operator[] (size_t idx) const{
+            return mutations[idx];
+        }
         void operator=(const Mutations_Collection & other){
             mutations=other.mutations;
         }
@@ -145,6 +150,12 @@ namespace Mutation_Annotated_Tree {
             return mutations.begin();
         }
         iterator end(){
+            return mutations.end();
+        }
+        const_iterator begin() const {
+            return mutations.begin();
+        }
+        const_iterator end() const{
             return mutations.end();
         }
         void clear(){

@@ -5,7 +5,7 @@ project(strain_phylogenetics)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -std=c++11 -Wall -g -Wno-unused-function")
 set(CMAKE_INCLUDE_CURRENT_DIR ON) 
-set(CMAKE_CXX_FLAGS_DEBUG "-Og -fsanitize=address  -fsanitize=undefined -fsanitize=leak")
+set(CMAKE_CXX_FLAGS_DEBUG "-O0 -fsanitize=address  -fsanitize=undefined -fsanitize=leak")
 
 if(DEFINED Protobuf_PATH) 
     find_package(Protobuf REQUIRED HINTS ${Protobuf_PATH}) 
@@ -52,6 +52,11 @@ if(DEFINED Protobuf_PATH)
     #    src/serializer_check.cpp
     #    src/tree_rearrangements/Profitable_Move_Cacher.cpp
     #)
+    
+    add_executable(possible_muts_test
+        src/tree_rearrangements/get_possible_muts_at_tip.cpp
+    )
+    
     protobuf_generate(
         LANGUAGE cpp
         TARGET usher 
@@ -91,6 +96,16 @@ else()
     #    src/tree_rearrangements/Profitable_Move_Cacher.cpp
     #)
     
+    add_executable(possible_muts_test
+    src/tree_rearrangements/get_possible_muts_at_tip.cpp
+    src/mutation_annotated_tree.cpp
+    src/Mutation_Collection.cpp
+    src/tree_rearrangements/Fitch_Sankoff.cpp
+    src/tree_rearrangements/check_samples.cpp
+    ${PROTO_SRCS}
+    ${PROTO_HDRS}
+)
+    
 endif()
 
 if(SAVE_PROFILE)
@@ -107,8 +122,10 @@ else(SAVE_PROFILE)
     endif(DEBUG)
 endif(SAVE_PROFILE)
 
+TARGET_COMPILE_OPTIONS(possible_muts_test PRIVATE -DTEST -DNDEBUG)
+
 TARGET_LINK_LIBRARIES(usher PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
-#TARGET_LINK_LIBRARIES(serializer_test PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
+TARGET_LINK_LIBRARIES(possible_muts_test PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
 
 TARGET_COMPILE_OPTIONS(matUtils PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
 TARGET_LINK_LIBRARIES(matUtils PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
