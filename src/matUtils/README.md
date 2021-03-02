@@ -9,6 +9,52 @@ matUtils is a toolkit for working with mutation annotated tree protobuf files, t
 
 **-h**: Print help messages
 
+## Extract
+
+This command selects subtrees from the MAT based on clade identification, sample choice files, or placement quality metrics, and optionally converts to other file formats, including vcf and newick.
+
+**-s**: Select samples to extract by explicitly naming them, one per line in a text file.
+
+**-c**: Select samples to extract by membership in the indicated clade.
+
+**-m**: Select samples to extract by whether they contain the indicated mutation.
+
+**-e**: Select samples to extract by whether they have less than the indicated number of equally parsimonious placements. Note: adds significantly to runtime with large sample selections.
+
+**-a**: Select samples to extract by whether their parsimony score (terminal branch length) is less than the indicated value.
+
+**-r**: Automatically select two samples per unique clade identifier to extract.
+
+**-p**: Prune the samples indicated by other arguments instead of extracting them to create the subtree.
+
+**-d**: Set the directory to save output files. Directory must already exist. Default is current directory
+
+**--sample-paths**: Write the path of mutations defining each selected sample to a file.
+
+**--clade-paths**: Write the path of mutations defining each clade in the subtree after sample extraction to a file.
+
+**-v**: Convert the subtree to a VCF and write it to the indicated file.
+
+**-n**: Do not include sample genotype columns in the VCF output. Used only with -v
+
+**-o**: Create a new MAT .pb file representing the extracted subtree. 
+
+**--collapse-tree**: Collapse the subtree before saving.
+
+**-t**: Write a newick string representing the extracted subtree to the indicated file.
+
+## Summary
+
+This command gets basic statistics about the input MAT.
+
+### Specific Options
+
+**-s**: Write a tsv listing all samples in the tree and their parsimony scores (terminal branch length).
+
+**-c**: Write a tsv listing all clades in the tree and their occurrence over nodes in the tree.
+
+**-m**: Write a tsv listing all mutations in the tree and their occurrence count.
+
 ## Annotate
 
 The annotate command takes a MAT protobuf file and a two-column tab-separated text file indicating sample names and lineage assignments. The software will automatically identify the best clade root for that lineage and save the assignment to each sample indicated, returning a new protobuf with these values stored.
@@ -21,47 +67,13 @@ The annotate command takes a MAT protobuf file and a two-column tab-separated te
 
 **-f**: Set the minimum allele frequency in samples to find the best clade root node (default = 0.9)
 
-## Convert 
+**-c**: Path to a file containing clade asssignments of samples. An algorithm automatically locates and annotates clade root nodes.
 
-The convert subcommand yields non-protobuf format files representing the tree. This can be a newick format file and/or a VCF representing each sample's variations from the reference. 
+**-C**: Path to a tsv file mapping clades to their respective internal node identifiers. Used to directly assign labels without inference.
 
-### Specific Options
+**-s**: Minimum fraction of the clade samples that should be desecendants of the assigned clade root (default = 0.6)
 
-**-v**: Output VCF file 
-
-**-t**: Output Newick tree file
-
-**-n**: Do not include sample genotype columns in VCF output. Used only with -v
-
-## Filter
-
-The filter subcommand restricts indicated sample names and returns a masked protobuf.
-
-### Specific Options
-
-**-o**: Output mutation-annotated tree file (REQUIRED)
-
-**-s**: Use to mask specific samples from the tree. 
-
-## Describe
-
-Describe fetches the path of mutations associated with each indicated sample's placement on the tree and prints the results.
-
-### Specific Options
- 
-**-m**: File containing sample names for which mutation paths should be displayed (REQUIRED)
-
-## Prune
-
-Prune removes an indicated set of samples from the input MAT, returning a smaller MAT.
-
-### Specific Options
-
-**-o**: Output mutation annotated tree [REQUIRED]
-
-**-p**: File containing names of samples to be pruned from the input MAT.
-
-**-P**: File containing names of samples to retain in the input MAT, pruning all others.
+**-l**: Clear current clade annotations before applying new ones.
 
 ## Uncertainty
 
@@ -76,3 +88,13 @@ The uncertainty command calculates placement quality metrics for a set of sample
 **-e**: Name for an output Nextstrain Auspice-compatible .tsv file of the number of equally parsimonious placement values for each indicated sample- smaller is better, best is 1 (requires -s).
 
 **-n**: Name for an output Nextstrain Auspice-compatible .tsv file of neighborhood size scores for the equally parsimonious placements for each indicated sample- smaller is better, best is 0 (requires -s).
+
+## Mask
+
+The mask subcommand restricts indicated sample names and returns a masked protobuf.
+
+### Specific Options
+
+**-o**: Output mutation-annotated tree file (REQUIRED)
+
+**-s**: Use to mask specific samples from the tree. 
