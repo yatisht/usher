@@ -313,7 +313,10 @@ void findEPPs_wrapper (MAT::Tree Tobj, std::string sample_file, std::string fepp
             samples.emplace_back(sample);
         }
         fprintf(stderr, "Processing %ld samples\n", samples.size()); 
-    } 
+    } else {
+        fprintf(stderr, "WARNING: No sample file indicated; calculating for full tree\n");
+        samples = T->get_leaves_ids();
+    }
     //this loop is not a parallel for because its going to contain a parallel for.
     //this specific function would probably be better optimized if the outer was parallelized and the inner was not
     //but having the inner loop parallelized lets me use parallelization when calculating EPPs for very few or single samples in the future
@@ -430,6 +433,9 @@ void uncertainty_main(po::parsed_options parsed) {
         findEPPs_wrapper(T, sample_file, fepps, fneigh);
     }
     if (get_parsimony){
-        fprintf(stderr, "Total Tree Parsimony %ld", T.get_parsimony_score());
+        fprintf(stderr, "Total Tree Parsimony %ld\n", T.get_parsimony_score());
+    }
+    if (fepps != "" && fneigh != "" && !get_parsimony) {
+        fprintf(stderr, "No actions chosen. Review arguments\n")
     }
 }
