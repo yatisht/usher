@@ -37,15 +37,15 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
         "Remove the selected samples instead of keeping them in the output files.")
         ("output-directory,d", po::value<std::string>()->default_value("./"),
         "Write output files to the target directory. Default is current directory. NOTE: The target directory must already exist.")
-        ("sample-paths", po::value<std::string>()->default_value(""),
+        ("sample-paths,S", po::value<std::string>()->default_value(""),
         "Write the path of mutations defining each selected sample to the target file (all samples if no selection arguments)")
-        ("clade-paths", po::value<std::string>()->default_value(""),
+        ("clade-paths,C", po::value<std::string>()->default_value(""),
         "Write the path of mutations defining each clade in the tree after sample selection to the target file.")
         ("write-vcf,v", po::value<std::string>()->default_value(""),
          "Output VCF file representing selected subtree. Default is full tree")
         ("no-genotypes,n", po::bool_switch(),
         "Do not include sample genotype columns in VCF output. Used only with the write-vcf option")
-        ("collapse-tree", po::bool_switch(),
+        ("collapse-tree,C", po::bool_switch(),
         "Collapse the MAT before writing it to output. Used only with the write-mat option")
         ("write-mat,o", po::value<std::string>()->default_value(""),
         "Write the selected tree as a new protobuf to the target file.")
@@ -336,7 +336,14 @@ int main (int argc, char** argv) {
         "Individual command options can be accessed with matUtils command --help, e.g. matUtils annotate --help will show annotation-specific help messages.\n");
         exit(0);
     } else {
-        fprintf(stderr, "Invalid command. Please choose from annotate, mask, extract, summary, uncertainty, or help and try again.\n");
+        fprintf(stderr, "Invalid command. Help follows:\n"
+        "matUtils has several valid subcommands: \n\n"
+        "extract: subsets the input MAT on various conditions and converts to other tree formats\n\n"
+        "summary: calculates basic statistics and counts members in the input MAT\n\n"
+        "annotate: assigns clade identities to nodes, directly or by inference\n\n"
+        "uncertainty: calculates sample placement uncertainty metrics and writes the results to tsv\n\n"
+        "mask: masks the input samples\n\n"
+        "Individual command options can be accessed with matUtils command --help, e.g. matUtils annotate --help will show annotation-specific help messages.\n");
         exit(1);
     }
 
