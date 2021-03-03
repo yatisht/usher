@@ -313,6 +313,7 @@ int main (int argc, char** argv) {
         po::store(parsed, vm);
         cmd = vm["command"].as<std::string>();
     } catch (...) { //not sure this is the best way to catch it when matUtils is called with no positional arguments.
+        //TODO: I probably don't need to define this help string so many times.
         fprintf(stderr, "No command selected. Help follows:\n"
         "matUtils has several valid subcommands: \n\n"
         "extract: subsets the input MAT on various conditions and converts to other tree formats\n\n"
