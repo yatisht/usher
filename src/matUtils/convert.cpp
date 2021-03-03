@@ -1,79 +1,5 @@
 #include "convert.hpp"
 
-po::variables_map parse_convert_command(po::parsed_options parsed) {
-
-    uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
-    std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
-
-    po::variables_map vm;
-    po::options_description conv_desc("convert options");
-    conv_desc.add_options()
-        ("input-mat,i", po::value<std::string>()->required(),
-         "Input mutation-annotated tree file [REQUIRED]")
-        ("write-vcf,v", po::value<std::string>()->default_value(""),
-         "Output VCF file ")
-        ("no-genotypes,n", po::bool_switch(),
-        "Do not include sample genotype columns in VCF output. Used only with the vcf option")
-        ("write-tree,t", po::value<std::string>()->default_value(""),
-         "Use to write a newick tree to the indicated file.")
-        ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
-        ("help,h", "Print help messages");
-    // Collect all the unrecognized options from the first pass. This will include the
-    // (positional) command name, so we need to erase that.
-    std::vector<std::string> opts = po::collect_unrecognized(parsed.options, po::include_positional);
-    opts.erase(opts.begin());
-
-    // Run the parser, with try/catch for help
-    try{
-        po::store(po::command_line_parser(opts)
-                  .options(conv_desc)
-                  .run(), vm);
-        po::notify(vm);
-    }
-    catch(std::exception &e){
-        std::cerr << conv_desc << std::endl;
-        // Return with error code 1 unless the user specifies help
-        if (vm.count("help"))
-            exit(0);
-        else
-            exit(1);
-    }
-    return vm;
-}
-
-void convert_main(po::parsed_options parsed) {
-    //the convert subcommand converts the protobuf into another file format, returning some other file type that represents an equivalent structure
-    po::variables_map vm = parse_convert_command(parsed);
-    std::string input_mat_filename = vm["input-mat"].as<std::string>();
-    std::string tree_filename = vm["write-tree"].as<std::string>();
-    std::string vcf_filename = vm["write-vcf"].as<std::string>();
-    bool no_genotypes = vm["no-genotypes"].as<bool>();
-    uint32_t num_threads = vm["threads"].as<uint32_t>();
-
-    tbb::task_scheduler_init init(num_threads);
-
-    // Load input MAT and uncondense tree
-    MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
-    //T here is the actual object.
-    if (T.condensed_nodes.size() > 0) {
-      T.uncondense_leaves();
-    }
-    //if a vcf filename was given, write a vcf to it
-    if (vcf_filename != "") {
-        fprintf(stderr, "Generating VCF\n");
-        make_vcf(T, vcf_filename, no_genotypes);
-    }
-    //if a newick tree filename was given, write a tree to it
-    if (tree_filename != "") {
-        fprintf(stderr, "Generating Newick file\n");
-        auto tree_filepath = "./" + tree_filename; //for simplicity, write it to this directory
-        FILE *tree_file = fopen(tree_filepath.c_str(), "w");
-        fprintf(tree_file, "%s\n",
-            MAT::get_newick_string(T, true, true, true).c_str());
-        fclose(tree_file);        
-    }
-}
-
 void write_vcf_header(FILE *vcf_file, std::vector<Mutation_Annotated_Tree::Node*> &dfs,
                       bool print_genotypes) {
     // Write minimal VCF header with sample names in same order that genotypes
@@ -302,3 +228,40 @@ void make_vcf (MAT::Tree T, std::string vcf_filename, bool no_genotypes) {
     fclose(vcf_file);
 }
 
+// //code for JSON production starts below
+// std::string node_to_json (MAT::Node N) {
+//     //this function converts a single node into a json string for printing representing that node.
+//     //going to use one append per line, generally
+//     std::string jsonstr = "{\n\"name\": \"" + N->identifier + "\",\n";
+//     jsonstr.append("\"node_attrs\": {\n");
+//     jsonstr.append("\"num_date\": {\n");
+//     //num_date requires a float value from the date string, which can be extracted from the identifier.
+//     std::string datestr = N->identifier.substring(N->identifier.find_last_of("|"), N->identifier.end());
+//     std::string floatdate = std::to_string(date_to_float(datestr));
+//     jsonstr.append("\"value\": " + floatdate + "\n}\n");
+//     //additional metadata would go into the string block at this line.
+//     //print an additional bracket to close the node_attrs block.
+//     jsonstr.append("},\n");
+//     jsonstr.append("\"branch_attrs\": {\n");
+//     jsonstr.append("\"mutations\": {\n")
+// }
+
+// float date_to_float (std::string datestr) {
+//     //auspice encodes month/date as a float value as a percentage of the year
+//     //for ex, 2016.8350444900752 is 11-1-2016.
+//     //so we need to be able to convert that.
+//     //we store the date in the node identifier as the value after the |
+//     //formatted as year in 2 digits (20, 21)- month in two digits with 0 (02)- date in two digits
+//     float year = std::stof(datestr.substring(0,2)) + 2000.0;
+//     float month = std::stdof(datestr.substring(3,2));
+//     float day = std::stodf(datestr.substring(5,2));
+//     float monthlens[12] = {31.0,28.0,31.0,20.0,31.0,30.0,31.0,31.0,30.0,31.0,30.0,31.0}; //not worrying about leap years.
+//     float total_days = 0.0;
+//     for (size_t i=0; i<=month; i++) {
+//         total_days += monthlens[i];
+//     }
+//     total_days += day;
+//     float finalval = year + (total_days/365);
+    
+//     return finalval;
+// }
