@@ -29,9 +29,9 @@ This command selects subtrees from the MAT based on clade identification, sample
 
 **-d**: Set the directory to save output files. Directory must already exist. Default is current directory
 
-**--sample-paths**: Write the path of mutations defining each selected sample to a file.
+**-S**: Write the path of mutations defining each selected sample to a file.
 
-**--clade-paths**: Write the path of mutations defining each clade in the subtree after sample extraction to a file.
+**-C**: Write the path of mutations defining each clade in the subtree after sample extraction to a file.
 
 **-v**: Convert the subtree to a VCF and write it to the indicated file.
 
@@ -39,7 +39,7 @@ This command selects subtrees from the MAT based on clade identification, sample
 
 **-o**: Create a new MAT .pb file representing the extracted subtree. 
 
-**--collapse-tree**: Collapse the subtree before saving.
+**-O**: Collapse the subtree before saving.
 
 **-t**: Write a newick string representing the extracted subtree to the indicated file.
 
