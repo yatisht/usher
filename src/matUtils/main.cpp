@@ -45,7 +45,7 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
          "Output VCF file representing selected subtree. Default is full tree")
         ("no-genotypes,n", po::bool_switch(),
         "Do not include sample genotype columns in VCF output. Used only with the write-vcf option")
-        ("collapse-tree,C", po::bool_switch(),
+        ("collapse-tree,O", po::bool_switch(),
         "Collapse the MAT before writing it to output. Used only with the write-mat option")
         ("write-mat,o", po::value<std::string>()->default_value(""),
         "Write the selected tree as a new protobuf to the target file.")
