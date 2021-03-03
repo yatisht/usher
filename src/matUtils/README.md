@@ -57,7 +57,7 @@ This command gets basic statistics about the input MAT.
 
 ## Annotate
 
-The annotate command takes a MAT protobuf file and a two-column tab-separated text file indicating sample names and lineage assignments. The software will automatically identify the best clade root for that lineage and save the assignment to each sample indicated, returning a new protobuf with these values stored.
+The annotate command takes a MAT protobuf file and a two-column tab-separated text file indicating sample names and lineage assignments. The software will automatically identify the best clade root for that lineage and save the assignment to each sample indicated, returning a new protobuf with these values stored. Optionally, it can take a tsv directly mapping clades to internal node identifiers (with -C) and assign labels accordingly without inference.
 
 ### Specific Options
 
@@ -89,7 +89,7 @@ The uncertainty command calculates placement quality metrics for a set of sample
 
 **-n**: Name for an output Nextstrain Auspice-compatible .tsv file of neighborhood size scores for the equally parsimonious placements for each indicated sample- smaller is better, best is 0 (requires -s).
 
-## Mask
+## Mask [EXPERIMENTAL]
 
 The mask subcommand restricts indicated sample names and returns a masked protobuf.
 
