@@ -313,8 +313,15 @@ int main (int argc, char** argv) {
         po::store(parsed, vm);
         cmd = vm["command"].as<std::string>();
     } catch (...) { //not sure this is the best way to catch it when matUtils is called with no positional arguments.
-        fprintf(stderr, "No command selected. Please choose from annotate, mask, extract, summary, uncertainty, or help and try again.\n");
-        exit(0);
+        fprintf(stderr, "No command selected. Help follows:\n"
+        "matUtils has several valid subcommands: \n\n"
+        "extract: subsets the input MAT on various conditions and converts to other tree formats\n\n"
+        "summary: calculates basic statistics and counts members in the input MAT\n\n"
+        "annotate: assigns clade identities to nodes, directly or by inference\n\n"
+        "uncertainty: calculates sample placement uncertainty metrics and writes the results to tsv\n\n"
+        "mask: masks the input samples\n\n"
+        "Individual command options can be accessed with matUtils command --help, e.g. matUtils annotate --help will show annotation-specific help messages.\n");
+        exit(1);
     }
     if (cmd == "extract") {
         extract_main(parsed);
