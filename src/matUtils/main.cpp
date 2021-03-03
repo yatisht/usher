@@ -118,7 +118,7 @@ void extract_main (po::parsed_options parsed) {
     //explicit setting goes first, then clade, then mutation, then epps- in order of increasing runtime for checking sample membership
     //to maximize efficiency (no need to calculate epps for a sample you're going to throw out in the next statement)
     timer.Start();
-    fprintf(stderr, "Parsing and applying sample selection arguments\n");
+    fprintf(stderr, "Checking for and applying sample selection arguments\n");
     //TODO: sample select code could take a previous list of samples to check in some cases like what EPPs does
     //which could save on runtime compared to getting instances across the whole tree and intersecting
     //though the current setup would enable more complex things, like saying this OR this in arguments, it's less efficient
@@ -303,7 +303,7 @@ void extract_main (po::parsed_options parsed) {
         wrote_output = true;
     }
     if (!wrote_output) {
-        fprintf(stderr, "WARNING: No output files requested!");
+        fprintf(stderr, "WARNING: No output files requested!\n");
     }
 }
 
@@ -319,19 +319,19 @@ int main (int argc, char** argv) {
     po::variables_map vm;
     po::parsed_options parsed = po::command_line_parser(argc, argv).options(global).positional(pos).allow_unregistered().run();
     //this help string shows up over and over, lets just define it once
-    std::string helpstr = "No command selected. Help follows:\n\n"
-        "matUtils has several valid subcommands: \n\n"
+    std::string helpstr = "matUtils has several valid subcommands: \n\n"
         "extract: subsets the input MAT on various conditions and/or converts to other formats (MAT, newick, VCF, etc)\n\n"
         "summary: calculates basic statistics and counts members in the input MAT\n\n"
         "annotate: assigns clade identities to nodes, directly or by inference\n\n"
         "uncertainty: calculates sample placement uncertainty metrics and writes the results to tsv\n\n"
         "mask: masks the input samples\n\n"
-        "Individual command options can be accessed with matUtils command --help, e.g. matUtils annotate --help will show annotation-specific help messages.\n";
+        "Individual command options can be accessed with matUtils command --help, e.g. matUtils annotate --help will show annotation-specific help messages.\n\n";
     
     try {
         po::store(parsed, vm);
         cmd = vm["command"].as<std::string>();
     } catch (...) { //not sure this is the best way to catch it when matUtils is called with no positional arguments.
+        fprintf(stderr, "No command selected. Help follows:\n\n");
         fprintf(stderr, helpstr.c_str());
         exit(1);
     }
@@ -349,6 +349,7 @@ int main (int argc, char** argv) {
         fprintf(stderr, helpstr.c_str());
         exit(0);
     } else {
+        fprintf(stderr, "Invalid command. Help follows:\n\n");
         fprintf(stderr, helpstr.c_str());
         exit(1);
     }
