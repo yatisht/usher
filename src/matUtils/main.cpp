@@ -278,12 +278,12 @@ void extract_main (po::parsed_options parsed) {
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
     //last step is to convert the subtree to other file formats
-    if (vcf_filename != "./") {
+    if (vcf_filename != dir_prefix) {
         fprintf(stderr, "Generating VCF of final tree\n");
         make_vcf(subtree, vcf_filename, no_genotypes);
         wrote_output = true;
     }
-    if (tree_filename != "./") {
+    if (tree_filename != dir_prefix) {
         fprintf(stderr, "Generating Newick file of final tree\n");
         FILE *tree_file = fopen(tree_filename.c_str(), "w");
         fprintf(tree_file, "%s\n",
@@ -292,7 +292,7 @@ void extract_main (po::parsed_options parsed) {
         wrote_output = true;
     }
     //and save a MAT if that was set
-    if (output_mat_filename != "./") {
+    if (output_mat_filename != dir_prefix) {
         fprintf(stderr, "Saving output MAT file %s.\n", output_mat_filename.c_str()); 
         subtree.condense_leaves();
         if (collapse_tree) {
