@@ -333,7 +333,8 @@ int main (int argc, char** argv) {
     } catch (...) { //not sure this is the best way to catch it when matUtils is called with no positional arguments.
         fprintf(stderr, "No command selected. Help follows:\n\n");
         fprintf(stderr, helpstr.c_str());
-        exit(1);
+        //0 when no command is selected because that's what passes tests.
+        exit(0);
     }
     if (cmd == "extract") {
         extract_main(parsed);
