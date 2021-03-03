@@ -79,7 +79,7 @@ void annotate_main(po::parsed_options parsed) {
             assignLineages(T, clade_filename, allele_frequency, set_overlap, clear_current);
         }
         else {
-            assignLineages(T, clade_to_nid_filename);
+            assignLineages(T, clade_to_nid_filename, clear_current);
         }
     }
 
