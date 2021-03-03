@@ -179,8 +179,8 @@ void summary_main(po::parsed_options parsed) {
                 samplecount++;
             }
         }
-        fprintf(stderr, "Total Nodes in Tree: %d\n", nodecount);
-        fprintf(stderr, "Total Samples in Tree: %d\n", samplecount);
+        fprintf(stdout, "Total Nodes in Tree: %d\n", nodecount);
+        fprintf(stdout, "Total Samples in Tree: %d\n", samplecount);
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
 }
