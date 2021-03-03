@@ -230,6 +230,8 @@ void extract_main (po::parsed_options parsed) {
         //run filter master again
         subtree = filter_master(subtree, rep_samples, false);
     }
+    //adding a bool to sanity check that the user actually requested some kind of output
+    bool wrote_output = false;
 
     //if additional information was requested, save it to the target files
     if (sample_path_filename != "./" || clade_path_filename != "./") {
@@ -242,6 +244,7 @@ void extract_main (po::parsed_options parsed) {
                 outfile << mstr << "\n";
             }
             outfile.close();
+            wrote_output = true;
         }
         if (clade_path_filename != "") {
             //need to get the set of all clade annotations currently in the tree for the clade_paths function
@@ -270,14 +273,15 @@ void extract_main (po::parsed_options parsed) {
                 outfile << cstr;
             }
             outfile.close(); 
+            wrote_output = true;
         }
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
-
     //last step is to convert the subtree to other file formats
     if (vcf_filename != "./") {
         fprintf(stderr, "Generating VCF of final tree\n");
         make_vcf(subtree, vcf_filename, no_genotypes);
+        wrote_output = true;
     }
     if (tree_filename != "./") {
         fprintf(stderr, "Generating Newick file of final tree\n");
@@ -285,6 +289,7 @@ void extract_main (po::parsed_options parsed) {
         fprintf(tree_file, "%s\n",
             MAT::get_newick_string(subtree, true, true, true).c_str());
         fclose(tree_file);        
+        wrote_output = true;
     }
     //and save a MAT if that was set
     if (output_mat_filename != "./") {
@@ -295,6 +300,10 @@ void extract_main (po::parsed_options parsed) {
         }
         MAT::save_mutation_annotated_tree(subtree, output_mat_filename);
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+        wrote_output = true;
+    }
+    if (!wrote_output) {
+        fprintf(stderr, "WARNING: No output files requested!");
     }
 }
 
@@ -309,19 +318,21 @@ int main (int argc, char** argv) {
     std::string cmd;
     po::variables_map vm;
     po::parsed_options parsed = po::command_line_parser(argc, argv).options(global).positional(pos).allow_unregistered().run();
-    try {
-        po::store(parsed, vm);
-        cmd = vm["command"].as<std::string>();
-    } catch (...) { //not sure this is the best way to catch it when matUtils is called with no positional arguments.
-        //TODO: I probably don't need to define this help string so many times.
-        fprintf(stderr, "No command selected. Help follows:\n"
+    //this help string shows up over and over, lets just define it once
+    std::string helpstr = "No command selected. Help follows:\n\n"
         "matUtils has several valid subcommands: \n\n"
-        "extract: subsets the input MAT on various conditions and converts to other tree formats\n\n"
+        "extract: subsets the input MAT on various conditions and/or converts to other formats (MAT, newick, VCF, etc)\n\n"
         "summary: calculates basic statistics and counts members in the input MAT\n\n"
         "annotate: assigns clade identities to nodes, directly or by inference\n\n"
         "uncertainty: calculates sample placement uncertainty metrics and writes the results to tsv\n\n"
         "mask: masks the input samples\n\n"
-        "Individual command options can be accessed with matUtils command --help, e.g. matUtils annotate --help will show annotation-specific help messages.\n");
+        "Individual command options can be accessed with matUtils command --help, e.g. matUtils annotate --help will show annotation-specific help messages.\n";
+    
+    try {
+        po::store(parsed, vm);
+        cmd = vm["command"].as<std::string>();
+    } catch (...) { //not sure this is the best way to catch it when matUtils is called with no positional arguments.
+        fprintf(stderr, helpstr.c_str());
         exit(1);
     }
     if (cmd == "extract") {
@@ -335,26 +346,12 @@ int main (int argc, char** argv) {
     } else if (cmd == "summary") {
         summary_main(parsed);
     } else if (cmd == "help") { 
-        fprintf(stderr, "matUtils has several valid subcommands: \n\n"
-        "extract: subsets the input MAT on various conditions and converts to other tree formats\n\n"
-        "summary: calculates basic statistics and counts members in the input MAT\n\n"
-        "annotate: assigns clade identities to nodes, directly or by inference\n\n"
-        "uncertainty: calculates sample placement uncertainty metrics and writes the results to tsv\n\n"
-        "mask: masks the input samples\n\n"
-        "Individual command options can be accessed with matUtils command --help, e.g. matUtils annotate --help will show annotation-specific help messages.\n");
+        fprintf(stderr, helpstr.c_str());
         exit(0);
     } else {
-        fprintf(stderr, "Invalid command. Help follows:\n"
-        "matUtils has several valid subcommands: \n\n"
-        "extract: subsets the input MAT on various conditions and converts to other tree formats\n\n"
-        "summary: calculates basic statistics and counts members in the input MAT\n\n"
-        "annotate: assigns clade identities to nodes, directly or by inference\n\n"
-        "uncertainty: calculates sample placement uncertainty metrics and writes the results to tsv\n\n"
-        "mask: masks the input samples\n\n"
-        "Individual command options can be accessed with matUtils command --help, e.g. matUtils annotate --help will show annotation-specific help messages.\n");
+        fprintf(stderr, helpstr.c_str());
         exit(1);
     }
-
 
     return 0;
 }
