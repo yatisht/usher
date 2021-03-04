@@ -24,9 +24,9 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
         ("samples,s", po::value<std::string>()->default_value(""),
         "Select samples by explicitly naming them. One per line")
         ("clade,c", po::value<std::string>()->default_value(""),
-        "Select samples by membership in the indicated clade(s), comma delimited.")
+        "Select samples by membership in at least one of the indicated clade(s), comma delimited.")
         ("mutation,m", po::value<std::string>()->default_value(""),
-        "Select samples by whether they contain the indicated mutation(s), comma delimited.")
+        "Select samples by whether they contain any of the indicated mutation(s), comma delimited.")
         ("max-epps,e", po::value<size_t>()->default_value(0),
         "Select samples by whether they have less than the maximum indicated number of equally parsimonious placements. Note: calculation adds significantly to runtime.")
         ("max-parsimony,a", po::value<int>()->default_value(-1),
@@ -235,6 +235,7 @@ void extract_main (po::parsed_options parsed) {
     //the final step of selection is to invert the set if prune is set
     //this is done by getting all sample names which are not in the samples vector.
     if (prune_samples) {
+        fprintf(stderr, "Sample pruning requested...\n");
         std::vector<std::string> nsamples;
         for (auto s: T.get_leaves_ids()) {
             //for every sample in the tree, if that sample is NOT in the selected set, save it
@@ -384,7 +385,7 @@ int main (int argc, char** argv) {
         cmd = vm["command"].as<std::string>();
     } catch (...) { //not sure this is the best way to catch it when matUtils is called with no positional arguments.
         fprintf(stderr, "No command selected. Help follows:\n\n");
-        fprintf(stderr, helpstr.c_str());
+        fprintf(stderr, "%s", helpstr.c_str());
         //0 when no command is selected because that's what passes tests.
         exit(0);
     }
@@ -399,11 +400,11 @@ int main (int argc, char** argv) {
     } else if (cmd == "summary") {
         summary_main(parsed);
     } else if (cmd == "help") { 
-        fprintf(stderr, helpstr.c_str());
+        fprintf(stderr, "%s", helpstr.c_str());
         exit(0);
     } else {
         fprintf(stderr, "Invalid command. Help follows:\n\n");
-        fprintf(stderr, helpstr.c_str());
+        fprintf(stderr, "%s", helpstr.c_str());
         exit(1);
     }
 
