@@ -35,13 +35,13 @@ std::vector<std::string> clade_paths(MAT::Tree T, std::vector<std::string> clade
     //unique mutations being ones that occurred in the clade root, and the path being all mutations from that root back to the tree root
     //then continue. if a clade has already been encountered in the breadth first, its
     //not clade root, and should be skipped.
-    std::unordered_set<std::string> clades_seen;
+    std::set<std::string> clades_seen;
 
     auto dfs = T.breadth_first_expansion();
     for (auto n: dfs) {
-        std::string curpath;
         for (auto ann: n->clade_annotations) {
             if (ann != "") {
+                std::string curpath;
                 //if its one of our target clades and it hasn't been seen...
                 if (std::find(clades.begin(), clades.end(), ann) != clades.end() && clades_seen.find(ann) == clades_seen.end()) {
                     //record the name of the clade
