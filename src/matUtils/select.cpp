@@ -83,9 +83,11 @@ std::vector<std::string> get_mutation_samples (MAT::Tree T, std::string mutation
             for (auto anc_node: path) {
                 if (!assigned) {
                     for (auto m: anc_node->mutations) {
-                        good_samples.push_back(node->identifier);
-                        assigned = true;
-                        break;                
+                        if (m.get_string() == mutation_id) {
+                            good_samples.push_back(node->identifier);
+                            assigned = true;
+                            break;     
+                        }
                     }
                 } else {
                     break;
@@ -93,6 +95,7 @@ std::vector<std::string> get_mutation_samples (MAT::Tree T, std::string mutation
             }
         }
     }
+    // fprintf(stderr, "# of good samples %ld\n", good_samples.size());
     return good_samples;
 }
 

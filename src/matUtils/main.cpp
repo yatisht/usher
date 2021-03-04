@@ -24,9 +24,9 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
         ("samples,s", po::value<std::string>()->default_value(""),
         "Select samples by explicitly naming them. One per line")
         ("clade,c", po::value<std::string>()->default_value(""),
-        "Select samples by membership in the indicated clade.")
+        "Select samples by membership in the indicated clade(s), comma delimited.")
         ("mutation,m", po::value<std::string>()->default_value(""),
-        "Select samples by whether they contain the indicated mutation.")
+        "Select samples by whether they contain the indicated mutation(s), comma delimited.")
         ("max-epps,e", po::value<size_t>()->default_value(0),
         "Select samples by whether they have less than the maximum indicated number of equally parsimonious placements. Note: calculation adds significantly to runtime.")
         ("max-parsimony,a", po::value<int>()->default_value(-1),
@@ -118,7 +118,7 @@ void extract_main (po::parsed_options parsed) {
     //explicit setting goes first, then clade, then mutation, then epps- in order of increasing runtime for checking sample membership
     //to maximize efficiency (no need to calculate epps for a sample you're going to throw out in the next statement)
     timer.Start();
-    fprintf(stderr, "Parsing and applying sample selection arguments\n");
+    fprintf(stderr, "Checking for and applying sample selection arguments\n");
     //TODO: sample select code could take a previous list of samples to check in some cases like what EPPs does
     //which could save on runtime compared to getting instances across the whole tree and intersecting
     //though the current setup would enable more complex things, like saying this OR this in arguments, it's less efficient
@@ -128,28 +128,65 @@ void extract_main (po::parsed_options parsed) {
         samples = read_sample_names(input_samples_file);
     } 
     if (clade_choice != "") {
+        //process the clade choice string
+        std::vector<std::string> clades;
+        std::stringstream cns(clade_choice);
+        std::string n;
+        while (std::getline(cns,n,',')) {
+            clades.push_back(n);
+        }
+        assert (clades.size() > 0);
+        //this has a bit different setup from the rest of selection because these are OR logic
+        //e.g. if I pass 20B,19D I want samples that belong to one OR the other
+        //so I create a vector which represents all samples in both, then intersect that vector with the samples selected otherwise
+        std::vector<std::string> samples_in_clade;
+        for (auto cname: clades) {
+            auto csamples = get_clade_samples(T, cname);
+            samples_in_clade.insert(samples_in_clade.end(), csamples.begin(), csamples.end());
+        }
+        //remove duplicate samples
+        std::set<std::string> tset(samples_in_clade.begin(), samples_in_clade.end());
+        samples_in_clade.assign(tset.begin(),tset.end());
+
+        //proceed to the normal intersection code
         if (samples.size() == 0) {
-            samples = get_clade_samples(T, clade_choice);
-            //fprintf(stderr, "DEBUG: %ld samples in vector after clade choice\n", samples.size());
+            samples = samples_in_clade;
         } else {
-            auto cladesamples = get_clade_samples(T, clade_choice);
-            samples = sample_intersect(samples, cladesamples);
-            if (samples.size() == 0) {
-                fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
-                exit(1);
-            }
+            samples = sample_intersect(samples, samples_in_clade);
+        }
+        if (samples.size() == 0) {
+            fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
+            exit(1);
         }
     }
     if (mutation_choice != "") {
+        //same situation as clades, above (comma-sep mutations are OR)
+        std::vector<std::string> mutations;
+        std::stringstream mns(mutation_choice);
+        std::string m;
+        while (std::getline(mns,m,',')) {
+            mutations.push_back(m);
+        }
+        assert (mutations.size() > 0);
+        //std::cerr << mutations[0];
+
+        std::vector<std::string> samples_with_mutation;
+        for (auto mname: mutations) {
+            auto msamples = get_mutation_samples(T, mname);
+            samples_with_mutation.insert(samples_with_mutation.end(), msamples.begin(), msamples.end());
+        }
+        //remove duplicate samples
+        std::set<std::string> tset(samples_with_mutation.begin(), samples_with_mutation.end());
+        samples_with_mutation.assign(tset.begin(),tset.end());
+
         if (samples.size() == 0) {
-            samples = get_mutation_samples(T, mutation_choice);
+            samples = samples_with_mutation;
         } else {
-            auto mutsamples = get_mutation_samples(T, mutation_choice);
-            samples = sample_intersect(samples, mutsamples);
-            if (samples.size() == 0) {
-                fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
-                exit(1);
-            }
+            samples = sample_intersect(samples, samples_with_mutation);
+        }
+        if (samples.size() == 0) {
+            fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
+            exit(1);
         }
     }
     if (max_parsimony >= 0) {
@@ -169,7 +206,6 @@ void extract_main (po::parsed_options parsed) {
         //this specific sample parser only calculates for values present in samples argument
         //so it doesn't need any intersection code
         //if no samples are indicated, you get it for the whole tree. This can take several hours.
-        samples = get_samples_epps(T, max_epps, samples);
         //check to make sure we haven't emptied our sample set; if we have, throw an error
         if (samples.size() == 0) {
             fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
@@ -225,11 +261,13 @@ void extract_main (po::parsed_options parsed) {
     //its basically just that the selection of two samples is very dependent on the other samples which were valid
     //add a valid samples vector argument to the clade representatives function and check membership before selection, maybe
     if (get_representative) {
-        fprintf(stderr, "Filtering again to a clade representative tree...\n");
+        //fprintf(stderr, "Filtering again to a clade representative tree...\n");
         auto rep_samples = get_clade_representatives(subtree);
         //run filter master again
         subtree = filter_master(subtree, rep_samples, false);
     }
+    //adding a bool to sanity check that the user actually requested some kind of output
+    bool wrote_output = false;
 
     //if additional information was requested, save it to the target files
     if (sample_path_filename != "./" || clade_path_filename != "./") {
@@ -242,6 +280,7 @@ void extract_main (po::parsed_options parsed) {
                 outfile << mstr << "\n";
             }
             outfile.close();
+            wrote_output = true;
         }
         if (clade_path_filename != "") {
             //need to get the set of all clade annotations currently in the tree for the clade_paths function
@@ -261,7 +300,6 @@ void extract_main (po::parsed_options parsed) {
                     }
                 }
             }
-            //fprintf(stderr, "DEBUG: %ld clades detected", cladenames.size());
             std::ofstream outfile (clade_path_filename);
             //TODO: maybe better to update clade_paths to take an "all current clades" option.
             //should be more computationally efficient at least.
@@ -270,24 +308,26 @@ void extract_main (po::parsed_options parsed) {
                 outfile << cstr;
             }
             outfile.close(); 
+            wrote_output = true;
         }
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
-
     //last step is to convert the subtree to other file formats
-    if (vcf_filename != "./") {
+    if (vcf_filename != dir_prefix) {
         fprintf(stderr, "Generating VCF of final tree\n");
         make_vcf(subtree, vcf_filename, no_genotypes);
+        wrote_output = true;
     }
-    if (tree_filename != "./") {
+    if (tree_filename != dir_prefix) {
         fprintf(stderr, "Generating Newick file of final tree\n");
         FILE *tree_file = fopen(tree_filename.c_str(), "w");
         fprintf(tree_file, "%s\n",
             MAT::get_newick_string(subtree, true, true, true).c_str());
         fclose(tree_file);        
+        wrote_output = true;
     }
     //and save a MAT if that was set
-    if (output_mat_filename != "./") {
+    if (output_mat_filename != dir_prefix) {
         fprintf(stderr, "Saving output MAT file %s.\n", output_mat_filename.c_str()); 
         subtree.condense_leaves();
         if (collapse_tree) {
@@ -295,6 +335,10 @@ void extract_main (po::parsed_options parsed) {
         }
         MAT::save_mutation_annotated_tree(subtree, output_mat_filename);
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+        wrote_output = true;
+    }
+    if (!wrote_output) {
+        fprintf(stderr, "WARNING: No output files requested!\n");
     }
 }
 
@@ -309,11 +353,22 @@ int main (int argc, char** argv) {
     std::string cmd;
     po::variables_map vm;
     po::parsed_options parsed = po::command_line_parser(argc, argv).options(global).positional(pos).allow_unregistered().run();
+    //this help string shows up over and over, lets just define it once
+    std::string helpstr = "matUtils has several valid subcommands: \n\n"
+        "extract: subsets the input MAT on various conditions and/or converts to other formats (MAT, newick, VCF, etc)\n\n"
+        "summary: calculates basic statistics and counts members in the input MAT\n\n"
+        "annotate: assigns clade identities to nodes, directly or by inference\n\n"
+        "uncertainty: calculates sample placement uncertainty metrics and writes the results to tsv\n\n"
+        "mask: masks the input samples\n\n"
+        "Individual command options can be accessed with matUtils command --help, e.g. matUtils annotate --help will show annotation-specific help messages.\n\n";
+    
     try {
         po::store(parsed, vm);
         cmd = vm["command"].as<std::string>();
     } catch (...) { //not sure this is the best way to catch it when matUtils is called with no positional arguments.
-        fprintf(stderr, "No command selected. Please choose from annotate, mask, extract, summary, uncertainty, or help and try again.\n");
+        fprintf(stderr, "No command selected. Help follows:\n\n");
+        fprintf(stderr, helpstr.c_str());
+        //0 when no command is selected because that's what passes tests.
         exit(0);
     }
     if (cmd == "extract") {
@@ -327,26 +382,13 @@ int main (int argc, char** argv) {
     } else if (cmd == "summary") {
         summary_main(parsed);
     } else if (cmd == "help") { 
-        fprintf(stderr, "matUtils has several valid subcommands: \n\n"
-        "extract: subsets the input MAT on various conditions and converts to other tree formats\n\n"
-        "summary: calculates basic statistics and counts members in the input MAT\n\n"
-        "annotate: assigns clade identities to nodes, directly or by inference\n\n"
-        "uncertainty: calculates sample placement uncertainty metrics and writes the results to tsv\n\n"
-        "mask: masks the input samples\n\n"
-        "Individual command options can be accessed with matUtils command --help, e.g. matUtils annotate --help will show annotation-specific help messages.\n");
+        fprintf(stderr, helpstr.c_str());
         exit(0);
     } else {
-        fprintf(stderr, "Invalid command. Help follows:\n"
-        "matUtils has several valid subcommands: \n\n"
-        "extract: subsets the input MAT on various conditions and converts to other tree formats\n\n"
-        "summary: calculates basic statistics and counts members in the input MAT\n\n"
-        "annotate: assigns clade identities to nodes, directly or by inference\n\n"
-        "uncertainty: calculates sample placement uncertainty metrics and writes the results to tsv\n\n"
-        "mask: masks the input samples\n\n"
-        "Individual command options can be accessed with matUtils command --help, e.g. matUtils annotate --help will show annotation-specific help messages.\n");
+        fprintf(stderr, "Invalid command. Help follows:\n\n");
+        fprintf(stderr, helpstr.c_str());
         exit(1);
     }
-
 
     return 0;
 }

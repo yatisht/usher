@@ -66,7 +66,7 @@ void write_clade_table(MAT::Tree& T, std::string filename) {
     cladefile << "clade\tcount\n";
     //clades will be a map object.
     std::map<std::string, size_t> cladecounts;
-    
+    std::cerr << T.root->clade_annotations[0] << T.root->clade_annotations[1] << "\n";
     auto dfs = T.depth_first_expansion();
     for (auto s: dfs) {
         std::vector<std::string> canns = s->clade_annotations;
@@ -76,19 +76,19 @@ void write_clade_table(MAT::Tree& T, std::string filename) {
                 //skip entries which are annotated with 1 clade but that clade is empty
                 //but don't skip entries which are annotated with 1 clade and its not empty
                 //get the set of samples descended from this clade root
-                std::vector<std::string> sids = T.get_leaves_ids(s->identifier);
                 for (auto c: canns) {
-                    //the emptry string is a default clade identifier
+                    //the empty string is a default clade identifier
                     //make sure not to include it.
-                    if (cladecounts.find(c) != cladecounts.end() && c != "") {
-                        cladecounts[c] = cladecounts[c] + sids.size();
-                    } else if (c != "") {
+                    //the first time you encounter it should be the root of the clade
+                    //then if you see if after that you can ignore it. probably?
+                    if (cladecounts.find(c) == cladecounts.end() && c != "") {
+                        std::vector<std::string> sids = T.get_leaves_ids(s->identifier);
                         cladecounts[c] = sids.size();
                     }
                 }        
             }
         }
-    }   
+    }
     //write the contents of map to the file.
     for (auto const &clade : cladecounts) {
         cladefile << clade.first << "\t" << clade.second << "\n";
@@ -179,8 +179,8 @@ void summary_main(po::parsed_options parsed) {
                 samplecount++;
             }
         }
-        fprintf(stderr, "Total Nodes in Tree: %d\n", nodecount);
-        fprintf(stderr, "Total Samples in Tree: %d\n", samplecount);
+        fprintf(stdout, "Total Nodes in Tree: %d\n", nodecount);
+        fprintf(stdout, "Total Samples in Tree: %d\n", samplecount);
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
 }
