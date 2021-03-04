@@ -15,9 +15,9 @@ This command selects subtrees from the MAT based on clade identification, sample
 
 **-s**: Select samples to extract by explicitly naming them, one per line in a text file.
 
-**-c**: Select samples to extract by membership in the indicated clade.
+**-c**: Select samples by membership in at least one of the indicated clade(s), comma delimited.
 
-**-m**: Select samples to extract by whether they contain the indicated mutation.
+**-m**: Select samples by whether they contain any of the indicated mutation(s), comma delimited.
 
 **-e**: Select samples to extract by whether they have less than the indicated number of equally parsimonious placements. Note: adds significantly to runtime with large sample selections.
 
