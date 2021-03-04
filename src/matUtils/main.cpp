@@ -128,12 +128,28 @@ void extract_main (po::parsed_options parsed) {
         samples = read_sample_names(input_samples_file);
     } 
     if (clade_choice != "") {
+        //process the clade choice string
+        std::vector<std::string> clades;
+        std::stringstream cns(clade_choice);
+        std::string n;
+        while (std::getline(cns,n,',')) {
+            clades.push_back(n);
+        }
+        assert (clades.size() > 0);
+        //this has a bit different setup from the rest of selection because these are OR logic
+        //e.g. if I pass 20B,19D I want samples that belong to one OR the other
+        //so I create a vector which represents all samples in both, then intersect that vector with the samples selected otherwise
+        std::vector<std::string> samples_in_clade;
+        for (auto cname: clades) {
+            auto csamples = get_clade_samples(T, cname);
+            samples_in_clade.insert(samples_in_clade.end(), csamples.begin(), csamples.end());
+        }
+        //proceed to the normal intersection code
         if (samples.size() == 0) {
-            samples = get_clade_samples(T, clade_choice);
+            samples = samples_in_clade;
             //fprintf(stderr, "DEBUG: %ld samples in vector after clade choice\n", samples.size());
         } else {
-            auto cladesamples = get_clade_samples(T, clade_choice);
-            samples = sample_intersect(samples, cladesamples);
+            samples = sample_intersect(samples, samples_in_clade);
             if (samples.size() == 0) {
                 fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
                 exit(1);
