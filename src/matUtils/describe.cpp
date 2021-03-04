@@ -2,8 +2,9 @@
 
 std::vector<std::string> mutation_paths(const MAT::Tree& T, std::vector<std::string> samples) {
     std::vector<std::string> mpaths;
+    mpaths.push_back("sample_id\tpath_from_root");
     for (auto sample: samples) {
-        std::string cpath = sample + ": ";
+        std::string cpath = sample + "\t";
         auto root_to_sample = T.rsearch(sample, true);
         std::reverse(root_to_sample.begin(), root_to_sample.end());
         for (auto n: root_to_sample) {
