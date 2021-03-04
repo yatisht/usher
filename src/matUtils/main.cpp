@@ -184,7 +184,6 @@ void extract_main (po::parsed_options parsed) {
             mutations.push_back(m);
         }
         assert (mutations.size() > 0);
-        //std::cerr << mutations[0];
 
         std::vector<std::string> samples_with_mutation;
         for (auto mname: mutations) {
@@ -286,6 +285,8 @@ void extract_main (po::parsed_options parsed) {
         auto rep_samples = get_clade_representatives(subtree);
         //run filter master again
         subtree = filter_master(subtree, rep_samples, false);
+        //overwrite samples with new subset
+        samples = rep_samples;
     }
     //if additional information was requested, save it to the target files
     if (sample_path_filename != dir_prefix || clade_path_filename != dir_prefix || all_path_filename != dir_prefix) {
@@ -373,7 +374,7 @@ int main (int argc, char** argv) {
     po::parsed_options parsed = po::command_line_parser(argc, argv).options(global).positional(pos).allow_unregistered().run();
     //this help string shows up over and over, lets just define it once
     std::string helpstr = "matUtils has several valid subcommands: \n\n"
-        "extract: subsets the input MAT on various conditions and/or converts to other formats (MAT, newick, VCF, etc)\n\n"
+        "extract: subsets the input MAT on various conditions and/or converts to other formats (newick, VCF, etc)\n\n"
         "summary: calculates basic statistics and counts members in the input MAT\n\n"
         "annotate: assigns clade identities to nodes, directly or by inference\n\n"
         "uncertainty: calculates sample placement uncertainty metrics and writes the results to tsv\n\n"
