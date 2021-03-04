@@ -207,7 +207,6 @@ void extract_main (po::parsed_options parsed) {
         //this specific sample parser only calculates for values present in samples argument
         //so it doesn't need any intersection code
         //if no samples are indicated, you get it for the whole tree. This can take several hours.
-        samples = get_samples_epps(T, max_epps, samples);
         //check to make sure we haven't emptied our sample set; if we have, throw an error
         if (samples.size() == 0) {
             fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
@@ -263,7 +262,7 @@ void extract_main (po::parsed_options parsed) {
     //its basically just that the selection of two samples is very dependent on the other samples which were valid
     //add a valid samples vector argument to the clade representatives function and check membership before selection, maybe
     if (get_representative) {
-        fprintf(stderr, "Filtering again to a clade representative tree...\n");
+        //fprintf(stderr, "Filtering again to a clade representative tree...\n");
         auto rep_samples = get_clade_representatives(subtree);
         //run filter master again
         subtree = filter_master(subtree, rep_samples, false);
@@ -336,6 +335,7 @@ void extract_main (po::parsed_options parsed) {
         if (collapse_tree) {
             subtree.collapse_tree();
         }
+        fprintf(stderr, "DEBUG: Successfully condensed\n");
         MAT::save_mutation_annotated_tree(subtree, output_mat_filename);
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
         wrote_output = true;

@@ -58,7 +58,6 @@ MAT::Tree get_sample_prune (const MAT::Tree& T, std::vector<std::string> sample_
     //which is important when we're looking at large sample inputs
     //so convert the sample names vector to an unordered set
     std::unordered_set<std::string> setnames(sample_names.begin(),sample_names.end());
-
     auto subtree = MAT::get_tree_copy(T);
     auto dfs = T.depth_first_expansion();
     for (auto s: dfs) {
@@ -66,7 +65,10 @@ MAT::Tree get_sample_prune (const MAT::Tree& T, std::vector<std::string> sample_
         if (s->is_leaf()) {
             //if the node is NOT in the set, remove it
             if (setnames.find(s->identifier) == setnames.end()) {
-                subtree.remove_node(s->identifier, true);
+                //BUG NOTE: I'm setting the move to false here to patch over this problem
+                //if its set to true, then sometimes it will fail to save properly- overwriting root?
+                //leave this as not using the move for now, but needs to be revisited
+                subtree.remove_node(s->identifier, false);
             }
         }
     }    
