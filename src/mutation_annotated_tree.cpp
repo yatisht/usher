@@ -894,7 +894,7 @@ void Mutation_Annotated_Tree::Tree::remove_node (std::string nid, bool move_leve
     remove_node_helper (nid, move_level);
 }
 
-void Mutation_Annotated_Tree::Tree::move_node (std::string source_id, std::string dest_id) {
+void Mutation_Annotated_Tree::Tree::move_node (std::string source_id, std::string dest_id, bool move_level) {
     Node* source = all_nodes[source_id];
     Node* destination = all_nodes[dest_id];
     Node* curr_parent = source->parent;
@@ -908,7 +908,7 @@ void Mutation_Annotated_Tree::Tree::move_node (std::string source_id, std::strin
     auto iter = std::find(curr_parent->children.begin(), curr_parent->children.end(), source);
     curr_parent->children.erase(iter);
     if (curr_parent->children.size() == 0) {
-        remove_node(curr_parent->identifier, true);
+        remove_node(curr_parent->identifier, move_level);
     }
     
     // Update levels of source descendants
@@ -1057,7 +1057,7 @@ void Mutation_Annotated_Tree::Tree::collapse_tree() {
             auto parent = node->parent;
             auto children = node->children;
             for (auto child: children) {
-                move_node(child->identifier, parent->identifier);
+                move_node(child->identifier, parent->identifier, false);
             }
         }
         //If internal node has one child, the child can be moved up one level
@@ -1067,7 +1067,7 @@ void Mutation_Annotated_Tree::Tree::collapse_tree() {
             for (auto m: mutations) {
                 child->add_mutation(m.copy());
             }
-            move_node(child->identifier, parent->identifier);
+            move_node(child->identifier, parent->identifier, false);
         }
     }
 }
