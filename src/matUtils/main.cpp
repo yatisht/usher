@@ -335,7 +335,6 @@ void extract_main (po::parsed_options parsed) {
         if (collapse_tree) {
             subtree.collapse_tree();
         }
-        fprintf(stderr, "DEBUG: Successfully condensed\n");
         MAT::save_mutation_annotated_tree(subtree, output_mat_filename);
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
         wrote_output = true;
