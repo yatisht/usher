@@ -102,6 +102,13 @@ void extract_main (po::parsed_options parsed) {
     bool collapse_tree = vm["collapse-tree"].as<bool>();
     bool no_genotypes = vm["no-genotypes"].as<bool>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
+    //check that at least one of the output filenames (things which take dir_prefix)
+    //are set before proceeding. 
+    std::vector<std::string> outs = {sample_path_filename, clade_path_filename, tree_filename, vcf_filename, output_mat_filename};
+    if (!std::any_of(outs.begin(), outs.end(), [=](std::string f){return f != dir_prefix;})) {
+        fprintf(stderr, "ERROR: No output files requested!\n");
+        exit(1);
+    }
 
     tbb::task_scheduler_init init(num_threads);
 
@@ -141,7 +148,13 @@ void extract_main (po::parsed_options parsed) {
         //so I create a vector which represents all samples in both, then intersect that vector with the samples selected otherwise
         std::vector<std::string> samples_in_clade;
         for (auto cname: clades) {
+            fprintf(stderr, "Getting member samples of clade %s\n", cname.c_str());
             auto csamples = get_clade_samples(T, cname);
+            if (csamples.size() == 0) {
+                //warning because they may want the other clade they indicated and it can proceed with that
+                //itll error down the line if this was the only one they passed in and it leaves them with no samples
+                fprintf(stderr, "WARNING: Clade %s is not detected in the input tree!\n", cname.c_str());
+            }
             samples_in_clade.insert(samples_in_clade.end(), csamples.begin(), csamples.end());
         }
         //remove duplicate samples
@@ -172,7 +185,11 @@ void extract_main (po::parsed_options parsed) {
 
         std::vector<std::string> samples_with_mutation;
         for (auto mname: mutations) {
+            fprintf(stderr, "Getting samples with mutation %s\n", mname.c_str());
             auto msamples = get_mutation_samples(T, mname);
+            if (msamples.size() == 0) {
+                fprintf(stderr, "WARNING: No samples with mutation %s found in tree!\n", mname.c_str());
+            }
             samples_with_mutation.insert(samples_with_mutation.end(), msamples.begin(), msamples.end());
         }
         //remove duplicate samples
@@ -266,9 +283,6 @@ void extract_main (po::parsed_options parsed) {
         //run filter master again
         subtree = filter_master(subtree, rep_samples, false);
     }
-    //adding a bool to sanity check that the user actually requested some kind of output
-    bool wrote_output = false;
-
     //if additional information was requested, save it to the target files
     if (sample_path_filename != "./" || clade_path_filename != "./") {
         timer.Start();
@@ -280,7 +294,6 @@ void extract_main (po::parsed_options parsed) {
                 outfile << mstr << "\n";
             }
             outfile.close();
-            wrote_output = true;
         }
         if (clade_path_filename != "") {
             //need to get the set of all clade annotations currently in the tree for the clade_paths function
@@ -308,7 +321,6 @@ void extract_main (po::parsed_options parsed) {
                 outfile << cstr;
             }
             outfile.close(); 
-            wrote_output = true;
         }
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
@@ -316,7 +328,6 @@ void extract_main (po::parsed_options parsed) {
     if (vcf_filename != dir_prefix) {
         fprintf(stderr, "Generating VCF of final tree\n");
         make_vcf(subtree, vcf_filename, no_genotypes);
-        wrote_output = true;
     }
     if (tree_filename != dir_prefix) {
         fprintf(stderr, "Generating Newick file of final tree\n");
@@ -324,7 +335,6 @@ void extract_main (po::parsed_options parsed) {
         fprintf(tree_file, "%s\n",
             MAT::get_newick_string(subtree, true, true, true).c_str());
         fclose(tree_file);        
-        wrote_output = true;
     }
     //and save a MAT if that was set
     if (output_mat_filename != dir_prefix) {
@@ -335,10 +345,6 @@ void extract_main (po::parsed_options parsed) {
         }
         MAT::save_mutation_annotated_tree(subtree, output_mat_filename);
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
-        wrote_output = true;
-    }
-    if (!wrote_output) {
-        fprintf(stderr, "WARNING: No output files requested!\n");
     }
 }
 
