@@ -24,9 +24,9 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
         ("samples,s", po::value<std::string>()->default_value(""),
         "Select samples by explicitly naming them. One per line")
         ("clade,c", po::value<std::string>()->default_value(""),
-        "Select samples by membership in the indicated clade.")
+        "Select samples by membership in the indicated clade(s), comma delimited.")
         ("mutation,m", po::value<std::string>()->default_value(""),
-        "Select samples by whether they contain the indicated mutation.")
+        "Select samples by whether they contain the indicated mutation(s), comma delimited.")
         ("max-epps,e", po::value<size_t>()->default_value(0),
         "Select samples by whether they have less than the maximum indicated number of equally parsimonious placements. Note: calculation adds significantly to runtime.")
         ("max-parsimony,a", po::value<int>()->default_value(-1),
@@ -144,28 +144,50 @@ void extract_main (po::parsed_options parsed) {
             auto csamples = get_clade_samples(T, cname);
             samples_in_clade.insert(samples_in_clade.end(), csamples.begin(), csamples.end());
         }
+        //remove duplicate samples
+        std::set<std::string> tset(samples_in_clade.begin(), samples_in_clade.end());
+        samples_in_clade.assign(tset.begin(),tset.end());
+
         //proceed to the normal intersection code
         if (samples.size() == 0) {
             samples = samples_in_clade;
             //fprintf(stderr, "DEBUG: %ld samples in vector after clade choice\n", samples.size());
         } else {
             samples = sample_intersect(samples, samples_in_clade);
-            if (samples.size() == 0) {
-                fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
-                exit(1);
-            }
+        }
+        if (samples.size() == 0) {
+            fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
+            exit(1);
         }
     }
     if (mutation_choice != "") {
+        //same situation as clades, above (comma-sep mutations are OR)
+        std::vector<std::string> mutations;
+        std::stringstream mns(mutation_choice);
+        std::string m;
+        while (std::getline(mns,m,',')) {
+            mutations.push_back(m);
+        }
+        assert (mutations.size() > 0);
+        //std::cerr << mutations[0];
+
+        std::vector<std::string> samples_with_mutation;
+        for (auto mname: mutations) {
+            auto msamples = get_mutation_samples(T, mname);
+            samples_with_mutation.insert(samples_with_mutation.end(), msamples.begin(), msamples.end());
+        }
+        //remove duplicate samples
+        std::set<std::string> tset(samples_with_mutation.begin(), samples_with_mutation.end());
+        samples_with_mutation.assign(tset.begin(),tset.end());
+
         if (samples.size() == 0) {
-            samples = get_mutation_samples(T, mutation_choice);
+            samples = samples_with_mutation;
         } else {
-            auto mutsamples = get_mutation_samples(T, mutation_choice);
-            samples = sample_intersect(samples, mutsamples);
-            if (samples.size() == 0) {
-                fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
-                exit(1);
-            }
+            samples = sample_intersect(samples, samples_with_mutation);
+        }
+        if (samples.size() == 0) {
+            fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
+            exit(1);
         }
     }
     if (max_parsimony >= 0) {
