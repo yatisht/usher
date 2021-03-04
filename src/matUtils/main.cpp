@@ -151,7 +151,6 @@ void extract_main (po::parsed_options parsed) {
         //proceed to the normal intersection code
         if (samples.size() == 0) {
             samples = samples_in_clade;
-            //fprintf(stderr, "DEBUG: %ld samples in vector after clade choice\n", samples.size());
         } else {
             samples = sample_intersect(samples, samples_in_clade);
         }
@@ -301,7 +300,6 @@ void extract_main (po::parsed_options parsed) {
                     }
                 }
             }
-            //fprintf(stderr, "DEBUG: %ld clades detected", cladenames.size());
             std::ofstream outfile (clade_path_filename);
             //TODO: maybe better to update clade_paths to take an "all current clades" option.
             //should be more computationally efficient at least.
