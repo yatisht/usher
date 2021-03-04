@@ -33,7 +33,7 @@ This command selects subtrees from the MAT based on clade identification, sample
 
 **-C**: Write the path of mutations defining each clade in the subtree after sample extraction to a file.
 
-**-A**: Write the path of mutations defining each node in the selected tree to the target file.
+**-A**: Write mutations assigned to each node in the selected tree to the target file.
 
 **-v**: Convert the subtree to a VCF and write it to the indicated file.
 

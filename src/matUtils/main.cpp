@@ -42,7 +42,7 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
         ("clade-paths,C", po::value<std::string>()->default_value(""),
         "Write the path of mutations defining each clade in the tree after sample selection to the target file.")
         ("all-paths,A", po::value<std::string>()->default_value(""),
-        "Write the path of mutations defining each node in the selected tree to the target file.")
+        "Write mutations assigned to each node in the selected tree to the target file.")
         ("write-vcf,v", po::value<std::string>()->default_value(""),
          "Output VCF file representing selected subtree. Default is full tree")
         ("no-genotypes,n", po::bool_switch(),
