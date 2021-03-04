@@ -41,6 +41,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
         "Write the path of mutations defining each selected sample to the target file (all samples if no selection arguments)")
         ("clade-paths,C", po::value<std::string>()->default_value(""),
         "Write the path of mutations defining each clade in the tree after sample selection to the target file.")
+        ("all-paths,A", po::value<std::string>()->default_value(""),
+        "Write the path of mutations defining each node in the selected tree to the target file.")
         ("write-vcf,v", po::value<std::string>()->default_value(""),
          "Output VCF file representing selected subtree. Default is full tree")
         ("no-genotypes,n", po::bool_switch(),
@@ -96,6 +98,7 @@ void extract_main (po::parsed_options parsed) {
     }
     std::string sample_path_filename = dir_prefix + vm["sample-paths"].as<std::string>();
     std::string clade_path_filename = dir_prefix + vm["clade-paths"].as<std::string>();
+    std::string all_path_filename = dir_prefix + vm["all-paths"].as<std::string>();
     std::string tree_filename = dir_prefix + vm["write-tree"].as<std::string>();
     std::string vcf_filename = dir_prefix + vm["write-vcf"].as<std::string>();
     std::string output_mat_filename = dir_prefix + vm["write-mat"].as<std::string>();
@@ -104,7 +107,7 @@ void extract_main (po::parsed_options parsed) {
     uint32_t num_threads = vm["threads"].as<uint32_t>();
     //check that at least one of the output filenames (things which take dir_prefix)
     //are set before proceeding. 
-    std::vector<std::string> outs = {sample_path_filename, clade_path_filename, tree_filename, vcf_filename, output_mat_filename};
+    std::vector<std::string> outs = {sample_path_filename, clade_path_filename, all_path_filename, tree_filename, vcf_filename, output_mat_filename};
     if (!std::any_of(outs.begin(), outs.end(), [=](std::string f){return f != dir_prefix;})) {
         fprintf(stderr, "ERROR: No output files requested!\n");
         exit(1);
@@ -284,10 +287,10 @@ void extract_main (po::parsed_options parsed) {
         subtree = filter_master(subtree, rep_samples, false);
     }
     //if additional information was requested, save it to the target files
-    if (sample_path_filename != "./" || clade_path_filename != "./") {
+    if (sample_path_filename != dir_prefix || clade_path_filename != dir_prefix || all_path_filename != dir_prefix) {
         timer.Start();
         fprintf(stderr,"Retriving path information...\n");
-        if (sample_path_filename != "") {
+        if (sample_path_filename != dir_prefix) {
             std::ofstream outfile (sample_path_filename);
             auto mpaths = mutation_paths(subtree, samples);
             for (auto mstr: mpaths) {
@@ -295,7 +298,15 @@ void extract_main (po::parsed_options parsed) {
             }
             outfile.close();
         }
-        if (clade_path_filename != "") {
+        if (all_path_filename != dir_prefix) {
+            std::ofstream outfile (all_path_filename);
+            auto apaths = all_nodes_paths(subtree);
+            for (auto astr: apaths) {
+                outfile << astr << "\n";
+            }
+            outfile.close();
+        }
+        if (clade_path_filename != dir_prefix) {
             //need to get the set of all clade annotations currently in the tree for the clade_paths function
             //TODO: refactor summary so I can just import the clade counter function from there (disentangle from file printing)
             //also this block of code just generally sucks.

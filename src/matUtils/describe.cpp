@@ -72,3 +72,19 @@ std::vector<std::string> clade_paths(MAT::Tree T, std::vector<std::string> clade
     }
     return clpaths;
 }
+
+std::vector<std::string> all_nodes_paths(MAT::Tree T) {
+    std::vector<std::string> dfs_strings;
+    auto dfs = T.depth_first_expansion();
+    for (auto n: dfs) {
+        std::string node_path = n->identifier + "\t";
+        for (size_t i=0; i<n->mutations.size(); i++) {
+            node_path += n->mutations[i].get_string();
+            if (i+1 < n->mutations.size()) {
+                node_path += ",";
+            }
+        }
+        dfs_strings.push_back(node_path);
+    }
+    return dfs_strings;
+}
