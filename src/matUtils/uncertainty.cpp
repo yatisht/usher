@@ -433,9 +433,10 @@ void uncertainty_main(po::parsed_options parsed) {
         findEPPs_wrapper(T, sample_file, fepps, fneigh);
     }
     if (get_parsimony){
-        fprintf(stderr, "Total Tree Parsimony %ld\n", T.get_parsimony_score());
+        fprintf(stdout, "Total Tree Parsimony %ld\n", T.get_parsimony_score());
     }
     if (fepps != "" && fneigh != "" && !get_parsimony) {
         fprintf(stderr, "No actions chosen. Review arguments\n");
+        exit(1);
     }
 }
