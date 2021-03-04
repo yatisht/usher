@@ -15,6 +15,8 @@ po::variables_map parse_summary_command(po::parsed_options parsed) {
         "Write a tsv listing all clades and the count of associated samples.")
         ("mutations,m", po::value<std::string>()->default_value(""),
         "Write a tsv listing all mutations in the tree and their occurrence count.")
+        ("aberrant,a", po::value<std::string>()->default_value(""),
+        "Write a tsv listing duplicate samples and internal nodes with no mutations and/or branch length 0.")
         ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
         ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
@@ -132,13 +134,42 @@ void write_mutation_table(MAT::Tree& T, std::string filename) {
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 }
 
+void write_aberrant_table(MAT::Tree& T, std::string filename) {
+    /*
+    This function identifies nodes which have missing information or are otherwise potentially problematic.
+    These nodes do not necessarily break matUtils or Usher in general, but they may need to be accounted for
+    in downstream analysis. Nodes like these can be created by the masking out of specific samples or by not 
+    collapsing trees constructed from bifurcated/fully resolved or other types of tree.
+    */
+    timer.Start();
+    fprintf(stderr, "Writing bad nodes to output %s\n", filename.c_str());
+    std::ofstream badfile;
+    badfile.open(filename);
+    badfile << "NodeID\tIssue\n";
+    std::set<std::string> dup_tracker;
+    auto dfs = T.depth_first_expansion();
+    for (auto n: dfs) {
+        if (dup_tracker.find(n->identifier) == dup_tracker.end()) {
+            dup_tracker.insert(n->identifier);
+        } else {
+            badfile << n->identifier << "\tduplicate-node-id\n";
+        }
+        if (n->branch_length == 0 && !n->is_leaf() && !n->is_root()) {
+            badfile << n->identifier << "\tinternal-branch-length-0\n";
+        }
+        if (n->mutations.size() == 0 && !n->is_leaf() && !n->is_root()) {
+            badfile << n->identifier << "\tinternal-no-mutations\n";
+        }
+    }
+}
+
 void summary_main(po::parsed_options parsed) {
     po::variables_map vm = parse_summary_command(parsed);
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string samples = vm["samples"].as<std::string>();
     std::string clades = vm["clades"].as<std::string>();
     std::string mutations = vm["mutations"].as<std::string>();
-
+    std::string aberrant = vm["aberrant"].as<std::string>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
 
     tbb::task_scheduler_init init(num_threads);
@@ -163,6 +194,10 @@ void summary_main(po::parsed_options parsed) {
         write_mutation_table(T, mutations);
         no_print = false;
     }  
+    if (aberrant != "") {
+        write_aberrant_table(T, aberrant);
+        no_print = false;
+    }
         
     if (no_print) {
         //just count the number of nodes in the tree and the number of leaves (samples)
