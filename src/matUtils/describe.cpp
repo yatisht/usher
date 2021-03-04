@@ -29,7 +29,7 @@ std::vector<std::string> clade_paths(MAT::Tree T, std::vector<std::string> clade
     //get the set of clade path strings for printing
     //similar to the above, construct a series of strings to be printed or redirected later on
     std::vector<std::string> clpaths;
-    clpaths.push_back("clade\troot_id\tfrom_tree_root");
+    clpaths.push_back("clade\troot_id\tfrom_tree_root\n");
     //do a breadth-first search
     //the first time a clade that is in clades is encountered, that's the root;
     //get the path of mutations to that root (rsearch), save the unique mutations + that path
