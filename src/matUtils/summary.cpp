@@ -66,7 +66,6 @@ void write_clade_table(MAT::Tree& T, std::string filename) {
     cladefile << "clade\tcount\n";
     //clades will be a map object.
     std::map<std::string, size_t> cladecounts;
-    std::cerr << T.root->clade_annotations[0] << T.root->clade_annotations[1] << "\n";
     auto dfs = T.depth_first_expansion();
     for (auto s: dfs) {
         std::vector<std::string> canns = s->clade_annotations;
