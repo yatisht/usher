@@ -633,6 +633,10 @@ void Mutation_Annotated_Tree::Node::clear_mutations() {
     mutations.clear();
 }
 
+void Mutation_Annotated_Tree::Node::clear_annotations() {
+    clade_annotations.clear();
+}
+
 /* === Tree === */
 size_t Mutation_Annotated_Tree::Tree::get_max_level () const {
     size_t max_level = 0;
@@ -1252,3 +1256,8 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_subtree (const Mutati
     return subtree;
 }
 
+void Mutation_Annotated_Tree::clear_tree(Mutation_Annotated_Tree::Tree& T) {
+    for (auto n: T.depth_first_expansion()) {
+        delete(n);
+    }
+}
