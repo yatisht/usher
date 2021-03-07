@@ -262,8 +262,8 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
  
                 dfs_ordered_nodes = this_tree.depth_first_expansion();
 //#ifndef NDEBUG
-                //Original_State_t copy(ori);
-                //check_samples(this_tree.root, copy,&this_tree);
+                Original_State_t copy(ori);
+                check_samples(this_tree.root, copy,&this_tree);
                 fprintf(stderr, "Between refinement: %zu \n",this_tree.get_parsimony_score());
 //#endif
                 have_improvement=true;

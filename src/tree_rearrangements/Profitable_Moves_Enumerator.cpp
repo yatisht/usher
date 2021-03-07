@@ -117,6 +117,20 @@ struct Test_Move_Profitable {
             std::atomic_int score_changes(0);
             std::vector<Fitch_Sankoff_Result_Final> moved_states(
                 in->FS_results.size());
+            
+            #ifndef NDEBUG
+            MAT::Tree new_tree(all_moves->src->tree);
+            MAT::Node *new_src = new_tree.get_node(all_moves->src->identifier);
+            MAT::Node *new_LCA = new_tree.get_node(LCA->identifier);
+            MAT::Node *original_src_parent_in_new_tree = new_src->parent;
+            remove_child(new_src);
+            MAT::Node *new_dst = new_tree.get_node(in->dst->identifier);
+            MAT::Node *added = new_dst->add_child(new_src);
+            std::vector<MAT::Node *> new_dfs_ordered_nodes =
+                new_tree.depth_first_expansion();
+            std::pair<size_t, size_t> new_range =
+                Fitch_Sankoff::dfs_range(new_LCA, new_dfs_ordered_nodes);
+            #endif
             tbb::parallel_for(
                 tbb::blocked_range<size_t>(0, in->FS_results.size()),
                 [&](tbb::blocked_range<size_t> r) {
@@ -140,6 +154,41 @@ struct Test_Move_Profitable {
                         int this_change = calculate_parsimony_score_change(
                             range, patched, all_moves->src, in->dst,
                             LCA_parent_state, LCA);
+                            
+                        #ifndef NDEBUG
+                        std::unordered_map<std::string, std::array<int, 4>>
+                            scores_to_check;
+                        for (auto &&score : patched) {
+                            if (added && score.node == in->dst) {
+                                scores_to_check.emplace(new_dst->identifier,
+                                                        score.score);
+                            } else {
+                                scores_to_check.emplace(score.node->identifier,
+                                                        score.score);
+                            }
+                        }
+                        Fitch_Sankoff::Scores_Type new_score;
+
+                        Fitch_Sankoff::sankoff_backward_pass(
+                            new_range, new_dfs_ordered_nodes, new_score,
+                            original_states, parent_fs_result->mutation,
+                            parent_fs_result->LCA_parent_state);
+                        for (auto &&score : new_score) {
+                            if (added == score.node) {
+                                continue;
+                            }
+                            if (scores_to_check[score.node->identifier] !=
+                                score.score) {
+                                fprintf(stderr,
+                                        "score mismatch at original tree node "
+                                        "index %zu\n",
+                                        all_moves->src->tree
+                                            ->get_node(score.node->identifier)
+                                            ->index);
+                                assert(false);
+                            }
+                        }
+#endif
                         parent_fs_result_managing_ptr.reset();
                         score_changes.fetch_add(this_change,
                                                 std::memory_order_relaxed);
