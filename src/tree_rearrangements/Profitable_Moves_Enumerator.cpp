@@ -103,7 +103,7 @@ static char extract_LCA_parent_state(const Fitch_Sankoff_Result &ori,
 struct Test_Move_Profitable {
     std::vector<MAT::Node *> &dfs_ordered_nodes;
     std::vector<Profitable_Move*> &tie;
-    int best_score_change;
+    int& best_score_change;
     Candidate_Moves *all_moves;
     std::mutex& mutex;
     const Original_State_t& original_states;
@@ -196,7 +196,7 @@ struct Test_Move_Profitable {
                 });
             #endif
             */
-            if (score_changes < 0&&score_changes<=best_score_change) {
+            if (score_changes<=best_score_change) {
                 Profitable_Move *out = new Profitable_Move;
                 out->LCA = LCA;
                 out->score_change = score_changes;
@@ -208,10 +208,12 @@ struct Test_Move_Profitable {
                 std::vector<Profitable_Move*> temp({out});
                 temp.reserve(all_moves->moves.size());
                 {
+		    std::lock_guard<std::mutex> lock(mutex);
                     if (score_changes==best_score_change) {
                         tie.push_back(out);
                         continue;
-                    }else{
+                    }else if(score_changes<best_score_change){
+			best_score_change=score_changes;
                         tie.swap(temp);
                     }
                 }
@@ -227,7 +229,8 @@ Profitable_Moves_From_One_Source* Profitable_Moves_Enumerator::operator()(Candid
     Profitable_Moves_From_One_Source* out=new Profitable_Moves_From_One_Source;
     out->src=in->src;
     std::mutex mutex;
-    tbb::parallel_for(tbb::blocked_range<size_t>(0,in->moves.size()),Test_Move_Profitable{dfs_ordered_nodes,out->profitable_moves,1,in,mutex,original_states});
+    int best_score_change=-1;
+    tbb::parallel_for(tbb::blocked_range<size_t>(0,in->moves.size()),Test_Move_Profitable{dfs_ordered_nodes,out->profitable_moves,best_score_change,in,mutex,original_states});
     delete in;
     return out;
 }

@@ -122,7 +122,6 @@ struct Search_Source{
         all_count=0;
         inflight_left=inflight_limit;
         conflicting_count=0;
-        fprintf(stderr,"Cleared: %d conflicting moves over %zu moves so far\n",conflicting_count,all_count);
         graph_reseted=false;
     }
     void operator()(char in,Seach_Source_Node_t::output_ports_type& out) const{
@@ -130,7 +129,7 @@ struct Search_Source{
         if(graph_reseted){
             reset();
         }
-        fprintf(stderr,"%d conflicting moves over %zu moves so far\n",conflicting_count,all_count);
+        //fprintf(stderr,"%d conflicting moves over %zu moves so far\n",conflicting_count,all_count);
         
         if(in&MOVE_FOUND_MASK){
         all_count++;
@@ -138,18 +137,11 @@ struct Search_Source{
             conflicting_count++;
         }        
         if ((conflicting_count>min_batch_size)&&(all_count*conflict_pct_limit<conflicting_count*100)) {
-            fprintf(stderr,"Found %d conflicting moves over %zu moves. Restarting\n",conflicting_count,all_count);
-            if (inflight_left==inflight_limit) {
-                all_count=0;
-                conflicting_count=0;
-            }else{
-                fprintf(stderr,"wait for %d to restart",inflight_limit-inflight_left);
-            }
-            return;
+           return;
         }
         }
         if(all_nodes_done){
-            fprintf(stderr,"all_nodes_done");
+           //fprintf(stderr,"all_nodes_done");
             return;
         }
         while(inflight_left>0){
@@ -160,6 +152,7 @@ struct Search_Source{
             if (buffer.front()==nullptr) {
                 buffer.pop_front();
                 all_nodes_done.store(true);
+           	fprintf(stderr,"all_nodes_done");
                 return;
             }else {
                 std::get<0>(out).try_put(buffer.front());
@@ -189,7 +182,7 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
         std::condition_variable queue_ready;
         std::atomic_bool all_nodes_done;
         bool graph_reseted;
-        Search_Source input_functor(search_queue,queue_mutex,queue_ready,num_cores,50,20,all_nodes_done,graph_reseted);
+        Search_Source input_functor(search_queue,queue_mutex,queue_ready,num_cores,50,800,all_nodes_done,graph_reseted);
         Seach_Source_Node_t input(search_graph,1,input_functor);
 
         tbb::flow::function_node<MAT::Node*,Possible_Moves*> neighbors_finder(search_graph,tbb::flow::unlimited,Neighbors_Finder(radius));
@@ -204,7 +197,7 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
         std::vector<Profitable_Move*> non_conflicting_moves;
         Cross_t potential_crosses;
         Mut_t repeatedly_mutation_loci;
-        tbb::flow::function_node<Profitable_Moves_From_One_Source*,char> conflict_resolver(search_graph,tbb::flow::unlimited,Conflict_Resolver{non_conflicting_moves,potential_crosses,repeatedly_mutation_loci,to_optimize});
+        tbb::flow::function_node<Profitable_Moves_From_One_Source*,char> conflict_resolver(search_graph,1,Conflict_Resolver{non_conflicting_moves,potential_crosses,repeatedly_mutation_loci,to_optimize});
         tbb::flow::make_edge(profitable_move_enumerator,conflict_resolver);
         tbb::flow::make_edge(conflict_resolver,input);
 
@@ -212,19 +205,21 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
         while (have_improvement) {
             have_improvement=false;
             find_nodes_with_recurrent_mutations(dfs_ordered_nodes, to_optimize);
-            all_nodes_done.store(false);
+	    fprintf(stderr,"next_round\n");
             //push_all_nodes(&this_tree, to_optimize);
-        while (!all_nodes_done.load()) {
+        while (!to_optimize.empty()) {
+	    feed_nodes(to_optimize,search_queue,queue_mutex,queue_ready,dfs_ordered_nodes);
+            all_nodes_done.store(false);
+            while (!all_nodes_done.load()) {
             graph_reseted=true;
-            non_conflicting_moves.clear();
             potential_crosses.clear();
             repeatedly_mutation_loci.clear();
-            
-            feed_nodes(to_optimize,search_queue,queue_mutex,queue_ready,dfs_ordered_nodes);
-            while (!search_queue.empty()) {
+	    non_conflicting_moves.clear();
+
             input.try_put(0);
             search_graph.wait_for_all();
             to_optimize.clear();
+	    fprintf(stderr,"%zu moves profitable\n",non_conflicting_moves.size());
             if(!non_conflicting_moves.empty()){
                 Pending_Moves_t tree_edits;
                 // tbb::parallel_for(tbb::blocked_range<size_t>(0,
@@ -257,10 +252,18 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
                         }
                     }
                 }
+                for(MAT::Node*& next_node:search_queue){
+                    for(const auto& deleted:deleted_map){
+                        if(next_node==deleted.first){
+                            next_node=deleted.second;
+                        }
+                    }
+                }
+ 
                 dfs_ordered_nodes = this_tree.depth_first_expansion();
 //#ifndef NDEBUG
-                Original_State_t copy(ori);
-                check_samples(this_tree.root, copy,&this_tree);
+                //Original_State_t copy(ori);
+                //check_samples(this_tree.root, copy,&this_tree);
                 fprintf(stderr, "Between refinement: %zu \n",this_tree.get_parsimony_score());
 //#endif
                 have_improvement=true;
