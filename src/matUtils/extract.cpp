@@ -4,9 +4,6 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
 
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
     std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
-    //it will attempt to do something dumb with casting if the default prefix is ./ for the output directory
-    //so I need to predefine that default as an actual string.
-
     po::variables_map vm;
     po::options_description conv_desc("extract options");
     conv_desc.add_options()
@@ -27,7 +24,7 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
         ("prune,p", po::bool_switch(),
         "Remove the selected samples instead of keeping them in the output files.")
         ("output-directory,d", po::value<std::string>()->default_value("./"),
-        "Write output files to the target directory. Default is current directory. NOTE: The target directory must already exist.")
+        "Write output files to the target directory. Default is current directory.")
         ("sample-paths,S", po::value<std::string>()->default_value(""),
         "Write the path of mutations defining each selected sample to the target file (all samples if no selection arguments)")
         ("clade-paths,C", po::value<std::string>()->default_value(""),
@@ -83,10 +80,15 @@ void extract_main (po::parsed_options parsed) {
     bool prune_samples = vm["prune"].as<bool>();
     bool get_representative = vm["get-representative"].as<bool>();
     std::string dir_prefix = vm["output-directory"].as<std::string>();
-    //if the input on dir_prefix doesn't end with a /, go ahead and add that manually
-    if (dir_prefix[dir_prefix.size()-1] != '/') {
-        dir_prefix.append("/");
+
+    boost::filesystem::path path(dir_prefix);
+    if (!boost::filesystem::exists(path)) {
+        fprintf(stderr, "Creating output directory.\n\n");
+        boost::filesystem::create_directory(dir_prefix);
     }
+    path = boost::filesystem::canonical(dir_prefix);
+    dir_prefix = path.generic_string();
+    dir_prefix += "/";
     std::string sample_path_filename = dir_prefix + vm["sample-paths"].as<std::string>();
     std::string clade_path_filename = dir_prefix + vm["clade-paths"].as<std::string>();
     std::string all_path_filename = dir_prefix + vm["all-paths"].as<std::string>();
