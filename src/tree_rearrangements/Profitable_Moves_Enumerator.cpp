@@ -13,6 +13,7 @@
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
 #include <tbb/queuing_rw_mutex.h>
+#include <tbb/spin_mutex.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -101,9 +102,10 @@ static char extract_LCA_parent_state(const Fitch_Sankoff_Result &ori,
 */
 struct Test_Move_Profitable {
     std::vector<MAT::Node *> &dfs_ordered_nodes;
-    tbb::concurrent_vector<Profitable_Move *> &profitable_moves;
+    std::vector<Profitable_Move*> &tie;
+    int best_score_change;
     Candidate_Moves *all_moves;
-    tbb::queuing_rw_mutex& mutex;
+    std::mutex& mutex;
     const Original_State_t& original_states;
     void operator()(tbb::blocked_range<size_t> &range) const {
         for (size_t move_idx = range.begin(); move_idx < range.end();
@@ -194,7 +196,7 @@ struct Test_Move_Profitable {
                 });
             #endif
             */
-            if (score_changes < 0) {
+            if (score_changes < 0&&score_changes<=best_score_change) {
                 Profitable_Move *out = new Profitable_Move;
                 out->LCA = LCA;
                 out->score_change = score_changes;
@@ -203,16 +205,29 @@ struct Test_Move_Profitable {
                 out->path.swap(in->path);
                 out->range = range;
                 out->states.swap(moved_states);
+                std::vector<Profitable_Move*> temp({out});
+                temp.reserve(all_moves->moves.size());
                 {
-                    tbb::queuing_rw_mutex::scoped_lock lock(mutex,false);
-                    profitable_moves.push_back(out);
+                    if (score_changes==best_score_change) {
+                        tie.push_back(out);
+                        continue;
+                    }else{
+                        tie.swap(temp);
+                    }
+                }
+                for(Profitable_Move* move:temp){
+                    delete move;
                 }
             }
         }
     }
 };
 
-void Profitable_Moves_Enumerator::operator()(Candidate_Moves * in)const{
-    tbb::parallel_for(tbb::blocked_range<size_t>(0,in->moves.size()),Test_Move_Profitable{dfs_ordered_nodes,profitable_moves,in,mutex,original_states});
+Profitable_Moves_From_One_Source* Profitable_Moves_Enumerator::operator()(Candidate_Moves * in)const{
+    Profitable_Moves_From_One_Source* out=new Profitable_Moves_From_One_Source;
+    out->src=in->src;
+    std::mutex mutex;
+    tbb::parallel_for(tbb::blocked_range<size_t>(0,in->moves.size()),Test_Move_Profitable{dfs_ordered_nodes,out->profitable_moves,1,in,mutex,original_states});
     delete in;
+    return out;
 }

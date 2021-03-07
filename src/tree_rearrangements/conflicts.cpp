@@ -4,14 +4,14 @@
 #include <cstddef>
 #include <vector>
 typedef std::unordered_set<MAT::Node*,Node_Idx_Hash,Node_Idx_Eq> Cross_t;
-typedef std::unordered_map<MAT::Node*, std::unordered_map<int,Profitable_Move_Deserialized*>,Node_Idx_Hash,Node_Idx_Eq> Mut_t;
+typedef std::unordered_map<MAT::Node*, std::unordered_map<int,Profitable_Move*>,Node_Idx_Hash,Node_Idx_Eq> Mut_t;
 
-static Profitable_Move_Deserialized* check_mut_conflict(MAT::Node *node,const std::vector<Fitch_Sankoff_Result_Deserialized> &states,const Mut_t& repeatedly_mutating_loci) {
+static Profitable_Move* check_mut_conflict(MAT::Node *node,const std::vector<Fitch_Sankoff_Result_Final> &states,const Mut_t& repeatedly_mutating_loci) {
     while (node) {
         auto iter = repeatedly_mutating_loci.find(node);
         if (iter != repeatedly_mutating_loci.end()) {
-            const std::unordered_map<int,Profitable_Move_Deserialized*> &subtree_mut_changed = iter->second;
-            for (const Fitch_Sankoff_Result_Deserialized& e : states) {
+            const std::unordered_map<int,Profitable_Move*> &subtree_mut_changed = iter->second;
+            for (const Fitch_Sankoff_Result_Final& e : states) {
                 auto mut_iter=subtree_mut_changed.find(e.mutation.position);
                 if (mut_iter!=subtree_mut_changed.end()) {
                     return mut_iter->second;
@@ -22,8 +22,8 @@ static Profitable_Move_Deserialized* check_mut_conflict(MAT::Node *node,const st
     }
     return nullptr;
 }
-static bool check_loop_conflict(MAT::Node** path,size_t n_hop,const Cross_t& potential_crosses) {
-    for (size_t node_idx=0;node_idx<n_hop;node_idx++) {
+static bool check_loop_conflict(const std::vector<MAT::Node*>& path,const Cross_t& potential_crosses) {
+    for (size_t node_idx=0;node_idx<path.size();node_idx++) {
         if (potential_crosses.find(path[node_idx])!=potential_crosses.end()) {
             return true;
         }
@@ -31,43 +31,57 @@ static bool check_loop_conflict(MAT::Node** path,size_t n_hop,const Cross_t& pot
     return false;
 }
 static void register_mut_conflict(MAT::Node *node,
-                           const std::vector<Fitch_Sankoff_Result_Deserialized> &states,Profitable_Move_Deserialized* m,Mut_t& repeatedly_mutating_loci) {
+                           const std::vector<Fitch_Sankoff_Result_Final> &states,Profitable_Move* m,Mut_t& repeatedly_mutating_loci) {
     while (node) {
         auto iter =
-            repeatedly_mutating_loci.insert({node, std::unordered_map<int,Profitable_Move_Deserialized*>()});
-        std::unordered_map<int,Profitable_Move_Deserialized*> &to_insert = iter.first->second;
-        for (const Fitch_Sankoff_Result_Deserialized& e : states) {
+            repeatedly_mutating_loci.insert({node, std::unordered_map<int,Profitable_Move*>()});
+        std::unordered_map<int,Profitable_Move*> &to_insert = iter.first->second;
+        for (const Fitch_Sankoff_Result_Final& e : states) {
             to_insert.emplace(e.mutation.position,m);
         }
         node = node->parent;
     }
 }
-static void register_loop_conflict(MAT::Node** path,size_t n_hop,Cross_t& potential_crosses) {
-    for (size_t node_idx=0;node_idx<n_hop;node_idx++) {
+static void register_loop_conflict(const std::vector<MAT::Node*>& path,Cross_t& potential_crosses) {
+    for (size_t node_idx=0;node_idx<path.size();node_idx++) {
         potential_crosses.insert(path[node_idx]);
     }
 }
-void resolve_conflict(Profitable_Moves_Cacher& candidate_moves, std::vector<Profitable_Move_Deserialized*>& non_conflicting_moves, std::vector<MAT::Node*>& deferred_nodes){
-    deferred_nodes.clear();
-    Cross_t potential_crosses;
-    Mut_t repeatedly_mutating_loci;
-    while(!candidate_moves.eof()){
-        MAT::Node** path;
-        size_t n_hop=candidate_moves.get_path(&path);
-        if(check_loop_conflict(path,n_hop,potential_crosses)){
-            ++candidate_moves;
-            continue;
-        }
-        Profitable_Move_Deserialized* m=*candidate_moves;
-        if (check_mut_conflict(m->LCA,m->states,repeatedly_mutating_loci)) {
-            deferred_nodes.push_back(m->src);
-            delete m;
-        }else {
-            register_loop_conflict(path,n_hop,potential_crosses);
-            register_mut_conflict(m->LCA,m->states,m,repeatedly_mutating_loci);
-            deferred_nodes.push_back(m->src->parent);
-            non_conflicting_moves.push_back(m);
-        }
-        ++candidate_moves;
+bool Conflict_Resolver::check_single_move_no_conflict(Profitable_Move* candidate_move)const{
+    const std::vector<MAT::Node*>& path=candidate_move->path;
+    if(check_loop_conflict(path,potential_crosses)){
+        delete candidate_move;
+        return false;
     }
+    if (check_mut_conflict(candidate_move->LCA,candidate_move->states,repeatedly_mutating_loci)){
+        deferred_nodes.push_back(candidate_move->src);
+        delete candidate_move;
+        return false;
+    }
+    return true;
+}
+void Conflict_Resolver::register_single_move_no_conflict(Profitable_Move* candidate_move) const{
+    const std::vector<MAT::Node*>& path=candidate_move->path;
+    register_loop_conflict(path,potential_crosses);
+    register_mut_conflict(candidate_move->LCA,candidate_move->states,candidate_move,repeatedly_mutating_loci);
+    deferred_nodes.push_back(candidate_move->src->parent);
+    non_conflicting_moves.push_back(candidate_move);
+}
+
+char Conflict_Resolver::operator()(Profitable_Moves_From_One_Source* candidate_move)const{
+    if (candidate_move->profitable_moves.empty()) {
+        return 0;
+    }
+    char ret=MOVE_FOUND_MASK;
+    for(Profitable_Move* move:candidate_move->profitable_moves){
+        if (ret&NONE_CONFLICT_MOVE_MASK) {
+            delete move;
+        }else {
+            if (check_single_move_no_conflict(move)) {
+                register_single_move_no_conflict(move);
+                ret|=NONE_CONFLICT_MOVE_MASK;
+            }
+        }
+    }
+    return ret;
 }

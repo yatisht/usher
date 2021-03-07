@@ -16,7 +16,8 @@
 #include <unordered_set>
 #include <vector>
 #include <memory>
-
+#define MOVE_FOUND_MASK 1
+#define NONE_CONFLICT_MOVE_MASK 2
 /* Enumerater Nodes -(Node*)->  Find neighbors and positions to do fitch-sankoff -(Possible_Moves*)-> do fitch-sankoff -(Possible_Moves*)->  estimate profit of moves -(Profitable_Moves*)-> apply moves*/
 //======================Message types========================
 struct Fitch_Sankoff_Result{
@@ -58,19 +59,10 @@ struct Profitable_Move{
     std::pair<size_t, size_t> range;
     std::vector<Fitch_Sankoff_Result_Final> states;
 };
-struct Fitch_Sankoff_Result_Deserialized{
-    MAT::Mutation mutation;
-    char LCA_parent_state;
-    Fitch_Sankoff::Score_Type* scores;
-};
-struct Profitable_Move_Deserialized{
+struct Profitable_Moves_From_One_Source{
     MAT::Node* src;
-    MAT::Node* dst;
-    MAT::Node* LCA;
-    std::pair<size_t, size_t> range;
-    std::vector<Fitch_Sankoff_Result_Deserialized> states;
+    std::vector<Profitable_Move*> profitable_moves;
 };
-
 struct ConfirmedMove{
     std::vector<MAT::Node*> removed;
     std::vector<MAT::Node*> added;
@@ -92,16 +84,24 @@ struct Parsimony_Score_Calculator{
 };
 struct Profitable_Moves_Enumerator{
     std::vector<MAT::Node *>& dfs_ordered_nodes;
-    tbb::concurrent_vector<Profitable_Move*>& profitable_moves;  
-    tbb::queuing_rw_mutex& mutex;
     const Original_State_t& original_states;
-    void operator() (Candidate_Moves*)const;
+    Profitable_Moves_From_One_Source* operator() (Candidate_Moves*)const;
 };
-
+typedef std::unordered_set<MAT::Node*,Node_Idx_Hash,Node_Idx_Eq> Cross_t;
+typedef std::unordered_map<MAT::Node*, std::unordered_map<int,Profitable_Move*>,Node_Idx_Hash,Node_Idx_Eq> Mut_t;
+struct Conflict_Resolver{
+    std::vector<Profitable_Move*>& non_conflicting_moves;
+    Cross_t& potential_crosses;
+    Mut_t& repeatedly_mutating_loci;
+    std::vector<MAT::Node*>& deferred_nodes;
+    bool check_single_move_no_conflict(Profitable_Move* candidate_move)const;
+    void register_single_move_no_conflict(Profitable_Move* candidate_move)const;
+    char operator()(Profitable_Moves_From_One_Source*) const;
+};
 struct Move_Executor{
     std::vector<MAT::Node *>& dfs_ordered_nodes;
     MAT::Tree& tree;
-    std::vector<Profitable_Move_Deserialized*>& moves;
+    std::vector<Profitable_Move*>& moves;
     Pending_Moves_t& tree_edits;
     const Original_State_t& ori;
     mutable std::unordered_map<void*,void*> new_parents_map;
@@ -110,36 +110,7 @@ struct Move_Executor{
     MAT::Node* get_parent(MAT::Node*) const;
 };
 
+
 void finalize_children(MAT::Node* parent,ConfirmedMove& edits,MAT::Tree* tree,const Original_State_t& checker,std::vector<std::pair<MAT::Node*, MAT::Node*>>& deleted_map);
-struct Profitable_Moves_Cacher{
-    tbb::concurrent_vector<Profitable_Move*>& to_monitor;
-    tbb::queuing_rw_mutex& swap_lock;
-    std::vector<std::pair<int, size_t>> file_offsets;
-    char* filename;
-    int raw_fd;
-    FILE* fd;
-    char* mapped_address;
-    size_t length;
-    std::condition_variable finish_cv;
-    std::string chrom;
-    std::mutex finish_mutex;
-    bool finished;
-    std::thread this_thread;
-    std::vector<std::pair<int, size_t>>::iterator file_offsets_iter;
-    void operator++(){
-        file_offsets_iter++;
-    }
-    bool eof(){
-        return file_offsets_iter==file_offsets.end();
-    }
-    Profitable_Moves_Cacher(tbb::concurrent_vector<Profitable_Move*>& to_monitor,tbb::queuing_rw_mutex& rw_mutex);
-    void run();
-    void operator()();
-    Profitable_Move_Deserialized* operator*();
-    size_t get_path(MAT::Node***);
-    void get_element(Profitable_Move&);
-    void finish();
-    ~Profitable_Moves_Cacher();
-};
-void resolve_conflict(Profitable_Moves_Cacher& candidate_moves, std::vector<Profitable_Move_Deserialized*>& non_conflicting_moves, std::vector<MAT::Node*>& deferred_nodes);
+
 #endif

@@ -208,7 +208,7 @@ static void set_mutation(MAT::Node *node, char state, char par_state, const MAT:
 #define get_score_idx(dfs_idx) (score_offset-(dfs_idx))
 #define get_state_idx(dfs_idx) ((dfs_idx)-state_offset)
 
-static void fill_dst_states(MAT::Node* to_fill,const size_t score_offset,const size_t state_offset,const MAT::Mutation& mutation,Score_Type* scores,States_Type& states,MAT::Node* to_move,MAT::Node* dst){
+static void fill_dst_states(MAT::Node* to_fill,const size_t score_offset,const size_t state_offset,const MAT::Mutation& mutation,Scores_Type& scores,States_Type& states,MAT::Node* to_move,MAT::Node* dst){
     assert(to_fill==dst||(!to_fill->is_leaf()));
 
     size_t this_state_idx = get_state_idx(to_fill->index);
@@ -238,7 +238,7 @@ static void fill_dst_states(MAT::Node* to_fill,const size_t score_offset,const s
 
 void Fitch_Sankoff::sankoff_forward_pass(const std::pair<size_t, size_t> &range,
                           std::vector<MAT::Node *> &dfs_ordered_nodes,const MAT::Mutation &mutation,const Original_State_t& original_states,
-                          Score_Type* scores, char starting_node_parent_state,MAT::Node* to_move,MAT::Node* dst,MAT::Node* new_leaf
+                          Scores_Type& scores, char starting_node_parent_state,MAT::Node* to_move,MAT::Node* dst,MAT::Node* new_leaf
 ) {
     // Score vector runs backward
     //first node->last element

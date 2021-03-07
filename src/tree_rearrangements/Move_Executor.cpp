@@ -32,7 +32,7 @@ void check_original_states(Fitch_Sankoff::States_Type& original_states, Mutation
 */
 void Move_Executor::operator()(tbb::blocked_range<size_t> &r) const {
     for (auto i = r.begin(); i < r.end(); i++) {
-        Profitable_Move_Deserialized *this_move = moves[i];
+        Profitable_Move *this_move = moves[i];
 
         MAT::Node* new_leaf=nullptr;
         #ifndef NDEBUG
@@ -64,7 +64,7 @@ void Move_Executor::operator()(tbb::blocked_range<size_t> &r) const {
         assert(new_parents_map.insert(std::make_pair((void*)this_move->src, (void*)this_move->dst)).second);
         // conflicts checked at the last step
         for (size_t j=0;j<this_move->states.size();j++) {
-            Fitch_Sankoff_Result_Deserialized& m=this_move->states[j];
+            Fitch_Sankoff_Result_Final& m=this_move->states[j];
             Fitch_Sankoff::sankoff_forward_pass(
                 this_move->range, dfs_ordered_nodes, m.mutation, ori,
                 m.scores, m.LCA_parent_state, this_move->src, this_move->dst,new_leaf);

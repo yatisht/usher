@@ -585,13 +585,15 @@ struct Repeated_Mutation_Initer{
         heap.push_back(Range<Repeated_Mutations,Position>(start,end));
         for(const auto child:this_node->children){
             const auto& temp=all[child->index];
-            heap.emplace_back(temp.begin(),temp.end());
+            auto start=temp.begin();
+            auto end=temp.end();
+            heap.emplace_back(start,end);
         }
     }
 };
 typedef Merged_Iterator<Repeated_Mutations, int, Repeated_Mutation_Comparator,Repeated_Mutation_Initer,Repeated_Mutations_Temp_Storage> Repeated_Mutation_Iterator;
 
-
+Temp_File_Map<Position>& Repeated_Mutations::memory=Temp_File_Map<Position>(INCREMENT*sizeof(Position));
 
 void get_all_mutation(std::vector<MAT::Node*>& dfs_ordered_nodes,std::vector<int> all_positions){
     Repeated_Mutations::memory=Temp_File_Map<Position>(INCREMENT*sizeof(Position));
