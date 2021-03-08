@@ -263,6 +263,21 @@ Users can also mask recommended [problematic sites](https://virological.org/t/is
 
 The resulting "output.vcf" merged VCF file should be viable for UShER input. Note that in `faToVcf` output, missing data for a particular sample is denoted as "." in the corresponding genotype column.
 
+### Example
+
+We provide example files to generate a merged vcf from fasta files using our proposed pipeline and expected output files for each step.
+
+```
+cat fasta1 fasta2 fasta3 > combined.fa
+```
+```
+mafft --thread 10 --auto --keeplength --addfragments combined.fa reference.fa > myAlignedSequences.fa
+```
+```
+./faToVcf -ref=NC_045512v2 combined.fa output.vcf
+```
+
+
 ## matUtils
 
 We are now providing a toolkit, `matUtils`, which can perform a number of tasks related to manipulating and querying the UShER's mutation-annotated tree, such as the generation of the corresponding Newick tree or parsimony-resolved VCF file, masking out mutations, or calculating the number of equally parsimonious placements for a specific set of samples. Full documentation for this toolkit can be found under [src/matUtils](https://github.com/yatisht/usher/blob/master/src/matUtils/README.md).
