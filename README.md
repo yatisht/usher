@@ -249,7 +249,7 @@ where reference.fa is a fasta file containing the reference genome and in which 
 
 ### Running faToVcf
 
-Users can use the tool, faToVcf, to convert a fasta file containing sequences that have been aligned to a reference into a vcf. For example, if a user possesses a file named "combined.fa" containing sequences that have been aligned to a sequence with fasta header "NC_045512v2", they can run the following command and generate a vcf names "output.vcf":
+Users can use the tool, `faToVcf`, to convert a fasta file containing sequences that have been aligned to a reference into a vcf. For example, if a user possesses a file named "combined.fa" containing sequences that have been aligned to a sequence with fasta header "NC_045512v2", they can run the following command and generate a vcf names "output.vcf":
 
 ```
 ./faToVcf -ref=NC_045512v2 combined.fa output.vcf
@@ -261,7 +261,7 @@ Users can also mask recommended [problematic sites](https://virological.org/t/is
 ./faToVcf -maskSites=problematic_sites_sarsCov2.vcf -ref=NC_045512v2 combined.fa output.vcf
 ```
 
-The resulting "output.vcf" merged VCF file should be viable for UShER input. Note that in faToVcf output, missing data for a particular sample is denoted as "." in the corresponding genotype column.
+The resulting "output.vcf" merged VCF file should be viable for UShER input. Note that in `faToVcf` output, missing data for a particular sample is denoted as "." in the corresponding genotype column.
 
 ## matUtils
 
