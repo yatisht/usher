@@ -265,7 +265,7 @@ The resulting "output.vcf" merged VCF file should be viable for UShER input. Not
 
 ### Example
 
-We provide example files to generate a merged vcf from fasta files using our proposed pipeline and expected output files for each step:
+We provide example files to generate a merged vcf using our proposed pipeline and expected output files for each step:
 
 ```
 cat test/Fasta2UShER/* > combined.fa
