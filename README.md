@@ -268,10 +268,10 @@ The resulting "output.vcf" merged VCF file should be viable for UShER input. Not
 We provide example files to generate a merged vcf using our proposed pipeline and expected output files for each step:
 
 ```
-cat test/Fasta2UShER/* > combined.fa
+cat ./test/Fasta2UShER/* > ./test/combined.fa
 ```
 ```
-mafft --thread 10 --auto --keeplength --addfragments combined.fa ./test/NC_045512v2.fa > ./test/myAlignedSequences.fa
+mafft --thread 10 --auto --keeplength --addfragments ./test/combined.fa ./test/NC_045512v2.fa > ./test/myAlignedSequences.fa
 ```
 ```
 ./faToVcf -ref=NC_045512v2 ./test/myAlignedSequences.fa ./test/test_merged.vcf
