@@ -229,9 +229,9 @@ UShER is also fast enough to allow users to update multiple input trees incorpor
 We provide a pipeline for converting SARS-CoV-2 genomic data in fasta format into a merged VCF viable for input to UShER. 
 
 ### Alignmenet
-If the user possesses SARS-CoV-2 genomic sequences that have been aligned to the reference this step can be skipped. User can employ multiple alignment using Fast Fourier Transform ([MAFFT](https://mafft.cbrc.jp/alignment/software/)) to perform pairwise alignments between their sequences and the SARS-CoV-2 genomic reference. 
+If the user possesses SARS-CoV-2 genomic sequences that have been aligned to the reference this step can be skipped. Users can employ multiple alignment using Fast Fourier Transform ([MAFFT](https://mafft.cbrc.jp/alignment/software/)) to perform pairwise alignments between their sequences and the SARS-CoV-2 genomic reference. 
 
-If you possess separate fasta files for each independent sequence, you must first combine all sequences into one combined fasta file. This can be performed using "cat". For example, if you have three fasta files named fasta1, fasta2, and fasta3,
+If the user possess separate fasta files for each independent sequence, they must first combine all sequences into one combined fasta file. This can be performed using "cat". For example, for the case of three fasta files named fasta1, fasta2, and fasta3,
 
 ```
 cat fasta1 fasta2 fasta3 > combined.fa
@@ -239,13 +239,13 @@ cat fasta1 fasta2 fasta3 > combined.fa
 
 will produce a fasta file named "combined.fa" containing seqences from fasta1, fasta2, and fasta3.
 
-Then, you can run MAFFT with the following command,
+Then, MAFFT can be employed with the following command,
 
 ```
 mafft --thread 10 --auto --keeplength --addfragments combined.fa reference.fa > myAlignedSequences.fa
 ```
 
-where reference.fa is a fasta file containing the reference genome and in which case you are using 10 threads. 
+where reference.fa is a fasta file containing the reference genome and in which case 10 threads are specified. 
 
 ### Running faToVcf
 
@@ -262,17 +262,19 @@ Users can also incorporate masking recomenedations. For example, if a user wants
 ```
 
 The resulting "output.vcf" merged VCF file should be viable for UShER input. Note that in faToVcf output, missing data for a particular sample is denoted as "." in the corresponding genotype column.
+
 ## matUtils
 
 We are now providing a toolkit, `matUtils`, which can perform a number of tasks related to manipulating and querying the UShER's mutation-annotated tree, such as the generation of the corresponding Newick tree or parsimony-resolved VCF file, masking out mutations, or calculating the number of equally parsimonious placements for a specific set of samples. Full documentation for this toolkit can be found under [src/matUtils](https://github.com/yatisht/usher/blob/master/src/matUtils/README.md).
 
 ## Acknowledgement
 
-We thank Jim Kent and the UCSC Genome Browser team for allowing us to download the `faToVcf` utility (from http://hgdownload.soe.ucsc.edu/admin/exe/) for `Fasta2UShER`. Please read the license terms for `faToVcf` here: https://github.com/ucscGenomeBrowser/kent/blob/master/src/LICENSE.
+We thank Jim Kent and the UCSC Genome Browser team for allowing us to download the `faToVcf` utility (from http://hgdownload.soe.ucsc.edu/admin/exe/). Please read the license terms for `faToVcf` here: https://github.com/ucscGenomeBrowser/kent/blob/master/src/LICENSE.
 
 ## Reference
 **UShER:**
 * Yatish Turakhia, Bryan Thornlow, Angie S Hinrichs, Nicola de Maio, Landen Gozashti, Robert Lanfear, David Haussler, and Russ Corbett-Detig, "Ultrafast Sample Placement on Existing Trees (UShER) Empowers Real-Time Phylogenetics for the SARS-CoV-2 Pandemic", bioRxiv [pre-print](https://www.biorxiv.org/content/10.1101/2020.09.26.314971v1) 2020.
 
-**For Fasta2UShER, please also cite:**
-* Yatish Turakhia, Nicola De Maio, Bryan Thornlow, Landen Gozashti, Robert Lanfear, Conor R. Walker, Angie S. Hinrichs, Jason D. Fernandes, Rui Borges, Greg Slodkowicz, Lukas Weilguny, David Haussler, Nick Goldman and Russell Corbett-Detig, "Stability of SARS-CoV-2 Phylogenies", PLOS Genetics 2020 (https://doi.org/10.1371/journal.pgen.1009175).
+**For masking recomendations, please also cite:**
+* Landen Gozashti, Conor R. Walker, Nick Goldman, Russell Corbett-Detig and Nicola De Maio, "Issues with SARS-CoV-2 sequencing data: Updated analysis with data from 13th November 2020", Virological 2020 (https://virological.org/t/issues-with-sars-cov-2-sequencing-data/473/14
+).
