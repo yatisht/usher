@@ -245,7 +245,7 @@ Then, MAFFT can be employed with the following command,
 mafft --thread 10 --auto --keeplength --addfragments combined.fa reference.fa > myAlignedSequences.fa
 ```
 
-where reference.fa is a fasta file containing the reference genome and in which case 10 threads are specified. 
+where "reference.fa" is a fasta file containing the reference genome and in which case 10 threads are specified. 
 
 ### Running faToVcf
 
