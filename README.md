@@ -91,13 +91,11 @@ cd ..
 ```
 rsync -aP rsync://hgdownload.soe.ucsc.edu/genome/admin/exe/macOSX.x86_64/faToVcf .
 chmod +x faToVcf
-mv faToVcf scripts/
 ```
 * Linux
 ```
 rsync -aP rsync://hgdownload.soe.ucsc.edu/genome/admin/exe/linux.x86_64/faToVcf .
 chmod +x faToVcf
-mv faToVcf scripts/
 ```
 
 ### Using installation scripts
