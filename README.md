@@ -224,7 +224,7 @@ There are many ways to interpret and visualize the forest of trees produced by m
 
 UShER is also fast enough to allow users to update multiple input trees incorporating uncertainty in tree resonstruction, such as multiple bootstrap trees. While we do not provide an explicit option to input multiple trees at once, UShER can be run independently for each input tree and place new samples. We recommend the user to use the [GNU parallel utility](https://www.gnu.org/software/parallel/) to do so in parallel using multiple CPU cores while setting `-T 1` for each UShER task.
 
-## Converting genomic data in fasta files into a merged VCF for UShER input 
+## Converting fasta files into a merged VCF for UShER input 
 
 We provide a pipeline for converting SARS-CoV-2 genomic data in fasta format into a merged VCF viable for input to UShER. 
 
