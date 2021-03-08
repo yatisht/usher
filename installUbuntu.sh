@@ -19,4 +19,3 @@ cd ..
 # install faToVcf
 rsync -aP rsync://hgdownload.soe.ucsc.edu/genome/admin/exe/linux.x86_64/faToVcf .
 chmod +x faToVcf
-mv faToVcf scripts/
