@@ -23,6 +23,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
         "Automatically select two representative samples per clade in the tree after other selection steps and prune all other samples.")
         ("prune,p", po::bool_switch(),
         "Remove the selected samples instead of keeping them in the output files.")
+        ("resolve-polytomies,R", po::bool_switch(),
+        "Resolve all polytomies by assigning branch length 0 relationships arbitrarily. Applied after selection; prevents recondensing of the MAT.")
         ("output-directory,d", po::value<std::string>()->default_value("./"),
         "Write output files to the target directory. Default is current directory.")
         ("sample-paths,S", po::value<std::string>()->default_value(""),
@@ -79,6 +81,7 @@ void extract_main (po::parsed_options parsed) {
     size_t max_epps = vm["max-epps"].as<size_t>();
     bool prune_samples = vm["prune"].as<bool>();
     bool get_representative = vm["get-representative"].as<bool>();
+    bool resolve_polytomies = vm["resolve-polytomies"].as<bool>();
     std::string dir_prefix = vm["output-directory"].as<std::string>();
 
     boost::filesystem::path path(dir_prefix);
@@ -268,7 +271,13 @@ void extract_main (po::parsed_options parsed) {
         subtree = filter_master(T, samples, false);
         //fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
-
+    //if polytomy resolution was requested, apply it
+    if (resolve_polytomies) {
+        timer.Start();
+        fprintf(stderr, "Resolving polytomies...\n");
+        subtree = resolve_all_polytomies(subtree);
+        fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+    }
     //getting clade representative samples is a special additional step after constructing a subtree
     //so that it selects the first two nodes which fulfilled all other conditions and were retained in the initial filtering
     //TODO: there should be a better way to integrate this information that doesn't involve multiple steps of filtering
@@ -346,7 +355,10 @@ void extract_main (po::parsed_options parsed) {
     //and save a MAT if that was set
     if (output_mat_filename != dir_prefix) {
         fprintf(stderr, "Saving output MAT file %s.\n", output_mat_filename.c_str()); 
-        subtree.condense_leaves();
+        //only recondense the tree if polytomies weren't resolved.
+        if (!resolve_polytomies) {
+            subtree.condense_leaves();
+        }
         if (collapse_tree) {
             subtree.collapse_tree();
         }

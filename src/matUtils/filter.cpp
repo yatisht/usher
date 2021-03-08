@@ -75,3 +75,53 @@ MAT::Tree get_sample_prune (const MAT::Tree& T, std::vector<std::string> sample_
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     return subtree;
 }
+
+void resolve_polytomy(MAT::Tree* T, std::vector<MAT::Node*> polytomy_nodes) {
+    assert (polytomy_nodes.size() > 2);
+    std::vector<MAT::Node*> new_parents;
+    auto og_parent = polytomy_nodes[0]->parent;
+    new_parents.push_back(og_parent);
+    //generate a number of new internal nodes to hang these samples on
+    //the number is the total number of polytomy nodes - 2 (remember, minimum 3 nodes to resolve)
+    for (int i=0; i<polytomy_nodes.size()-2; i++) {
+        //create a unique identifier indicating that this is a polytomy resolving node
+        const std::string nid = og_parent->identifier + "_polytomy_" + std::to_string(i);
+        //generate the actual node; its parent is going to be the last entry of new_parents
+        //for the first one, that's the original parent, for each after, its the last generated
+        auto nnode = T->create_node(nid, new_parents.back(), 0);
+        new_parents.push_back(nnode);
+    }
+    //now, assign each of the polytomy samples to one of these new parents
+    //the first polytomy node can be ignored and stay a child to its current parent
+    //the rest are going to be moved to the parent which matches their index
+    //except for the last one, which will go to the last parent in line (index - 1),
+    //as the last parent can support two children.
+    for (int i=1; i<polytomy_nodes.size()-1; i++) {
+        T->move_node(polytomy_nodes[i]->identifier, new_parents[i]->identifier, false);
+        polytomy_nodes[i]->branch_length = 0.0;
+    }
+    T->move_node(polytomy_nodes.back()->identifier, new_parents.back()->identifier, false);
+    polytomy_nodes.back()->branch_length = 0.0;
+}
+
+MAT::Tree resolve_all_polytomies(MAT::Tree T) {
+    //go through the tree, identify every uncondensed polytomy
+    //then resolve the polytomy positionally and save the results
+    //this will conflict with condensing the tree but that's fine.
+    for (auto l: T.get_leaves()) {
+        //for every leaf, check the leaf's parent's children
+        //parallel to the implementation for node condensing in the class definition
+        std::vector<MAT::Node*> polytomy_nodes;
+        for (auto l2: l->parent->children) {
+            if (l2->is_leaf() && (T.get_node(l2->identifier) != NULL) && (l2->mutations.size() == 0)) {
+                polytomy_nodes.push_back(l2);
+            }
+        }
+        //greater than 2 because a polytomy of two nodes is already resolved (unlike condenser, which can condense a polytomy of 2)
+        if (polytomy_nodes.size() > 2) {
+            //pass by reference, modify in place
+            resolve_polytomy(&T, polytomy_nodes);
+        }
+    }
+    return T;
+}
