@@ -188,10 +188,12 @@ void summary_main(po::parsed_options parsed) {
     uint32_t num_threads = vm["threads"].as<uint32_t>();
     bool get_all = vm["get-all"].as<bool>();
     if (get_all) {
-        samples = dir_prefix + "/samples.txt";
-        clades = dir_prefix + "/clades.txt";
-        mutations = dir_prefix + "/mutations.txt";
-        aberrant = dir_prefix + "/aberrant.txt";
+        //if this is set, overwrite with default names for all output
+        //and since these names are non-empty, all will be generated
+        samples = dir_prefix + "samples.txt";
+        clades = dir_prefix + "clades.txt";
+        mutations = dir_prefix + "mutations.txt";
+        aberrant = dir_prefix + "aberrant.txt";
     }
     tbb::task_scheduler_init init(num_threads);
 
