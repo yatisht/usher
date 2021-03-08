@@ -27,6 +27,8 @@ This command selects subtrees from the MAT based on clade identification, sample
 
 **-p**: Prune the samples indicated by other arguments instead of extracting them to create the subtree.
 
+**-R**: Resolve polytomies by insertion of internal nodes with branch length 0. Prevents condensed tree output.
+
 **-d**: Set the directory to save output files. Directory must already exist. Default is current directory
 
 **-S**: Write the path of mutations defining each selected sample to a file.
