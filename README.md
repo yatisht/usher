@@ -245,7 +245,7 @@ Then, MAFFT can be employed with the following command,
 mafft --thread 10 --auto --keeplength --addfragments combined.fa reference.fa > myAlignedSequences.fa
 ```
 
-where "reference.fa" is a fasta file containing the reference genome and in which case 10 threads are specified. For large numbers of sequences, we recommend using Robert Lanfear's ([global_profile_alignment.sh](https://github.com/roblanf/sarscov2phylo/blob/master/scripts/global_profile_alignment.sh)), which can reduce memory requirements by splitting alignments and performing them in parallel. 
+where "reference.fa" is a fasta file containing the reference genome and in which case 10 threads are specified. For large numbers of sequences, we recommend using Robert Lanfear's [global_profile_alignment.sh](https://github.com/roblanf/sarscov2phylo/blob/master/scripts/global_profile_alignment.sh), which can reduce memory requirements by splitting alignments and performing them in parallel. 
 
 ### Running faToVcf
 
