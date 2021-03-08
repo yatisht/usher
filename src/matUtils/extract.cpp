@@ -26,11 +26,11 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
         ("output-directory,d", po::value<std::string>()->default_value("./"),
         "Write output files to the target directory. Default is current directory.")
         ("sample-paths,S", po::value<std::string>()->default_value(""),
-        "Write the path of mutations defining each selected sample to the target file (all samples if no selection arguments)")
+        "Write the path of mutations defining each selected sample to the target file.")
         ("clade-paths,C", po::value<std::string>()->default_value(""),
         "Write the path of mutations defining each clade in the tree after sample selection to the target file.")
         ("all-paths,A", po::value<std::string>()->default_value(""),
-        "Write mutations assigned to each node in the selected tree in depth-first order to the target file.")
+        "Write mutations assigned to each node in the selected tree in depth-first traversal order to the target file.")
         ("write-vcf,v", po::value<std::string>()->default_value(""),
          "Output VCF file representing selected subtree. Default is full tree")
         ("no-genotypes,n", po::bool_switch(),
@@ -250,6 +250,7 @@ void extract_main (po::parsed_options parsed) {
 
     MAT::Tree subtree; 
     if (samples.size() == 0) {
+        fprintf(stderr, "No sample selection arguments passed; using full input tree.\n");
         samples = T.get_leaves_ids();
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
         //if no selection was set, then there's no need to filter.
