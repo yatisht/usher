@@ -18,7 +18,6 @@ rm mafft-7.471-gcc_fc6.x86_64.rpm
 # install faToVcf
 rsync -aP rsync://hgdownload.soe.ucsc.edu/genome/admin/exe/linux.x86_64/faToVcf .
 chmod +x faToVcf
-mv faToVcf scripts/
 
 #install biopython
 pip3 install biopython
