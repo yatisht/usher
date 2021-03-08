@@ -19,6 +19,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
         "Select samples by whether they have less than the maximum indicated number of equally parsimonious placements. Note: calculation adds significantly to runtime.")
         ("max-parsimony,a", po::value<int>()->default_value(-1),
         "Select samples by whether they have less than the maximum indicated parsimony score (terminal branch length)")
+        ("nearest-k,k", po::value<std::string>()->default_value(""),
+        "Select a sample ID and the nearest k samples to it, formatted as sample:k. E.g. -k sample_1:50 gets sample 1 and the nearest 50 samples to it as a subtree.")
         ("get-representative,r", po::bool_switch(),
         "Automatically select two representative samples per clade in the tree after other selection steps and prune all other samples.")
         ("prune,p", po::bool_switch(),
@@ -28,11 +30,11 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
         ("output-directory,d", po::value<std::string>()->default_value("./"),
         "Write output files to the target directory. Default is current directory.")
         ("sample-paths,S", po::value<std::string>()->default_value(""),
-        "Write the path of mutations defining each selected sample to the target file.")
+        "Write the path of mutations defining each sample in the subtree.")
         ("clade-paths,C", po::value<std::string>()->default_value(""),
-        "Write the path of mutations defining each clade in the tree after sample selection to the target file.")
+        "Write the path of mutations defining each clade in the subtree to the target file.")
         ("all-paths,A", po::value<std::string>()->default_value(""),
-        "Write mutations assigned to each node in the selected tree in depth-first traversal order to the target file.")
+        "Write mutations assigned to each node in the subtree in depth-first traversal order to the target file.")
         ("write-vcf,v", po::value<std::string>()->default_value(""),
          "Output VCF file representing selected subtree. Default is full tree")
         ("no-genotypes,n", po::bool_switch(),
@@ -75,6 +77,7 @@ void extract_main (po::parsed_options parsed) {
     po::variables_map vm = parse_extract_command(parsed);
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string input_samples_file = vm["samples"].as<std::string>();
+    std::string nearest_k = vm["nearest-k"].as<std::string>();
     std::string clade_choice = vm["clade"].as<std::string>();
     std::string mutation_choice = vm["mutation"].as<std::string>();
     int max_parsimony = vm["max-parsimony"].as<int>();
@@ -133,6 +136,26 @@ void extract_main (po::parsed_options parsed) {
     if (input_samples_file != "") {
         samples = read_sample_names(input_samples_file);
     } 
+    if (nearest_k != "") {
+        auto split_point = nearest_k.find(":");
+        if (split_point == std::string::npos) {
+            fprintf(stderr, "ERROR: Invalid formatting of -k argument. Requires input in the form of 'sample_id:k' to get k nearest samples to sample_id\n");
+            exit(1);
+        }
+        std::string sample_id = nearest_k.substr(0, split_point);
+        std::string nkstr = nearest_k.substr(split_point, nearest_k.size() - split_point); 
+        int nk = std::stoi(nkstr);
+        if (nk <= 0) {
+            fprintf(stderr, "ERROR: Invalid neighborhood size. Please choose a positive nonzero integer.\n");
+            exit(1);
+        }
+        auto nk_samples = get_nearby(T, sample_id, nk);
+        if (samples.size() == 0) {
+            samples = nk_samples;
+        } else {
+            samples = sample_intersect(samples, nk_samples);
+        }
+    }
     if (clade_choice != "") {
         //process the clade choice string
         std::vector<std::string> clades;
