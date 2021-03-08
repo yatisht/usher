@@ -59,6 +59,8 @@ struct mapper2_input {
     size_t* best_node_num_leaves;
     size_t j;
     size_t* best_j;
+    size_t distance;
+    size_t* best_distance;
     size_t* num_best;
     MAT::Node** best_node;
 
@@ -69,6 +71,11 @@ struct mapper2_input {
 
     std::vector<MAT::Mutation>* excess_mutations;
     std::vector<MAT::Mutation>* imputed_mutations;
+
+    mapper2_input () {
+        distance = 0;
+        best_distance = &distance;
+    }
 };
 
 void mapper2_body(mapper2_input& inp, bool compute_parsimony_scores);

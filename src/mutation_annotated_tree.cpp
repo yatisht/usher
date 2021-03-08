@@ -483,14 +483,21 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
                         nuc_vec[n] = mut.mut_nuc(n);
                      }
                      m.mut_nuc = get_nuc_id(nuc_vec);
+                     if (m.mut_nuc != m.par_nuc) {
+                         node->add_mutation(m);
+                     }
                   }
                   else {
                       // Mutation masked
                       m.ref_nuc = 0;
                       m.par_nuc = 0;
                       m.mut_nuc = 0;
+                      node->add_mutation(m);
                   }
-                  node->add_mutation(m);
+               }
+               if (!std::is_sorted(node->mutations.begin(), node->mutations.end())) {
+                   fprintf(stderr, "WARNING: Mutations not sorted!\n");
+                   std::sort(node->mutations.begin(), node->mutations.end());
                }
             }
         }, ap);
@@ -834,22 +841,18 @@ void Mutation_Annotated_Tree::Tree::remove_node_helper (std::string nid, bool mo
                 child->level = curr_parent->parent->level + 1;
                 child->branch_length += curr_parent->branch_length;
 
-                for (auto m1: curr_parent->mutations) {
-                    bool found_pos = false;
-                    for (auto& m2: child->mutations) {
-                        if (m1.position == m2.position) {
-                            found_pos = true;
-                            // TODO: should remove mutations if m2.par_nuc == m1.par_nuc? 
-                            m2.par_nuc = m1.par_nuc;
-                            break;
-                        }
-                        if (m2.position > m1.position) {
-                            break;
-                        }
-                    }
-                    if (!found_pos) {
-                        child->add_mutation(m1);
-                    }
+                std::vector<Mutation> tmp;
+                for (auto m: child->mutations) {
+                    tmp.emplace_back(m.copy());
+                }
+
+                //Clear and add back mutations in chrono order
+                child->clear_mutations();
+                for (auto m: curr_parent->mutations) {
+                    child->add_mutation(m.copy());
+                }
+                for (auto m: tmp) {
+                    child->add_mutation(m.copy());
                 }
 
                 curr_parent->parent->children.push_back(child);
@@ -1139,20 +1142,22 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_tree_copy(const Mutat
 // exist
 Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::LCA (const Mutation_Annotated_Tree::Tree& tree, const std::string& nid1, const std::string& nid2) {
     TIMEIT();
-    Node* ret = NULL;
-
+    
     if ((tree.get_node(nid1) == NULL) || (tree.get_node(nid2) == NULL)) {
-        return ret;
+        return NULL;
     }
 
-    for (auto anc: tree.rsearch(nid1)) {
-        ret = anc;
-        if (tree.is_ancestor(anc->identifier, nid2)) {
-            return ret;
+    auto n2_ancestors = tree.rsearch(nid2, true);
+
+    for (auto anc1: tree.rsearch(nid1, true)) {
+        for (auto anc2: n2_ancestors) {
+            if (anc1 == anc2) {
+                return anc1;
+            }
         }
     }
 
-    return ret;
+    return NULL;
 }
 
 // Extract the subtree consisting of the specified set of samples. This routine
