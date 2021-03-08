@@ -252,13 +252,13 @@ where "reference.fa" is a fasta file containing the reference genome and in whic
 Users can use the tool, `faToVcf`, to convert a fasta file containing sequences that have been aligned to a reference into a vcf. For example, if a user possesses a file named "combined.fa" containing sequences that have been aligned to a sequence with fasta header "NC_045512v2", they can run the following command and generate a vcf names "output.vcf":
 
 ```
-./faToVcf -ref=NC_045512v2 myAlignedSequences.fa output.vcf
+./faToVcf  myAlignedSequences.fa output.vcf
 ```
 
 Users can also mask recommended [problematic sites](https://virological.org/t/issues-with-sars-cov-2-sequencing-data/473/14) in SARS-CoV-2 genomic data:
 
 ```
-./faToVcf -maskSites=problematic_sites_sarsCov2.vcf -ref=NC_045512v2 myAlignedSequences.fa output.vcf
+./faToVcf -maskSites=problematic_sites_sarsCov2.vcf  myAlignedSequences.fa output.vcf
 ```
 
 The resulting "output.vcf" merged VCF file should be viable for UShER input. Note that in `faToVcf` output, missing data for a particular sample is denoted as "." in the corresponding genotype column.
@@ -274,7 +274,7 @@ cat ./test/Fasta2UShER/* > ./test/combined.fa
 mafft --thread 10 --auto --keeplength --addfragments ./test/combined.fa ./test/NC_045512v2.fa > ./test/myAlignedSequences.fa
 ```
 ```
-./faToVcf -ref=NC_045512v2 ./test/myAlignedSequences.fa ./test/test_merged.vcf
+./faToVcf ./test/myAlignedSequences.fa ./test/test_merged.vcf
 ```
 
 
