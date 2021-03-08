@@ -237,7 +237,7 @@ If the user possess separate fasta files for each independent sequence, they mus
 cat fasta1 fasta2 fasta3 > combined.fa
 ```
 
-will produce a fasta file named "combined.fa" containing seqences from fasta1, fasta2, and fasta3.
+will produce a fasta file named "combined.fa" containing seqences from fasta1, fasta2, and fasta3. When combining files please ensure that there are no duplicate sequences.
 
 Then, MAFFT can be employed with the following command,
 
