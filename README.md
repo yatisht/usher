@@ -255,7 +255,7 @@ Users can use the tool, faToVcf, to convert a fasta file containing sequences th
 ./faToVcf -ref=NC_045512v2 combined.fa output.vcf
 ```
 
-Users can also incorporate masking recomenedations. For example, if a user wants to generate a vcf which masks recommended problematic[problematic sites](https://virological.org/t/issues-with-sars-cov-2-sequencing-data/473/12), they can use the command:
+Users can also mask recommended [problematic sites](https://virological.org/t/issues-with-sars-cov-2-sequencing-data/473/14) in SARS-CoV-2 genomic data:
 
 ```
 ./faToVcf -maskSites=problematic_sites_sarsCov2.vcf -ref=NC_045512v2 combined.fa output.vcf
