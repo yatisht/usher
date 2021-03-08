@@ -238,6 +238,7 @@ void summary_main(po::parsed_options parsed) {
         }
         fprintf(stdout, "Total Nodes in Tree: %d\n", nodecount);
         fprintf(stdout, "Total Samples in Tree: %d\n", samplecount);
+        fprintf(stdout, "Total Tree Parsimony %ld\n", T.get_parsimony_score());
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
 }
