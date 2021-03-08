@@ -91,6 +91,7 @@ namespace Mutation_Annotated_Tree {
             
             void add_mutation(Mutation mut);
             void clear_mutations();
+            void clear_annotations();
     };
 
     class Tree {
@@ -150,5 +151,7 @@ namespace Mutation_Annotated_Tree {
 
     Node* LCA (const Tree& tree, const std::string& node_id1, const std::string& node_id2);
     Tree get_subtree (const Tree& tree, const std::vector<std::string>& samples);
+
+    void clear_tree(Tree& tree);
 }
 

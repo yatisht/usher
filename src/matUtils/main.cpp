@@ -2,6 +2,7 @@
 #include "mask.hpp"
 #include "summary.hpp"
 #include "extract.hpp"
+#include "optimize.hpp"
 
 Timer timer; 
 
@@ -22,6 +23,7 @@ int main (int argc, char** argv) {
         "annotate: assigns clade identities to nodes, directly or by inference\n\n"
         "uncertainty: calculates sample placement uncertainty metrics and writes the results to tsv\n\n"
         "mask: masks the input samples\n\n"
+        "optimize: optimizes the parsimony score of the input MAT using subtree pruning and placement\n\n"
         "Individual command options can be accessed with matUtils command --help, e.g. matUtils annotate --help will show annotation-specific help messages.\n\n";
     
     try {
@@ -43,6 +45,8 @@ int main (int argc, char** argv) {
         uncertainty_main(parsed);
     } else if (cmd == "summary") {
         summary_main(parsed);
+    } else if (cmd == "optimize") {
+        optimize_main(parsed);
     } else if (cmd == "help") { 
         fprintf(stderr, "%s", helpstr.c_str());
         exit(0);
