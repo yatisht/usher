@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <vector>
+#include "conflict.hpp"
 typedef std::unordered_set<MAT::Node*,Node_Idx_Hash,Node_Idx_Eq> Cross_t;
 typedef std::unordered_map<MAT::Node*, std::unordered_map<int,Profitable_Move*>,Node_Idx_Hash,Node_Idx_Eq> Mut_t;
 

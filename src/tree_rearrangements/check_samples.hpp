@@ -30,7 +30,7 @@ struct Node_Idx_Eq{
     }
 };
 
-typedef tbb::concurrent_unordered_map<Mutation_Annotated_Tree::Node*,ConfirmedMove,Node_Idx_Hash,Node_Idx_Eq> Pending_Moves_t;
+typedef std::unordered_map<Mutation_Annotated_Tree::Node*,ConfirmedMove,Node_Idx_Hash,Node_Idx_Eq> Pending_Moves_t;
 typedef std::unordered_set<Mutation_Annotated_Tree::Mutation, Mutation_Pos_Only_Hash, Mutation_Pos_Only_Comparator> Mutation_Set;
 typedef std::unordered_map<std::string, Mutation_Set>
     Original_State_t;
@@ -44,4 +44,5 @@ void check_samples_worker(Mutation_Annotated_Tree::Node *root,
 void check_samples_worker_with_pending_moves(Mutation_Annotated_Tree::Node *root,
                                  Mutation_Set parent_mutations,
                                  Original_State_t &samples,const Pending_Moves_t& pending_moves);
+void ins_mut(Mutation_Set &parent_mutations,const Mutation_Annotated_Tree::Mutation &m);
 #endif

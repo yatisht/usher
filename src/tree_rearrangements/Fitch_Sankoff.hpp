@@ -39,9 +39,9 @@ typedef std::vector<Score_Type> Scores_Type;
 
 std::pair<size_t, size_t> dfs_range(const MAT::Node *start,const std::vector<MAT::Node *> &dfs_ordered_nodes);
 
-int sankoff_backward_pass(const std::pair<size_t, size_t> &range,
+void sankoff_backward_pass(const std::pair<size_t, size_t> &range,
                            const std::vector<MAT::Node *> &dfs_ordered_nodes,
-                           Scores_Type &scores,const Original_State_t& original_state,const MAT::Mutation& mutation,char starting_node_parent_state);
+                           Scores_Type &scores,const Original_State_t& original_state,const MAT::Mutation& mutation);
 void sankoff_forward_pass(const std::pair<size_t, size_t> &range,
                           std::vector<MAT::Node *> &dfs_ordered_nodes,const MAT::Mutation &mutation,const Original_State_t& original_state,
                           Scores_Type& scores,char starting_node_parent_state,MAT::Node* to_move,MAT::Node* dst, MAT::Node* new_leaf);

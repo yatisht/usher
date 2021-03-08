@@ -304,7 +304,7 @@ namespace Mutation_Annotated_Tree {
 
             Tree (Node* n);
 #ifndef matUtils
-            Tree (Tree* other):root(new Node(*other->root,nullptr,this)),curr_internal_node(other->curr_internal_node){}
+            //Tree (Tree* other):root(new Node(*other->root,nullptr,this)),curr_internal_node(other->curr_internal_node){}
 #endif
             std::vector<Node*> new_nodes;
             size_t max_level;

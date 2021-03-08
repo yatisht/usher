@@ -1,4 +1,5 @@
 #include "src/mutation_annotated_tree.hpp"
+#include "src/tree_rearrangements/Fitch_Sankoff.hpp"
 #include "src/tree_rearrangements/check_samples.hpp"
 #include "tree_rearrangement_internal.hpp"
 #include <algorithm>
@@ -18,7 +19,7 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
-
+int count_mutation(MAT::Node* node,int pos);
 static void remove_child(MAT::Node* child_to_remove){
         auto parent=child_to_remove->parent;
         auto iter=std::find(parent->children.begin(),parent->children.end(),child_to_remove);
@@ -41,11 +42,11 @@ static void patch_sankoff_result(size_t offset, Fitch_Sankoff::Scores_Type& out,
     }
 }
 
-static int calculate_parsimony_score_change(std::pair<size_t, size_t>& range, Fitch_Sankoff::Scores_Type& out, MAT::Node* src, MAT::Node* dst,char par_nuc, MAT::Node* LCA){
+static std::pair<int,int> calculate_parsimony_score_change(std::pair<size_t, size_t>& range, Fitch_Sankoff::Scores_Type& out, MAT::Node* src, MAT::Node* dst,char par_nuc, MAT::Node* LCA){
     assert(LCA->index==range.first);
     int offset=range.second-1;
     char par_nuc_idx=one_hot_to_two_bit(par_nuc);
-    int original_parsimony_score=out.back()[par_nuc_idx];
+    int original_parsimony_score=Fitch_Sankoff::get_child_score_on_par_nuc(par_nuc_idx, out.back()).first;
     size_t end_idx=range.first;
     patch_sankoff_result(offset, out, src, src->parent,end_idx);
     patch_sankoff_result(offset, out, src, dst,end_idx);
@@ -56,7 +57,7 @@ static int calculate_parsimony_score_change(std::pair<size_t, size_t>& range, Fi
     }else{
         Fitch_Sankoff::set_internal_score(*LCA, out, offset);
     }
-    return out.back()[par_nuc_idx]-original_parsimony_score;
+    return std::make_pair(Fitch_Sankoff::get_child_score_on_par_nuc(par_nuc_idx, out.back()).first,original_parsimony_score);
 }
 
 static void copy_scores(const Fitch_Sankoff_Result &ori,
@@ -118,14 +119,22 @@ struct Test_Move_Profitable {
             std::vector<Fitch_Sankoff_Result_Final> moved_states(
                 in->FS_results.size());
             
-            #ifndef NDEBUG
-            MAT::Tree new_tree(all_moves->src->tree);
+            #ifdef DETAIL_DEBUG_PARSIMONY_SCORE_MATCH
+            MAT::Tree new_tree;
+            MAT::Node *new_LCA = new Mutation_Annotated_Tree::Node(*LCA,nullptr,&new_tree);
+            new_tree.root=new_LCA;
             MAT::Node *new_src = new_tree.get_node(all_moves->src->identifier);
-            MAT::Node *new_LCA = new_tree.get_node(LCA->identifier);
+            //MAT::Node *new_LCA = new_tree.get_node(LCA->identifier);
             MAT::Node *original_src_parent_in_new_tree = new_src->parent;
-            remove_child(new_src);
             MAT::Node *new_dst = new_tree.get_node(in->dst->identifier);
+            remove_child(new_src);
             MAT::Node *added = new_dst->add_child(new_src);
+            while (original_src_parent_in_new_tree->is_leaf()) {
+                MAT::Node* parent_of_parent=original_src_parent_in_new_tree->parent;
+                remove_child(original_src_parent_in_new_tree);
+                original_src_parent_in_new_tree=parent_of_parent;
+            }
+            
             std::vector<MAT::Node *> new_dfs_ordered_nodes =
                 new_tree.depth_first_expansion();
             std::pair<size_t, size_t> new_range =
@@ -145,17 +154,29 @@ struct Test_Move_Profitable {
                         moved_states[mut_idx].mutation=parent_fs_result->mutation;
                         bool clear_after=parent_fs_result->scores.empty();
                         if(clear_after){
-                            Fitch_Sankoff::sankoff_backward_pass(parent_fs_result->range, dfs_ordered_nodes,parent_fs_result->scores,original_states,parent_fs_result->mutation,parent_fs_result->LCA_parent_state);
-                            
+                            Fitch_Sankoff::sankoff_backward_pass(parent_fs_result->range, dfs_ordered_nodes,parent_fs_result->scores,original_states,parent_fs_result->mutation);
                         }
                         copy_scores(*parent_fs_result, patched, range);
                         char LCA_parent_state =(LCA==dfs_ordered_nodes[parent_fs_result->range.first])?parent_fs_result->LCA_parent_state:get_genotype(LCA->parent, parent_fs_result->mutation);
                         moved_states[mut_idx].LCA_parent_state=LCA_parent_state;
-                        int this_change = calculate_parsimony_score_change(
+                        auto new_old_score = calculate_parsimony_score_change(
                             range, patched, all_moves->src, in->dst,
                             LCA_parent_state, LCA);
-                            
+                        int this_change =
+                            new_old_score.first - new_old_score.second;
                         #ifndef NDEBUG
+                        moved_states[mut_idx].optimized_score=new_old_score.first;
+                        moved_states[mut_idx].original_topology_score=new_old_score.second;
+                        #endif
+#ifdef DETAIL_DEBUG_PARSIMONY_SCORE_MATCH
+                        int parsimony_score_in_original_tree = 0;
+                        for (size_t idx = range.first; idx < range.second;
+                             idx++) {
+                            parsimony_score_in_original_tree += count_mutation(
+                                dfs_ordered_nodes[idx],
+                                parent_fs_result->mutation.position);
+                        }
+                        assert(parsimony_score_in_original_tree>=new_old_score.second);
                         std::unordered_map<std::string, std::array<int, 4>>
                             scores_to_check;
                         for (auto &&score : patched) {
@@ -171,14 +192,17 @@ struct Test_Move_Profitable {
 
                         Fitch_Sankoff::sankoff_backward_pass(
                             new_range, new_dfs_ordered_nodes, new_score,
-                            original_states, parent_fs_result->mutation,
-                            parent_fs_result->LCA_parent_state);
+                            original_states, parent_fs_result->mutation);
                         for (auto &&score : new_score) {
                             if (added == score.node) {
                                 continue;
                             }
-                            if (scores_to_check[score.node->identifier] !=
-                                score.score) {
+                            if(scores_to_check.count(score.node->identifier)==0){
+                                fprintf(stderr, "%s not found\n",score.node->identifier.c_str());
+                                assert(false);
+                            }
+                            auto & patched_score=scores_to_check[score.node->identifier];
+                            if (patched_score !=score.score) {
                                 fprintf(stderr,
                                         "score mismatch at original tree node "
                                         "index %zu\n",
@@ -194,57 +218,9 @@ struct Test_Move_Profitable {
                                                 std::memory_order_relaxed);
                     }
                 });
-            /*
-            #ifndef NDEBUG
-                MAT::Tree new_tree(all_moves->src->tree);
-                MAT::Node*
-            new_src=new_tree.get_node(all_moves->src->identifier); MAT::Node*
-            new_LCA=new_tree.get_node(LCA->identifier); MAT::Node*
-            old_parent=new_src->parent; remove_child(new_src); MAT::Node*
-            new_dst=new_tree.get_node(in->dst->identifier); MAT::Node*
-            added=new_dst->add_child(new_src); std::vector<MAT::Node*>
-            new_dfs_ordered_nodes=new_tree.depth_first_expansion();
-                std::pair<size_t, size_t>
-            new_range=Fitch_Sankoff::dfs_range(new_LCA,new_dfs_ordered_nodes);
-                tbb::parallel_for(tbb::blocked_range<size_t>(0,mutations.size()),[&](tbb::blocked_range<size_t>
-            r){ for (size_t i=r.begin();i<r.end() ; i++) {
-                        std::unordered_map<std::string, std::array<int,4>>
-            original_scores; for(auto&& score:moved_states[i]->scores){
-                            if(added&&score.node==in->dst){
-                                original_scores.emplace(new_dst->identifier,score.score);
-                            }else{
-                                original_scores.emplace(score.node->identifier,score.score);
-                            }
-                        }
-                        Fitch_Sankoff::Scores_Type new_score;
-                        Fitch_Sankoff::States_Type
-            new_original_states(new_range.second-new_range.first); for(auto&&
-            state:original_states[i]){ auto
-            new_corresponding_node=new_tree.get_node(state.node->identifier);
-                            new_original_states[new_corresponding_node->index-new_range.first].state=state.state;
-                            new_original_states[new_corresponding_node->index-new_range.first].node=new_corresponding_node;
-                        }
-                        if(added){
-                            new_original_states[new_dst->index -
-            new_range.first].state =original_states[i][in->dst->index -
-            range.first].state; new_original_states[new_dst->index -
-            new_range.first].node =added;
-                        }
-                        Fitch_Sankoff::sankoff_backward_pass(new_range,
-            new_dfs_ordered_nodes, new_score, new_original_states); for(auto&&
-            score: new_score){ if(added==score.node){ continue;
-                            }
-                            if(original_scores[score.node->identifier]!=score.score){
-                                fprintf(stderr,"score mismatch at original tree
-            node index %zu
-            \n",all_moves->src->tree->get_node(score.node->identifier)->index);
-                                assert(false);
-                            }
-                        }
-                    }
-                });
-            #endif
-            */
+#ifdef DETAIL_DEBUG_PARSIMONY_SCORE_MATCH
+            new_tree.delete_nodes();
+#endif
             if (score_changes<=best_score_change) {
                 Profitable_Move *out = new Profitable_Move;
                 out->LCA = LCA;

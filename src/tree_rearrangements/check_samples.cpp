@@ -8,8 +8,7 @@
 #include <utility>
 #include <vector>
 
-static void ins_mut(Mutation_Set &parent_mutations,
-                    Mutation_Annotated_Tree::Mutation &m) {
+void ins_mut(Mutation_Set &parent_mutations,const Mutation_Annotated_Tree::Mutation &m) {
     auto temp = parent_mutations.insert(m);
     if (!temp.second) {
         assert(temp.first->mut_nuc==m.par_nuc);
@@ -17,6 +16,9 @@ static void ins_mut(Mutation_Set &parent_mutations,
         if (m.mut_nuc == m.ref_nuc) {
             parent_mutations.erase(temp.first);
         }
+    }else {
+        assert(m.mut_nuc != m.ref_nuc);
+        assert(m.mut_nuc != m.par_nuc);
     }
 }
 
@@ -71,6 +73,7 @@ void check_samples_worker_with_pending_moves(Mutation_Annotated_Tree::Node *root
         if (iter == samples.end()) {
             fprintf(stderr, "[ERROR] Extra Sample %s ? \n",
                     root->identifier.c_str());
+            assert(false);
         } else {
             for (auto m : parent_mutations) {
                 auto m_iter = iter->second.find(m);
@@ -80,6 +83,7 @@ void check_samples_worker_with_pending_moves(Mutation_Annotated_Tree::Node *root
                         "[ERROR] Extra mutation to\t%c\t%d\t of Sample\t%s at index \t%zu \n",
                         Mutation_Annotated_Tree::get_nuc(m.mut_nuc), m.position,
                         root->identifier.c_str(),root->index);
+            assert(false);
                 } else {
                     iter->second.erase(m_iter);
                 }
@@ -89,6 +93,7 @@ void check_samples_worker_with_pending_moves(Mutation_Annotated_Tree::Node *root
                         "[ERROR] Lost mutation to\t%c\t%d\t of Sample\t%s at index \t %zu ? \n",
                         Mutation_Annotated_Tree::get_nuc(m_left.mut_nuc),
                         m_left.position, root->identifier.c_str(),root->index);
+            assert(false);
             }
             samples.erase(iter);
         }
@@ -126,6 +131,7 @@ void check_samples_worker(Mutation_Annotated_Tree::Node *root,
         if (iter == samples.end()) {
             fprintf(stderr, "[ERROR] Extra Sample %s \n",
                     root->identifier.c_str());
+            assert(false);
         }
 
         else {
@@ -137,9 +143,13 @@ void check_samples_worker(Mutation_Annotated_Tree::Node *root,
                         "[ERROR] Extra mutation to\t%c\%d\t of Sample\t%s at index %zu \n",
                         Mutation_Annotated_Tree::get_nuc(m.mut_nuc), m.position,
                         root->identifier.c_str(),root->index);
+            assert(false);
+                        
                 } else {
                     if (m.mut_nuc!=m_iter->mut_nuc) {
                         fprintf(stderr, "Mut Nuc Mismatch at \t %d of sample \t %s at index \t %zu: original \t %c , altered :\t %c \n",m.position,root->identifier.c_str(),root->index,Mutation_Annotated_Tree::get_nuc(m_iter->mut_nuc),MAT::get_nuc(m.mut_nuc));
+            assert(false);
+                        
                     }
                     iter->second.erase(m_iter);
                 }
@@ -150,6 +160,8 @@ void check_samples_worker(Mutation_Annotated_Tree::Node *root,
                         "[ERROR] Lost mutation to\t%c\t%d\t of Sample\t%s at index %zu \n",
                         Mutation_Annotated_Tree::get_nuc(m_left.mut_nuc),
                         m_left.position, root->identifier.c_str(),root->index);
+            assert(false);
+                        
             }
 
             samples.erase(iter);

@@ -48,6 +48,10 @@ struct Fitch_Sankoff_Result_Final{
     MAT::Mutation mutation;
     Fitch_Sankoff::Scores_Type scores;
     char LCA_parent_state;
+    #ifndef NDEBUG
+    int optimized_score;
+    int original_topology_score;
+    #endif
 };
 
 struct Profitable_Move{
@@ -87,24 +91,14 @@ struct Profitable_Moves_Enumerator{
     const Original_State_t& original_states;
     Profitable_Moves_From_One_Source* operator() (Candidate_Moves*)const;
 };
-typedef std::unordered_set<MAT::Node*,Node_Idx_Hash,Node_Idx_Eq> Cross_t;
-typedef std::unordered_map<MAT::Node*, std::unordered_map<int,Profitable_Move*>,Node_Idx_Hash,Node_Idx_Eq> Mut_t;
-struct Conflict_Resolver{
-    std::vector<Profitable_Move*>& non_conflicting_moves;
-    Cross_t& potential_crosses;
-    Mut_t& repeatedly_mutating_loci;
-    std::vector<MAT::Node*>& deferred_nodes;
-    bool check_single_move_no_conflict(Profitable_Move* candidate_move)const;
-    void register_single_move_no_conflict(Profitable_Move* candidate_move)const;
-    char operator()(Profitable_Moves_From_One_Source*) const;
-};
+
 struct Move_Executor{
     std::vector<MAT::Node *>& dfs_ordered_nodes;
     MAT::Tree& tree;
     std::vector<Profitable_Move*>& moves;
     Pending_Moves_t& tree_edits;
     const Original_State_t& ori;
-    mutable std::unordered_map<void*,void*> new_parents_map;
+    mutable std::unordered_map<MAT::Node*,MAT::Node*,Node_Idx_Hash,Node_Idx_Eq> new_parents_map;
     void operator()(tbb::blocked_range<size_t>&)const;
     private:
     MAT::Node* get_parent(MAT::Node*) const;

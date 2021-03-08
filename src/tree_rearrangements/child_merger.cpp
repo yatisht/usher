@@ -86,12 +86,14 @@ void finalize_children(MAT::Node* parent,ConfirmedMove& edits,MAT::Tree* tree,co
 #endif
     }
     
-    if(parent->children.empty()){
+    while(parent->children.empty()){
         tree->all_nodes.erase(parent->identifier);
         std::vector<MAT::Node*>& parent_children=parent->parent->children;
         parent_children.erase(std::find(parent_children.begin(),parent_children.end(),parent));
         deleted_map.emplace_back(parent,parent->parent);
+        MAT::Node* next_parent=parent->parent;
         delete parent;
+        parent=next_parent;
     }
 
     /*

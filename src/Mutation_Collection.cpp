@@ -10,7 +10,7 @@ void Mutations_Collection::merge_out(const Mutations_Collection &other,
                                      Mutations_Collection &out,
                                      char keep_self) const {
 // used for checking whether the two vectors are sorted while merging
-#ifndef NDEBUG
+#ifdef DETAIL_DEBUG_MUTATION_SORTED
 #define mutation_vector_check_order(newly_inserted)                            \
     assert(last_pos_inserted < (newly_inserted));                              \
     last_pos_inserted = (newly_inserted);
@@ -84,7 +84,7 @@ void Mutations_Collection::set_difference(const Mutations_Collection &other,
     common.mutations.reserve(
         std::min(mutations.size(), other.mutations.size()));
     auto other_iter = other.mutations.begin();
-#ifndef NDEBUG
+#ifdef DETAIL_DEBUG_MUTATION_SORTED
     int last_pos_inserted = -1;
 #endif
     // merge sort again
@@ -123,7 +123,7 @@ void Mutations_Collection::set_difference(const Mutations_Collection &other,
 }
 void Mutations_Collection::batch_find(Mutations_Collection &target) {
     // yet another merge sort
-#ifndef NDEBUG
+#ifdef DETAIL_DEBUG_MUTATION_SORTED
     int last_pos_inserted = -1;
 #endif
     auto target_iter = target.mutations.begin();
@@ -159,7 +159,7 @@ void Mutations_Collection::finalize(){
     new_content.reserve(mutations.size()+new_inserts.size());
     auto new_inserts_iter = new_inserts.begin();
     auto remove_or_replace_iter=remove_or_replace.begin();
-#ifndef NDEBUG
+#ifdef DETAIL_DEBUG_MUTATION_SORTED
     int last_pos_inserted = -1;
 #endif
     // merge sort again
@@ -203,7 +203,7 @@ bool Mutations_Collection::dirty_set_difference(Mutations_Collection& common, Mu
     changes.reserve(mutations.size()+new_inserts.size());
     auto new_inserts_iter = new_inserts.begin();
     auto remove_or_replace_iter=remove_or_replace.begin();
-#ifndef NDEBUG
+#ifdef DETAIL_DEBUG_MUTATION_SORTED
     int last_pos_inserted = -1;
 #endif
     // merge sort again
@@ -244,13 +244,13 @@ bool Mutations_Collection::dirty_set_difference(Mutations_Collection& common, Mu
 }
 */
 Mutations_Collection::iterator Mutations_Collection::find_next(int pos) {
-#ifndef NDEBUG
+#ifdef DETAIL_DEBUG_MUTATION_SORTED
     int lastPos = 0;
 #endif
     auto iter = mutations.begin();
     for (; iter < mutations.end(); iter++) {
 // check sorting in debug mode
-#ifndef NDEBUG
+#ifdef DETAIL_DEBUG_MUTATION_SORTED
         assert(lastPos < iter->position);
         lastPos = iter->position;
 #endif

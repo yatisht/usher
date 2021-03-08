@@ -928,7 +928,9 @@ std::vector<Mutation_Annotated_Tree::Node*> Mutation_Annotated_Tree::Tree::bread
 }
 
 static void depth_first_expansion_helper(Mutation_Annotated_Tree::Node* node, std::vector<Mutation_Annotated_Tree::Node*>& vec, size_t& index) {
+    #ifdef DETAIL_DEBUG_NO_LOOP
     assert(std::find(vec.begin(),vec.end(),node)==vec.end());
+    #endif
     vec.push_back(node);
     assert(vec.size()-1==index);
     node->index=index;

@@ -15,6 +15,7 @@
 #include <vector>
 #include "Twice_Bloom_Filter.hpp"
 #include "src/tree_rearrangement.hpp"
+#include "conflict.hpp"
 tbb::concurrent_vector<MAT::Node*> postponed;
 extern uint32_t num_cores;
 static void find_nodes_with_recurrent_mutations(std::vector<MAT::Node *>& all_nodes, std::vector<MAT::Node *>& output){
@@ -52,7 +53,30 @@ static void push_all_nodes(MAT::Tree* tree,std::vector<MAT::Node*>& nodes){
         nodes.push_back(a.second);
     }
 }
-static void feed_nodes(std::vector<MAT::Node *> &to_feed,
+static bool check_in_radius_or_parent(MAT::Node* later,MAT::Node* earlier, int radius){
+    bool parent_possible=true;
+    assert(later->index>earlier->index);
+    while (radius>0||parent_possible) {
+        if (later->index>earlier->index) {
+            later=later->parent;
+            if (!later) {
+                return false;
+            }
+        }else if(later->index<earlier->index){
+            earlier=earlier->parent;
+            if (!earlier) {
+                return false;
+            }
+            parent_possible=false;
+        }else {
+            assert(later->index==earlier->index);
+            return true;
+        }
+        radius--;
+    }
+    return false;
+}
+static void feed_nodes(int radius,std::vector<MAT::Node *> &to_feed,
                          std::deque<MAT::Node*>& out_queue,
                          std::mutex& out_mutex,
                          std::condition_variable& out_pushed,
@@ -84,7 +108,8 @@ if(this_node->parent){\
         if(next_ele==*iter){
             continue;
         }
-        if (!check_grand_parent(dfs_ordered_nodes[next_ele],dfs_ordered_nodes[*iter])) {
+        if (!check_in_radius_or_parent(dfs_ordered_nodes[next_ele],dfs_ordered_nodes[*iter],radius)) {
+            assert(!check_grand_parent(dfs_ordered_nodes[next_ele],dfs_ordered_nodes[*iter]));
             MAT::Node* this_node=dfs_ordered_nodes[*iter];
             output_node(this_node);
         } else {
@@ -112,13 +137,14 @@ struct Search_Source{
     unsigned int conflict_pct_limit;
     unsigned int min_batch_size;
     mutable unsigned int conflicting_count;
-    mutable unsigned int inflight_left;
+    mutable int inflight_left;
     unsigned int inflight_limit;
     mutable size_t all_count;
     std::atomic_bool& all_nodes_done;
     bool& graph_reseted;
     Search_Source(std::deque<MAT::Node*>& buff, std::mutex& queue_mutex, std::condition_variable& ready,unsigned int inflight_limit,unsigned int conflict_pct_limit,unsigned int min_batch_size,std::atomic_bool& all_nodes_done,bool& graph_reseted):buffer(buff),queue_mutex(queue_mutex),ready(ready),conflict_pct_limit(conflict_pct_limit),min_batch_size(min_batch_size),conflicting_count(0),inflight_left(inflight_limit),inflight_limit(inflight_limit),all_count(0),all_nodes_done(all_nodes_done),graph_reseted(graph_reseted){}
     void reset()const{
+        fprintf(stderr,"%d conflicting moves over %zu moves before\n",conflicting_count,all_count);
         all_count=0;
         inflight_left=inflight_limit;
         conflicting_count=0;
@@ -130,15 +156,16 @@ struct Search_Source{
             reset();
         }
         //fprintf(stderr,"%d conflicting moves over %zu moves so far\n",conflicting_count,all_count);
-        
-        if(in&MOVE_FOUND_MASK){
-        all_count++;
-        if(!(in&NONE_CONFLICT_MOVE_MASK)){
-            conflicting_count++;
-        }        
-        if ((conflicting_count>min_batch_size)&&(all_count*conflict_pct_limit<conflicting_count*100)) {
-           return;
+
+        if (in & MOVE_FOUND_MASK) {
+            all_count++;
+            if (!(in & NONE_CONFLICT_MOVE_MASK)) {
+                conflicting_count++;
+            }
         }
+        if ((conflicting_count > min_batch_size) &&
+            (all_count * conflict_pct_limit < conflicting_count * 100)) {
+            return;
         }
         if(all_nodes_done){
            //fprintf(stderr,"all_nodes_done");
@@ -152,7 +179,7 @@ struct Search_Source{
             if (buffer.front()==nullptr) {
                 buffer.pop_front();
                 all_nodes_done.store(true);
-           	fprintf(stderr,"all_nodes_done");
+           	fprintf(stderr,"all_nodes_done\n");
                 return;
             }else {
                 std::get<0>(out).try_put(buffer.front());
@@ -160,6 +187,8 @@ struct Search_Source{
                 inflight_left--;
             }
         }
+        //fprintf(stderr,"in flight quota exceeded\n");
+        
     }
 };
 
@@ -169,6 +198,11 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
         fprintf(stderr, "Before refinement: %zu \n",
                 this_tree.get_parsimony_score());
         auto dfs_ordered_nodes = this_tree.depth_first_expansion();
+        #ifndef NDEBUG
+        for(auto node:dfs_ordered_nodes){
+            node->tree=&this_tree;
+        }
+        #endif
         Original_State_t ori;
         std::vector<MAT::Node*>& to_optimize=this_tree.new_nodes;
         check_samples(this_tree.root, ori,&this_tree);
@@ -182,7 +216,7 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
         std::condition_variable queue_ready;
         std::atomic_bool all_nodes_done;
         bool graph_reseted;
-        Search_Source input_functor(search_queue,queue_mutex,queue_ready,num_cores,50,800,all_nodes_done,graph_reseted);
+        Search_Source input_functor(search_queue,queue_mutex,queue_ready,num_cores,50,80,all_nodes_done,graph_reseted);
         Seach_Source_Node_t input(search_graph,1,input_functor);
 
         tbb::flow::function_node<MAT::Node*,Possible_Moves*> neighbors_finder(search_graph,tbb::flow::unlimited,Neighbors_Finder(radius));
@@ -202,13 +236,15 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
         tbb::flow::make_edge(conflict_resolver,input);
 
         bool have_improvement=true;
+        int old_pasimony_score=this_tree.get_parsimony_score();
+        int moves_found;
         while (have_improvement) {
             have_improvement=false;
             find_nodes_with_recurrent_mutations(dfs_ordered_nodes, to_optimize);
 	    fprintf(stderr,"next_round\n");
             //push_all_nodes(&this_tree, to_optimize);
         while (!to_optimize.empty()) {
-	    feed_nodes(to_optimize,search_queue,queue_mutex,queue_ready,dfs_ordered_nodes);
+	    feed_nodes(radius,to_optimize,search_queue,queue_mutex,queue_ready,dfs_ordered_nodes);
             all_nodes_done.store(false);
             while (!all_nodes_done.load()) {
             graph_reseted=true;
@@ -219,6 +255,7 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
             input.try_put(0);
             search_graph.wait_for_all();
             to_optimize.clear();
+            moves_found=non_conflicting_moves.size();
 	    fprintf(stderr,"%zu moves profitable\n",non_conflicting_moves.size());
             if(!non_conflicting_moves.empty()){
                 Pending_Moves_t tree_edits;
@@ -230,6 +267,9 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
                 tbb::blocked_range<size_t> range_temp(
                     0, non_conflicting_moves.size());
                 temp(range_temp);
+                for(auto m:non_conflicting_moves){
+                    delete m;
+                }
                 non_conflicting_moves.clear();
                 // this_tree.finalize();
                 /*
@@ -264,7 +304,10 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
 //#ifndef NDEBUG
                 Original_State_t copy(ori);
                 check_samples(this_tree.root, copy,&this_tree);
+                int new_score=this_tree.get_parsimony_score();
+                assert(old_pasimony_score-new_score>=moves_found);
                 fprintf(stderr, "Between refinement: %zu \n",this_tree.get_parsimony_score());
+                old_pasimony_score=new_score;
 //#endif
                 have_improvement=true;
             }

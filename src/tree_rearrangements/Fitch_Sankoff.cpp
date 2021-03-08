@@ -165,9 +165,9 @@ char get_original_state(MAT::Node* node, const Original_State_t& original_states
     auto mut_iter=this_node_muts.find(mutation);
     return (mut_iter==this_node_muts.end())?mutation.ref_nuc:mut_iter->mut_nuc;
 }
-int Fitch_Sankoff::sankoff_backward_pass(const std::pair<size_t, size_t> &range,
+void Fitch_Sankoff::sankoff_backward_pass(const std::pair<size_t, size_t> &range,
                            const std::vector<MAT::Node *> &dfs_ordered_nodes,
-                           Scores_Type &scores,const Original_State_t& original_state,const MAT::Mutation& mutation,char starting_node_parent_state) {
+                           Scores_Type &scores,const Original_State_t& original_state,const MAT::Mutation& mutation) {
     //Going from the end to start
     size_t start_idx = range.second-1;
     assert(scores.empty());
@@ -188,7 +188,7 @@ int Fitch_Sankoff::sankoff_backward_pass(const std::pair<size_t, size_t> &range,
         }
     }
     assert(scores.size()== (range.second - range.first));
-    return get_child_score_on_par_nuc(one_hot_to_two_bit(starting_node_parent_state), scores.back()).first;
+    //return get_child_score_on_par_nuc(one_hot_to_two_bit(starting_node_parent_state), scores.back()).first;
 }
 
 static void set_mutation(MAT::Node *node, char state, char par_state, const MAT::Mutation& mutationOri) {    
