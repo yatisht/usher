@@ -9,6 +9,8 @@ po::variables_map parse_summary_command(po::parsed_options parsed) {
     conv_desc.add_options()
         ("input-mat,i", po::value<std::string>()->required(),
          "Input mutation-annotated tree file [REQUIRED]. If only this argument is set, print the count of samples and nodes in the tree.")
+        ("output-directory,d", po::value<std::string>()->default_value("./"),
+        "Write output files to the target directory. Default is current directory.")
         ("samples,s", po::value<std::string>()->default_value(""),
         "Write a tsv listing all samples in the tree and their parsimony score (terminal branch length).")
         ("clades,c", po::value<std::string>()->default_value(""),
@@ -17,6 +19,8 @@ po::variables_map parse_summary_command(po::parsed_options parsed) {
         "Write a tsv listing all mutations in the tree and their occurrence count.")
         ("aberrant,a", po::value<std::string>()->default_value(""),
         "Write a tsv listing duplicate samples and internal nodes with no mutations and/or branch length 0.")
+        ("get-all,A", po::bool_switch(),
+        "Use default filenames (samples.txt, clades.txt, etc) and save all summary tables to the output directory.")
         ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
         ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
@@ -166,12 +170,29 @@ void write_aberrant_table(MAT::Tree& T, std::string filename) {
 void summary_main(po::parsed_options parsed) {
     po::variables_map vm = parse_summary_command(parsed);
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
-    std::string samples = vm["samples"].as<std::string>();
-    std::string clades = vm["clades"].as<std::string>();
-    std::string mutations = vm["mutations"].as<std::string>();
-    std::string aberrant = vm["aberrant"].as<std::string>();
-    uint32_t num_threads = vm["threads"].as<uint32_t>();
+    std::string dir_prefix = vm["output-directory"].as<std::string>();
 
+    boost::filesystem::path path(dir_prefix);
+    if (!boost::filesystem::exists(path)) {
+        fprintf(stderr, "Creating output directory.\n\n");
+        boost::filesystem::create_directory(dir_prefix);
+    }
+    path = boost::filesystem::canonical(dir_prefix);
+    dir_prefix = path.generic_string();
+    dir_prefix += "/";
+
+    std::string samples = dir_prefix + vm["samples"].as<std::string>();
+    std::string clades = dir_prefix + vm["clades"].as<std::string>();
+    std::string mutations = dir_prefix + vm["mutations"].as<std::string>();
+    std::string aberrant = dir_prefix + vm["aberrant"].as<std::string>();
+    uint32_t num_threads = vm["threads"].as<uint32_t>();
+    bool get_all = vm["get-all"].as<bool>();
+    if (get_all) {
+        samples = dir_prefix + "/samples.txt";
+        clades = dir_prefix + "/clades.txt";
+        mutations = dir_prefix + "/mutations.txt";
+        aberrant = dir_prefix + "/aberrant.txt";
+    }
     tbb::task_scheduler_init init(num_threads);
 
     timer.Start();
@@ -182,19 +203,19 @@ void summary_main(po::parsed_options parsed) {
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 
     bool no_print = true;
-    if (clades != "" ) {
+    if (clades != dir_prefix ) {
         write_clade_table(T, clades);
         no_print = false;
     }
-    if (samples != "") {
+    if (samples != dir_prefix) {
         write_sample_table(T, samples);
         no_print = false;
     }
-    if (mutations != "") {
+    if (mutations != dir_prefix) {
         write_mutation_table(T, mutations);
         no_print = false;
     }  
-    if (aberrant != "") {
+    if (aberrant != dir_prefix) {
         write_aberrant_table(T, aberrant);
         no_print = false;
     }
