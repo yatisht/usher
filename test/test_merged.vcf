@@ -1,4 +1,0 @@
-##fileformat=VCFv4.2
-##reference=./test/myAlignedSequences.fa:NC_045512v2
-##source=faToVcf ./test/myAlignedSequences.fa ./test/test_merged.vcf
-#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	./analysis/barcode01/09_09_20_R941_Covid2_Guppy_4.0.11_guppy_demultiplexed_barcode01/ARTIC/nanopolish	./analysis/barcode02/09_09_20_R941_Covid2_Guppy_4.0.11_guppy_demultiplexed_barcode02/ARTIC/nanopolish	./analysis/barcode03/09_09_20_R941_Covid2_Guppy_4.0.11_guppy_demultiplexed_barcode03/ARTIC/nanopolish	MN908947.3
