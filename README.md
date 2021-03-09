@@ -222,57 +222,33 @@ UShER is also fast enough to allow users to update multiple input trees incorpor
 
 ## Converting fasta files into a merged VCF for UShER input 
 
-We provide a pipeline for converting SARS-CoV-2 genomic data in fasta format into a merged VCF viable for input to UShER. 
+We provide instructions below for converting genomic sequences in fasta format into VCF for UShER's input. 
 
 ### Alignmenet
-If the user possesses SARS-CoV-2 genomic sequences that have been aligned to the reference this step can be skipped. Users can employ multiple alignment using Fast Fourier Transform ([MAFFT](https://mafft.cbrc.jp/alignment/software/)) to perform pairwise alignments between their sequences and the SARS-CoV-2 genomic reference. 
-
-If the user possess separate fasta files for each independent sequence, they must first combine all sequences into one combined fasta file. This can be performed using "cat". For example, for the case of three fasta files named fasta1, fasta2, and fasta3,
-
-```
-cat fasta1 fasta2 fasta3 > combined.fa
-```
-
-will produce a fasta file named "combined.fa" containing seqences from fasta1, fasta2, and fasta3. When combining files please ensure that there are no duplicate sequences.
-
-Then, MAFFT can be employed with the following command,
-
-```
-mafft --thread 10 --auto --keeplength --addfragments combined.fa reference.fa > myAlignedSequences.fa
-```
-
-where "reference.fa" is a fasta file containing the reference genome and in which case 10 threads are specified. For large numbers of sequences, we recommend using Robert Lanfear's [global_profile_alignment.sh](https://github.com/roblanf/sarscov2phylo/blob/master/scripts/global_profile_alignment.sh), which can reduce memory requirements by splitting alignments and performing them in parallel. 
-
-### Running faToVcf
-
-Users can use the tool, `faToVcf`, to convert a fasta file containing sequences that have been aligned to a reference into a vcf. For example, if a user possesses a file named "combined.fa" containing sequences that have been aligned to a sequence with fasta header "NC_045512v2", they can run the following command and generate a vcf names "output.vcf":
-
-```
-./faToVcf  myAlignedSequences.fa output.vcf
-```
-
-Users can also mask recommended [problematic sites](https://virological.org/t/issues-with-sars-cov-2-sequencing-data/473/14) in SARS-CoV-2 genomic data:
-
-```
-./faToVcf -maskSites=problematic_sites_sarsCov2.vcf  myAlignedSequences.fa output.vcf
-```
-
-The resulting "output.vcf" merged VCF file should be viable for UShER input. Note that in `faToVcf` output, missing data for a particular sample is denoted as "." in the corresponding genotype column.
-
-### Example
-
-We provide example files to generate a merged vcf using our proposed pipeline and expected output files for each step:
+Users can generate multiple sequence alignment of the input sequences using [MAFFT](https://mafft.cbrc.jp/alignment/software/) that is already installed with UShER package. For example, we provide a number of example SARs-CoV-2 sequences in `test/Fasta2UShER` that can be combined in a single fasta file called `combined.fa` and aligned together using the SARS-CoV-2 reference sequence `test/NC_045512v2.fa` as follows:
 
 ```
 cat ./test/Fasta2UShER/* > ./test/combined.fa
-```
-```
 mafft --thread 10 --auto --keeplength --addfragments ./test/combined.fa ./test/NC_045512v2.fa > ./test/myAlignedSequences.fa
 ```
+
+For large numbers of sequences, we recommend using Robert Lanfear's [global_profile_alignment.sh](https://github.com/roblanf/sarscov2phylo/blob/master/scripts/global_profile_alignment.sh), which can reduce memory requirements by splitting alignments and performing them in parallel. 
+
+### Running faToVcf
+
+Users can then use the tool `faToVcf`, which is also installed via UShER's package, to then convert the fasta file containing multiple alignment of input sequences into a VCF. 
 ```
-./faToVcf ./test/myAlignedSequences.fa ./test/test_merged.vcf
+./build/faToVcf ./test/myAlignedSequences.fa ./test/test_merged.vcf
 ```
 
+For SARS-CoV-2 data, we recommend using `problematic_sites_sarsCov2.vcf` for masking [problematic sites](https://virological.org/t/issues-with-sars-cov-2-sequencing-data/473/14) as follows:
+
+```
+wget  https://raw.githubusercontent.com/W-L/ProblematicSites_SARS-CoV2/master/problematic_sites_sarsCov2.vcf
+./build/faToVcf  -maskSites=problematic_sites_sarsCov2.vcf   ./test/myAlignedSequences.fa ./test/test_merged_masked.vcf
+```
+
+The resulting VCF files `test_merged.vcf` and `test_merged_masked.vcf` from the above commands should be compatible with UShER.
 
 ## matUtils
 
