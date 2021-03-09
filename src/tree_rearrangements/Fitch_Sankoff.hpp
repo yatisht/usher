@@ -7,6 +7,9 @@
 #include <vector>
 #include "check_samples.hpp"
 namespace MAT = Mutation_Annotated_Tree;
+typedef std::unordered_map<MAT::Node*, char*, Node_Idx_Hash,Node_Idx_Eq> States_To_Set;
+typedef std::unordered_map<MAT::Node*, MAT::Node*> all_moves_bare_type;
+
 char get_genotype(MAT::Node* node, const Mutation_Annotated_Tree::Mutation& m);
 namespace Fitch_Sankoff {
 #ifndef NDEBUG
@@ -44,7 +47,7 @@ void sankoff_backward_pass(const std::pair<size_t, size_t> &range,
                            Scores_Type &scores,const Original_State_t& original_state,const MAT::Mutation& mutation);
 void sankoff_forward_pass(const std::pair<size_t, size_t> &range,
                           std::vector<MAT::Node *> &dfs_ordered_nodes,const MAT::Mutation &mutation,const Original_State_t& original_state,
-                          Scores_Type& scores,char starting_node_parent_state,MAT::Node* to_move,MAT::Node* dst, MAT::Node* new_leaf);
+                          Scores_Type& scores,char starting_node_parent_state,MAT::Node* to_move,MAT::Node* dst, MAT::Node* new_leaf,States_To_Set& states_to_update,const all_moves_bare_type& other_moves_in_subtree);
 
 void set_internal_score(const MAT::Node &this_node, Scores_Type &out,
                         const int start_idx,MAT::Node* changed_child=nullptr,Score_Type* leaf_score=nullptr);
@@ -52,5 +55,6 @@ std::pair<int, char>
 get_child_score_on_par_nuc(char par_nuc,
                            const Score_Type &child_scores);
 } // namespace Fitch_Sankoff
-
+MAT::Node* get_parent(MAT::Node* this_node,const all_moves_bare_type& edits);
+char get_genotype_with_regrafting(MAT::Node* node, const Mutation_Annotated_Tree::Mutation& m, const all_moves_bare_type& edits);
 #endif

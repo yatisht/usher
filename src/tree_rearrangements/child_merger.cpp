@@ -71,7 +71,7 @@ void finalize_children(MAT::Node* parent,ConfirmedMove& edits,MAT::Tree* tree,co
         remove_child(child_to_remove,parent);
     }
 
-    #ifndef NDEBUG
+    #ifdef DETAIL_DEBUG_CHILD_MERGER_CHECK
     Original_State_t copy(checker);
     Mutation_Set parent_mutations;
     get_mutation_set(parent, parent_mutations);
@@ -81,7 +81,7 @@ void finalize_children(MAT::Node* parent,ConfirmedMove& edits,MAT::Tree* tree,co
     for(MAT::Node* to_add:edits.added){
         to_add->parent=parent;
         parent->children.push_back(to_add);
-#ifndef NDEBUG
+#ifdef DETAIL_DEBUG_CHILD_MERGER_CHECK
         check_samples_worker(to_add, parent_mutations, copy);
 #endif
     }

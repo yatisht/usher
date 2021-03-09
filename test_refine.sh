@@ -6,12 +6,12 @@ outpath="testout/r$radius/$test_case_name/"
 pb=$(realpath $test_path/*.pb)
 vcf=$(realpath $test_path/missing*.vcf*)
 
-#renice -n 19 -p $$
-#mkdir -p $outpath
-#rm -f $outpath/*
-#{
-#time  build/usher --refine $radius -i $pb -v $vcf -o $outpath/refined.pb
-#} &> $outpath/log
+renice -n 19 -p $$
+mkdir -p $outpath
+rm -f $outpath/*
+{
+time  build/usher --refine $radius -i $pb -v $vcf -o $outpath/refined.pb
+} &> $outpath/log
 /scratch/home/cheng/usher-master/build/usher -i $pb -v $vcf -o $outpath/not-refined.pb &> /dev/null
 {
 /scratch/home/cheng/usher-master/build/matUtils convert -i $outpath/refined.pb -v $outpath/refined.vcf

@@ -43,13 +43,14 @@ struct Candidate_Moves{
     std::vector<Move_info> moves;
     //std::vector<Fitch_Sankoff_Result> container;
 };
-
 struct Fitch_Sankoff_Result_Final{
     MAT::Mutation mutation;
     Fitch_Sankoff::Scores_Type scores;
     char LCA_parent_state;
-    #ifndef NDEBUG
+    char LCA_parent_state_original_tree;
+    States_To_Set other_move_LCA_parent_states_to_update;
     int optimized_score;
+    #ifndef NDEBUG
     int original_topology_score;
     #endif
 };
@@ -61,6 +62,7 @@ struct Profitable_Move{
     MAT::Node* LCA;
     std::vector<MAT::Node*> path;
     std::pair<size_t, size_t> range;
+    all_moves_bare_type other_moves_in_subtree;
     std::vector<Fitch_Sankoff_Result_Final> states;
 };
 struct Profitable_Moves_From_One_Source{
@@ -70,6 +72,13 @@ struct Profitable_Moves_From_One_Source{
 struct ConfirmedMove{
     std::vector<MAT::Node*> removed;
     std::vector<MAT::Node*> added;
+    void swap(ConfirmedMove& other){
+        removed.swap(other.removed);
+        added.swap(other.added);
+    }
+    bool empty(){
+        return removed.empty()&&added.empty();
+    }
 };
 
 

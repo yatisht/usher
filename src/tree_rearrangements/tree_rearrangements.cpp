@@ -1,9 +1,7 @@
 #include "src/mutation_annotated_tree.hpp"
 #include "tree_rearrangement_internal.hpp"
-#include <algorithm>
 #include <atomic>
 #include <condition_variable>
-#include <cstddef>
 #include <cstdio>
 #include <deque>
 #include <mutex>
@@ -13,27 +11,10 @@
 #include <tbb/flow_graph.h>
 #include <utility>
 #include <vector>
-#include "Twice_Bloom_Filter.hpp"
 #include "src/tree_rearrangement.hpp"
-#include "conflict.hpp"
-tbb::concurrent_vector<MAT::Node*> postponed;
+#include "priority_conflict_resolver.hpp"
 extern uint32_t num_cores;
-static void find_nodes_with_recurrent_mutations(std::vector<MAT::Node *>& all_nodes, std::vector<MAT::Node *>& output){
-    Twice_Bloom_Filter filter;
-    for(MAT::Node* n:all_nodes){
-        for(const MAT::Mutation& m:n->mutations){
-            filter.insert(m.position);
-        }
-    }
-    for(MAT::Node* n:all_nodes){
-        for(const MAT::Mutation& m:n->mutations){
-            if(filter.query(m.position)){
-                output.push_back(n);
-                break;
-            }
-        }
-    }
-}
+void find_nodes_with_recurrent_mutations(std::vector<MAT::Node *>& all_nodes, std::vector<MAT::Node *>& output);
 static void fix_condensed_nodes(MAT::Tree* tree){
     std::vector<MAT::Node*> nodes_to_fix;
     for(auto iter:tree->all_nodes){
@@ -47,13 +28,14 @@ static void fix_condensed_nodes(MAT::Tree* tree){
         tree->create_node(ori_identifier,node);
     }
 }
+/*
 static void push_all_nodes(MAT::Tree* tree,std::vector<MAT::Node*>& nodes){
     nodes.clear();
     for(auto a:tree->all_nodes){
         nodes.push_back(a.second);
     }
-}
-static bool check_in_radius_or_parent(MAT::Node* later,MAT::Node* earlier, int radius){
+}*/
+ static bool check_in_radius_or_parent(MAT::Node* later,MAT::Node* earlier, int radius){
     bool parent_possible=true;
     assert(later->index>earlier->index);
     while (radius>0||parent_possible) {
@@ -228,10 +210,8 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
         tbb::flow::function_node<Candidate_Moves*,Profitable_Moves_From_One_Source*> profitable_move_enumerator(search_graph,tbb::flow::unlimited,Profitable_Moves_Enumerator{dfs_ordered_nodes,ori});
         tbb::flow::make_edge(parsimony_score_calculator,profitable_move_enumerator);
 
-        std::vector<Profitable_Move*> non_conflicting_moves;
         Cross_t potential_crosses;
-        Mut_t repeatedly_mutation_loci;
-        tbb::flow::function_node<Profitable_Moves_From_One_Source*,char> conflict_resolver(search_graph,1,Conflict_Resolver{non_conflicting_moves,potential_crosses,repeatedly_mutation_loci,to_optimize});
+        tbb::flow::function_node<Profitable_Moves_From_One_Source*,char> conflict_resolver(search_graph,1,Conflict_Resolver{potential_crosses,to_optimize});
         tbb::flow::make_edge(profitable_move_enumerator,conflict_resolver);
         tbb::flow::make_edge(conflict_resolver,input);
 
@@ -239,80 +219,99 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
         int old_pasimony_score=this_tree.get_parsimony_score();
         int moves_found;
         while (have_improvement) {
-            have_improvement=false;
+            have_improvement = false;
             find_nodes_with_recurrent_mutations(dfs_ordered_nodes, to_optimize);
-	    fprintf(stderr,"next_round\n");
-            //push_all_nodes(&this_tree, to_optimize);
-        while (!to_optimize.empty()) {
-	    feed_nodes(radius,to_optimize,search_queue,queue_mutex,queue_ready,dfs_ordered_nodes);
-            all_nodes_done.store(false);
-            while (!all_nodes_done.load()) {
-            graph_reseted=true;
-            potential_crosses.clear();
-            repeatedly_mutation_loci.clear();
-	    non_conflicting_moves.clear();
+            fprintf(stderr, "next_round\n");
+            // push_all_nodes(&this_tree, to_optimize);
+            while (!to_optimize.empty()) {
+                input.try_put(0);
+                feed_nodes(2*radius, to_optimize, search_queue, queue_mutex,
+                           queue_ready, dfs_ordered_nodes);
+                all_nodes_done.store(false);
+                to_optimize.clear();
+                while (!all_nodes_done.load()) {
+                    std::vector<Profitable_Move*> non_conflicting_moves;
+                    graph_reseted = true;
+                    potential_crosses.clear();
 
-            input.try_put(0);
-            search_graph.wait_for_all();
-            to_optimize.clear();
-            moves_found=non_conflicting_moves.size();
-	    fprintf(stderr,"%zu moves profitable\n",non_conflicting_moves.size());
-            if(!non_conflicting_moves.empty()){
-                Pending_Moves_t tree_edits;
-                // tbb::parallel_for(tbb::blocked_range<size_t>(0,
-                // non_conflicting_moves.size()),
-                // Move_Executor{dfs_ordered_nodes,this_tree,non_conflicting_moves,tree_edits});
-                Move_Executor temp{dfs_ordered_nodes, this_tree,
-                                   non_conflicting_moves, tree_edits, ori};
-                tbb::blocked_range<size_t> range_temp(
-                    0, non_conflicting_moves.size());
-                temp(range_temp);
-                for(auto m:non_conflicting_moves){
-                    delete m;
-                }
-                non_conflicting_moves.clear();
-                // this_tree.finalize();
-                /*
-                tbb::parallel_for_each(
-                    tree_edits.begin(), tree_edits.end(),
-                    [&this_tree,
-                     &ori](const std::pair<MAT::Node *, ConfirmedMove> &in) {
-                   });
-                */
-                std::vector<std::pair<MAT::Node*, MAT::Node*>> deleted_map;
-                for (Pending_Moves_t::const_iterator iter=tree_edits.begin(); iter!=tree_edits.end(); iter++) {
-                    finalize_children(reinterpret_cast<MAT::Node *>(iter->first),
-                                      const_cast<ConfirmedMove &>(iter->second),
-                                      &this_tree, ori,deleted_map);
-                }
-                for(MAT::Node*& next_node:to_optimize){
-                    for(const auto& deleted:deleted_map){
-                        if(next_node==deleted.first){
-                            next_node=deleted.second;
+                    input.try_put(0);
+                    search_graph.wait_for_all();
+                    schedule_moves(potential_crosses, non_conflicting_moves);
+                    moves_found = non_conflicting_moves.size();
+                    fprintf(stderr, "%zu moves profitable\n",
+                            non_conflicting_moves.size());
+                    if (!non_conflicting_moves.empty()) {
+                        Pending_Moves_t tree_edits;
+                        // tbb::parallel_for(tbb::blocked_range<size_t>(0,
+                        // non_conflicting_moves.size()),
+                        // Move_Executor{dfs_ordered_nodes,this_tree,non_conflicting_moves,tree_edits});
+                        Move_Executor temp{dfs_ordered_nodes, this_tree,
+                                           non_conflicting_moves, tree_edits,
+                                           ori};
+                        tbb::blocked_range<size_t> range_temp(
+                            0, non_conflicting_moves.size());
+                        temp(range_temp);
+#ifndef NDEBUG
+                        for (auto m : non_conflicting_moves) {
+                            delete m;
                         }
+#endif
+                        non_conflicting_moves.clear();
+                        // this_tree.finalize();
+                        /*
+                        tbb::parallel_for_each(
+                            tree_edits.begin(), tree_edits.end(),
+                            [&this_tree,
+                             &ori](const std::pair<MAT::Node *, ConfirmedMove>
+                        &in) {
+                           });
+                        */
+                        std::vector<std::pair<MAT::Node *, MAT::Node *>>
+                            deleted_map;
+                        for (Pending_Moves_t::const_iterator iter =
+                                 tree_edits.begin();
+                             iter != tree_edits.end(); iter++) {
+                            finalize_children(
+                                reinterpret_cast<MAT::Node *>(iter->first),
+                                const_cast<ConfirmedMove &>(iter->second),
+                                &this_tree, ori, deleted_map);
+                        }
+                        Original_State_t copy(ori);
+                        check_samples(this_tree.root, copy, &this_tree);
+                        fix_condensed_nodes(&this_tree);
+                        this_tree.reassign_level();
+                        //#ifndef NDEBUG
+
+                        for (MAT::Node *&next_node : to_optimize) {
+                            for (const auto &deleted : deleted_map) {
+                                if (next_node == deleted.first) {
+                                    next_node = deleted.second;
+                                }
+                            }
+                        }
+                        for (MAT::Node *&next_node : search_queue) {
+                            for (const auto &deleted : deleted_map) {
+                                if (next_node == deleted.first) {
+                                    next_node = deleted.second;
+                                }
+                            }
+                        }
+
+                        dfs_ordered_nodes = this_tree.depth_first_expansion();
+
+                        int new_score = this_tree.get_parsimony_score();
+                        //assert(old_pasimony_score - new_score >= moves_found);
+                        fprintf(stderr, "Between refinement: %d \n",new_score);
+                        //#endif
+                        if(new_score<old_pasimony_score){
+                            have_improvement = true;
+                        }
+                        old_pasimony_score = new_score;
+                    }else{
+                        fprintf(stderr, "no moves profitable\n");
                     }
                 }
-                for(MAT::Node*& next_node:search_queue){
-                    for(const auto& deleted:deleted_map){
-                        if(next_node==deleted.first){
-                            next_node=deleted.second;
-                        }
-                    }
-                }
- 
-                dfs_ordered_nodes = this_tree.depth_first_expansion();
-//#ifndef NDEBUG
-                Original_State_t copy(ori);
-                check_samples(this_tree.root, copy,&this_tree);
-                int new_score=this_tree.get_parsimony_score();
-                assert(old_pasimony_score-new_score>=moves_found);
-                fprintf(stderr, "Between refinement: %zu \n",this_tree.get_parsimony_score());
-                old_pasimony_score=new_score;
-//#endif
-                have_improvement=true;
             }
-            }
-        }
         }
 
         check_samples(this_tree.root, ori,&this_tree);

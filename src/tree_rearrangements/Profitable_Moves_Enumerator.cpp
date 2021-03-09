@@ -159,13 +159,14 @@ struct Test_Move_Profitable {
                         copy_scores(*parent_fs_result, patched, range);
                         char LCA_parent_state =(LCA==dfs_ordered_nodes[parent_fs_result->range.first])?parent_fs_result->LCA_parent_state:get_genotype(LCA->parent, parent_fs_result->mutation);
                         moved_states[mut_idx].LCA_parent_state=LCA_parent_state;
+                        moved_states[mut_idx].LCA_parent_state_original_tree=LCA_parent_state;
                         auto new_old_score = calculate_parsimony_score_change(
                             range, patched, all_moves->src, in->dst,
                             LCA_parent_state, LCA);
                         int this_change =
                             new_old_score.first - new_old_score.second;
-                        #ifndef NDEBUG
                         moved_states[mut_idx].optimized_score=new_old_score.first;
+                        #ifndef NDEBUG
                         moved_states[mut_idx].original_topology_score=new_old_score.second;
                         #endif
 #ifdef DETAIL_DEBUG_PARSIMONY_SCORE_MATCH
