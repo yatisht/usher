@@ -1,5 +1,5 @@
 sudo yum group install -y  "Development Tools"                                                                                                                                                                  
-sudo yum install -y wget boost-devel python3 rsync
+sudo yum install -y wget boost-devel rsync
 
 # install cmake-3.18
 wget https://github.com/Kitware/CMake/releases/download/v3.18.2/cmake-3.18.2.tar.gz
@@ -14,10 +14,6 @@ cd ..
 wget https://mafft.cbrc.jp/alignment/software/mafft-7.471-gcc_fc6.x86_64.rpm
 sudo rpm -Uvh mafft-7.471-gcc_fc6.x86_64.rpm
 rm mafft-7.471-gcc_fc6.x86_64.rpm
-
-
-#install biopython
-pip3 install biopython
 
 # setup protobuf
 wget https://github.com/protocolbuffers/protobuf/releases/download/v3.12.3/protobuf-cpp-3.12.3.tar.gz
