@@ -56,5 +56,4 @@ jobs:
       run: |
         ./build/usher --help
         ./build/matUtils --help
-        python3 scripts/Fasta2UShER.py -h
         command -v mafft
