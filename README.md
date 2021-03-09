@@ -30,7 +30,7 @@ UShER is much faster than existing tools with similar functionality and has now 
       * [Branch Parsimony Score](#branch-parsimony-score)
       * [Multiple parsimony-optimal placements](#multiple-parsimony-optimal-placements)
       * [Updating multiple input trees](#updating-multiple-input-trees)
-* [Converting fasta files into VCF for UShER input](#converting-fasta-files-into-vcf-for-usher-input)
+* [Converting raw sequences into VCF for UShER input](#converting-raw-sequences-into-vcf-for-usher-input)
 * [matUtils](#matUtils)
 * [Acknowledgement](#acknowledgement)
 * [Reference](#reference)
@@ -221,9 +221,9 @@ There are many ways to interpret and visualize the forest of trees produced by m
 
 UShER is also fast enough to allow users to update multiple input trees incorporating uncertainty in tree resonstruction, such as multiple bootstrap trees. While we do not provide an explicit option to input multiple trees at once, UShER can be run independently for each input tree and place new samples. We recommend the user to use the [GNU parallel utility](https://www.gnu.org/software/parallel/) to do so in parallel using multiple CPU cores while setting `-T 1` for each UShER task.
 
-## Converting fasta files into VCF for UShER input 
+## Converting raw sequences into VCF for UShER input 
 
-We provide instructions below for converting genomic sequences in fasta format into VCF for UShER's input. 
+We provide instructions below for converting raw genomic sequences in fasta format into VCF for UShER's input. 
 
 ### Generatin Multiple Sequence Alignment (MSA)
 Users can generate multiple sequence alignment of the input sequences using [MAFFT](https://mafft.cbrc.jp/alignment/software/) that is already installed with UShER package. For example, we provide a number of example SARs-CoV-2 sequences in `test/Fasta2UShER` that can be combined in a single fasta file called `combined.fa` and aligned together using the SARS-CoV-2 reference sequence `test/NC_045512v2.fa` as follows:
