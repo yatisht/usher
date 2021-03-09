@@ -30,7 +30,6 @@ UShER is much faster than existing tools with similar functionality and has now 
       * [Branch Parsimony Score](#branch-parsimony-score)
       * [Multiple parsimony-optimal placements](#multiple-parsimony-optimal-placements)
       * [Updating multiple input trees](#updating-multiple-input-trees)
-* [Fasta2UShER](#fasta2usher)
 * [matUtils](#matUtils)
 * [Acknowledgement](#acknowledgement)
 * [Reference](#reference)
@@ -85,7 +84,6 @@ cmake  -DTBB_DIR=${PWD}/../oneTBB  -DCMAKE_PREFIX_PATH=${PWD}/../oneTBB/cmake ..
 make -j
 cd ..
 ``` 
-[Fasta2UShER](#fasta2usher) requires the faToVcf utility that can be obtained as follows.
 
 * MacOS
 ```
