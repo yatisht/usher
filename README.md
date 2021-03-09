@@ -225,7 +225,7 @@ UShER is also fast enough to allow users to update multiple input trees incorpor
 
 We provide instructions below for converting genomic sequences in fasta format into VCF for UShER's input. 
 
-### Alignmenet
+### Generatin Multiple Sequence Alignment (MSA)
 Users can generate multiple sequence alignment of the input sequences using [MAFFT](https://mafft.cbrc.jp/alignment/software/) that is already installed with UShER package. For example, we provide a number of example SARs-CoV-2 sequences in `test/Fasta2UShER` that can be combined in a single fasta file called `combined.fa` and aligned together using the SARS-CoV-2 reference sequence `test/NC_045512v2.fa` as follows:
 
 ```
@@ -235,7 +235,7 @@ mafft --thread 10 --auto --keeplength --addfragments ./test/combined.fa ./test/N
 
 For large numbers of sequences, we recommend using Robert Lanfear's [global_profile_alignment.sh](https://github.com/roblanf/sarscov2phylo/blob/master/scripts/global_profile_alignment.sh), which can reduce memory requirements by splitting alignments and performing them in parallel. 
 
-### Running faToVcf
+### Converting MSA to VCF
 
 Users can then use the tool `faToVcf`, which is also installed via UShER's package, to then convert the fasta file containing multiple alignment of input sequences into a VCF. 
 ```
