@@ -14,6 +14,8 @@ po::variables_map parse_optimize_command(po::parsed_options parsed) {
          "Output optimized mutation-annotated tree file [REQUIRED].") 
         ("optimization-seconds,s", po::value<uint32_t>()->default_value(3600), \
          "Approximate number of seconds to run the tree optimization stage. The stage terminates as soon as the elapsed time exceeds this value.")
+        ("save-every-seconds,S", po::value<uint32_t>()->default_value(300), \
+         "Periodically save the optimized tree after every specified number of seconds have elapsed since the last save.") 
         ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
         ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
@@ -42,7 +44,9 @@ po::variables_map parse_optimize_command(po::parsed_options parsed) {
 struct Pruned_Sample {
     std::string sample_name;
     std::vector<MAT::Mutation> sample_mutations;
+    std::unordered_set<uint32_t> positions;
 
+    /*
     // Assumes mutations are added in chronological order. If a new mutation occurs
     // at the same position, it should either be updated to the new allele or
     // removed entirely (in case of reversal mutation)
@@ -73,10 +77,23 @@ struct Pruned_Sample {
             sample_mutations.insert(iter, mut);
         }
     }
+    */
+
+    // Assumes mutations are added in reverse chrono order
+    void add_mutation (MAT::Mutation mut) {
+        // If not reversal to reference allele 
+        if ((mut.ref_nuc != mut.mut_nuc) && (positions.find(mut.position) == positions.end())) {
+            auto iter = std::lower_bound(sample_mutations.begin(), sample_mutations.end(), mut);
+            mut.par_nuc = mut.ref_nuc;
+            sample_mutations.insert(iter, mut);
+        }
+        positions.insert(mut.position);
+    }
 
     Pruned_Sample (std::string name) {
         sample_name = name;
         sample_mutations.clear();
+        positions.clear();
     }
 };
 
@@ -415,11 +432,34 @@ void optimize_main_old(po::parsed_options parsed) {
 }
 */
 
+size_t get_node_distace (const MAT::Tree& T, MAT::Node* source, MAT::Node* dest) {
+    size_t distance = 0;
+
+    auto lca = MAT::LCA(T, source->identifier, dest->identifier);
+
+    for (auto anc: T.rsearch(source->identifier, true)) {
+        if (anc == lca) {
+            break;
+        }
+        distance++;
+    }
+
+    for (auto anc: T.rsearch(dest->identifier, true)) {
+        if (anc == lca) {
+            break;
+        }
+        distance++;
+    }
+
+    return distance;
+}
+
 void optimize_main(po::parsed_options parsed) {
     po::variables_map vm = parse_optimize_command(parsed);
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string output_mat_filename = vm["output-mat"].as<std::string>();
     uint32_t max_seconds = vm["optimization-seconds"].as<uint32_t>();
+    uint32_t save_every = vm["save-every-seconds"].as<uint32_t>();
 
     uint32_t num_threads = vm["threads"].as<uint32_t>();
 
@@ -428,14 +468,21 @@ void optimize_main(po::parsed_options parsed) {
 
     timer.Start();
     fprintf(stderr, "Loading input MAT file %s.\n", input_mat_filename.c_str()); 
+
     // Load input MAT and uncondense tree
     MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
     T.uncondense_leaves();
+
+    // Collapse tree for optimal performance and results
+    T.collapse_tree();
+    
     fprintf(stderr, "The parsimony score for this MAT is %zu\n", T.get_parsimony_score());
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 
     timer.Start();
     fprintf(stderr, "Starting tree optimization.\n\n"); 
+
+    auto last_update = timer.Stop()/1000;
     
     fprintf(stderr, "Finding the nodes with recurrent or reversal mutations.\n");
     auto dfs = T.depth_first_expansion();
@@ -471,7 +518,7 @@ void optimize_main(po::parsed_options parsed) {
     std::vector<std::string> nodes_to_prune;
 
     for (auto n: dfs) {
-        if ((n == T.root) || (n->level < 3)) {
+        if ((n == T.root) || (n->level < 4)) {
             continue;
         }
         for (auto m: n->mutations) {
@@ -493,6 +540,7 @@ void optimize_main(po::parsed_options parsed) {
 
     // Shuffle the nodes to be pruned
     std::random_shuffle(nodes_to_prune.begin(), nodes_to_prune.end());
+
     fprintf(stderr, "%zu nodes found with recurrent or reversal mutations.\n\n", nodes_to_prune.size());
 
     auto best_parsimony_score = T.get_parsimony_score();
@@ -507,9 +555,9 @@ void optimize_main(po::parsed_options parsed) {
         // Find mutations on the node to prune
         Pruned_Sample pruned_sample(nid_to_prune);
 
-        auto root_to_node = T.rsearch(nid_to_prune, true); 
-        std::reverse(root_to_node.begin(), root_to_node.end());
-        for (auto curr: root_to_node) {
+        auto node_to_root = T.rsearch(nid_to_prune, true); 
+        //std::reverse(root_to_node.begin(), root_to_node.end());
+        for (auto curr: node_to_root) {
             for (auto m: curr->mutations) {
                 pruned_sample.add_mutation(m);
             }
@@ -521,9 +569,22 @@ void optimize_main(po::parsed_options parsed) {
         assert (iter != curr_parent->children.end());
         curr_parent->children.erase(iter);
 
+        // Set source to current parent
+        auto source = curr_parent;
+
         // Remove curr_parent if it has no children
         if (curr_parent->children.size() == 0) {
+            auto ancestors = T.rsearch(curr_parent->identifier, true);
             T.remove_node(curr_parent->identifier, true);
+
+            // Since remove_node can remove multiple levels of ancestors,
+            // reassign source to nearest ancestor currently in the tree
+            for (auto anc: ancestors) {
+                if (T.get_node(anc->identifier) != NULL) {
+                    source = anc;
+                    break;
+                }
+            }
         }
 
         // Move the remaining child one level up if it is the only child of its parent 
@@ -533,63 +594,44 @@ void optimize_main(po::parsed_options parsed) {
                 child->parent = curr_parent->parent;
                 child->level = curr_parent->parent->level + 1;
 
-                for (auto m1: curr_parent->mutations) {
-                    bool found_pos = false;
-                    for (auto& m2: child->mutations) {
-                        if (m1.position == m2.position) {
-                            found_pos = true;
-                            // TODO: should remove mutations if m2.par_nuc == m1.par_nuc? 
-                            m2.par_nuc = m1.par_nuc;
-                            break;
-                        }
-                        if (m2.position > m1.position) {
-                            break;
-                        }
-                    }
-                    if (!found_pos) {
-                        child->add_mutation(m1);
-                    }
+                std::vector<MAT::Mutation> tmp;
+                for (auto m: child->mutations) {
+                    tmp.emplace_back(m.copy());
+                }
+
+                //Clear and add back mutations in chrono order
+                child->clear_mutations();
+                for (auto m: curr_parent->mutations) {
+                    child->add_mutation(m.copy());
+                }
+                for (auto m: tmp) {
+                    child->add_mutation(m.copy());
                 }
 
                 curr_parent->parent->children.push_back(child);
 
                 curr_parent->children.clear();
                 T.remove_node(curr_parent->identifier, false);
+
+                source = child;
             }
         }
 
         dfs = T.depth_first_expansion();
         size_t total_nodes = dfs.size();
 
-        // Stores the excess mutations to place the sample at each
-        // node of the tree in DFS order. When placement is as a
-        // child, it only contains parsimony-increasing mutations in
-        // the sample. When placement is as a sibling, it contains 
-        // parsimony-increasing mutations as well as the mutations
-        // on the placed node in common with the new sample. Note
-        // guaranteed to be corrrect only for optimal nodes since
-        // the mapper can terminate the search early for non-optimal
-        // nodes
         std::vector<std::vector<MAT::Mutation>> node_excess_mutations(total_nodes);
-        // Stores the imputed mutations for ambiguous bases in the
-        // sampled in order to place the sample at each node of the 
-        // tree in DFS order. Again, guaranteed to be corrrect only 
-        // for pasrimony-optimal nodes 
         std::vector<std::vector<MAT::Mutation>> node_imputed_mutations(total_nodes);
 
         std::vector<int> node_set_difference;
 
         size_t best_node_num_leaves = 0;
-        // The maximum number of mutations is bound by the number
-        // of mutations in the missing sample (place at root)
-        //int best_set_difference = 1e9;
-        // TODO: currently number of root mutations is also added to
-        // this value since it forces placement as child but this
-        // could be changed later 
-        int best_set_difference = pruned_sample.sample_mutations.size() + T.root->mutations.size() + 1;
+        int best_set_difference = 1e9;
 
         size_t best_j = 0;
         bool best_node_has_unique = false;
+
+        size_t best_distance = 1e9;
 
         std::vector<bool> node_has_unique(total_nodes, false);
         std::vector<size_t> best_j_vec;
@@ -598,12 +640,16 @@ void optimize_main(po::parsed_options parsed) {
         MAT::Node* best_node = T.root;
         best_j_vec.emplace_back(0);
 
-        // Parallel for loop to search for most parsimonious
-        // placements. Real action happens within mapper2_body
+        std::vector<size_t> node_distance(total_nodes, 1e9);
+
         static tbb::affinity_partitioner ap;
         tbb::parallel_for( tbb::blocked_range<size_t>(0, total_nodes),
                 [&](tbb::blocked_range<size_t> r) {
                 for (size_t k=r.begin(); k<r.end(); ++k){
+                node_distance[k] = get_node_distace(T, source, dfs[k]);
+                //if (node_distance[k] >= 5) {
+                //   continue;
+                //}
                 mapper2_input inp;
                 inp.T = &T;
                 inp.node = dfs[k];
@@ -618,6 +664,9 @@ void optimize_main(po::parsed_options parsed) {
                 inp.j = k;
                 inp.has_unique = &best_node_has_unique;
 
+                inp.distance = node_distance[k];
+                inp.best_distance = &best_distance;
+
                 inp.best_j_vec = &best_j_vec;
                 inp.node_has_unique = &(node_has_unique);
 
@@ -625,6 +674,7 @@ void optimize_main(po::parsed_options parsed) {
                 }       
                 }, ap); 
 
+        auto distance = get_node_distace(T, source, best_node);
 
         // Clear current mutations of the node to prune
         node_to_prune->clear_mutations();
@@ -637,11 +687,6 @@ void optimize_main(po::parsed_options parsed) {
             new_node->children.emplace_back(node_to_prune);
             T.move_node(best_node->identifier, nid);
             
-            // common_mut stores mutations common to the
-            // best node branch and the sample, l1_mut
-            // stores mutations unique to best node branch
-            // and l2_mut stores mutations unique to the
-            // sample not in best node branch
             std::vector<MAT::Mutation> common_mut, l1_mut, l2_mut;
             std::vector<MAT::Mutation> curr_l1_mut;
 
@@ -745,7 +790,7 @@ void optimize_main(po::parsed_options parsed) {
             }
         }
         
-        // Adjust level of descendants
+        // Levels need to be adjusted after placement 
         dfs = T.depth_first_expansion();
         for (auto n: dfs) {
             if (n == T.root) {
@@ -756,7 +801,9 @@ void optimize_main(po::parsed_options parsed) {
             }
         }
 
-        fprintf(stderr, "Done pruning and placing samples at node %s\n", nid_to_prune.c_str());
+        fprintf(stderr, "Done pruning and placing samples at node %s\n", best_node->identifier.c_str());
+        fprintf(stderr, "Distance from original placement: %zu\n", distance);
+
         auto new_parsimony_score = T.get_parsimony_score();
         assert(new_parsimony_score <= best_parsimony_score);
         if (new_parsimony_score == best_parsimony_score) {
@@ -771,6 +818,16 @@ void optimize_main(po::parsed_options parsed) {
 
         if (elapsed_time >= max_seconds) {
             break;
+        }
+        
+        if (elapsed_time-last_update >= save_every) {
+            fprintf(stderr, "Saving the current MAT with a parsimony score of %zu\n\n", T.get_parsimony_score());
+            T.condense_leaves();
+            MAT::save_mutation_annotated_tree(T, output_mat_filename);
+            last_update = elapsed_time;
+
+            // Uncondense for the next iteration
+            T.uncondense_leaves();
         }
     }
     

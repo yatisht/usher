@@ -30,7 +30,7 @@ UShER is much faster than existing tools with similar functionality and has now 
       * [Branch Parsimony Score](#branch-parsimony-score)
       * [Multiple parsimony-optimal placements](#multiple-parsimony-optimal-placements)
       * [Updating multiple input trees](#updating-multiple-input-trees)
-* [Fasta2UShER](#fasta2usher)
+* [Converting raw sequences into VCF for UShER input](#converting-raw-sequences-into-vcf-for-usher-input)
 * [matUtils](#matUtils)
 * [Acknowledgement](#acknowledgement)
 * [Reference](#reference)
@@ -85,19 +85,16 @@ cmake  -DTBB_DIR=${PWD}/../oneTBB  -DCMAKE_PREFIX_PATH=${PWD}/../oneTBB/cmake ..
 make -j
 cd ..
 ``` 
-[Fasta2UShER](#fasta2usher) requires the faToVcf utility that can be obtained as follows.
 
 * MacOS
 ```
 rsync -aP rsync://hgdownload.soe.ucsc.edu/genome/admin/exe/macOSX.x86_64/faToVcf .
 chmod +x faToVcf
-mv faToVcf scripts/
 ```
 * Linux
 ```
 rsync -aP rsync://hgdownload.soe.ucsc.edu/genome/admin/exe/linux.x86_64/faToVcf .
 chmod +x faToVcf
-mv faToVcf scripts/
 ```
 
 ### Using installation scripts
@@ -224,43 +221,35 @@ There are many ways to interpret and visualize the forest of trees produced by m
 
 UShER is also fast enough to allow users to update multiple input trees incorporating uncertainty in tree resonstruction, such as multiple bootstrap trees. While we do not provide an explicit option to input multiple trees at once, UShER can be run independently for each input tree and place new samples. We recommend the user to use the [GNU parallel utility](https://www.gnu.org/software/parallel/) to do so in parallel using multiple CPU cores while setting `-T 1` for each UShER task.
 
-## Fasta2UShER
+## Converting raw sequences into VCF for UShER input 
 
-We also provide a tool, Fasta2UShER.py, that converts SARS-CoV-2 genomic data in fasta format into a merged VCF viable for input to UShER. Fasta2UShER.py can take a multiple sequence alignment (MSA) file as input (including standard MSA output from the [SARS-CoV-2 ARTIC Network protocol](https://artic.network/ncov-2019)). Fasta2UShER.py also possesses an input option for unalifgned SARS-CoV-2 data. In this case Fasta2UShER.py employs multiple alignment using Fast Fourier Transform ([MAFFT](https://mafft.cbrc.jp/alignment/software/)) to construct an alignment for each user specified sequence with the SARS-CoV-2 reference. In addition, Fasta2UShER.py considers missing data and can automatically filter variants at [problematic sites](https://virological.org/t/issues-with-sars-cov-2-sequencing-data/473/12) (also see this [pre-print](https://www.biorxiv.org/content/biorxiv/early/2020/06/09/2020.06.08.141127.full.pdf)). Fasta2UShER no longer supports multiple msa files as input. If you possess multiple independently generated msa's, please remove gaps and use the unaligned input option.
+We provide instructions below for converting raw genomic sequences in fasta format into VCF for UShER's input. 
 
-### Input
-
-MSA file or unaligned full SARS-CoV-2 genomic sequence(s) in fasta format
-
-### Options
-
-**-inpath**: Path to directory containing ONLY multiple sequence alignment or unaligned files in fasta format (make sure no other files exist in this directory).
-
-**-output**: Output VCF file name
-
-**-reference**: Reference genome fasta file with identical reference header to that of the input MSA (if MSA is used as input)
-
-**-unaligned**: Specifies unaligned input files
-
-**-auto_mask**: Ignore problematic sites per masking recomendations
-
-**-user_specified_mask**: Path to VCF fle containing custom masking recomendations (please ensure VCF format is consistent with [this](https://raw.githubusercontent.com/W-L/ProblematicSites_SARS-CoV2/master/problematic_sites_sarsCov2.vcf))
-
-**-thread**: Number of threads to use for MSA (Default = 1)
-
-### Usage
-
-Pease ensure that faToVcf exists in the same directory as Fasta2UShER.py!
+### Generating Multiple Sequence Alignment (MSA)
+Users can generate multiple sequence alignment of the input sequences using [MAFFT](https://mafft.cbrc.jp/alignment/software/) that is already [installed](#installing-usher) with UShER package. For example, we provide a number of example SARs-CoV-2 sequences in `test/Fasta2UShER` that can be combined in a single fasta file called `combined.fa` and aligned together using the SARS-CoV-2 reference sequence `test/NC_045512v2.fa` as follows:
 
 ```
-python3 scripts/Fasta2UShER.py -reference ./test/NC_045512v2.fa  -inpath ./test/Fasta2UShER/ -unaligned -output ./test/test_merged.vcf
+cat ./test/Fasta2UShER/* > ./test/combined.fa
+mafft --thread 10 --auto --keeplength --addfragments ./test/combined.fa ./test/NC_045512v2.fa > ./test/myAlignedSequences.fa
 ```
 
-### Output
+If you have a large number of sequences, we recommend using Robert Lanfear's [global_profile_alignment.sh](https://github.com/roblanf/sarscov2phylo/blob/master/scripts/global_profile_alignment.sh), which can reduce memory requirements by splitting alignments and performing them in parallel. 
 
-Merged VCF with missing data for a particular sample denoted as "." in the corresponding genotype column.
+### Converting MSA to VCF
 
-For the example above, a new VCF *test/test_merged.vcf* is generated (identical to the one already provided), which can be used by UShER to place the new samples.
+Users can then use the tool `faToVcf`, which is also [installed](#installing-usher) via UShER's package, to then convert the fasta file containing multiple alignment of input sequences into a VCF. 
+```
+./build/faToVcf ./test/myAlignedSequences.fa ./test/test_merged.vcf
+```
+
+For SARS-CoV-2 data, we recommend downloading `problematic_sites_sarsCov2.vcf` and using it for masking [problematic sites](https://virological.org/t/issues-with-sars-cov-2-sequencing-data/473/14) as follows:
+
+```
+wget  https://raw.githubusercontent.com/W-L/ProblematicSites_SARS-CoV2/master/problematic_sites_sarsCov2.vcf
+./build/faToVcf  -maskSites=problematic_sites_sarsCov2.vcf   ./test/myAlignedSequences.fa ./test/test_merged_masked.vcf
+```
+
+The resulting VCF files `test_merged.vcf` and `test_merged_masked.vcf` from the above commands should be compatible with UShER.
 
 ## matUtils
 
@@ -268,11 +257,13 @@ We are now providing a toolkit, `matUtils`, which can perform a number of tasks 
 
 ## Acknowledgement
 
-We thank Jim Kent and the UCSC Genome Browser team for allowing us to download the `faToVcf` utility (from http://hgdownload.soe.ucsc.edu/admin/exe/) for `Fasta2UShER`. Please read the license terms for `faToVcf` here: https://github.com/ucscGenomeBrowser/kent/blob/master/src/LICENSE.
+We thank Jim Kent and the UCSC Genome Browser team for allowing us to download the `faToVcf` utility (from http://hgdownload.soe.ucsc.edu/admin/exe/). Please read the license terms for `faToVcf` here: https://github.com/ucscGenomeBrowser/kent/blob/master/src/LICENSE.
 
 ## Reference
 **UShER:**
 * Yatish Turakhia, Bryan Thornlow, Angie S Hinrichs, Nicola de Maio, Landen Gozashti, Robert Lanfear, David Haussler, and Russ Corbett-Detig, "Ultrafast Sample Placement on Existing Trees (UShER) Empowers Real-Time Phylogenetics for the SARS-CoV-2 Pandemic", bioRxiv [pre-print](https://www.biorxiv.org/content/10.1101/2020.09.26.314971v1) 2020.
 
-**For Fasta2UShER, please also cite:**
+**For masking recomendations, please also cite:**
 * Yatish Turakhia, Nicola De Maio, Bryan Thornlow, Landen Gozashti, Robert Lanfear, Conor R. Walker, Angie S. Hinrichs, Jason D. Fernandes, Rui Borges, Greg Slodkowicz, Lukas Weilguny, David Haussler, Nick Goldman and Russell Corbett-Detig, "Stability of SARS-CoV-2 Phylogenies", PLOS Genetics 2020 (https://doi.org/10.1371/journal.pgen.1009175).
+* Landen Gozashti, Conor R. Walker, Nick Goldman, Russell Corbett-Detig and Nicola De Maio, "Issues with SARS-CoV-2 sequencing data: Updated analysis with data from 13th November 2020", Virological 2020 (https://virological.org/t/issues-with-sars-cov-2-sequencing-data/473/14
+).

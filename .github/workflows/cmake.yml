@@ -20,7 +20,6 @@ jobs:
       run: |
         ./build/usher --help
         ./build/matUtils --help
-        python3 scripts/Fasta2UShER.py -h
         command -v mafft
   
   ubuntu-20-04:
@@ -33,11 +32,10 @@ jobs:
       run: |
         ./build/usher --help
         ./build/matUtils --help
-        python3 scripts/Fasta2UShER.py -h
         command -v mafft
 
-  macOS-10-14:
-    runs-on: macOS-10.14
+  macOS-latest:
+    runs-on: macOS-latest
     steps:
     - uses: actions/checkout@master
     - name: install pre-reqs and build
@@ -46,18 +44,4 @@ jobs:
       run: |
         ./build/usher --help
         ./build/matUtils --help
-        python3 scripts/Fasta2UShER.py -h
-        command -v mafft
-
-  macOS-10-15:
-    runs-on: macOS-10.15
-    steps:
-    - uses: actions/checkout@master
-    - name: install pre-reqs and build
-      run: ./installMacOS.sh
-    - name: test
-      run: |
-        ./build/usher --help
-        ./build/matUtils --help
-        python3 scripts/Fasta2UShER.py -h
         command -v mafft
