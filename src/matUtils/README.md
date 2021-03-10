@@ -53,11 +53,17 @@ This command gets basic statistics about the input MAT.
 
 ### Specific Options
 
+**-d**: Save all output files to the target directory. Default is current directory.
+
 **-s**: Write a tsv listing all samples in the tree and their parsimony scores (terminal branch length).
 
 **-c**: Write a tsv listing all clades in the tree and their occurrence over nodes in the tree.
 
 **-m**: Write a tsv listing all mutations in the tree and their occurrence count.
+
+**-a**: Write a tsv listing all nodes in the tree which have zero branch length, no mutations, or are duplicates for quality checking.
+
+**-A**: Write all possible tables to tsv files with default names (samples.txt, clades.txt, etc).
 
 ## Annotate
 
