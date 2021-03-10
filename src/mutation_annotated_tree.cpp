@@ -1247,7 +1247,7 @@ Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Node::add_child(Node *ne
         tree->rename_node(identifier, std::to_string(++tree->curr_internal_node));
         Mutation_Annotated_Tree::Node* sample_node=tree->create_node(old_name,this);
         children.push_back(new_child);
-        return sample_node;
+        return this;
     }
     new_child->parent = this;
     children.push_back(new_child);

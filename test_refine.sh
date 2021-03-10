@@ -1,10 +1,11 @@
 #!/bin/bash
+setopt -xve
 test_path=$1
 radius=$2
 test_case_name=$(basename $1)
 outpath="testout/r$radius/$test_case_name/"
 pb=$(realpath $test_path/*.pb)
-vcf=$(realpath $test_path/missing*.vcf*)
+vcf=$(realpath $test_path/*.vcf*)
 
 renice -n 19 -p $$
 mkdir -p $outpath

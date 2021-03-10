@@ -5,7 +5,8 @@ project(strain_phylogenetics)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -std=c++11 -Wall -ggdb3 -Wno-unused-function")
 set(CMAKE_INCLUDE_CURRENT_DIR ON) 
-set(CMAKE_CXX_FLAGS_DEBUG " -fsanitize=address -fsanitize=leak  -DTBB_USE_EXCEPTIONS=0 -DMEMDEBUG -DDETAIL_DEBUG_MOVE_EXE_SCORE_RECALC -DDETAIL_DEBUG_FS_CORRECT")
+# -fsanitize=address -fsanitize=undefined -fsanitize=leak -O0 
+set(CMAKE_CXX_FLAGS_DEBUG " -DDETAIL_DEBUG_MOVE_EXE_SCORE_RECALC -DTBB_USE_EXCEPTIONS=0 -DMEMDEBUG")
 
 if(DEFINED Protobuf_PATH) 
     find_package(Protobuf REQUIRED HINTS ${Protobuf_PATH}) 

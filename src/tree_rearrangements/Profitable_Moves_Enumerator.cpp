@@ -29,15 +29,17 @@ static void remove_child(MAT::Node* child_to_remove){
 
 static void patch_sankoff_result(size_t offset, Fitch_Sankoff::Scores_Type& out, MAT::Node* src, MAT::Node* dst,size_t end_idx){
     if(dst->is_leaf()){
+    #ifdef DETAIL_DEBUG_INDEX_MATCH
         assert(out[offset-dst->index].node==dst);
+    #endif
         Fitch_Sankoff::Score_Type leaf_score(out[offset-dst->index]);
-        Fitch_Sankoff::set_internal_score(*dst, out, offset, src,&leaf_score);
+        Fitch_Sankoff::set_internal_score_patched(*dst, out, offset, src,&leaf_score);
     }else{
-        Fitch_Sankoff::set_internal_score(*dst, out, offset, src);
+        Fitch_Sankoff::set_internal_score_patched(*dst, out, offset, src,nullptr);
     }
     MAT::Node* changing_node=dst->parent;
     while (changing_node&&changing_node->index>end_idx) {
-        Fitch_Sankoff::set_internal_score(*changing_node, out, offset);
+        Fitch_Sankoff::set_internal_score_patched(*changing_node, out, offset);
         changing_node=changing_node->parent;
     }
 }
@@ -53,9 +55,9 @@ static std::pair<int,int> calculate_parsimony_score_change(std::pair<size_t, siz
     //Deal with LCA separately, as it is influenced by both src and dst, especially the case when src is child of LCA, then src need to be processed, or dst is LCA itself (move to parent of parent), dst is to be processed
     assert(!LCA->is_leaf());
     if(dst==LCA||src->parent==LCA){
-        Fitch_Sankoff::set_internal_score(*LCA, out, offset, src);
+        Fitch_Sankoff::set_internal_score_patched(*LCA, out, offset, src,nullptr);
     }else{
-        Fitch_Sankoff::set_internal_score(*LCA, out, offset);
+        Fitch_Sankoff::set_internal_score_patched(*LCA, out, offset);
     }
     return std::make_pair(Fitch_Sankoff::get_child_score_on_par_nuc(par_nuc_idx, out.back()).first,original_parsimony_score);
 }
@@ -68,8 +70,10 @@ static void copy_scores(const Fitch_Sankoff_Result &ori,
     std::copy(ori.scores.begin() + ori.range.second - new_range.second,
               ori.scores.end() - new_range.first + ori.range.first,
               std::back_inserter(dst));
+    #ifdef DETAIL_DEBUG_INDEX_MATCH
     assert(dst.front().node->index==new_range.second-1);
     assert(dst.back().node->index==new_range.first);
+    #endif
 }
 /*
 static void copy_states(const Fitch_Sankoff_Result &ori,
@@ -178,38 +182,34 @@ struct Test_Move_Profitable {
                                 parent_fs_result->mutation.position);
                         }
                         assert(parsimony_score_in_original_tree>=new_old_score.second);
-                        std::unordered_map<std::string, std::array<int, 4>>
-                            scores_to_check;
-                        for (auto &&score : patched) {
-                            if (added && score.node == in->dst) {
-                                scores_to_check.emplace(new_dst->identifier,
-                                                        score.score);
-                            } else {
-                                scores_to_check.emplace(score.node->identifier,
-                                                        score.score);
-                            }
-                        }
+
                         Fitch_Sankoff::Scores_Type new_score;
 
                         Fitch_Sankoff::sankoff_backward_pass(
                             new_range, new_dfs_ordered_nodes, new_score,
                             original_states, parent_fs_result->mutation);
-                        for (auto &&score : new_score) {
-                            if (added == score.node) {
+                        MAT::Tree* old_tree=all_moves->src->tree;
+                        for (size_t new_scores_idx=0;new_scores_idx<new_score.size();new_scores_idx++) {
+                            size_t old_node_idx;
+                            const auto &score = new_score[new_scores_idx];
+                            MAT::Node* new_node=new_dfs_ordered_nodes[new_range.second-1-new_scores_idx];
+                            #ifdef DETAIL_DEBUG_INDEX_MATCH
+                            assert(score.node==new_node);
+                            #endif
+                            if (added == new_node) {
+                                old_node_idx=in->dst->index;
+                            }else if (added&&new_node->identifier==in->dst->identifier) {
+                                assert(in->dst->is_leaf());
                                 continue;
+                            }else{
+                                old_node_idx=old_tree->get_node(new_node->identifier)->index;
+                                //assert(patched_new_node->identifier==new_node->identifier);
                             }
-                            if(scores_to_check.count(score.node->identifier)==0){
-                                fprintf(stderr, "%s not found\n",score.node->identifier.c_str());
-                                assert(false);
-                            }
-                            auto & patched_score=scores_to_check[score.node->identifier];
-                            if (patched_score !=score.score) {
+                            const auto & patched_score=patched[range.second-1-old_node_idx];
+                            if (patched_score !=score) {
                                 fprintf(stderr,
                                         "score mismatch at original tree node "
-                                        "index %zu\n",
-                                        all_moves->src->tree
-                                            ->get_node(score.node->identifier)
-                                            ->index);
+                                        "index %zu\n",old_node_idx);
                                 assert(false);
                             }
                         }

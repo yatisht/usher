@@ -9,6 +9,7 @@
 #include <tbb/blocked_range.h>
 #include "check_samples.hpp"
 #include <tbb/flow_graph.h>
+#include <thread>
 #include <utility>
 #include <vector>
 #include "src/tree_rearrangement.hpp"
@@ -35,82 +36,40 @@ static void push_all_nodes(MAT::Tree* tree,std::vector<MAT::Node*>& nodes){
         nodes.push_back(a.second);
     }
 }*/
- static bool check_in_radius_or_parent(MAT::Node* later,MAT::Node* earlier, int radius){
-    bool parent_possible=true;
-    assert(later->index>earlier->index);
-    while (radius>0||parent_possible) {
-        if (later->index>earlier->index) {
-            later=later->parent;
-            if (!later) {
-                return false;
-            }
-        }else if(later->index<earlier->index){
-            earlier=earlier->parent;
-            if (!earlier) {
-                return false;
-            }
-            parent_possible=false;
-        }else {
-            assert(later->index==earlier->index);
-            return true;
-        }
-        radius--;
+class save_output_thread{
+    int output_count;
+    std::atomic_bool done;
+    std::thread* saving_thread;
+    MAT::Tree& to_save;
+    void run(){
+        output_count++;
+        MAT::save_mutation_annotated_tree(to_save, std::to_string(output_count));
+        done.store(true);
     }
-    return false;
-}
-static void feed_nodes(int radius,std::vector<MAT::Node *> &to_feed,
+    public:
+    save_output_thread(MAT::Tree& to_save):to_save(to_save){
+        output_count=0;
+        done.store(true);
+    }
+    void wait(){
+        /*if (!done.load()) {
+            saving_thread->join();
+            delete saving_thread;
+        }*/
+    }
+    void start(){
+        run();
+        //done.store(false);
+        //saving_thread=new std::thread(&save_output_thread::run,this);
+    }
+
+};
+
+void feed_nodes(int radius,std::vector<MAT::Node *> &to_feed,
                          std::deque<MAT::Node*>& out_queue,
                          std::mutex& out_mutex,
                          std::condition_variable& out_pushed,
-                         const std::vector<MAT::Node *> &dfs_ordered_nodes) {
-    std::vector<size_t> this_round_idx;
-    std::vector<size_t> next_round_idx;
-
-#define output_node(this_node) \
-{std::lock_guard<std::mutex> lk(out_mutex);\
-out_queue.push_back(this_node);\
-out_pushed.notify_one();}\
-this_node=this_node->parent;\
-if(this_node->parent){\
-    next_round_idx.push_back(this_node->index);\
-}
-
-    {
-        this_round_idx.reserve(to_feed.size());
-        for (auto node : to_feed) {
-            auto parent = node->parent;
-            if (parent)
-                this_round_idx.push_back(node->index);
-        }
-    }
-    while (!this_round_idx.empty()) {
-    std::sort(this_round_idx.begin(), this_round_idx.end());
-    for (auto iter = this_round_idx.begin(); iter < this_round_idx.end()-1; iter++) {
-        auto next_ele=*(iter+1);
-        if(next_ele==*iter){
-            continue;
-        }
-        if (!check_in_radius_or_parent(dfs_ordered_nodes[next_ele],dfs_ordered_nodes[*iter],radius)) {
-            assert(!check_grand_parent(dfs_ordered_nodes[next_ele],dfs_ordered_nodes[*iter]));
-            MAT::Node* this_node=dfs_ordered_nodes[*iter];
-            output_node(this_node);
-        } else {
-            next_round_idx.push_back(*iter);
-        }
-    }
-    MAT::Node* last_node=dfs_ordered_nodes[this_round_idx.back()];
-    output_node(last_node);
-    this_round_idx.swap(next_round_idx);
-    next_round_idx.clear();
-    }
-
-    {
-        std::lock_guard<std::mutex> lk(out_mutex);
-        out_queue.push_back(nullptr);
-        out_pushed.notify_one();
-    }
-}
-
+                         const std::vector<MAT::Node *> &dfs_ordered_nodes) ;
 typedef tbb::flow::multifunction_node<char,std::tuple<MAT::Node*>> Seach_Source_Node_t;
 struct Search_Source{
     std::deque<MAT::Node*>& buffer;
@@ -198,7 +157,7 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
         std::condition_variable queue_ready;
         std::atomic_bool all_nodes_done;
         bool graph_reseted;
-        Search_Source input_functor(search_queue,queue_mutex,queue_ready,num_cores,50,80,all_nodes_done,graph_reseted);
+        Search_Source input_functor(search_queue,queue_mutex,queue_ready,2*num_cores,50,80,all_nodes_done,graph_reseted);
         Seach_Source_Node_t input(search_graph,1,input_functor);
 
         tbb::flow::function_node<MAT::Node*,Possible_Moves*> neighbors_finder(search_graph,tbb::flow::unlimited,Neighbors_Finder(radius));
@@ -218,6 +177,7 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
         bool have_improvement=true;
         int old_pasimony_score=this_tree.get_parsimony_score();
         int moves_found;
+        save_output_thread output_saver(this_tree);
         while (have_improvement) {
             have_improvement = false;
             find_nodes_with_recurrent_mutations(dfs_ordered_nodes, to_optimize);
@@ -225,7 +185,7 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
             // push_all_nodes(&this_tree, to_optimize);
             while (!to_optimize.empty()) {
                 input.try_put(0);
-                feed_nodes(2*radius, to_optimize, search_queue, queue_mutex,
+                feed_nodes(4*radius, to_optimize, search_queue, queue_mutex,
                            queue_ready, dfs_ordered_nodes);
                 all_nodes_done.store(false);
                 to_optimize.clear();
@@ -245,6 +205,7 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
                         // tbb::parallel_for(tbb::blocked_range<size_t>(0,
                         // non_conflicting_moves.size()),
                         // Move_Executor{dfs_ordered_nodes,this_tree,non_conflicting_moves,tree_edits});
+                        output_saver.wait();
                         Move_Executor temp{dfs_ordered_nodes, this_tree,
                                            non_conflicting_moves, tree_edits,
                                            ori};
@@ -281,7 +242,7 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
                         fix_condensed_nodes(&this_tree);
                         this_tree.reassign_level();
                         //#ifndef NDEBUG
-
+                        output_saver.start();
                         for (MAT::Node *&next_node : to_optimize) {
                             for (const auto &deleted : deleted_map) {
                                 if (next_node == deleted.first) {

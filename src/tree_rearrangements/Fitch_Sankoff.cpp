@@ -66,7 +66,9 @@ static void fill_nuc(char nuc, Score_Type &out) {
 }
 static void set_leaf_score(MAT::Node &this_node,
                            Score_Type &out,char ori_state) {
+    #ifdef DETAIL_DEBUG_INDEX_MATCH
     assert(out.node==&this_node);
+    #endif
     //assert(ori_state==get_genotype(&this_node, pos));
     fill_nuc(ori_state, out);
 }
@@ -98,8 +100,8 @@ static void patch_children(std::vector<MAT::Node*>& in, MAT::Node* changed_child
         in.erase(iter);
     }
 }
-
-void Fitch_Sankoff::set_internal_score(const MAT::Node &this_node, Scores_Type &out,
+#ifdef DETAIL_DEBUG_FS_CORRECT
+static void set_internal_score_original(const MAT::Node &this_node, Scores_Type &out,
                         const int start_idx,MAT::Node* changed_child,Score_Type* leaf_score) {
     // make sure no off by one
     //assert(out.size() - 1 == start_idx - this_node.index);
@@ -145,7 +147,213 @@ void Fitch_Sankoff::set_internal_score(const MAT::Node &this_node, Scores_Type &
         out[this_node_idx][par_nuc]=score;
     }
 }
+#endif
+static void compare_set_arg(int op1, int op2, char flag1, char flag2,
+                            int &min_out, char &arg_min_out) {
+    min_out = op1;
+    arg_min_out = flag1;
+    if (op1 > op2) {
+        min_out = op2;
+        arg_min_out = flag2;
+    } else if (op1 == op2) {
+        arg_min_out = flag1 | flag2;
+    }
+}
 
+static void find_min_4(const Fitch_Sankoff::Score_Type &in, int &min_out,
+                       char &arg_min_out) {
+    int first_min;
+    char first_min_flag;
+    compare_set_arg(in[0], in[1], 1, 2, first_min, first_min_flag);
+    int second_min;
+    char second_min_flag;
+    compare_set_arg(in[2], in[3], 4, 8, second_min, second_min_flag);
+    compare_set_arg(first_min, second_min, first_min_flag, second_min_flag,
+                    min_out, arg_min_out);
+    /*
+    assert(min_out==*std::min_element(in.score.begin(),in.score.end()));
+    for (char i=0; i<3; i++) {
+        if(arg_min_out&(1<<i)){
+            assert(in[i]==min_out);
+        }
+    }*/
+}
+
+static void proc_score(const Fitch_Sankoff::Score_Type &score,std::vector<char> &min_score_possible_nuc,std::vector<int> &min_scores){
+    int min_score;
+    char arg_min_one_hot;
+    find_min_4(score, min_score, arg_min_one_hot);
+    min_score_possible_nuc.push_back(arg_min_one_hot);
+    min_scores.push_back(min_score);
+}
+static void proc_child(const MAT::Node *child, size_t start_idx,
+                       const Fitch_Sankoff::Scores_Type &scores,
+                       std::vector<char> &min_score_possible_nuc,
+                       std::vector<int> &min_scores) {
+    size_t child_idx = start_idx - child->index;
+    /* make sure indexes match*/
+    #ifdef DETAIL_DEBUG_INDEX_MATCH
+    assert(child_idx <= scores.size() - 2);
+    #endif
+    const Fitch_Sankoff::Score_Type &this_score=scores[child_idx];
+    #ifdef DETAIL_DEBUG_INDEX_MATCH
+    assert(this_score.node == child);
+    #endif
+    /* Make sure child values are computed */
+    assert(this_score[0] != -1);
+    proc_score(this_score, min_score_possible_nuc, min_scores);
+    
+}
+
+static void set_score_from_collated_child_score(size_t final_child_size,const std::vector<char>& min_score_possible_nuc,const std::vector<int>& min_scores,Fitch_Sankoff::Score_Type &this_node_score){
+    assert(min_score_possible_nuc.size() == final_child_size);
+    assert(min_scores.size() == final_child_size);
+    for (char par_nuc = 0; par_nuc < 4; par_nuc++) {
+        int new_score = 0;
+        char par_nuc_one_hot = 1 << par_nuc;
+        for (size_t child_idx = 0; child_idx < final_child_size; child_idx++) {
+            new_score += min_scores[child_idx];
+            if (!(par_nuc_one_hot & min_score_possible_nuc[child_idx])) {
+                new_score++;
+            }
+        }
+        this_node_score[par_nuc]=new_score;
+    }
+}
+/*
+bool patch_internal_score(const MAT::Node &this_node,
+                          Fitch_Sankoff::Scores_Type &out, const int start_idx,
+                          const ConfirmedMove &changed_child) {
+
+    // make sure no off by one
+    // assert(out.size() - 1 == start_idx - this_node.index);
+    std::vector<char> min_score_possible_nuc;
+    std::vector<int> min_scores;
+    size_t final_child_size = this_node.children.size() +
+                           changed_child.added.size() -
+                           changed_child.removed.size();
+
+    min_score_possible_nuc.reserve(final_child_size);
+    min_scores.reserve(final_child_size);
+    const auto &removed_children = changed_child.removed;
+    for (MAT::Node *child : this_node.children) {
+        if (std::find(removed_children.begin(), removed_children.end(),
+                      child) != removed_children.end()) {
+            continue;
+        }
+        proc_child(child, start_idx, out, min_score_possible_nuc, min_scores);
+    }
+    for (MAT::Node *child : changed_child.added) {
+        proc_child(child, start_idx, out, min_score_possible_nuc, min_scores);
+    }
+    size_t this_node_idx = start_idx - this_node.index;
+    Fitch_Sankoff::Score_Type &this_node_score = out[this_node_idx];
+    assert(this_node_score.node == &this_node);
+    return score_changed;
+}
+*/
+#define set_internal_score_premeable \
+std::vector<char> min_score_possible_nuc;\
+std::vector<int> min_scores;\
+min_score_possible_nuc.reserve(final_child_size);\
+min_scores.reserve(final_child_size);\
+
+static void set_internal_score(const MAT::Node *this_node, Scores_Type &out,const int start_idx){
+    size_t final_child_size = this_node->children.size();
+    set_internal_score_premeable
+
+    #ifdef DETAIL_DEBUG_FS_CORRECT
+    set_internal_score_original(*this_node, out, start_idx, nullptr, nullptr);
+    Score_Type old_score=out.back();
+    #endif
+
+    for (MAT::Node *child : this_node->children) {
+        proc_child(child, start_idx, out, min_score_possible_nuc, min_scores);
+    }
+    // In the whole subtree backward pass, the node whose score are being calculated are always at the end
+    
+    #ifdef DETAIL_DEBUG_INDEX_MATCH
+    assert(out.back().node == this_node);
+    #endif
+    
+    set_score_from_collated_child_score(final_child_size,min_score_possible_nuc,min_scores,out.back());
+
+    #ifdef DETAIL_DEBUG_FS_CORRECT
+    assert(old_score.score==out.back().score);
+    #endif
+}
+
+void Fitch_Sankoff::set_internal_score_patched(const MAT::Node &this_node, Scores_Type &out,
+        const int start_idx,MAT::Node* changed_child,Score_Type* leaf_score){
+    assert(!this_node.children.empty()||changed_child);
+    size_t final_child_size = this_node.children.size()+1+(leaf_score!=nullptr);
+    set_internal_score_premeable
+    size_t this_node_idx = start_idx - this_node.index;
+    Score_Type& this_score=out[this_node_idx];
+    
+    #ifdef DETAIL_DEBUG_INDEX_MATCH
+    assert(this_score.node==&this_node);
+    #endif
+    
+    #ifdef DETAIL_DEBUG_FS_CORRECT
+    set_internal_score_original(this_node, out, start_idx, changed_child, leaf_score);
+    Score_Type old_score=out[this_node_idx];
+    #endif
+
+    for (MAT::Node *child : this_node.children) {
+        if(child==changed_child){
+            assert(!leaf_score);
+            final_child_size-=2;
+            changed_child=nullptr;
+            continue;
+        }
+        proc_child(child, start_idx, out, min_score_possible_nuc, min_scores);
+    }
+    if(changed_child){
+        proc_child(changed_child, start_idx, out, min_score_possible_nuc, min_scores);
+    }
+    if(leaf_score){
+        proc_score(*leaf_score, min_score_possible_nuc, min_scores);
+    }
+    // In the whole subtree backward pass, the node whose score are being calculated are always at the end
+    set_score_from_collated_child_score(final_child_size,min_score_possible_nuc,min_scores,this_score);
+    
+    #ifdef DETAIL_DEBUG_FS_CORRECT
+    assert(old_score.score==out[this_node_idx].score);
+    #endif
+}
+
+void Fitch_Sankoff::set_internal_score_patched(const MAT::Node &this_node, Scores_Type &out,
+        const int start_idx){
+    assert(!this_node.children.empty());
+    size_t final_child_size = this_node.children.size();
+    set_internal_score_premeable
+    size_t this_node_idx = start_idx - this_node.index;
+    Score_Type& this_score=out[this_node_idx];
+    
+    #ifdef DETAIL_DEBUG_INDEX_MATCH
+    assert(this_score.node==&this_node);
+    #endif
+    
+    #ifdef DETAIL_DEBUG_FS_CORRECT
+    set_internal_score_original(this_node, out, start_idx, nullptr, nullptr);
+    Score_Type old_score=out[this_node_idx];
+    #endif
+
+    for (MAT::Node *child : this_node.children) {
+        proc_child(child, start_idx, out, min_score_possible_nuc, min_scores);
+    }
+    // In the whole subtree backward pass, the node whose score are being calculated are always at the end
+    set_score_from_collated_child_score(final_child_size,min_score_possible_nuc,min_scores,this_score);
+
+    #ifdef DETAIL_DEBUG_FS_CORRECT
+    assert(old_score.score==out[this_node_idx].score);
+    #endif
+
+}
+/*
+
+*/
 std::pair<size_t, size_t> Fitch_Sankoff::dfs_range(const MAT::Node *start,const std::vector<MAT::Node *> &dfs_ordered_nodes) {
     size_t start_idx = start->index;
     size_t stop_idx = INT_MAX;
@@ -184,7 +392,7 @@ void Fitch_Sankoff::sankoff_backward_pass(const std::pair<size_t, size_t> &range
     scores.reserve(range.second - range.first);
     for (auto iter = dfs_ordered_nodes.begin() + range.second-1;
          iter >= dfs_ordered_nodes.begin() + range.first; iter--) {
-#ifndef NDEBUG
+#ifdef DETAIL_DEBUG_INDEX_MATCH
         scores.emplace_back(*iter);
 #else
         scores.emplace_back();
@@ -194,7 +402,7 @@ void Fitch_Sankoff::sankoff_backward_pass(const std::pair<size_t, size_t> &range
             
             set_leaf_score(**iter, score_array,get_original_state(*iter,original_state,mutation));
         } else {
-            set_internal_score(**iter, scores, start_idx);
+            set_internal_score(*iter, scores, start_idx);
         }
     }
     assert(scores.size()== (range.second - range.first));
@@ -229,12 +437,17 @@ static void fill_dst_states(MAT::Node* to_fill,const size_t score_offset,const s
     assert(to_fill==dst||(!to_fill->is_leaf()));
 
     size_t this_state_idx = get_state_idx(to_fill->index);
+
+#ifdef DETAIL_DEBUG_INDEX_MATCH
     assert(states[this_state_idx].node==to_fill);
+#endif
 
     if(states[this_state_idx]>=4){
         MAT::Node *parent = get_parent(to_fill, edits);
         size_t parent_state_idx = get_state_idx(parent->index);
+#ifdef DETAIL_DEBUG_INDEX_MATCH
         assert(states[parent_state_idx].node == parent);
+#endif
 
         fill_dst_states(parent, score_offset, state_offset, mutation, scores,
                         states, dst,edits,states_to_update);
@@ -243,8 +456,9 @@ static void fill_dst_states(MAT::Node* to_fill,const size_t score_offset,const s
                get_genotype_with_regrafting(parent, mutation,edits));
 #endif
         size_t this_score_idx = get_score_idx(to_fill->index);
+#ifdef DETAIL_DEBUG_INDEX_MATCH
         assert(scores[this_score_idx].node == to_fill);
-
+#endif
         states[this_state_idx] =
             Fitch_Sankoff::get_child_score_on_par_nuc(states[parent_state_idx],
                                                       scores[this_score_idx])
@@ -272,7 +486,7 @@ void Fitch_Sankoff::sankoff_forward_pass(const std::pair<size_t, size_t> &range,
     size_t score_offset=-1+range.second;
 
     //States in 2bit format , original_states vector in one-hot format goes forward
-    #ifndef NDEBUG
+    #ifdef DETAIL_DEBUG_INDEX_MATCH
     States_Type states;
     states.reserve(range.second-range.first);
     for (size_t node_idx=range.first; node_idx<range.second; node_idx++) {
@@ -287,30 +501,50 @@ void Fitch_Sankoff::sankoff_forward_pass(const std::pair<size_t, size_t> &range,
     //in 2 bit format needed by get_score_by_par_nuc
     starting_node_parent_state=one_hot_to_two_bit(starting_node_parent_state);
 
+    #ifdef DETAIL_DEBUG_INDEX_MATCH
     assert(states[0].node==dfs_ordered_nodes[range.first]);
+    #endif
+
     Score_Type& last_score=scores[range.second-range.first-1];
     states[0]=get_child_score_on_par_nuc(starting_node_parent_state, last_score).second;
+#ifdef DETAIL_DEBUG_INDEX_MATCH
     assert(last_score.node==dfs_ordered_nodes[range.first]);
+#endif
+
     set_mutation(dfs_ordered_nodes[range.first], 1<<states[0], 1<<starting_node_parent_state, mutation,states_to_update);
 
     for (size_t dfs_idx=range.first+1; dfs_idx<range.second; dfs_idx++) {
         //Index conversions
         auto this_node=dfs_ordered_nodes[dfs_idx];
         size_t score_idx=get_score_idx(dfs_idx);
+
+#ifdef DETAIL_DEBUG_INDEX_MATCH
         assert(this_node==scores[score_idx].node);
+#endif
 
         MAT::Node* parent_node=get_parent(this_node, edits);
-        fill_dst_states(dst, score_offset, state_offset, mutation, scores, states, dst,edits,states_to_update);
-
-
         size_t parent_state_idx=get_state_idx(parent_node->index);
+#ifdef DETAIL_DEBUG_INDEX_MATCH
         assert(states[parent_state_idx].node==parent_node);
-        char parent_state=states[parent_state_idx];
-    #ifdef DETAIL_DEBUG_FS_CORRECT
+#endif
+
+        char parent_state;
+        
+        if (parent_node->is_leaf()&&(parent_node!=dst)) {
+         parent_state=one_hot_to_two_bit(get_original_state(parent_node, original_states, mutation));
+        }else{
+            fill_dst_states(parent_node, score_offset, state_offset, mutation, scores, states, dst,edits,states_to_update);
+                #ifdef DETAIL_DEBUG_FS_CORRECT
         assert(get_genotype_with_regrafting(parent_node, mutation,edits)==(1<<states[parent_state_idx]));
 #endif
+         parent_state=states[parent_state_idx];
+        }
+
         size_t this_state_idx=get_state_idx(dfs_idx);
+
+#ifdef DETAIL_DEBUG_INDEX_MATCH
         assert(states[this_state_idx].node==this_node);
+#endif
 
         //If to_move is moved to dst which is a leaf node, it will become an internal node, so treat it as an internal node
         if(this_node->is_leaf()&&this_node!=dst) {

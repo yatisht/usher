@@ -12,7 +12,7 @@ typedef std::unordered_map<MAT::Node*, MAT::Node*> all_moves_bare_type;
 
 char get_genotype(MAT::Node* node, const Mutation_Annotated_Tree::Mutation& m);
 namespace Fitch_Sankoff {
-#ifndef NDEBUG
+#ifdef DETAIL_DEBUG_INDEX_MATCH
 struct State_Type {
     char state;
     const MAT::Node *node;
@@ -32,6 +32,12 @@ struct Score_Type {
     Score_Type() : Score_Type(nullptr) { score[0] = -1; }
     int operator[](size_t a) const { return score[a]; }
     int& operator[](size_t a) { return score[a]; }
+    bool operator== (const Score_Type& other)const{
+        return score==other.score;
+    }
+    bool operator!=(const Score_Type& other)const{
+        return score!=other.score;
+    }
 };
 #else
 typedef std::array<int, 4> Score_Type;
@@ -49,8 +55,9 @@ void sankoff_forward_pass(const std::pair<size_t, size_t> &range,
                           std::vector<MAT::Node *> &dfs_ordered_nodes,const MAT::Mutation &mutation,const Original_State_t& original_state,
                           Scores_Type& scores,char starting_node_parent_state,MAT::Node* to_move,MAT::Node* dst, MAT::Node* new_leaf,States_To_Set& states_to_update,const all_moves_bare_type& other_moves_in_subtree);
 
-void set_internal_score(const MAT::Node &this_node, Scores_Type &out,
-                        const int start_idx,MAT::Node* changed_child=nullptr,Score_Type* leaf_score=nullptr);
+void set_internal_score_patched(const MAT::Node &this_node, Scores_Type &out,
+                        const int start_idx,MAT::Node* changed_child,Score_Type* leaf_score);
+void set_internal_score_patched(const MAT::Node &this_node, Scores_Type &out,const int start_idx);
 std::pair<int, char>
 get_child_score_on_par_nuc(char par_nuc,
                            const Score_Type &child_scores);
