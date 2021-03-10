@@ -143,7 +143,7 @@ void extract_main (po::parsed_options parsed) {
             exit(1);
         }
         std::string sample_id = nearest_k.substr(0, split_point);
-        std::string nkstr = nearest_k.substr(split_point, nearest_k.size() - split_point); 
+        std::string nkstr = nearest_k.substr(split_point+1, nearest_k.size() - split_point); 
         int nk = std::stoi(nkstr);
         if (nk <= 0) {
             fprintf(stderr, "ERROR: Invalid neighborhood size. Please choose a positive nonzero integer.\n");

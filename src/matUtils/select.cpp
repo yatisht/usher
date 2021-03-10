@@ -196,9 +196,9 @@ std::vector<std::string> get_nearby (MAT::Tree T, std::string sample_id, int num
         fprintf(stderr, "ERROR: Not enough samples in tree to get neighborhood subtree of requested size!\n");
         exit(1);
     }
-    size_t tindex = std::distance(all_leaves.begin(), target);
-    size_t subset_start = tindex - (number_to_get/2);
-    size_t subset_end = tindex + (number_to_get/2);
+    int tindex = std::distance(all_leaves.begin(), target);
+    int subset_start = tindex - (number_to_get/2);
+    int subset_end = tindex + (number_to_get/2);
     if (subset_start < 0) {
         subset_start = 0;
         subset_end = number_to_get;
@@ -206,7 +206,8 @@ std::vector<std::string> get_nearby (MAT::Tree T, std::string sample_id, int num
         subset_start = all_leaves.size() - number_to_get - 1;
         subset_end = all_leaves.size() - 1;
     }
-    std::vector<std::string> neighborhood_leaves;
-    neighborhood_leaves.insert(all_leaves.begin(), all_leaves.begin() + subset_start, all_leaves.begin() + subset_end);
+    fprintf(stderr, "Start index is %d\n", subset_start);
+    fprintf(stderr, "Stop index is %d\n", subset_end);
+    std::vector<std::string> neighborhood_leaves(all_leaves.begin() + subset_start, all_leaves.begin() + subset_end);
     return neighborhood_leaves;
 }
