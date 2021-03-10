@@ -89,6 +89,8 @@ void resolve_polytomy(MAT::Tree* T, std::vector<MAT::Node*> polytomy_nodes) {
         //generate the actual node; its parent is going to be the last entry of new_parents
         //for the first one, that's the original parent, for each after, its the last generated
         auto nnode = T->create_node(nid, new_parents.back(), 0);
+        //I don't think these are initialized with mutations, but its called in the condenser, so...
+        nnode->clear_mutations();
         new_parents.push_back(nnode);
     }
     //now, assign each of the polytomy samples to one of these new parents
@@ -97,11 +99,15 @@ void resolve_polytomy(MAT::Tree* T, std::vector<MAT::Node*> polytomy_nodes) {
     //except for the last one, which will go to the last parent in line (index - 1),
     //as the last parent can support two children.
     for (int i=1; i<polytomy_nodes.size()-1; i++) {
+        //the node mover routine resets the branch length and we don't want to do that
+        //save it, move, then reassign the branch length
+        float length_to_keep = polytomy_nodes[i]->branch_length;
         T->move_node(polytomy_nodes[i]->identifier, new_parents[i]->identifier, false);
-        polytomy_nodes[i]->branch_length = 0.0;
+        polytomy_nodes[i]->branch_length = length_to_keep;
     }
+    float length_to_keep = polytomy_nodes.back()->branch_length;
     T->move_node(polytomy_nodes.back()->identifier, new_parents.back()->identifier, false);
-    polytomy_nodes.back()->branch_length = 0.0;
+    polytomy_nodes.back()->branch_length = length_to_keep;
 }
 
 MAT::Tree resolve_all_polytomies(MAT::Tree T) {
@@ -111,6 +117,11 @@ MAT::Tree resolve_all_polytomies(MAT::Tree T) {
     for (auto l: T.get_leaves()) {
         //for every leaf, check the leaf's parent's children
         //parallel to the implementation for node condensing in the class definition
+        //adding lots of safety checks to minimize strange behavior, though leaves we care about should always pass these
+        //same checks as the node condenser routine.
+        if (l == NULL || l->mutations.size() > 0) {
+            continue;
+        }
         std::vector<MAT::Node*> polytomy_nodes;
         for (auto l2: l->parent->children) {
             if (l2->is_leaf() && (T.get_node(l2->identifier) != NULL) && (l2->mutations.size() == 0)) {
