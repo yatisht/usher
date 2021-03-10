@@ -63,5 +63,5 @@ get_child_score_on_par_nuc(char par_nuc,
                            const Score_Type &child_scores);
 } // namespace Fitch_Sankoff
 MAT::Node* get_parent(MAT::Node* this_node,const all_moves_bare_type& edits);
-char get_genotype_with_regrafting(MAT::Node* node, const Mutation_Annotated_Tree::Mutation& m, const all_moves_bare_type& edits);
+char get_genotype_with_regrafting(MAT::Node* node, const Mutation_Annotated_Tree::Mutation& m, const all_moves_bare_type& edits,MAT::Node* LCA_parent_node,char LCA_parent_state);
 #endif

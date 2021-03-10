@@ -64,10 +64,22 @@ struct Profitable_Move{
     std::pair<size_t, size_t> range;
     all_moves_bare_type other_moves_in_subtree;
     std::vector<Fitch_Sankoff_Result_Final> states;
+    #ifdef CHECK_LEAK
+    bool destructed;
+    ~Profitable_Move(){
+        assert(destructed);
+    }
+    Profitable_Move():destructed(false){}
+    #endif
 };
+    #ifdef CHECK_LEAK
+    typedef std::shared_ptr<Profitable_Move> Profitable_Moves_ptr_t;
+    #else
+    typedef Profitable_Move* Profitable_Moves_ptr_t;
+    #endif
 struct Profitable_Moves_From_One_Source{
     MAT::Node* src;
-    std::vector<Profitable_Move*> profitable_moves;
+    std::vector<Profitable_Moves_ptr_t> profitable_moves;
 };
 struct ConfirmedMove{
     std::vector<MAT::Node*> removed;
@@ -104,7 +116,7 @@ struct Profitable_Moves_Enumerator{
 struct Move_Executor{
     std::vector<MAT::Node *>& dfs_ordered_nodes;
     MAT::Tree& tree;
-    std::vector<Profitable_Move*>& moves;
+    std::vector<Profitable_Moves_ptr_t>& moves;
     Pending_Moves_t& tree_edits;
     const Original_State_t& ori;
     mutable std::unordered_map<MAT::Node*,MAT::Node*,Node_Idx_Hash,Node_Idx_Eq> new_parents_map;

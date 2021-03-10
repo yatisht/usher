@@ -107,7 +107,7 @@ static char extract_LCA_parent_state(const Fitch_Sankoff_Result &ori,
 */
 struct Test_Move_Profitable {
     std::vector<MAT::Node *> &dfs_ordered_nodes;
-    std::vector<Profitable_Move*> &tie;
+    std::vector<Profitable_Moves_ptr_t> &tie;
     int& best_score_change;
     Candidate_Moves *all_moves;
     std::mutex& mutex;
@@ -223,7 +223,12 @@ struct Test_Move_Profitable {
             new_tree.delete_nodes();
 #endif
             if (score_changes<=best_score_change) {
-                Profitable_Move *out = new Profitable_Move;
+                Profitable_Move *out_raw = new Profitable_Move;
+                #ifdef CHECK_LEAK
+                std::shared_ptr<Profitable_Move> out(out_raw);
+                #else
+                Profitable_Move *out = out_raw;
+                #endif
                 out->LCA = LCA;
                 out->score_change = score_changes;
                 out->src = all_moves->src;
@@ -231,20 +236,24 @@ struct Test_Move_Profitable {
                 out->path.swap(in->path);
                 out->range = range;
                 out->states.swap(moved_states);
-                std::vector<Profitable_Move*> temp({out});
+                std::vector<Profitable_Moves_ptr_t> temp({out});
                 temp.reserve(all_moves->moves.size());
                 {
-		    std::lock_guard<std::mutex> lock(mutex);
-                    if (score_changes==best_score_change) {
+                    std::lock_guard<std::mutex> lock(mutex);
+                    if (score_changes == best_score_change) {
                         tie.push_back(out);
                         continue;
-                    }else if(score_changes<best_score_change){
-			best_score_change=score_changes;
+                    } else if (score_changes < best_score_change) {
+                        best_score_change = score_changes;
                         tie.swap(temp);
                     }
                 }
-                for(Profitable_Move* move:temp){
+                for (Profitable_Moves_ptr_t& move : temp) {
+                    #ifdef CHECK_LEAK
+                        move->destructed=true;
+                    #else
                     delete move;
+                    #endif
                 }
             }
         }

@@ -218,7 +218,7 @@ struct New_Temp_Tree {
 */
 void Move_Executor::operator()(tbb::blocked_range<size_t> &r) const {
     for (auto i = r.begin(); i < r.end(); i++) {
-        Profitable_Move *this_move = moves[i];
+        Profitable_Moves_ptr_t this_move = moves[i];
         all_moves_bare_type moves_in_subtree;
         for (const auto &move : this_move->other_moves_in_subtree) {
             //if (!(move.first->is_leaf() || move.second->is_leaf())) {

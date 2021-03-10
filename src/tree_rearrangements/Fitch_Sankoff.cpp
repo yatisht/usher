@@ -40,8 +40,8 @@ MAT::Node* get_parent(MAT::Node* this_node,const all_moves_bare_type& edits){
     }
 }
 #ifdef DETAIL_DEBUG_FS_CORRECT
-char get_genotype_with_regrafting(MAT::Node* node, const Mutation_Annotated_Tree::Mutation& m, const all_moves_bare_type& edits){
-    while (node)
+char get_genotype_with_regrafting(MAT::Node* node, const Mutation_Annotated_Tree::Mutation& m, const all_moves_bare_type& edits,MAT::Node* LCA_parent_node,char LCA_parent_state){
+    while (node!=LCA_parent_node)
     {
         auto iter=node->mutations.find(m);
         if(iter!=node->mutations.end()){
@@ -49,7 +49,7 @@ char get_genotype_with_regrafting(MAT::Node* node, const Mutation_Annotated_Tree
         }
         node=get_parent(node, edits);
     }
-    return m.ref_nuc;
+    return LCA_parent_state;
 
 }
 #endif
@@ -129,7 +129,9 @@ static void set_internal_score_original(const MAT::Node &this_node, Scores_Type 
             size_t child_idx = start_idx - child->index;
             // make sure indexes match
             assert(child_idx <= out.size() - 2);
+        #ifdef DETAIL_DEBUG_INDEX_MATCH
             assert(out[child_idx].node == child);
+        #endif
             // Make sure child values are computed
             assert(out[child_idx][0] != -1);
 
@@ -143,7 +145,9 @@ static void set_internal_score_original(const MAT::Node &this_node, Scores_Type 
         out.back()[par_nuc] = score;
         */
         size_t this_node_idx = start_idx - this_node.index;
+        #ifdef DETAIL_DEBUG_INDEX_MATCH
         assert(out[this_node_idx].node==&this_node);
+        #endif
         out[this_node_idx][par_nuc]=score;
     }
 }
@@ -279,7 +283,7 @@ static void set_internal_score(const MAT::Node *this_node, Scores_Type &out,cons
     set_score_from_collated_child_score(final_child_size,min_score_possible_nuc,min_scores,out.back());
 
     #ifdef DETAIL_DEBUG_FS_CORRECT
-    assert(old_score.score==out.back().score);
+    assert(old_score==out.back());
     #endif
 }
 
@@ -319,7 +323,7 @@ void Fitch_Sankoff::set_internal_score_patched(const MAT::Node &this_node, Score
     set_score_from_collated_child_score(final_child_size,min_score_possible_nuc,min_scores,this_score);
     
     #ifdef DETAIL_DEBUG_FS_CORRECT
-    assert(old_score.score==out[this_node_idx].score);
+    assert(old_score==out[this_node_idx]);
     #endif
 }
 
@@ -347,7 +351,7 @@ void Fitch_Sankoff::set_internal_score_patched(const MAT::Node &this_node, Score
     set_score_from_collated_child_score(final_child_size,min_score_possible_nuc,min_scores,this_score);
 
     #ifdef DETAIL_DEBUG_FS_CORRECT
-    assert(old_score.score==out[this_node_idx].score);
+    assert(old_score==out[this_node_idx]);
     #endif
 
 }
@@ -433,45 +437,53 @@ static void set_mutation(MAT::Node *node, char state, char par_state, const MAT:
 #define get_score_idx(dfs_idx) (score_offset-(dfs_idx))
 #define get_state_idx(dfs_idx) ((dfs_idx)-state_offset)
 
-static void fill_dst_states(MAT::Node* to_fill,const size_t score_offset,const size_t state_offset,const MAT::Mutation& mutation,Scores_Type& scores,States_Type& states,MAT::Node* dst,const all_moves_bare_type& edits,States_To_Set& states_to_update){
-    assert(to_fill==dst||(!to_fill->is_leaf()));
+static void fill_dst_states(MAT::Node *to_fill, const size_t score_offset,
+                            const size_t state_offset,
+                            const MAT::Mutation &mutation, Scores_Type &scores,
+                            States_Type &states, MAT::Node *dst,
+                            const all_moves_bare_type &edits,
+                            States_To_Set &states_to_update,const Original_State_t& original_states,MAT::Node* starting_node_parent_node,char starting_node_parent_state_one_hot) {
+    // assert(to_fill==dst||(!to_fill->is_leaf()));
 
     size_t this_state_idx = get_state_idx(to_fill->index);
-
+    auto &to_fill_state = states[this_state_idx];
 #ifdef DETAIL_DEBUG_INDEX_MATCH
-    assert(states[this_state_idx].node==to_fill);
+    assert(to_fill_state.node == to_fill);
 #endif
 
-    if(states[this_state_idx]>=4){
+    if (to_fill_state >= 4) {
         MAT::Node *parent = get_parent(to_fill, edits);
         size_t parent_state_idx = get_state_idx(parent->index);
+        const auto &parent_state = states[parent_state_idx];
 #ifdef DETAIL_DEBUG_INDEX_MATCH
-        assert(states[parent_state_idx].node == parent);
+        assert(parent_state.node == parent);
 #endif
 
         fill_dst_states(parent, score_offset, state_offset, mutation, scores,
-                        states, dst,edits,states_to_update);
-    #ifdef DETAIL_DEBUG_FS_CORRECT
-        assert((1 << states[parent_state_idx]) ==
-               get_genotype_with_regrafting(parent, mutation,edits));
+                        states, dst, edits, states_to_update,original_states,starting_node_parent_node,starting_node_parent_state_one_hot);
+#ifdef DETAIL_DEBUG_FS_CORRECT
+        assert((1 << parent_state) ==
+               get_genotype_with_regrafting(parent, mutation, edits,starting_node_parent_node,starting_node_parent_state_one_hot));
 #endif
-        size_t this_score_idx = get_score_idx(to_fill->index);
+        if (to_fill->is_leaf() && (to_fill != dst)) {
+            to_fill_state = one_hot_to_two_bit(
+                get_original_state(to_fill, original_states, mutation));
+        } else {
+            size_t this_score_idx = get_score_idx(to_fill->index);
+            const auto &this_score = scores[this_score_idx];
 #ifdef DETAIL_DEBUG_INDEX_MATCH
-        assert(scores[this_score_idx].node == to_fill);
+            assert(this_score.node == to_fill);
 #endif
-        states[this_state_idx] =
-            Fitch_Sankoff::get_child_score_on_par_nuc(states[parent_state_idx],
-                                                      scores[this_score_idx])
-                .second;
-        set_mutation(to_fill, 1 << states[this_state_idx],
-                     1 << states[parent_state_idx], mutation,states_to_update);
+            to_fill_state = Fitch_Sankoff::get_child_score_on_par_nuc(parent_state, this_score).second;
+        }
+        set_mutation(to_fill, 1 << to_fill_state, 1 << parent_state, mutation,
+                     states_to_update);
     }
 }
 
-
 void Fitch_Sankoff::sankoff_forward_pass(const std::pair<size_t, size_t> &range,
                           std::vector<MAT::Node *> &dfs_ordered_nodes,const MAT::Mutation &mutation,const Original_State_t& original_states,
-                          Scores_Type& scores, char starting_node_parent_state,MAT::Node* to_move,MAT::Node* dst,MAT::Node* new_leaf,States_To_Set& states_to_update,const all_moves_bare_type& edits
+                          Scores_Type& scores, char starting_node_parent_state_one_hot,MAT::Node* to_move,MAT::Node* dst,MAT::Node* new_leaf,States_To_Set& states_to_update,const all_moves_bare_type& edits
 ) {
     #ifndef NDEBUG
     if (!states_to_update.empty()) {
@@ -484,7 +496,9 @@ void Fitch_Sankoff::sankoff_forward_pass(const std::pair<size_t, size_t> &range,
     //first node->last element
     //index=size-1-(dfs_index-first_element_index)
     size_t score_offset=-1+range.second;
-
+//#ifdef DETAIL_DEBUG_FS_CORRECT
+    MAT::Node* starting_node_parent_node=get_parent(dfs_ordered_nodes[range.first],edits);
+//#endif
     //States in 2bit format , original_states vector in one-hot format goes forward
     #ifdef DETAIL_DEBUG_INDEX_MATCH
     States_Type states;
@@ -499,19 +513,19 @@ void Fitch_Sankoff::sankoff_forward_pass(const std::pair<size_t, size_t> &range,
 
     //starting node have states passed in as argument, and I don't want to have different index for original_states and state, so here goes the special treatment for the starting node.
     //in 2 bit format needed by get_score_by_par_nuc
-    starting_node_parent_state=one_hot_to_two_bit(starting_node_parent_state);
+    char starting_node_parent_state_2_bit=one_hot_to_two_bit(starting_node_parent_state_one_hot);
 
     #ifdef DETAIL_DEBUG_INDEX_MATCH
     assert(states[0].node==dfs_ordered_nodes[range.first]);
     #endif
 
     Score_Type& last_score=scores[range.second-range.first-1];
-    states[0]=get_child_score_on_par_nuc(starting_node_parent_state, last_score).second;
+    states[0]=get_child_score_on_par_nuc(starting_node_parent_state_2_bit, last_score).second;
 #ifdef DETAIL_DEBUG_INDEX_MATCH
     assert(last_score.node==dfs_ordered_nodes[range.first]);
 #endif
 
-    set_mutation(dfs_ordered_nodes[range.first], 1<<states[0], 1<<starting_node_parent_state, mutation,states_to_update);
+    set_mutation(dfs_ordered_nodes[range.first], 1<<states[0], 1<<starting_node_parent_state_2_bit, mutation,states_to_update);
 
     for (size_t dfs_idx=range.first+1; dfs_idx<range.second; dfs_idx++) {
         //Index conversions
@@ -530,15 +544,11 @@ void Fitch_Sankoff::sankoff_forward_pass(const std::pair<size_t, size_t> &range,
 
         char parent_state;
         
-        if (parent_node->is_leaf()&&(parent_node!=dst)) {
-         parent_state=one_hot_to_two_bit(get_original_state(parent_node, original_states, mutation));
-        }else{
-            fill_dst_states(parent_node, score_offset, state_offset, mutation, scores, states, dst,edits,states_to_update);
-                #ifdef DETAIL_DEBUG_FS_CORRECT
-        assert(get_genotype_with_regrafting(parent_node, mutation,edits)==(1<<states[parent_state_idx]));
+        fill_dst_states(parent_node, score_offset, state_offset, mutation, scores, states, dst,edits,states_to_update,original_states,starting_node_parent_node,starting_node_parent_state_one_hot);
+#ifdef DETAIL_DEBUG_FS_CORRECT
+        assert(get_genotype_with_regrafting(parent_node, mutation,edits,starting_node_parent_node,starting_node_parent_state_one_hot)==(1<<states[parent_state_idx]));
 #endif
          parent_state=states[parent_state_idx];
-        }
 
         size_t this_state_idx=get_state_idx(dfs_idx);
 
@@ -551,7 +561,7 @@ void Fitch_Sankoff::sankoff_forward_pass(const std::pair<size_t, size_t> &range,
             char original_state=get_original_state(this_node, original_states, mutation);
             set_mutation(this_node, original_state, 1<<parent_state, mutation,states_to_update);
     #ifdef DETAIL_DEBUG_FS_CORRECT
-            assert(get_genotype_with_regrafting(this_node, mutation,edits)==original_state);
+            assert(get_genotype_with_regrafting(this_node, mutation,edits,starting_node_parent_node,starting_node_parent_state_one_hot)==original_state);
             #endif
             continue;
         }
@@ -562,14 +572,14 @@ void Fitch_Sankoff::sankoff_forward_pass(const std::pair<size_t, size_t> &range,
         states[this_state_idx]=this_state;
         set_mutation(this_node, 1<<this_state, 1<<parent_state, mutation,states_to_update);
 #ifdef DETAIL_DEBUG_FS_CORRECT
-        assert(get_genotype_with_regrafting(this_node, mutation,edits)==(1<<states[this_state_idx]));
+        assert(get_genotype_with_regrafting(this_node, mutation,edits,starting_node_parent_node,starting_node_parent_state_one_hot)==(1<<states[this_state_idx]));
 #endif
         //deal with leaf node turned into internal node
         if(this_node->is_leaf()&&this_node==dst) {
             char original_state=get_original_state(this_node, original_states, mutation);
             set_mutation(new_leaf, original_state, 1<<this_state, mutation,states_to_update);
     #ifdef DETAIL_DEBUG_FS_CORRECT
-            assert(get_genotype_with_regrafting(new_leaf, mutation,edits)==original_state);
+            assert(get_genotype_with_regrafting(new_leaf, mutation,edits,starting_node_parent_node,starting_node_parent_state_one_hot)==original_state);
             #endif
         }
     }

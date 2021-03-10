@@ -1,5 +1,6 @@
 #include "src/mutation_annotated_tree.hpp"
 #include "tree_rearrangement_internal.hpp"
+#include <algorithm>
 #include <atomic>
 #include <condition_variable>
 #include <cstdio>
@@ -15,6 +16,8 @@
 #include "src/tree_rearrangement.hpp"
 #include "priority_conflict_resolver.hpp"
 extern uint32_t num_cores;
+typedef std::vector<std::pair<MAT::Node *, MAT::Node *>> Deleted_Map_t;
+
 void find_nodes_with_recurrent_mutations(std::vector<MAT::Node *>& all_nodes, std::vector<MAT::Node *>& output);
 static void fix_condensed_nodes(MAT::Tree* tree){
     std::vector<MAT::Node*> nodes_to_fix;
@@ -132,23 +135,53 @@ struct Search_Source{
         
     }
 };
+void clean_internal_nodes_with_no_mutation(MAT::Node *this_node,
+                                           MAT::Tree *this_tree,Deleted_Map_t& deleted_map) {
+    if (this_node->is_leaf()||this_node->is_root()) {
+        return;
+    }
+    std::vector<MAT::Node *> &parent_children = this_node->parent->children;
+    std::vector<MAT::Node *> this_node_ori_children = this_node->children;
 
+    if (this_node->mutations.empty()) {
+        auto iter = std::find(parent_children.begin(), parent_children.end(),
+                              this_node);
+        assert(iter != parent_children.end());
+        parent_children.erase(iter);
+        this_tree->all_nodes.erase(this_node->identifier);
+        for (MAT::Node *child : this_node_ori_children) {
+            child->parent = this_node->parent;
+            parent_children.push_back(child);
+        }
+        deleted_map.emplace_back(this_node,this_node->parent);
+        delete this_node;
+    }
+
+    for (MAT::Node *child : this_node_ori_children) {
+        clean_internal_nodes_with_no_mutation(child, this_tree,deleted_map);
+    }
+}
 void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int radius) {
 
     for (MAT::Tree& this_tree : optimal_trees) {
         fprintf(stderr, "Before refinement: %zu \n",
                 this_tree.get_parsimony_score());
-        auto dfs_ordered_nodes = this_tree.depth_first_expansion();
-        #ifndef NDEBUG
-        for(auto node:dfs_ordered_nodes){
-            node->tree=&this_tree;
-        }
-        #endif
         Original_State_t ori;
         std::vector<MAT::Node*>& to_optimize=this_tree.new_nodes;
         check_samples(this_tree.root, ori,&this_tree);
         Pending_Moves_t pending_moves;
         tbb::concurrent_vector<Profitable_Move*> profitable_moves;
+        {
+        Deleted_Map_t ignored;
+        clean_internal_nodes_with_no_mutation(this_tree.root, &this_tree,ignored);
+        }
+        Original_State_t copy(ori);
+        check_samples(this_tree.root, copy, &this_tree);
+
+        auto dfs_ordered_nodes = this_tree.depth_first_expansion();
+        for(auto node:dfs_ordered_nodes){
+            node->tree=&this_tree;
+        }
         //building pipeline
         tbb::queuing_rw_mutex mutex;
         tbb::flow::graph search_graph;
@@ -156,7 +189,7 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
         std::mutex queue_mutex;
         std::condition_variable queue_ready;
         std::atomic_bool all_nodes_done;
-        bool graph_reseted;
+        bool graph_reseted=true;
         Search_Source input_functor(search_queue,queue_mutex,queue_ready,2*num_cores,50,80,all_nodes_done,graph_reseted);
         Seach_Source_Node_t input(search_graph,1,input_functor);
 
@@ -170,7 +203,8 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
         tbb::flow::make_edge(parsimony_score_calculator,profitable_move_enumerator);
 
         Cross_t potential_crosses;
-        tbb::flow::function_node<Profitable_Moves_From_One_Source*,char> conflict_resolver(search_graph,1,Conflict_Resolver{potential_crosses,to_optimize});
+        int nodes_inside=0;
+        tbb::flow::function_node<Profitable_Moves_From_One_Source*,char> conflict_resolver(search_graph,1,Conflict_Resolver{potential_crosses,to_optimize,nodes_inside});
         tbb::flow::make_edge(profitable_move_enumerator,conflict_resolver);
         tbb::flow::make_edge(conflict_resolver,input);
 
@@ -185,18 +219,18 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
             // push_all_nodes(&this_tree, to_optimize);
             while (!to_optimize.empty()) {
                 input.try_put(0);
-                feed_nodes(4*radius, to_optimize, search_queue, queue_mutex,
+                feed_nodes(radius, to_optimize, search_queue, queue_mutex,
                            queue_ready, dfs_ordered_nodes);
                 all_nodes_done.store(false);
                 to_optimize.clear();
                 while (!all_nodes_done.load()) {
-                    std::vector<Profitable_Move*> non_conflicting_moves;
+                    std::vector<Profitable_Moves_ptr_t> non_conflicting_moves;
                     graph_reseted = true;
                     potential_crosses.clear();
 
                     input.try_put(0);
                     search_graph.wait_for_all();
-                    schedule_moves(potential_crosses, non_conflicting_moves);
+                    schedule_moves(potential_crosses, non_conflicting_moves,nodes_inside);
                     moves_found = non_conflicting_moves.size();
                     fprintf(stderr, "%zu moves profitable\n",
                             non_conflicting_moves.size());
@@ -214,7 +248,11 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
                         temp(range_temp);
 #ifndef NDEBUG
                         for (auto m : non_conflicting_moves) {
+                            #ifdef CHECK_LEAK
+                            m->destructed=true;
+                            #else
                             delete m;
+                            #endif
                         }
 #endif
                         non_conflicting_moves.clear();
@@ -227,8 +265,8 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
                         &in) {
                            });
                         */
-                        std::vector<std::pair<MAT::Node *, MAT::Node *>>
-                            deleted_map;
+                        
+                        Deleted_Map_t deleted_map;
                         for (Pending_Moves_t::const_iterator iter =
                                  tree_edits.begin();
                              iter != tree_edits.end(); iter++) {
@@ -237,6 +275,7 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
                                 const_cast<ConfirmedMove &>(iter->second),
                                 &this_tree, ori, deleted_map);
                         }
+                        clean_internal_nodes_with_no_mutation(this_tree.root, &this_tree,deleted_map);
                         Original_State_t copy(ori);
                         check_samples(this_tree.root, copy, &this_tree);
                         fix_condensed_nodes(&this_tree);
