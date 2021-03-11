@@ -1,11 +1,14 @@
 #include "src/mutation_annotated_tree.hpp"
 #include "tree_rearrangement_internal.hpp"
+#include <bits/types/FILE.h>
 #include <cstddef>
 #include <queue>
 #include <tuple>
 #include <utility>
-
-static void BFS(MAT::Node* src,MAT::Node* ori_src, int radius,std::vector<MAT::Node*>& out){
+#ifdef NDEBUG
+static
+#endif
+void BFS(MAT::Node* src,MAT::Node* ori_src, int radius,std::vector<MAT::Node*>& out){
     struct queue_content{
         MAT::Node* node;
         MAT::Node* reached_from; //take advantage of the tree, no loops
