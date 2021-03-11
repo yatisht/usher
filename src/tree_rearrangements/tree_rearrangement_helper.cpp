@@ -99,21 +99,27 @@ static bool check_in_radius(MAT::Node* this_node, int radius,Reachable_Map_t& re
 */
 static bool check_in_radius(MAT::Node* this_node, int radius,Reachable_Map_t& reachable_map){
     std::vector<size_t> parent_idx;
-    parent_idx.reserve(radius);
-    for (size_t dist=0; dist<radius; dist++) {
-        if (!this_node) {
+    int indirect_radius=2*radius+1;
+    parent_idx.reserve(indirect_radius);
+    if(reachable_map[this_node->index]<radius){
+        return true;
+    }
+    MAT::Node* ancestor=this_node->parent;
+    for (size_t dist=0; dist<indirect_radius; dist++) {
+        if (!ancestor) {
             break;
         }
-        size_t this_node_idx=this_node->index;
-        if(dist+reachable_map[this_node_idx]<radius){
+        size_t this_node_idx=ancestor->index;
+        if(dist+reachable_map[this_node_idx]<indirect_radius){
             return true;
         }
         parent_idx.push_back(this_node_idx);
-        this_node=this_node->parent;
+        ancestor=ancestor->parent;
     }
     for (unsigned short idx=0; idx<parent_idx.size(); idx++) {
         reachable_map[parent_idx[idx]]=std::min(reachable_map[parent_idx[idx]],idx);
     }
+    reachable_map[this_node->index]=0;
     return false;
 }
 void feed_nodes(int radius,std::vector<MAT::Node *> &to_feed,
@@ -171,13 +177,13 @@ __output_node(this_node)
             MAT::Node *this_node = dfs_ordered_nodes[*iter];
     #ifdef DETAIL_DEBUG_NODE_INPUT
                 std::vector<MAT::Node *> other_dsts;
-                BFS(this_node, this_node, radius, other_dsts);
+                BFS(this_node->parent, this_node, radius, other_dsts);
                 std::vector<char> state_before(other_dsts.size());
                 for (size_t node_idx=0; node_idx<other_dsts.size(); node_idx++) {
                     state_before[node_idx]=reachable_map[other_dsts[node_idx]->index];
                 }
             #endif
-            if (check_in_radius(dfs_ordered_nodes[*iter], 2*radius+1,reachable_map)) {
+            if (check_in_radius(dfs_ordered_nodes[*iter], radius,reachable_map)) {
                 next_round_idx.push_back(*iter);
             } else {
                 output_node(this_node);

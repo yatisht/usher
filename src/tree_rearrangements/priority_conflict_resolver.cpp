@@ -22,11 +22,11 @@ bool Conflict_Resolver::check_single_move_no_conflict(Profitable_Moves_ptr_t& ca
 static void remove_move(Cross_t &potential_crosses, Profitable_Moves_ptr_t& other_move,
                         MAT::Node *exclude) {
     for (MAT::Node *other_nodes_in_path : other_move->path) {
-        auto other_node_iter = potential_crosses.find(other_nodes_in_path);
-        assert(other_node_iter != potential_crosses.end());
-        assert(other_node_iter->second.moves.size() == 1 &&
-               other_node_iter->second.moves[0] == other_move);
         if (other_nodes_in_path != exclude) {
+            auto other_node_iter = potential_crosses.find(other_nodes_in_path);
+            assert(other_node_iter != potential_crosses.end());
+            assert(other_node_iter->second.moves.size() == 1 &&
+               other_node_iter->second.moves[0] == other_move);
             potential_crosses.erase(other_node_iter);
         }
     }
@@ -75,6 +75,7 @@ char Conflict_Resolver::operator()(Profitable_Moves_From_One_Source* candidate_m
             register_single_move_no_conflict(move);
             ret |= NONE_CONFLICT_MOVE_MASK;
             selected_move = move;
+            break;
         }
     }
     #ifndef NDEBUG
