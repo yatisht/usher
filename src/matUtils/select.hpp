@@ -6,3 +6,4 @@ std::vector<std::string> get_mutation_samples (MAT::Tree T, std::string mutation
 std::vector<std::string> get_parsimony_samples (MAT::Tree T, float max_parsimony);
 std::vector<std::string> get_clade_representatives(MAT::Tree T);
 std::vector<std::string> sample_intersect (std::vector<std::string> samples, std::vector<std::string> nsamples);
+std::vector<std::string> get_nearby (MAT::Tree T, std::string sample_id, int number_to_get);

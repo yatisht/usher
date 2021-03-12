@@ -27,6 +27,8 @@ This command selects subtrees from the MAT based on clade identification, sample
 
 **-p**: Prune the samples indicated by other arguments instead of extracting them to create the subtree.
 
+**-R**: Resolve polytomies by insertion of internal nodes with branch length 0. Prevents condensed tree output. Intended for compatibility with software requiring fully resolved trees.
+
 **-d**: Set the directory to save output files. Directory must already exist. Default is current directory
 
 **-S**: Write the path of mutations defining each selected sample to a file.
@@ -51,11 +53,17 @@ This command gets basic statistics about the input MAT.
 
 ### Specific Options
 
+**-d**: Save all output files to the target directory. Default is current directory.
+
 **-s**: Write a tsv listing all samples in the tree and their parsimony scores (terminal branch length).
 
-**-c**: Write a tsv listing all clades in the tree and their occurrence over nodes in the tree.
+**-c**: Write a tsv listing all clades in the tree and the number of samples they include.
 
 **-m**: Write a tsv listing all mutations in the tree and their occurrence count.
+
+**-a**: Write a tsv listing all nodes in the tree which have zero branch length, no mutations, or are duplicates for quality checking.
+
+**-A**: Write all possible tables to tsv files with default names (samples.txt, clades.txt, etc).
 
 ## Annotate
 
