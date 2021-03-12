@@ -21,7 +21,7 @@ int main (int argc, char** argv) {
         "summary: calculates basic statistics and counts members in the input MAT\n\n"
         "annotate: assigns clade identities to nodes, directly or by inference\n\n"
         "uncertainty: calculates sample placement uncertainty metrics and writes the results to tsv\n\n"
-        "mask: masks the input samples\n\n"
+        "mask: masks the mutations specific to the restricted set of input samples\n\n"
         "Individual command options can be accessed with matUtils command --help, e.g. matUtils annotate --help will show annotation-specific help messages.\n\n";
     
     try {
