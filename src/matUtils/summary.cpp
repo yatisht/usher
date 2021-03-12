@@ -203,6 +203,7 @@ void summary_main(po::parsed_options parsed) {
     MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
     // record the number of condensed leaves in case its needed for printing later.
     size_t num_condensed_leaves = T.condensed_leaves.size();
+    size_t num_condensed_nodes = T.condensed_nodes.size();
     T.uncondense_leaves();
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 
@@ -240,7 +241,8 @@ void summary_main(po::parsed_options parsed) {
         }
         fprintf(stdout, "Total Nodes in Tree: %d\n", nodecount);
         fprintf(stdout, "Total Samples in Tree: %d\n", samplecount);
-        fprintf(stdout, "Total Samples Condensed in Tree: %ld\n", num_condensed_leaves);
+        fprintf(stdout, "Total Condensed Nodes in Tree: %ld\n", num_condensed_nodes);
+        fprintf(stdout, "Total Samples in Condensed Nodes: %ld\n", num_condensed_leaves);
         fprintf(stdout, "Total Tree Parsimony: %ld\n", T.get_parsimony_score());
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
