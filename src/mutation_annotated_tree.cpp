@@ -2,6 +2,7 @@
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
 #include <iomanip>
+#include <iostream>
 
 // Uses one-hot encoding if base is unambiguous
 // A:1,C:2,G:4,T:8
