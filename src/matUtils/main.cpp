@@ -17,7 +17,7 @@ int main (int argc, char** argv) {
     po::parsed_options parsed = po::command_line_parser(argc, argv).options(global).positional(pos).allow_unregistered().run();
     //this help string shows up over and over, lets just define it once
     std::string helpstr = "matUtils has several valid subcommands: \n\n"
-        "extract: subsets the input MAT on various conditions and/or converts to other formats (newick, VCF, etc)\n\n"
+        "extract: subsets the input MAT on various conditions and/or converts to other formats (newick, VCF, JSON etc)\n\n"
         "summary: calculates basic statistics and counts members in the input MAT\n\n"
         "annotate: assigns clade identities to nodes, directly or by inference\n\n"
         "uncertainty: calculates sample placement uncertainty metrics and writes the results to tsv\n\n"
