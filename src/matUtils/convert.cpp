@@ -219,8 +219,7 @@ void write_vcf_rows(FILE *vcf_file, MAT::Tree T, std::vector<MAT::Node*> &dfs, b
     }
 }
 
-void make_vcf (MAT::Tree T, std::string vcf_filename, bool no_genotypes) {
-    auto vcf_filepath = "./" + vcf_filename; //taking away a touch of functionality for simplicity. just write it to this directory.
+void make_vcf (MAT::Tree T, std::string vcf_filepath, bool no_genotypes) {
     FILE *vcf_file = fopen(vcf_filepath.c_str(), "w");
     std::vector<Mutation_Annotated_Tree::Node*> dfs = T.depth_first_expansion();
     write_vcf_header(vcf_file, dfs, !no_genotypes);
