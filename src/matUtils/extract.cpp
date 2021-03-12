@@ -19,6 +19,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
         "Select samples by whether they have less than the maximum indicated number of equally parsimonious placements. Note: calculation adds significantly to runtime.")
         ("max-parsimony,a", po::value<int>()->default_value(-1),
         "Select samples by whether they have less than the maximum indicated parsimony score (terminal branch length)")
+        ("max-branch-length,b", po::value<int>()->default_value(-1),
+        "Remove samples which have branches of greater than the indicated length in their ancestry.")
         ("nearest-k,k", po::value<std::string>()->default_value(""),
         "Select a sample ID and the nearest k samples to it, formatted as sample:k. E.g. -k sample_1:50 gets sample 1 and the nearest 50 samples to it as a subtree.")
         ("get-representative,r", po::bool_switch(),
@@ -81,6 +83,7 @@ void extract_main (po::parsed_options parsed) {
     std::string clade_choice = vm["clade"].as<std::string>();
     std::string mutation_choice = vm["mutation"].as<std::string>();
     int max_parsimony = vm["max-parsimony"].as<int>();
+    int max_branch = vm["max-branch-length"].as<int>();
     size_t max_epps = vm["max-epps"].as<size_t>();
     bool prune_samples = vm["prune"].as<bool>();
     bool get_representative = vm["get-representative"].as<bool>();
@@ -240,6 +243,14 @@ void extract_main (po::parsed_options parsed) {
             }
         }
     } 
+    if (max_branch >= 0) {
+        //intersection is built into this one because its a significant runtime gain to not rsearch samples I won't use anyways
+        samples = get_short_steppers(T, samples, max_branch);
+        if (samples.size() == 0) {
+            fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
+            exit(1);
+        }
+    }
     if (max_epps > 0) {
         //this specific sample parser only calculates for values present in samples argument
         //so it doesn't need any intersection code
