@@ -227,40 +227,123 @@ void make_vcf (MAT::Tree T, std::string vcf_filepath, bool no_genotypes) {
     fclose(vcf_file);
 }
 
-// //code for JSON production starts below
-// std::string node_to_json (MAT::Node N) {
-//     //this function converts a single node into a json string for printing representing that node.
-//     //going to use one append per line, generally
-//     std::string jsonstr = "{\n\"name\": \"" + N->identifier + "\",\n";
-//     jsonstr.append("\"node_attrs\": {\n");
-//     jsonstr.append("\"num_date\": {\n");
-//     //num_date requires a float value from the date string, which can be extracted from the identifier.
-//     std::string datestr = N->identifier.substring(N->identifier.find_last_of("|"), N->identifier.end());
-//     std::string floatdate = std::to_string(date_to_float(datestr));
-//     jsonstr.append("\"value\": " + floatdate + "\n}\n");
-//     //additional metadata would go into the string block at this line.
-//     //print an additional bracket to close the node_attrs block.
-//     jsonstr.append("},\n");
-//     jsonstr.append("\"branch_attrs\": {\n");
-//     jsonstr.append("\"mutations\": {\n")
-// }
 
-// float date_to_float (std::string datestr) {
-//     //auspice encodes month/date as a float value as a percentage of the year
-//     //for ex, 2016.8350444900752 is 11-1-2016.
-//     //so we need to be able to convert that.
-//     //we store the date in the node identifier as the value after the |
-//     //formatted as year in 2 digits (20, 21)- month in two digits with 0 (02)- date in two digits
-//     float year = std::stof(datestr.substring(0,2)) + 2000.0;
-//     float month = std::stdof(datestr.substring(3,2));
-//     float day = std::stodf(datestr.substring(5,2));
-//     float monthlens[12] = {31.0,28.0,31.0,20.0,31.0,30.0,31.0,31.0,30.0,31.0,30.0,31.0}; //not worrying about leap years.
-//     float total_days = 0.0;
-//     for (size_t i=0; i<=month; i++) {
-//         total_days += monthlens[i];
-//     }
-//     total_days += day;
-//     float finalval = year + (total_days/365);
-    
-//     return finalval;
-// }
+/// JSON functions below
+
+std::string write_mutations(MAT::Node *N) { // writes muts as a list, e.g. "A23403G,G1440A,G23403A,G2891A" for "nuc mutations" under labels
+    std::string muts = ": \"" ;
+    for (unsigned int m = 0 ; m < N->mutations.size() ; m ++ ){
+        auto mut_string = N->mutations[m].get_string();
+        muts += mut_string ;
+        if ( m < (N->mutations.size()-1) ){
+            muts +=  "," ; // if not last, add comma
+        }
+    }
+    return muts ;
+}
+
+std::string write_individual_mutations(MAT::Node *N) { // writes muts for "nuc" subfield of "mutations", e.g. "A23403G","G1440A","G23403A","G2891A"
+    std::string muts = " [ " ;
+    for (unsigned int m = 0 ; m < N->mutations.size() ; m ++ ){
+        auto mut_string = N->mutations[m].get_string();
+        muts += "\"" + mut_string + "\"" ;
+        if ( m < (N->mutations.size()-1) ){
+            muts +=  "," ; // if not last, add comma
+        }        
+    }
+    muts +=  " ]" ;
+    return muts ;
+}
+
+
+std::string leaf_to_json( MAT::Node *N, int div ) { /// for leafs, which are children of internal nodes. this function should only be called by node_to_json.
+    std::string datestr = N->identifier.substr( N->identifier.find_last_of("|")+1, N->identifier.size() ) ;
+    std::string countrystr = N->identifier.substr( 0, N->identifier.find("/") ) ;
+    std::string jsonstr = "{\n\"name\": \""  ; 
+    jsonstr += N->identifier + "\",\n\"branch_attrs\": {\n \"labels\": { \"nuc mutations\"" + write_mutations( N ) ;
+    jsonstr += "\" },\n\"mutations\": { \"nuc\" : " + write_individual_mutations( N ) + " }\n },\n" ; // close branch_attrs
+    jsonstr += "\"node_attrs\": { \"div\": " + std::to_string(div + N->mutations.size()) + ", \"date\": {\"value\": \"" + datestr + "\"}, \"country\": {\"value\": \"" + countrystr + "\"}" ;
+    if ( N->clade_annotations.size() > 0 ){
+        jsonstr += ", " ;
+        for ( unsigned int ca = 0 ; ca < N->clade_annotations.size() ; ca ++  ){
+            jsonstr += "\"MAT_Clade_" + std::to_string(ca) + "\": {\"value\": \"" + N->clade_annotations[ca] + "\"}" ;
+            if ( ca < N->clade_annotations.size() - 1 ){
+                jsonstr += ", " ;
+            }
+        }
+    }
+    jsonstr += "}\n}\n" ; // close node_attrs dict and node dict
+    return jsonstr ;
+}
+
+
+
+std::string node_to_json( MAT::Node *N, int div ) {  //this function converts a single INTERNAL node into json string.
+    std::string jsonstr = "{\n\"name\": \"" ;
+    jsonstr += N->identifier ; 
+    jsonstr += "\",\n\"branch_attrs\": {\n \"labels\": { \"nuc mutations\"" + write_mutations( N ) + "\" },\n" ;
+    jsonstr += "\"mutations\": { \"nuc\" : " + write_individual_mutations( N ) + " }\n },\n" ; //close branch_attrs
+    jsonstr += "\"node_attrs\": {\n \"div\":" + std::to_string(div + N->mutations.size()) ; // node attributes here are div, clade info
+    if ( N->clade_annotations.size() > 0 ){
+        jsonstr += ", " ;
+        for ( unsigned int ca = 0 ; ca < N->clade_annotations.size() ; ca ++ ){
+            jsonstr += "\"MAT_Clade_" + std::to_string(ca) + "\": {\"value\": \"" + N->clade_annotations[ca] + "\"}" ;
+            if ( ca < N->clade_annotations.size() - 1 ){
+                jsonstr += ", " ;
+            }
+        }
+    }
+    jsonstr += "},\n" ; // close node_attrs
+    if ( N->children.size() > 0 ){ // i figure it must, but good to check?
+        jsonstr += "\"children\":[ " ;
+        for ( unsigned int c = 0 ; c < N->children.size() ; c ++ ){
+            if ( N->children[c]->is_leaf() ){
+                jsonstr += leaf_to_json( N->children[c], div + N->mutations.size() ) ;
+                if ( c < N->children.size()-1 ){
+                    jsonstr += ",\n" ; // open & close brackets within leaf_to_json 
+                } 
+            }
+            else {
+                jsonstr += node_to_json( N->children[c], div + N->mutations.size() ) ;
+                if ( c < N->children.size()-1 ){
+                    jsonstr += ",\n" ; // open & close brackets within node_to_json 
+                } 
+            }
+        }
+        jsonstr += "] \n" ; // close children
+    }
+    jsonstr += "}\n" ; // close node dict
+    return jsonstr ;
+}
+
+
+std::string MAT_to_json(MAT::Tree T ) { /// write version and meta dicts first:
+    std::string tree_json = "{\n\"version\":\"v2\",\n\"meta\":{\n\"title\":\"mutation_annotated_tree\",\n" ; // placeholder title
+    tree_json += "\"panels\": [\"tree\"],\n\"colorings\": [ " ;
+    if ( T.get_num_annotations() > 0 ) {// if MAT has clade information:
+        for ( unsigned int a = 0 ; a < T.get_num_annotations() ; a ++ ){
+            tree_json += "{\"key\":\"MAT_Clade_" + std::to_string(a) ; 
+            tree_json += "\",\"title\":\"MAT_Clade\",\"type\":\"categorical\"}" ; // if clade sets can have "titles", sub in here. i don't think they do...
+            if ( a < T.get_num_annotations()-1 ) {
+                tree_json += ", \n" ;
+            }
+        }
+    }
+    tree_json += " ],\n" ;
+    tree_json += "\"display_defaults\":{\"branch_label\":\"nuc mutations\"},\"description\":\"JSON generated by matUtils. If you have " ;
+    tree_json += "metadata you wish to display, you can now drag on a CSV file and it will be added into this view, [see here](https://" ;
+    tree_json += "docs.nextstrain.org/projects/auspice/en/latest/advanced-functionality/drag-drop-csv-tsv.html) for more info.\"},\n" ; // end meta dict
+    tree_json += "\"tree\":{ \"name\":\"wrapper\",\n\"children\":[ " ; /// now write tree dict:
+    tree_json +=  node_to_json( T.root , 0 ) ;
+    tree_json += "]\n}\n}\n" ; // end list of children, end tree dict, end dict containing entire string
+    return tree_json ;
+}
+
+void make_json ( MAT::Tree T, std::string json_filename ){
+    std::string json_str = MAT_to_json( T ) ;
+    auto json_filepath = "./" + json_filename ;
+    std::ofstream json_file_ofstream ;
+    json_file_ofstream.open( json_filepath ) ;
+    json_file_ofstream << json_str ;
+    json_file_ofstream.close() ;
+}
