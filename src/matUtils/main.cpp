@@ -16,9 +16,9 @@ int main (int argc, char** argv) {
     po::variables_map vm;
     po::parsed_options parsed = po::command_line_parser(argc, argv).options(global).positional(pos).allow_unregistered().run();
     //this help string shows up over and over, lets just define it once
-    std::string cnames[6] = {"command","extract","summary","annotate","uncertainty","mask"};
+    std::string cnames[6] = {"COMMAND","extract","summary","annotate","uncertainty","mask"};
     std::string chelp[6] = {
-        "description\n\n",
+        "DESCRIPTION\n\n",
         "subsets the input MAT on various conditions and/or converts to other formats (newick, VCF, etc)\n\n",
         "calculates basic statistics and counts members in the input MAT\n\n",
         "assigns clade identities to nodes, directly or by inference\n\n",
@@ -47,12 +47,13 @@ int main (int argc, char** argv) {
     } else if (cmd == "summary") {
         summary_main(parsed);
     } else if (cmd == "help") { 
+        fprintf(stderr, "\n");
         for (int i = 0; i < 6; ++i) {
             fprintf(stderr, "%-15s\t%s", cnames[i].c_str(), chelp[i].c_str());
         }        
         exit(0);
     } else {
-        fprintf(stderr, "\nInvalid command. Help follows:\n");
+        fprintf(stderr, "\nInvalid command. Help follows:\n\n");
         for (int i = 0; i < 6; ++i) {
             fprintf(stderr, "%-15s\t%s", cnames[i].c_str(), chelp[i].c_str());
         }        
