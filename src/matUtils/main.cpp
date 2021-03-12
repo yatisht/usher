@@ -8,7 +8,7 @@ Timer timer;
 int main (int argc, char** argv) {
     po::options_description global("Command options");
     global.add_options()
-        ("command", po::value<std::string>(), "Command to execute. Valid options are annotate, mask, convert, prune and describe.")
+        ("command", po::value<std::string>(), "Command to execute. Valid options are annotate, mask, extract, uncertainty, and summary.")
         ("subargs", po::value<std::vector<std::string> >(), "Command-specific arguments.");
     po::positional_options_description pos;
     pos.add("command",1 ).add("subargs", -1);
