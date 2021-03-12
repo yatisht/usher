@@ -1,4 +1,6 @@
 #include "mutation_annotated_tree.hpp"
+#include <boost/iostreams/filtering_stream.hpp>
+#include <boost/iostreams/filter/gzip.hpp>
 #include <iomanip>
 
 // Uses one-hot encoding if base is unambiguous
@@ -444,13 +446,28 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
 
     Parsimony::data data;
 
+    // Boost library used to stream the contents of the input protobuf file in
+    // uncompressed or compressed .gz format
     std::ifstream inpfile(filename, std::ios::in | std::ios::binary);
     if (!inpfile) {
         fprintf(stderr, "ERROR: Could not load the mutation-annotated tree object from file: %s!\n", filename.c_str());
         exit(1);
     }
-    data.ParseFromIstream(&inpfile);
+    
+    boost::iostreams::filtering_istream instream;
+    try {
+        if (filename.find(".gz\0") != std::string::npos) {
+            instream.push(boost::iostreams::gzip_decompressor());
+        }
+        instream.push(inpfile);
+    }
+    catch(const boost::iostreams::gzip_error& e) {
+        std::cout << e.what() << '\n';
+    }
+
+    data.ParseFromIstream(&instream);
     inpfile.close();
+
     //check if the pb has a metadata field
     bool hasmeta = (data.metadata_size()>0);
     if (!hasmeta) {
