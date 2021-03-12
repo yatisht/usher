@@ -192,7 +192,7 @@ std::vector<std::string> get_nearby (MAT::Tree T, std::string sample_id, int num
     if (target == all_leaves.cend()) {
         fprintf(stderr, "ERROR: Indicated sample does not exist in the tree!\n");
         exit(1);
-    } else if (all_leaves.size() < number_to_get) {
+    } else if (all_leaves.size() < static_cast<size_t>(number_to_get)) {
         fprintf(stderr, "ERROR: Not enough samples in tree to get neighborhood subtree of requested size!\n");
         exit(1);
     }
@@ -202,7 +202,7 @@ std::vector<std::string> get_nearby (MAT::Tree T, std::string sample_id, int num
     if (subset_start < 0) {
         subset_start = 0;
         subset_end = number_to_get;
-    } else if (subset_end >= all_leaves.size()) {
+    } else if (static_cast<size_t>(subset_end) >= all_leaves.size()) {
         subset_start = all_leaves.size() - number_to_get - 1;
         subset_end = all_leaves.size() - 1;
     }

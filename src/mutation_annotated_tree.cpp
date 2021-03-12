@@ -583,9 +583,28 @@ void Mutation_Annotated_Tree::save_mutation_annotated_tree (Mutation_Annotated_T
         }
     }
 
+    // Boost library used to stream the contents to the output protobuf file in
+    // uncompressed or compressed .gz format
     std::ofstream outfile(filename, std::ios::out | std::ios::binary);
-    data.SerializeToOstream(&outfile);
+    boost::iostreams::filtering_streambuf< boost::iostreams::output> outbuf;
+    try {
+        if (filename.find(".gz\0") != std::string::npos) {
+            outbuf.push(boost::iostreams::gzip_compressor());
+        }
+    }
+    catch(const boost::iostreams::gzip_error& e) {
+        std::cout << e.what() << '\n';
+    }
+
+    outbuf.push(outfile);
+    std::ostream outstream(&outbuf);
+    data.SerializeToOstream(&outstream);
+    boost::iostreams::close(outbuf);
     outfile.close();
+
+//    std::ofstream outfile(filename, std::ios::out | std::ios::binary);
+//    data.SerializeToOstream(&outfile);
+//    outfile.close();
 }
 
 /* === Node === */
