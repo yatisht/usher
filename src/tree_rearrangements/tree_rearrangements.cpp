@@ -311,6 +311,8 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
                         fprintf(stderr, "no moves profitable\n");
                     }
                 }
+                fprintf(stderr, "%zu nodes deferred next round",
+                        to_optimize.size());
             }
         }
 

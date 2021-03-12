@@ -1,5 +1,5 @@
 #!/bin/bash
-setopt -xve
+set -xve
 test_path=$1
 radius=$2
 test_case_name=$(basename $1)

@@ -78,6 +78,10 @@ char Conflict_Resolver::operator()(Profitable_Moves_From_One_Source* candidate_m
             break;
         }
     }
+    if (!selected_move) {
+        assert(ret==MOVE_FOUND_MASK);
+        deferred_nodes.push_back(candidate_move->src);
+    }
     #ifndef NDEBUG
     if(selected_move){
         nodes_inside++;
