@@ -39,6 +39,8 @@ This command selects subtrees from the MAT based on clade identification, sample
 
 **-v**: Convert the subtree to a VCF and write it to the indicated file.
 
+**-j**: Convert the subtree to a JSON and write it to the indicated file.
+
 **-n**: Do not include sample genotype columns in the VCF output. Used only with -v
 
 **-o**: Create a new MAT .pb file representing the extracted subtree. 

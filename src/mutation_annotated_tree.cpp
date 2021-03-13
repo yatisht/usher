@@ -1,5 +1,8 @@
 #include "mutation_annotated_tree.hpp"
+#include <boost/iostreams/filtering_stream.hpp>
+#include <boost/iostreams/filter/gzip.hpp>
 #include <iomanip>
+#include <iostream>
 
 // Uses one-hot encoding if base is unambiguous
 // A:1,C:2,G:4,T:8
@@ -449,8 +452,27 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
         fprintf(stderr, "ERROR: Could not load the mutation-annotated tree object from file: %s!\n", filename.c_str());
         exit(1);
     }
-    data.ParseFromIstream(&inpfile);
-    inpfile.close();
+
+    // Boost library used to stream the contents of the input protobuf file in
+    // uncompressed or compressed .gz format
+    if (filename.find(".gz\0") != std::string::npos) {
+        boost::iostreams::filtering_istream instream;
+        try {
+            instream.push(boost::iostreams::gzip_decompressor());
+            instream.push(inpfile);
+        }
+        catch(const boost::iostreams::gzip_error& e) {
+            std::cout << e.what() << '\n';
+        }
+
+        data.ParseFromIstream(&instream);
+        inpfile.close();
+    }
+    else {
+        data.ParseFromIstream(&inpfile);
+        inpfile.close();
+    }
+
     //check if the pb has a metadata field
     bool hasmeta = (data.metadata_size()>0);
     if (!hasmeta) {
@@ -566,9 +588,28 @@ void Mutation_Annotated_Tree::save_mutation_annotated_tree (Mutation_Annotated_T
         }
     }
 
+    // Boost library used to stream the contents to the output protobuf file in
+    // uncompressed or compressed .gz format
     std::ofstream outfile(filename, std::ios::out | std::ios::binary);
-    data.SerializeToOstream(&outfile);
-    outfile.close();
+    boost::iostreams::filtering_streambuf< boost::iostreams::output> outbuf;
+        
+    if (filename.find(".gz\0") != std::string::npos) {
+        try {
+            outbuf.push(boost::iostreams::gzip_compressor());
+            outbuf.push(outfile);
+            std::ostream outstream(&outbuf);
+            data.SerializeToOstream(&outstream);
+            boost::iostreams::close(outbuf);
+            outfile.close();
+        }
+        catch(const boost::iostreams::gzip_error& e) {
+            std::cout << e.what() << '\n';
+        }
+    }
+    else {
+        data.SerializeToOstream(&outfile);
+        outfile.close();
+    }
 }
 
 /* === Node === */

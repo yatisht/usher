@@ -45,6 +45,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
         "Collapse the MAT before writing it to output. Used only with the write-mat option")
         ("write-mat,o", po::value<std::string>()->default_value(""),
         "Write the selected tree as a new protobuf to the target file.")
+        ("write-json,j", po::value<std::string>()->default_value(""),
+        "Write the tree as a JSON to the indicated file.")
         ("write-tree,t", po::value<std::string>()->default_value(""),
          "Use to write a newick tree to the indicated file.")
         ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
@@ -104,12 +106,13 @@ void extract_main (po::parsed_options parsed) {
     std::string tree_filename = dir_prefix + vm["write-tree"].as<std::string>();
     std::string vcf_filename = dir_prefix + vm["write-vcf"].as<std::string>();
     std::string output_mat_filename = dir_prefix + vm["write-mat"].as<std::string>();
+    std::string json_filename = dir_prefix + vm["write-json"].as<std::string>();
     bool collapse_tree = vm["collapse-tree"].as<bool>();
     bool no_genotypes = vm["no-genotypes"].as<bool>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
     //check that at least one of the output filenames (things which take dir_prefix)
     //are set before proceeding. 
-    std::vector<std::string> outs = {sample_path_filename, clade_path_filename, all_path_filename, tree_filename, vcf_filename, output_mat_filename};
+    std::vector<std::string> outs = {sample_path_filename, clade_path_filename, all_path_filename, tree_filename, vcf_filename, output_mat_filename, json_filename};
     if (!std::any_of(outs.begin(), outs.end(), [=](std::string f){return f != dir_prefix;})) {
         fprintf(stderr, "ERROR: No output files requested!\n");
         exit(1);
@@ -378,6 +381,10 @@ void extract_main (po::parsed_options parsed) {
     if (vcf_filename != dir_prefix) {
         fprintf(stderr, "Generating VCF of final tree\n");
         make_vcf(subtree, vcf_filename, no_genotypes);
+    }
+    if (json_filename != dir_prefix) {
+        fprintf(stderr, "Generating JSON of final tree\n");
+        make_json(subtree, json_filename ) ;
     }
     if (tree_filename != dir_prefix) {
         fprintf(stderr, "Generating Newick file of final tree\n");

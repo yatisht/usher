@@ -83,7 +83,7 @@ void resolve_polytomy(MAT::Tree* T, std::vector<MAT::Node*> polytomy_nodes) {
     new_parents.push_back(og_parent);
     //generate a number of new internal nodes to hang these samples on
     //the number is the total number of polytomy nodes - 2 (remember, minimum 3 nodes to resolve)
-    for (int i=0; i<polytomy_nodes.size()-2; i++) {
+    for (size_t i=0; i<polytomy_nodes.size()-2; i++) {
         //create a unique identifier indicating that this is a polytomy resolving node
         const std::string nid = og_parent->identifier + "_polytomy_" + std::to_string(i);
         //generate the actual node; its parent is going to be the last entry of new_parents
@@ -98,7 +98,7 @@ void resolve_polytomy(MAT::Tree* T, std::vector<MAT::Node*> polytomy_nodes) {
     //the rest are going to be moved to the parent which matches their index
     //except for the last one, which will go to the last parent in line (index - 1),
     //as the last parent can support two children.
-    for (int i=1; i<polytomy_nodes.size()-1; i++) {
+    for (size_t i=1; i<polytomy_nodes.size()-1; i++) {
         //the node mover routine resets the branch length and we don't want to do that
         //save it, move, then reassign the branch length
         float length_to_keep = polytomy_nodes[i]->branch_length;
