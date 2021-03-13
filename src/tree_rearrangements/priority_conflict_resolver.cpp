@@ -1,6 +1,7 @@
 #include "priority_conflict_resolver.hpp"
 #include "src/tree_rearrangements/tree_rearrangement_internal.hpp"
 #include <algorithm>
+#include <cstddef>
 #include <cstdio>
 #include <utility>
 #include <vector>
@@ -63,17 +64,16 @@ void Conflict_Resolver::register_single_move_no_conflict(
     }
 }
 
-char Conflict_Resolver::operator()(Profitable_Moves_From_One_Source* candidate_move)const{
+size_t Conflict_Resolver::operator()(Profitable_Moves_From_One_Source* candidate_move)const{
     if (candidate_move->profitable_moves.empty()) {
         delete candidate_move;
         return 0;
     }
-    char ret=MOVE_FOUND_MASK;
+    size_t ret;
     Profitable_Moves_ptr_t selected_move=nullptr;
     for (Profitable_Moves_ptr_t& move : candidate_move->profitable_moves) {
         if (check_single_move_no_conflict(move)) {
             register_single_move_no_conflict(move);
-            ret |= NONE_CONFLICT_MOVE_MASK;
             selected_move = move;
             break;
         }
@@ -81,6 +81,9 @@ char Conflict_Resolver::operator()(Profitable_Moves_From_One_Source* candidate_m
     if (!selected_move) {
         assert(ret==MOVE_FOUND_MASK);
         deferred_nodes.push_back(candidate_move->src);
+        ret=ALL_CONFLICTS;
+    }else {
+        ret=(selected_move->range.second-selected_move->range.first)*selected_move->states.size();
     }
     #ifndef NDEBUG
     if(selected_move){

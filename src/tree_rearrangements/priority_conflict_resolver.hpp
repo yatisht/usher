@@ -19,7 +19,7 @@ struct Conflict_Resolver{
     int& nodes_inside;
     bool check_single_move_no_conflict(Profitable_Moves_ptr_t& candidate_move)const;
     void register_single_move_no_conflict(Profitable_Moves_ptr_t& candidate_move)const;
-    char operator()(Profitable_Moves_From_One_Source*) const;
+    size_t operator()(Profitable_Moves_From_One_Source*) const;
 };
 void schedule_moves(Cross_t& found_moves, std::vector<Profitable_Moves_ptr_t>& out,int& nodes_inside);
 

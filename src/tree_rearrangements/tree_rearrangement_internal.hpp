@@ -16,8 +16,7 @@
 #include <unordered_set>
 #include <vector>
 #include <memory>
-#define MOVE_FOUND_MASK 1
-#define NONE_CONFLICT_MOVE_MASK 2
+#define ALL_CONFLICTS ((size_t) -1)
 /* Enumerater Nodes -(Node*)->  Find neighbors and positions to do fitch-sankoff -(Possible_Moves*)-> do fitch-sankoff -(Possible_Moves*)->  estimate profit of moves -(Profitable_Moves*)-> apply moves*/
 //======================Message types========================
 struct Fitch_Sankoff_Result{

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
+#include <cstddef>
 #include <cstdio>
 #include <deque>
 #include <mutex>
@@ -86,28 +87,32 @@ struct Search_Source{
     mutable size_t all_count;
     std::atomic_bool& all_nodes_done;
     bool& graph_reseted;
-    Search_Source(std::deque<MAT::Node*>& buff, std::mutex& queue_mutex, std::condition_variable& ready,unsigned int inflight_limit,unsigned int conflict_pct_limit,unsigned int min_batch_size,std::atomic_bool& all_nodes_done,bool& graph_reseted):buffer(buff),queue_mutex(queue_mutex),ready(ready),conflict_pct_limit(conflict_pct_limit),min_batch_size(min_batch_size),conflicting_count(0),inflight_left(inflight_limit),inflight_limit(inflight_limit),all_count(0),all_nodes_done(all_nodes_done),graph_reseted(graph_reseted){}
+    mutable size_t state_count;
+    Search_Source(std::deque<MAT::Node*>& buff, std::mutex& queue_mutex, std::condition_variable& ready,unsigned int inflight_limit,unsigned int conflict_pct_limit,unsigned int min_batch_size,std::atomic_bool& all_nodes_done,bool& graph_reseted):buffer(buff),queue_mutex(queue_mutex),ready(ready),conflict_pct_limit(conflict_pct_limit),min_batch_size(min_batch_size),conflicting_count(0),inflight_left(inflight_limit),inflight_limit(inflight_limit),all_count(0),all_nodes_done(all_nodes_done),graph_reseted(graph_reseted),state_count(0){}
     void reset()const{
         fprintf(stderr,"%d conflicting moves over %zu moves before\n",conflicting_count,all_count);
         all_count=0;
         inflight_left=inflight_limit;
         conflicting_count=0;
+        state_count=0;
         graph_reseted=false;
     }
-    void operator()(char in,Seach_Source_Node_t::output_ports_type& out) const{
+    void operator()(size_t in,Seach_Source_Node_t::output_ports_type& out) const{
         inflight_left++;
         if(graph_reseted){
             reset();
         }
         //fprintf(stderr,"%d conflicting moves over %zu moves so far\n",conflicting_count,all_count);
 
-        if (in & MOVE_FOUND_MASK) {
+        if (in) {
             all_count++;
-            if (!(in & NONE_CONFLICT_MOVE_MASK)) {
+            if (in==ALL_CONFLICTS) {
                 conflicting_count++;
+            }else {
+                state_count+=in;
             }
         }
-        if (all_count>100||((conflicting_count > min_batch_size) &&
+        if (state_count>0x100000||((conflicting_count > min_batch_size) &&
             (all_count * conflict_pct_limit < conflicting_count * 100))) {
             return;
         }
