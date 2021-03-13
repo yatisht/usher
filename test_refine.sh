@@ -11,7 +11,7 @@ renice -n 19 -p $$
 mkdir -p $outpath
 rm -f $outpath/*
 {
-time  build/usher --refine $radius -i $pb -v $vcf -o $outpath/refined.pb
+build/usher --refine $radius -i $pb -v $vcf -o $outpath/refined.pb
 } &> $outpath/log
 /scratch/home/cheng/usher-master/build/usher -i $pb -v $vcf -o $outpath/not-refined.pb &> /dev/null
 {

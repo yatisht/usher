@@ -354,7 +354,7 @@ namespace Mutation_Annotated_Tree {
     void string_split(std::string s, std::vector<std::string>& words);
 
     Tree load_mutation_annotated_tree (std::string filename);
-    void save_mutation_annotated_tree (Tree tree, std::string filename);
+    void save_mutation_annotated_tree (const Tree& tree, std::string filename);
     
     Tree get_tree_copy(const Tree& tree, const std::string& identifier="");
 

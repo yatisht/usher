@@ -3,10 +3,11 @@ cmake_minimum_required (VERSION 3.8)
 
 project(strain_phylogenetics)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -std=c++11 -Wall -ggdb3 -Wno-unused-function")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer -mtune=native -std=c++11 -Wall -ggdb3 -Wno-unused-function -DMEMDEBUG ")
+set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O3")
 set(CMAKE_INCLUDE_CURRENT_DIR ON) 
 #  -O0 -fsanitize=leak -fsanitize=address -fsanitize=undefined
-set(CMAKE_CXX_FLAGS_DEBUG "-DDETAIL_DEBUG_MOVE_EXE_SCORE_RECALC -DTBB_USE_EXCEPTIONS=0 -DDETAIL_DEBUG_FS_CORRECT -DMEMDEBUG")
+set(CMAKE_CXX_FLAGS_DEBUG "-O0 -DDETAIL_DEBUG_MOVE_EXE_SCORE_RECALC -DTBB_USE_EXCEPTIONS=0 -DDETAIL_DEBUG_FS_CORRECT -DMEMDEBUG -DDETAIL_DEBUG_NODE_INPUT")
 
 if(DEFINED Protobuf_PATH) 
     find_package(Protobuf REQUIRED HINTS ${Protobuf_PATH}) 
@@ -33,7 +34,7 @@ INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIRS})
 
 AUX_SOURCE_DIRECTORY(src/tree_rearrangements tree_rearrange_src) 
 file(GLOB MATUTIL_SRCS "src/matUtils/*.cpp" "src/matUtils/*.hpp")
-set_source_files_properties(src/tree_rearrangements/Fitch_Sankoff.cpp PROPERTIES COMPILE_FLAGS -O0)
+#set_source_files_properties(src/tree_rearrangements/tree_rearrangement_helper.cpp PROPERTIES COMPILE_FLAGS -O0)
 if(DEFINED Protobuf_PATH)
     add_executable(usher
         src/Mutation_Collection.cpp

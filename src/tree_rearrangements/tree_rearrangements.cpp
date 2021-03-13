@@ -107,8 +107,8 @@ struct Search_Source{
                 conflicting_count++;
             }
         }
-        if ((conflicting_count > min_batch_size) &&
-            (all_count * conflict_pct_limit < conflicting_count * 100)) {
+        if (all_count>100||((conflicting_count > min_batch_size) &&
+            (all_count * conflict_pct_limit < conflicting_count * 100))) {
             return;
         }
         if(all_nodes_done){
@@ -190,7 +190,7 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
         std::condition_variable queue_ready;
         std::atomic_bool all_nodes_done;
         bool graph_reseted=true;
-        Search_Source input_functor(search_queue,queue_mutex,queue_ready,2*num_cores,50,80,all_nodes_done,graph_reseted);
+        Search_Source input_functor(search_queue,queue_mutex,queue_ready,num_cores,50,20,all_nodes_done,graph_reseted);
         Seach_Source_Node_t input(search_graph,1,input_functor);
 
         tbb::flow::function_node<MAT::Node*,Possible_Moves*> neighbors_finder(search_graph,tbb::flow::unlimited,Neighbors_Finder(radius));
