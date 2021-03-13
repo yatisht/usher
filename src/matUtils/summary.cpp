@@ -190,10 +190,10 @@ void summary_main(po::parsed_options parsed) {
     if (get_all) {
         //if this is set, overwrite with default names for all output
         //and since these names are non-empty, all will be generated
-        samples = dir_prefix + "samples.txt";
-        clades = dir_prefix + "clades.txt";
-        mutations = dir_prefix + "mutations.txt";
-        aberrant = dir_prefix + "aberrant.txt";
+        samples = dir_prefix + "samples.tsv";
+        clades = dir_prefix + "clades.tsv";
+        mutations = dir_prefix + "mutations.tsv";
+        aberrant = dir_prefix + "aberrant.tsv";
     }
     tbb::task_scheduler_init init(num_threads);
 
