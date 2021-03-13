@@ -74,7 +74,7 @@ void feed_nodes(int radius,std::vector<MAT::Node *> &to_feed,
                          std::mutex& out_mutex,
                          std::condition_variable& out_pushed,
                          const std::vector<MAT::Node *> &dfs_ordered_nodes) ;
-typedef tbb::flow::multifunction_node<char,std::tuple<MAT::Node*>> Seach_Source_Node_t;
+typedef tbb::flow::multifunction_node<size_t,std::tuple<MAT::Node*>> Seach_Source_Node_t;
 struct Search_Source{
     std::deque<MAT::Node*>& buffer;
     std::mutex& queue_mutex;
@@ -108,11 +108,13 @@ struct Search_Source{
             all_count++;
             if (in==ALL_CONFLICTS) {
                 conflicting_count++;
+                fprintf(stderr, "conflict\n");
             }else {
-                state_count+=in;
+                state_count=std::max(state_count+in,in);
+                fprintf(stderr, "state count %zu, last in: %zu\n",state_count,in);
             }
         }
-        if (state_count>0x100000||((conflicting_count > min_batch_size) &&
+        if (state_count>2457408||((conflicting_count > min_batch_size) &&
             (all_count * conflict_pct_limit < conflicting_count * 100))) {
             return;
         }
@@ -195,7 +197,7 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
         std::condition_variable queue_ready;
         std::atomic_bool all_nodes_done;
         bool graph_reseted=true;
-        Search_Source input_functor(search_queue,queue_mutex,queue_ready,num_cores,50,20,all_nodes_done,graph_reseted);
+        Search_Source input_functor(search_queue,queue_mutex,queue_ready,num_cores,20,50,all_nodes_done,graph_reseted);
         Seach_Source_Node_t input(search_graph,1,input_functor);
 
         tbb::flow::function_node<MAT::Node*,Possible_Moves*> neighbors_finder(search_graph,tbb::flow::unlimited,Neighbors_Finder(radius));
@@ -209,7 +211,7 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
 
         Cross_t potential_crosses;
         int nodes_inside=0;
-        tbb::flow::function_node<Profitable_Moves_From_One_Source*,char> conflict_resolver(search_graph,1,Conflict_Resolver{potential_crosses,to_optimize,nodes_inside});
+        tbb::flow::function_node<Profitable_Moves_From_One_Source*,size_t> conflict_resolver(search_graph,1,Conflict_Resolver{potential_crosses,to_optimize,nodes_inside});
         tbb::flow::make_edge(profitable_move_enumerator,conflict_resolver);
         tbb::flow::make_edge(conflict_resolver,input);
 
