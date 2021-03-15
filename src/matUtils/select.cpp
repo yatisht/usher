@@ -225,13 +225,13 @@ std::vector<std::string> get_short_steppers(MAT::Tree T, std::vector<std::string
     for (auto s: samples_to_check) {
         auto n = T.get_node(s);
         //check this sample immediately before spending cycles getting the ancestors
-        if (n->mutations.size() > max_mutations) {
+        if (n->mutations.size() > static_cast<size_t>(max_mutations)) {
             continue;
         }
         auto anc_nodes = T.rsearch(s);
         bool badanc = false;
         for (auto an: anc_nodes) {
-            if (an->mutations.size() > max_mutations) {
+            if (an->mutations.size() > static_cast<size_t>(max_mutations)) {
                 badanc = true;
                 continue;
             }
