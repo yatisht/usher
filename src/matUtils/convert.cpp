@@ -341,7 +341,7 @@ std::string MAT_to_json(MAT::Tree T ) { /// write version and meta dicts first:
 
 void make_json ( MAT::Tree T, std::string json_filename ){
     std::string json_str = MAT_to_json( T ) ;
-    auto json_filepath = "./" + json_filename ;
+    auto json_filepath = json_filename ;
     std::ofstream json_file_ofstream ;
     json_file_ofstream.open( json_filepath ) ;
     json_file_ofstream << json_str ;

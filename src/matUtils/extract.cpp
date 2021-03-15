@@ -19,6 +19,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
         "Select samples by whether they have less than the maximum indicated number of equally parsimonious placements. Note: calculation adds significantly to runtime.")
         ("max-parsimony,a", po::value<int>()->default_value(-1),
         "Select samples by whether they have less than the maximum indicated parsimony score (terminal branch length)")
+        ("max-branch-length,b", po::value<int>()->default_value(-1),
+        "Remove samples which have branches of greater than the indicated length in their ancestry.")
         ("nearest-k,k", po::value<std::string>()->default_value(""),
         "Select a sample ID and the nearest k samples to it, formatted as sample:k. E.g. -k sample_1:50 gets sample 1 and the nearest 50 samples to it as a subtree.")
         ("get-representative,r", po::bool_switch(),
@@ -29,6 +31,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
         "Resolve all polytomies by assigning branch length 0 relationships arbitrarily. Applied after selection; prevents recondensing of the MAT.")
         ("output-directory,d", po::value<std::string>()->default_value("./"),
         "Write output files to the target directory. Default is current directory.")
+        ("used-samples,u", po::value<std::string>()->default_value(""),
+        "Write a simple text file of selected sample ids.")
         ("sample-paths,S", po::value<std::string>()->default_value(""),
         "Write the path of mutations defining each sample in the subtree.")
         ("clade-paths,C", po::value<std::string>()->default_value(""),
@@ -83,6 +87,7 @@ void extract_main (po::parsed_options parsed) {
     std::string clade_choice = vm["clade"].as<std::string>();
     std::string mutation_choice = vm["mutation"].as<std::string>();
     int max_parsimony = vm["max-parsimony"].as<int>();
+    int max_branch = vm["max-branch-length"].as<int>();
     size_t max_epps = vm["max-epps"].as<size_t>();
     bool prune_samples = vm["prune"].as<bool>();
     bool get_representative = vm["get-representative"].as<bool>();
@@ -97,6 +102,7 @@ void extract_main (po::parsed_options parsed) {
     path = boost::filesystem::canonical(dir_prefix);
     dir_prefix = path.generic_string();
     dir_prefix += "/";
+    std::string used_sample_filename = dir_prefix + vm["used-samples"].as<std::string>();
     std::string sample_path_filename = dir_prefix + vm["sample-paths"].as<std::string>();
     std::string clade_path_filename = dir_prefix + vm["clade-paths"].as<std::string>();
     std::string all_path_filename = dir_prefix + vm["all-paths"].as<std::string>();
@@ -243,6 +249,14 @@ void extract_main (po::parsed_options parsed) {
             }
         }
     } 
+    if (max_branch >= 0) {
+        //intersection is built into this one because its a significant runtime gain to not rsearch samples I won't use anyways
+        samples = get_short_steppers(T, samples, max_branch);
+        if (samples.size() == 0) {
+            fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
+            exit(1);
+        }
+    }
     if (max_epps > 0) {
         //this specific sample parser only calculates for values present in samples argument
         //so it doesn't need any intersection code
@@ -318,6 +332,16 @@ void extract_main (po::parsed_options parsed) {
         samples = rep_samples;
     }
     //if additional information was requested, save it to the target files
+    //starting with dumping the set of samples used to a plain text file
+    //this is intended for use with uncertainty and perhaps repeated extract commands
+    if (used_sample_filename != dir_prefix) {
+        //not bothering timing it because this will always be very fast since its an extremely simple non-MAT operation
+        fprintf(stderr, "Dumping selected samples to file...\n");
+        std::ofstream outfile (used_sample_filename);
+        for (auto s: samples) {
+            outfile << s << "\n";
+        }
+    }
     if (sample_path_filename != dir_prefix || clade_path_filename != dir_prefix || all_path_filename != dir_prefix) {
         timer.Start();
         fprintf(stderr,"Retriving path information...\n");
@@ -373,7 +397,7 @@ void extract_main (po::parsed_options parsed) {
     }
     if (json_filename != dir_prefix) {
         fprintf(stderr, "Generating JSON of final tree\n");
-        make_json(subtree, json_filename ) ;
+        make_json(subtree, json_filename);
     }
     if (tree_filename != dir_prefix) {
         fprintf(stderr, "Generating Newick file of final tree\n");

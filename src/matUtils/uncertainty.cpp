@@ -434,8 +434,7 @@ void uncertainty_main(po::parsed_options parsed) {
     }
     if (get_parsimony){
         fprintf(stdout, "Total Tree Parsimony %ld\n", T.get_parsimony_score());
-    }
-    if (fepps != "" && fneigh != "" && !get_parsimony) {
+    } else if (fepps.size() == 0 && fneigh.size() == 0) {
         fprintf(stderr, "No actions chosen. Review arguments\n");
         exit(1);
     }
