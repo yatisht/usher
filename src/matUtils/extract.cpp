@@ -31,6 +31,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
         "Resolve all polytomies by assigning branch length 0 relationships arbitrarily. Applied after selection; prevents recondensing of the MAT.")
         ("output-directory,d", po::value<std::string>()->default_value("./"),
         "Write output files to the target directory. Default is current directory.")
+        ("used-samples,u", po::value<std::string>()->default_value(""),
+        "Write a simple text file of selected sample ids.")
         ("sample-paths,S", po::value<std::string>()->default_value(""),
         "Write the path of mutations defining each sample in the subtree.")
         ("clade-paths,C", po::value<std::string>()->default_value(""),
@@ -100,6 +102,7 @@ void extract_main (po::parsed_options parsed) {
     path = boost::filesystem::canonical(dir_prefix);
     dir_prefix = path.generic_string();
     dir_prefix += "/";
+    std::string used_sample_filename = dir_prefix + vm["used-samples"].as<std::string>();
     std::string sample_path_filename = dir_prefix + vm["sample-paths"].as<std::string>();
     std::string clade_path_filename = dir_prefix + vm["clade-paths"].as<std::string>();
     std::string all_path_filename = dir_prefix + vm["all-paths"].as<std::string>();
@@ -329,6 +332,16 @@ void extract_main (po::parsed_options parsed) {
         samples = rep_samples;
     }
     //if additional information was requested, save it to the target files
+    //starting with dumping the set of samples used to a plain text file
+    //this is intended for use with uncertainty and perhaps repeated extract commands
+    if (used_sample_filename != dir_prefix) {
+        //not bothering timing it because this will always be very fast since its an extremely simple non-MAT operation
+        fprintf(stderr, "Dumping selected samples to file...\n");
+        std::ofstream outfile (used_sample_filename);
+        for (auto s: samples) {
+            outfile << s << "\n";
+        }
+    }
     if (sample_path_filename != dir_prefix || clade_path_filename != dir_prefix || all_path_filename != dir_prefix) {
         timer.Start();
         fprintf(stderr,"Retriving path information...\n");
@@ -384,7 +397,7 @@ void extract_main (po::parsed_options parsed) {
     }
     if (json_filename != dir_prefix) {
         fprintf(stderr, "Generating JSON of final tree\n");
-        make_json(subtree, json_filename ) ;
+        make_json(subtree, json_filename);
     }
     if (tree_filename != dir_prefix) {
         fprintf(stderr, "Generating Newick file of final tree\n");
