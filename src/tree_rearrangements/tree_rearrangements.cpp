@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
-#include <cstddef>
 #include <cstdio>
 #include <deque>
 #include <mutex>
@@ -74,7 +73,7 @@ void feed_nodes(int radius,std::vector<MAT::Node *> &to_feed,
                          std::mutex& out_mutex,
                          std::condition_variable& out_pushed,
                          const std::vector<MAT::Node *> &dfs_ordered_nodes) ;
-typedef tbb::flow::multifunction_node<size_t,std::tuple<MAT::Node*>> Seach_Source_Node_t;
+typedef tbb::flow::multifunction_node<char,std::tuple<MAT::Node*>> Seach_Source_Node_t;
 struct Search_Source{
     std::deque<MAT::Node*>& buffer;
     std::mutex& queue_mutex;
@@ -86,35 +85,32 @@ struct Search_Source{
     unsigned int inflight_limit;
     mutable size_t all_count;
     std::atomic_bool& all_nodes_done;
-    bool& graph_reseted;
-    mutable size_t state_count;
-    Search_Source(std::deque<MAT::Node*>& buff, std::mutex& queue_mutex, std::condition_variable& ready,unsigned int inflight_limit,unsigned int conflict_pct_limit,unsigned int min_batch_size,std::atomic_bool& all_nodes_done,bool& graph_reseted):buffer(buff),queue_mutex(queue_mutex),ready(ready),conflict_pct_limit(conflict_pct_limit),min_batch_size(min_batch_size),conflicting_count(0),inflight_left(inflight_limit),inflight_limit(inflight_limit),all_count(0),all_nodes_done(all_nodes_done),graph_reseted(graph_reseted),state_count(0){}
+    std::atomic_long& states_in_flight;
+    std::atomic_long& states_to_calculate;
+    Search_Source*& handle;
+    Search_Source(std::deque<MAT::Node*>& buff, std::mutex& queue_mutex, std::condition_variable& ready,unsigned int inflight_limit,unsigned int conflict_pct_limit,unsigned int min_batch_size,std::atomic_bool& all_nodes_done,std::atomic_long& states_in_flight,std::atomic_long& states_to_calculate, Search_Source*& handle):buffer(buff),queue_mutex(queue_mutex),ready(ready),conflict_pct_limit(conflict_pct_limit),min_batch_size(min_batch_size),conflicting_count(0),inflight_left(inflight_limit),inflight_limit(inflight_limit),all_count(0),all_nodes_done(all_nodes_done),states_in_flight(states_in_flight),states_to_calculate(states_to_calculate),handle(handle){
+        handle=this;
+    }
     void reset()const{
         fprintf(stderr,"%d conflicting moves over %zu moves before\n",conflicting_count,all_count);
         all_count=0;
         inflight_left=inflight_limit;
         conflicting_count=0;
-        state_count=0;
-        graph_reseted=false;
+        states_to_calculate.store(0);
     }
-    void operator()(size_t in,Seach_Source_Node_t::output_ports_type& out) const{
+    void operator()(char in,Seach_Source_Node_t::output_ports_type& out) const{
+        handle=const_cast<Search_Source*>(this);
         inflight_left++;
-        if(graph_reseted){
-            reset();
-        }
         //fprintf(stderr,"%d conflicting moves over %zu moves so far\n",conflicting_count,all_count);
 
-        if (in) {
+        if (in & MOVE_FOUND_MASK) {
             all_count++;
-            if (in==ALL_CONFLICTS) {
+            if (!(in & NONE_CONFLICT_MOVE_MASK)) {
                 conflicting_count++;
-                fprintf(stderr, "conflict\n");
-            }else {
-                state_count=std::max(state_count+in,in);
-                fprintf(stderr, "state count %zu, last in: %zu\n",state_count,in);
             }
         }
-        if (state_count>2457408||((conflicting_count > min_batch_size) &&
+        fprintf(stderr, "state in flight: %ld\n",states_in_flight.load());
+        if (states_in_flight.load()>0x8000000||((conflicting_count > min_batch_size) &&
             (all_count * conflict_pct_limit < conflicting_count * 100))) {
             return;
         }
@@ -122,7 +118,10 @@ struct Search_Source{
            //fprintf(stderr,"all_nodes_done");
             return;
         }
-        while(inflight_left>0){
+        while(states_to_calculate.load()<3){
+            if(inflight_left<=0){
+                return;
+            }
             std::unique_lock<std::mutex> lk(queue_mutex);
             while (buffer.empty()) {
                 ready.wait(lk);
@@ -134,6 +133,7 @@ struct Search_Source{
                 return;
             }else {
                 std::get<0>(out).try_put(buffer.front());
+                states_to_calculate.fetch_add(1);
                 buffer.pop_front();
                 inflight_left--;
             }
@@ -189,6 +189,8 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
         for(auto node:dfs_ordered_nodes){
             node->tree=&this_tree;
         }
+        std::atomic_long states_in_flight(0);
+        std::atomic_long states_to_calculate(0);
         //building pipeline
         tbb::queuing_rw_mutex mutex;
         tbb::flow::graph search_graph;
@@ -196,22 +198,23 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
         std::mutex queue_mutex;
         std::condition_variable queue_ready;
         std::atomic_bool all_nodes_done;
-        bool graph_reseted=true;
-        Search_Source input_functor(search_queue,queue_mutex,queue_ready,num_cores,20,50,all_nodes_done,graph_reseted);
+        Search_Source* handle;
+        
+        Search_Source input_functor(search_queue,queue_mutex,queue_ready,num_cores,20,50,all_nodes_done,states_in_flight,states_to_calculate,handle);
         Seach_Source_Node_t input(search_graph,1,input_functor);
 
         tbb::flow::function_node<MAT::Node*,Possible_Moves*> neighbors_finder(search_graph,tbb::flow::unlimited,Neighbors_Finder(radius));
-        tbb::flow::make_edge(std::get<0>(input.output_ports()),neighbors_finder);
+        tbb::flow::make_edge(input,neighbors_finder);
 
-        tbb::flow::function_node<Possible_Moves*,Candidate_Moves*> parsimony_score_calculator(search_graph,tbb::flow::unlimited,Parsimony_Score_Calculator{ori,dfs_ordered_nodes});
+        Parsimony_Score_Calculator_t parsimony_score_calculator(search_graph,tbb::flow::unlimited,Parsimony_Score_Calculator{ori,dfs_ordered_nodes,states_in_flight,states_to_calculate});
         tbb::flow::make_edge(neighbors_finder,parsimony_score_calculator);
         
-        tbb::flow::function_node<Candidate_Moves*,Profitable_Moves_From_One_Source*> profitable_move_enumerator(search_graph,tbb::flow::unlimited,Profitable_Moves_Enumerator{dfs_ordered_nodes,ori});
+        tbb::flow::function_node<Candidate_Moves*,Profitable_Moves_From_One_Source*> profitable_move_enumerator(search_graph,tbb::flow::unlimited,Profitable_Moves_Enumerator{dfs_ordered_nodes,ori,states_in_flight});
         tbb::flow::make_edge(parsimony_score_calculator,profitable_move_enumerator);
 
         Cross_t potential_crosses;
         int nodes_inside=0;
-        tbb::flow::function_node<Profitable_Moves_From_One_Source*,size_t> conflict_resolver(search_graph,1,Conflict_Resolver{potential_crosses,to_optimize,nodes_inside});
+        tbb::flow::function_node<Profitable_Moves_From_One_Source*,char> conflict_resolver(search_graph,1,Conflict_Resolver{potential_crosses,to_optimize,nodes_inside,states_in_flight});
         tbb::flow::make_edge(profitable_move_enumerator,conflict_resolver);
         tbb::flow::make_edge(conflict_resolver,input);
 
@@ -232,8 +235,9 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
                 to_optimize.clear();
                 while (!all_nodes_done.load()) {
                     std::vector<Profitable_Moves_ptr_t> non_conflicting_moves;
-                    graph_reseted = true;
+                    handle->reset();
                     potential_crosses.clear();
+                    states_in_flight.store(0);
 
                     input.try_put(0);
                     search_graph.wait_for_all();

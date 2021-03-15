@@ -1,5 +1,6 @@
 #include "src/mutation_annotated_tree.hpp"
 #include "tree_rearrangement_internal.hpp"
+#include <bits/types/FILE.h>
 #include <cstddef>
 #include <queue>
 #include <tuple>
