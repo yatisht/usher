@@ -211,3 +211,34 @@ std::vector<std::string> get_nearby (MAT::Tree T, std::string sample_id, int num
     std::vector<std::string> neighborhood_leaves(all_leaves.begin() + subset_start, all_leaves.begin() + subset_end);
     return neighborhood_leaves;
 }
+
+std::vector<std::string> get_short_steppers(MAT::Tree T, std::vector<std::string> samples_to_check, int max_mutations) {
+    //for each sample in samples_to_check, this function rsearches along that samples history in the tree
+    //if any of the ancestors have greater than max_mutations mutations, then it breaks and marks that sample as a toss
+    //including the sample itself. It takes a list of samples to check because rsearching is not a super fast process
+    //and we may as well be efficient about it when time permits.
+    std::vector<std::string> good_samples;
+    if (samples_to_check.size() == 0) {
+        //if nothing is passed in, then check the whole tree.
+        samples_to_check = T.get_leaves_ids();
+    }
+    for (auto s: samples_to_check) {
+        auto n = T.get_node(s);
+        //check this sample immediately before spending cycles getting the ancestors
+        if (n->mutations.size() > max_mutations) {
+            continue;
+        }
+        auto anc_nodes = T.rsearch(s);
+        bool badanc = false;
+        for (auto an: anc_nodes) {
+            if (an->mutations.size() > max_mutations) {
+                badanc = true;
+                continue;
+            }
+        }
+        if (!badanc) {
+            good_samples.push_back(s);
+        }
+    }
+    return good_samples;
+}
