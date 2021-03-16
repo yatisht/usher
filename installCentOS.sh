@@ -35,7 +35,7 @@ tar -xvzf 2019_U9.tar.gz
 mkdir -p build
 cd build
 ../cmake-3.18.2/bin/cmake  -DTBB_DIR=${PWD}/../oneTBB-2019_U9 -DTBB_ROOT=${PWD}/../oneTBB-2019_U9 -DCMAKE_PREFIX_PATH=${PWD}/../oneTBB-2019_U9/cmake  -DProtobuf_INCLUDE_DIRS=${PWD}/../protobuf-3.12.3/install/include/ -DProtobuf_LIBRARIES=${PWD}/../protobuf-3.12.3/cmake/build/libprotobuf.a -DProtobuf_PATH=${PWD}/../protobuf-3.12.3/cmake/build/lib64/cmake/protobuf ..
-make -j
+make -j4
 cd ..
 
 # install faToVcf
