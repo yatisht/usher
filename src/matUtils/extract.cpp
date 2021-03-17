@@ -51,7 +51,7 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
         "Write the tree as a JSON to the indicated file.")
         ("write-tree,t", po::value<std::string>()->default_value(""),
          "Use to write a newick tree to the indicated file.")
-        ("retain-branch-lengths,E", po::bool_switch(),
+        ("retain-branch-length,E", po::bool_switch(),
         "Use to not recalculate branch lengths when saving newick output. Used only with -t")
         ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
         ("help,h", "Print help messages");
