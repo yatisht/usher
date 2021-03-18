@@ -2,6 +2,7 @@
 #include "src/mutation_annotated_tree.hpp"
 #include <atomic>
 #include <boost/program_options.hpp> 
+#include <iostream>
 #include <csignal>
 #include <cstdio>
 #include <cstdlib>
