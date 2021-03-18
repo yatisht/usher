@@ -9,6 +9,7 @@
 #include <memory>
 #include <limits>
 #include "boost/filesystem.hpp"
+#include "src/mutation_annotated_tree.hpp"
 #include "usher_graph.hpp"
 #include "parsimony.pb.h"
 #include "tree_rearrangement.hpp"
@@ -1051,7 +1052,12 @@ int main(int argc, char** argv) {
         }
         
     }
-    if(refine_trees) Tree_Rearrangement::refine_trees(optimal_trees,refine_trees);
+    if(refine_trees){
+        for(MAT::Tree& tree:optimal_trees){
+            Tree_Rearrangement::refine_trees(tree,refine_trees,50,20,dout_filename);
+        }
+    }
+
     num_trees = optimal_trees.size();
             
     // If user specified print_parsimony_scores, close corresponding file and

@@ -33,6 +33,7 @@ FIND_PACKAGE(Boost COMPONENTS program_options iostreams filesystem REQUIRED)
 INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIRS})
 
 AUX_SOURCE_DIRECTORY(src/tree_rearrangements tree_rearrange_src) 
+list(FILTER tree_rearrange_src EXCLUDE REGEX ".*main.cpp$")
 file(GLOB MATUTIL_SRCS "src/matUtils/*.cpp" "src/matUtils/*.hpp")
 #set_source_files_properties(src/tree_rearrangements/tree_rearrangement_helper.cpp PROPERTIES COMPILE_FLAGS -O0)
 if(DEFINED Protobuf_PATH)
@@ -84,6 +85,15 @@ else()
         ${PROTO_HDRS}
         )
 
+    add_executable(refine_tree
+        ${tree_rearrange_src}
+        ${PROTO_SRCS}
+        ${PROTO_HDRS}
+        src/mutation_annotated_tree.cpp
+        src/mutation_annotated_tree.cpp
+        src/Mutation_Collection.cpp
+        src/tree_rearrangements/main.cpp
+    )
     add_executable(matUtils
         src/mutation_annotated_tree.cpp
         src/usher_mapper.cpp
@@ -127,6 +137,7 @@ endif(SAVE_PROFILE)
 #TARGET_COMPILE_OPTIONS(possible_muts_test PRIVATE -DTEST -DNDEBUG)
 
 TARGET_LINK_LIBRARIES(usher PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
+TARGET_LINK_LIBRARIES(refine_tree PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
 #TARGET_LINK_LIBRARIES(possible_muts_test PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
 
 TARGET_COMPILE_OPTIONS(matUtils PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)

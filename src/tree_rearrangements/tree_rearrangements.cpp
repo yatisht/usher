@@ -15,7 +15,9 @@
 #include <vector>
 #include "src/tree_rearrangement.hpp"
 #include "priority_conflict_resolver.hpp"
+#include <chrono>
 extern uint32_t num_cores;
+std::atomic_bool interrupted(false);
 typedef std::vector<std::pair<MAT::Node *, MAT::Node *>> Deleted_Map_t;
 
 void find_nodes_with_recurrent_mutations(std::vector<MAT::Node *>& all_nodes, std::vector<MAT::Node *>& output);
@@ -43,14 +45,17 @@ class save_output_thread{
     int output_count;
     std::atomic_bool done;
     std::thread* saving_thread;
+    const std::string outname;
     MAT::Tree& to_save;
     void run(){
         output_count++;
-        MAT::save_mutation_annotated_tree(to_save, std::to_string(output_count));
+        std::string this_out_name(outname);
+        this_out_name.append(std::to_string(output_count)).append(".pb");
+        MAT::save_mutation_annotated_tree(to_save, this_out_name);
         done.store(true);
     }
     public:
-    save_output_thread(MAT::Tree& to_save):to_save(to_save){
+    save_output_thread(MAT::Tree& to_save, const std::string& outname):outname(outname),to_save(to_save){
         output_count=0;
         done.store(true);
     }
@@ -88,12 +93,18 @@ struct Search_Source{
     std::atomic_long& states_in_flight;
     std::atomic_long& states_to_calculate;
     Search_Source*& handle;
+    mutable size_t processed;
+    std::chrono::time_point<std::chrono::steady_clock> start_time;
     Search_Source(std::deque<MAT::Node*>& buff, std::mutex& queue_mutex, std::condition_variable& ready,unsigned int inflight_limit,unsigned int conflict_pct_limit,unsigned int min_batch_size,std::atomic_bool& all_nodes_done,std::atomic_long& states_in_flight,std::atomic_long& states_to_calculate, Search_Source*& handle):buffer(buff),queue_mutex(queue_mutex),ready(ready),conflict_pct_limit(conflict_pct_limit),min_batch_size(min_batch_size),conflicting_count(0),inflight_left(inflight_limit),inflight_limit(inflight_limit),all_count(0),all_nodes_done(all_nodes_done),states_in_flight(states_in_flight),states_to_calculate(states_to_calculate),handle(handle){
         handle=this;
+        processed=0;
+        start_time=std::chrono::steady_clock::now();
     }
-    void reset()const{
+    void reset(){
         fprintf(stderr,"%d conflicting moves over %zu moves before\n",conflicting_count,all_count);
         all_count=0;
+        start_time=std::chrono::steady_clock::now();
+        processed=0;
         inflight_left=inflight_limit;
         conflicting_count=0;
         states_to_calculate.store(0);
@@ -101,8 +112,11 @@ struct Search_Source{
     void operator()(char in,Seach_Source_Node_t::output_ports_type& out) const{
         handle=const_cast<Search_Source*>(this);
         inflight_left++;
+        processed++;
         //fprintf(stderr,"%d conflicting moves over %zu moves so far\n",conflicting_count,all_count);
-
+        if(interrupted.load()){
+            return;
+        }
         if (in & MOVE_FOUND_MASK) {
             all_count++;
             if (!(in & NONE_CONFLICT_MOVE_MASK)) {
@@ -136,6 +150,12 @@ struct Search_Source{
                 states_to_calculate.fetch_add(1);
                 buffer.pop_front();
                 inflight_left--;
+                auto time_now=std::chrono::steady_clock::now();
+                auto time_elapsed=std::chrono::duration_cast<std::chrono::seconds>(time_now-start_time);
+                float curr_rate=(60*(float)processed)/time_elapsed.count();
+                auto to_process=buffer.size();
+                float time_left=(to_process/curr_rate)/60;
+                fprintf(stderr, "Processing %f nodes/minute, %zu nodes left, estimated %f hours left\n",curr_rate,to_process,time_left);
             }
         }
         //fprintf(stderr,"in flight quota exceeded\n");
@@ -168,9 +188,8 @@ void clean_internal_nodes_with_no_mutation(MAT::Node *this_node,
         clean_internal_nodes_with_no_mutation(child, this_tree,deleted_map);
     }
 }
-void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int radius) {
+void Tree_Rearrangement::refine_trees(MAT::Tree& this_tree,int radius,int min_batch,int conflict_pct,const std::string& out_name) {
 
-    for (MAT::Tree& this_tree : optimal_trees) {
         fprintf(stderr, "Before refinement: %zu \n",
                 this_tree.get_parsimony_score());
         Original_State_t ori;
@@ -200,7 +219,7 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
         std::atomic_bool all_nodes_done;
         Search_Source* handle;
         
-        Search_Source input_functor(search_queue,queue_mutex,queue_ready,num_cores,20,50,all_nodes_done,states_in_flight,states_to_calculate,handle);
+        Search_Source input_functor(search_queue,queue_mutex,queue_ready,num_cores,conflict_pct,min_batch,all_nodes_done,states_in_flight,states_to_calculate,handle);
         Seach_Source_Node_t input(search_graph,1,input_functor);
 
         tbb::flow::function_node<MAT::Node*,Possible_Moves*> neighbors_finder(search_graph,tbb::flow::unlimited,Neighbors_Finder(radius));
@@ -221,7 +240,7 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
         bool have_improvement=true;
         int old_pasimony_score=this_tree.get_parsimony_score();
         int moves_found;
-        save_output_thread output_saver(this_tree);
+        save_output_thread output_saver(this_tree,out_name);
         while (have_improvement) {
             have_improvement = false;
             find_nodes_with_recurrent_mutations(dfs_ordered_nodes, to_optimize);
@@ -237,10 +256,10 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
                     std::vector<Profitable_Moves_ptr_t> non_conflicting_moves;
                     handle->reset();
                     potential_crosses.clear();
-                    states_in_flight.store(0);
 
                     input.try_put(0);
                     search_graph.wait_for_all();
+                    states_in_flight.store(0);
                     schedule_moves(potential_crosses, non_conflicting_moves,nodes_inside);
                     moves_found = non_conflicting_moves.size();
                     fprintf(stderr, "%zu moves profitable\n",
@@ -321,16 +340,18 @@ void Tree_Rearrangement::refine_trees(std::vector<MAT::Tree> &optimal_trees,int 
                     }else{
                         fprintf(stderr, "no moves profitable\n");
                     }
+                    if(interrupted.load()){
+                        goto END;
+                    }
                 }
                 fprintf(stderr, "%zu nodes deferred next round",
                         to_optimize.size());
             }
         }
-
+END:
         check_samples(this_tree.root, ori,&this_tree);
         fprintf(stderr, "After refinement: %zu \n",
                 this_tree.get_parsimony_score());
         fix_condensed_nodes(&this_tree);
         this_tree.reassign_level();
-    }
 }
