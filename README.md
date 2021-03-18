@@ -82,7 +82,7 @@ cd ..
 mkdir build
 cd build
 cmake  -DTBB_DIR=${PWD}/../oneTBB  -DCMAKE_PREFIX_PATH=${PWD}/../oneTBB/cmake ..
-make -j
+make -j4
 cd ..
 ``` 
 

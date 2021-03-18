@@ -10,7 +10,7 @@ tar -xvzf 2019_U9.tar.gz
 mkdir -p build
 cd build
 cmake  -DTBB_DIR=${PWD}/../oneTBB-2019_U9  -DCMAKE_PREFIX_PATH=${PWD}/../oneTBB-2019_U9/cmake ..
-make -j
+make -j4
 cd ..
     
 # install faToVcf
