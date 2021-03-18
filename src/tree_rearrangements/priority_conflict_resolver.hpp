@@ -17,6 +17,7 @@ struct Conflict_Resolver{
     Cross_t& potential_crosses;
     std::vector<MAT::Node*>& deferred_nodes;
     int& nodes_inside;
+    std::atomic_long& states_in_flight;
     bool check_single_move_no_conflict(Profitable_Moves_ptr_t& candidate_move)const;
     void register_single_move_no_conflict(Profitable_Moves_ptr_t& candidate_move)const;
     char operator()(Profitable_Moves_From_One_Source*) const;

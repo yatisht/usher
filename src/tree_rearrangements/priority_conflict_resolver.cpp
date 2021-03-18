@@ -41,6 +41,7 @@ void Conflict_Resolver::register_single_move_no_conflict(
                 assert(other_move->score_change >=
                        candidate_move->score_change);
                 remove_move(potential_crosses, other_move, node);
+                states_in_flight.fetch_sub((other_move->range.second-other_move->range.first)*other_move->states.size());
                 #ifndef NDEBUG
                 nodes_inside--;
                 #endif
@@ -89,6 +90,7 @@ char Conflict_Resolver::operator()(Profitable_Moves_From_One_Source* candidate_m
     #endif
     for (Profitable_Moves_ptr_t move : candidate_move->profitable_moves) {
         if (move!=selected_move) {
+            states_in_flight.fetch_sub((move->range.second-move->range.first)*move->states.size());
             #ifdef CHECK_LEAK
             move->destructed=true;
             #else

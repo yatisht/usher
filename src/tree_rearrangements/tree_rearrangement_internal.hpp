@@ -2,6 +2,7 @@
 #define tree_rearrangement_internal
 #include "Fitch_Sankoff.hpp"
 #include "src/mutation_annotated_tree.hpp"
+#include <atomic>
 #include <cstdio>
 #include <condition_variable>
 #include <string>
@@ -10,6 +11,7 @@
 #include <tbb/concurrent_unordered_map.h>
 #include "check_samples.hpp"
 #include <tbb/concurrent_vector.h>
+#include <tbb/flow_graph.h>
 #include <tbb/pipeline.h>
 #include <tbb/queuing_rw_mutex.h>
 #include <unordered_map>
@@ -40,6 +42,7 @@ struct Move_info{
 };
 struct Candidate_Moves{
     MAT::Node* src;
+    size_t state_packed;
     std::vector<Move_info> moves;
     //std::vector<Fitch_Sankoff_Result> container;
 };
@@ -101,15 +104,18 @@ struct Neighbors_Finder{
     Neighbors_Finder(int radius):radius(radius){}
     Possible_Moves* operator()(MAT::Node*)const;
 };
-
+typedef tbb::flow::function_node<Possible_Moves*,Candidate_Moves*> Parsimony_Score_Calculator_t;
 struct Parsimony_Score_Calculator{
     const Original_State_t& original_states;
     std::vector<MAT::Node *>& dfs_ordered_nodes;
+    std::atomic_long& states_in_flight;
+    std::atomic_long& states_to_calculate;
     Candidate_Moves* operator()(Possible_Moves*)const;  
 };
 struct Profitable_Moves_Enumerator{
     std::vector<MAT::Node *>& dfs_ordered_nodes;
     const Original_State_t& original_states;
+    std::atomic_long& states_in_flight;
     Profitable_Moves_From_One_Source* operator() (Candidate_Moves*)const;
 };
 

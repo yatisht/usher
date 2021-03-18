@@ -112,6 +112,7 @@ struct Test_Move_Profitable {
     Candidate_Moves *all_moves;
     std::mutex& mutex;
     const Original_State_t& original_states;
+    std::atomic_long& states_in_flight;
     void operator()(tbb::blocked_range<size_t> &range) const {
         for (size_t move_idx = range.begin(); move_idx < range.end();
              move_idx++) {
@@ -249,12 +250,15 @@ struct Test_Move_Profitable {
                     }
                 }
                 for (Profitable_Moves_ptr_t& move : temp) {
+                    states_in_flight.fetch_sub((move->range.second-move->range.first)*move->states.size());
                     #ifdef CHECK_LEAK
                         move->destructed=true;
                     #else
                     delete move;
                     #endif
                 }
+            }else {
+                states_in_flight.fetch_sub((range.second-range.first)*moved_states.size());
             }
         }
     }
@@ -265,7 +269,8 @@ Profitable_Moves_From_One_Source* Profitable_Moves_Enumerator::operator()(Candid
     out->src=in->src;
     std::mutex mutex;
     int best_score_change=-1;
-    tbb::parallel_for(tbb::blocked_range<size_t>(0,in->moves.size()),Test_Move_Profitable{dfs_ordered_nodes,out->profitable_moves,best_score_change,in,mutex,original_states});
+    tbb::parallel_for(tbb::blocked_range<size_t>(0,in->moves.size()),Test_Move_Profitable{dfs_ordered_nodes,out->profitable_moves,best_score_change,in,mutex,original_states,states_in_flight});
+    states_in_flight.fetch_sub(in->state_packed);
     delete in;
     return out;
 }

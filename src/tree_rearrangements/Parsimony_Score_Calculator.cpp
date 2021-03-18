@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <memory>
 #include <tbb/blocked_range.h>
+#include <tbb/flow_graph.h>
 #include <tbb/parallel_for.h>
 #include <unordered_map>
 #include <utility>
@@ -13,6 +14,7 @@ struct FS_result_container{
     size_t start_node_idx;
     const Mutation_Annotated_Tree::Mutation* mutation;
     std::vector<std::shared_ptr<Fitch_Sankoff_Result>*> targets;
+    std::pair<size_t,size_t> range;
 };
 /*
 struct Node_Collate_Sorter{
@@ -171,7 +173,7 @@ static void find_parental_states(std::vector<FS_result_container>& fs_results,st
     });
 }
 */
-static void execute_FS(std::vector<FS_result_container>& fs_results,std::vector<MAT::Node*> dfs_ordered_nodes,const Original_State_t& ori){
+static void execute_FS(std::vector<FS_result_container>& fs_results,std::vector<MAT::Node*> dfs_ordered_nodes,const Original_State_t& ori,std::atomic_long& states_in_flight){
     tbb::parallel_for(tbb::blocked_range<size_t>(0,fs_results.size()),[&](const tbb::blocked_range<size_t>& range){
         for (size_t container_idx=range.begin(); container_idx<range.end(); container_idx++) {
             Fitch_Sankoff_Result* this_result=new Fitch_Sankoff_Result;
@@ -179,7 +181,7 @@ static void execute_FS(std::vector<FS_result_container>& fs_results,std::vector<
             MAT::Node* this_node=dfs_ordered_nodes[fs_results[container_idx].start_node_idx];
             this_result->mutation=*(fs_results[container_idx].mutation);
             this_result->LCA_parent_state=get_genotype(this_node->parent, this_result->mutation);
-            this_result->range=Fitch_Sankoff::dfs_range(this_node, dfs_ordered_nodes);
+            this_result->range=fs_results[container_idx].range;
             if(fs_results[container_idx].targets.size()>1){
             Fitch_Sankoff::sankoff_backward_pass(this_result->range, dfs_ordered_nodes,this_result->scores,ori,this_result->mutation);
             }else{
@@ -192,7 +194,7 @@ static void execute_FS(std::vector<FS_result_container>& fs_results,std::vector<
     });
 }
 
-Candidate_Moves* Parsimony_Score_Calculator::operator()(Possible_Moves* in)const{
+Candidate_Moves* Parsimony_Score_Calculator::operator()(Possible_Moves* in )const{
     Pending_FS_t mut_LCA;
     Candidate_Moves* result=new Candidate_Moves;
     result->src=in->src;
@@ -226,6 +228,16 @@ Candidate_Moves* Parsimony_Score_Calculator::operator()(Possible_Moves* in)const
     }
     std::vector<FS_result_container> fs_results;
     plan_FS(mut_LCA, fs_results, dfs_ordered_nodes);
+    size_t expanded_count=0;
+    result->state_packed=0;
+    for(FS_result_container& result_pack:fs_results){
+        result_pack.range=Fitch_Sankoff::dfs_range(dfs_ordered_nodes[result_pack.start_node_idx], dfs_ordered_nodes);
+        size_t node_size=(result_pack.range.second-result_pack.range.first);
+        result->state_packed+=node_size;
+        expanded_count+=(node_size*result_pack.targets.size());
+    }
+    states_in_flight.fetch_add((result->state_packed+expanded_count));
+    states_to_calculate.fetch_sub(1);
     /*
     for(const FS_result_container& t:fs_results){
         if(t.targets.size()>1){
@@ -233,7 +245,7 @@ Candidate_Moves* Parsimony_Score_Calculator::operator()(Possible_Moves* in)const
         }
     }
     */
-    execute_FS(fs_results, dfs_ordered_nodes,original_states);
+    execute_FS(fs_results, dfs_ordered_nodes,original_states,states_in_flight);
     delete in;
-    return result;
+    return(result);
 }

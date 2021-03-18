@@ -3,7 +3,7 @@ cmake_minimum_required (VERSION 3.8)
 
 project(strain_phylogenetics)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer -mtune=native -std=c++11 -Wall -ggdb3 -Wno-unused-function -DMEMDEBUG ")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer -mtune=native -std=c++11 -Wall -ggdb3")
 set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O3")
 set(CMAKE_INCLUDE_CURRENT_DIR ON) 
 #  -O0 -fsanitize=leak -fsanitize=address -fsanitize=undefined
