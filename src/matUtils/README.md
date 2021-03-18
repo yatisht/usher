@@ -47,6 +47,8 @@ This command selects subtrees from the MAT based on clade identification, sample
 
 **-O**: Collapse the subtree before saving.
 
+**-E**: Use to not recalculate branch lengths when saving newick output. Used only with -t
+
 **-t**: Write a newick string representing the extracted subtree to the indicated file.
 
 ## Summary

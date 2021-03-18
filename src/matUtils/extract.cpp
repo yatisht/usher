@@ -51,6 +51,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
         "Write the tree as a JSON to the indicated file.")
         ("write-tree,t", po::value<std::string>()->default_value(""),
          "Use to write a newick tree to the indicated file.")
+        ("retain-branch-length,E", po::bool_switch(),
+        "Use to not recalculate branch lengths when saving newick output. Used only with -t")
         ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
         ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
@@ -92,6 +94,7 @@ void extract_main (po::parsed_options parsed) {
     bool prune_samples = vm["prune"].as<bool>();
     bool get_representative = vm["get-representative"].as<bool>();
     bool resolve_polytomies = vm["resolve-polytomies"].as<bool>();
+    bool retain_branch = vm["retain-branch-length"].as<bool>();
     std::string dir_prefix = vm["output-directory"].as<std::string>();
 
     boost::filesystem::path path(dir_prefix);
@@ -403,7 +406,7 @@ void extract_main (po::parsed_options parsed) {
         fprintf(stderr, "Generating Newick file of final tree\n");
         FILE *tree_file = fopen(tree_filename.c_str(), "w");
         fprintf(tree_file, "%s\n",
-            MAT::get_newick_string(subtree, true, true, true).c_str());
+            MAT::get_newick_string(subtree, true, true, retain_branch).c_str());
         fclose(tree_file);        
     }
     //and save a MAT if that was set
