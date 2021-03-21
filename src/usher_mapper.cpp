@@ -225,9 +225,9 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores) {
                                 (*input.excess_mutations).emplace_back(m);
                             }
                             // Ambiguous base
-                            if ((nuc & (nuc-1)) != 0) {
-                                (*input.imputed_mutations).emplace_back(m);
-                            }
+                            //if ((nuc & (nuc-1)) != 0) {
+                            //    (*input.imputed_mutations).emplace_back(m);
+                            //}
                             found = true;
                             num_common_mut++;
                             break;
