@@ -275,9 +275,10 @@ void extract_main (po::parsed_options parsed) {
     if (prune_samples) {
         fprintf(stderr, "Sample pruning requested...\n");
         std::vector<std::string> nsamples;
+        std::unordered_set<std::string> sample_set(samples.begin(), samples.end());
         for (auto s: T.get_leaves_ids()) {
             //for every sample in the tree, if that sample is NOT in the selected set, save it
-            if (std::find(samples.begin(), samples.end(), s) == samples.end()) {
+            if (sample_set.find(s) == sample_set.end()) {
                 nsamples.push_back(s);
             }
         }
