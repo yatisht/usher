@@ -1089,6 +1089,9 @@ void Mutation_Annotated_Tree::Tree::uncondense_leaves() {
 
         for (size_t s = 1; s < num_samples; s++) {
             create_node(cn->second[s], par, n->branch_length);
+            for (auto m: n->mutations) {
+                new_n->add_mutation(m.copy());                                                                                                                                                                    
+            }
         }
     }
     condensed_nodes.clear();
