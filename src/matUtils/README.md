@@ -23,11 +23,17 @@ This command selects subtrees from the MAT based on clade identification, sample
 
 **-a**: Select samples to extract by whether their parsimony score (terminal branch length) is less than the indicated value.
 
+**-b**: Remove samples with have a branch of greater than the indicated length somewhere in their ancestry.
+
+**-k**: Select a specific sample and the X closest samples, formatted as "Samplename:X"
+
 **-r**: Automatically select two samples per unique clade identifier to extract.
 
 **-p**: Prune the samples indicated by other arguments instead of extracting them to create the subtree.
 
 **-R**: Resolve polytomies by insertion of internal nodes with branch length 0. Prevents condensed tree output. Intended for compatibility with software requiring fully resolved trees.
+
+**-u**: Write a simple text file containing selected sample names.
 
 **-d**: Set the directory to save output files. Directory must already exist. Default is current directory
 
