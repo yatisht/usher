@@ -58,7 +58,7 @@ void write_sample_table(MAT::Tree& T, std::string filename) {
     for (auto s: dfs) {
         if (s->is_leaf()) {
             //leaves are samples (on the uncondensed tree)
-            samplefile << s->identifier << "\t" << s->branch_length << "\n";
+            samplefile << s->identifier << "\t" << s->mutations.size() << "\n";
         }        
     }
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
@@ -158,7 +158,7 @@ void write_aberrant_table(MAT::Tree& T, std::string filename) {
         } else {
             badfile << n->identifier << "\tduplicate-node-id\n";
         }
-        if (n->branch_length == 0 && !n->is_leaf() && !n->is_root()) {
+        if (n->mutations.size() == 0 && !n->is_leaf() && !n->is_root()) {
             badfile << n->identifier << "\tinternal-branch-length-0\n";
         }
         if (n->mutations.size() == 0 && !n->is_leaf() && !n->is_root()) {

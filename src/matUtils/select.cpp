@@ -104,7 +104,7 @@ std::vector<std::string> get_parsimony_samples (MAT::Tree T, float max_parsimony
     std::vector<std::string> good_samples;
     auto dfs = T.get_leaves();
     for (auto n: dfs) {
-        if (n->branch_length <= max_parsimony) {
+        if (n->mutations.size() <= max_parsimony) {
             good_samples.push_back(n->identifier);
         }
     }
