@@ -10,8 +10,6 @@ po::variables_map parse_introduce_command(po::parsed_options parsed) {
     filt_desc.add_options()
         ("input-mat,i", po::value<std::string>()->required(),
          "Input mutation-annotated tree file [REQUIRED]")
-        ("output-mat,o", po::value<std::string>()->required(),
-         "Path to output masked mutation-annotated tree file [REQUIRED]")
         ("population-samples,s", po::value<std::string>()->required(), 
          "Names of samples from the population of interest [REQUIRED].") 
         ("max-mutations,m", po::value<int>()->default_value(3),
