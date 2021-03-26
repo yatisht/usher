@@ -99,8 +99,6 @@ void resolve_polytomy(MAT::Tree* T, std::vector<MAT::Node*> polytomy_nodes) {
     //except for the last one, which will go to the last parent in line (index - 1),
     //as the last parent can support two children.
     for (size_t i=1; i<polytomy_nodes.size()-1; i++) {
-        //the node mover routine resets the branch length and we don't want to do that
-        //save it, move, then reassign the branch length
         T->move_node(polytomy_nodes[i]->identifier, new_parents[i]->identifier, false);
     }
     T->move_node(polytomy_nodes.back()->identifier, new_parents.back()->identifier, false);
