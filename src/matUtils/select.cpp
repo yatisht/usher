@@ -99,12 +99,12 @@ std::vector<std::string> get_mutation_samples (MAT::Tree T, std::string mutation
     return good_samples;
 }
 
-std::vector<std::string> get_parsimony_samples (MAT::Tree T, float max_parsimony) {
+std::vector<std::string> get_parsimony_samples (MAT::Tree T, int max_parsimony) {
     //simple selection- get samples which have less than X parsimony score (e.g. branch length)
     std::vector<std::string> good_samples;
     auto dfs = T.get_leaves();
     for (auto n: dfs) {
-        if (n->mutations.size() <= max_parsimony) {
+        if (n->mutations.size() <= static_cast<size_t>(max_parsimony)) {
             good_samples.push_back(n->identifier);
         }
     }
