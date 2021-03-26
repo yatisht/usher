@@ -108,7 +108,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::vector<std::strin
                     }
                 }
             }
-            if (!r3) {
+            if (!r3 & !r2) {
                 assignments[n->identifier] = 0;
             }
         }
@@ -117,32 +117,43 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::vector<std::strin
     //we can traverse again in dfs order and check where it changes from 0 to 1
     //rule 4
     std::vector<std::string> outstrs;
-    int last = 0;
     for (auto n: dfs) {
         auto search = assignments.find(n->identifier);
-        //every single node should be in assignments.
         assert (search != assignments.end());
-        if (last == 0 & search->second == 1) {
-            //this is an introduction!
-            //collect some info.
-            //column 1 is the internal node identifier, column 2 is a comma-delineated list of terminals from
-            //this internal node which are IN, and column 3 is a comma-delineated list of terminals which are OUT
-            std::string ostr = n->identifier + "\t";
-            std::string interms = "";
-            std::string oterms = "";
-            auto terminals = T->get_leaves_ids(n->identifier);
-            for (auto t: terminals) {
-                if (assignments.find(t)->second == 1) {
-                    interms += "," + t;
-                } else {
-                    oterms += "," + t;
+        bool has_ancestral = false;
+        if (search->second == 1) {
+            //check whether any ancestor of this node is IN
+            //we're only reporting the furthest back introductions on the tree.
+            for (auto a: T->rsearch(n->identifier)) {
+                auto ancsearch = assignments.find(a->identifier);
+                if (ancsearch->second == 1) {
+                    //this had some IN in its history, treat it as part of that original introduction
+                    //and not a novel event
+                    has_ancestral = true;
+                    break;
                 }
             }
-            ostr += interms + "\t";
-            ostr += oterms + "\n";
-            outstrs.push_back(ostr);
+            if (!has_ancestral) {
+                //this is an introduction!
+                //collect some info.
+                //column 1 is the internal node identifier, column 2 is a comma-delineated list of terminals from
+                //this internal node which are IN, and column 3 is a comma-delineated list of terminals which are OUT
+                std::string ostr = n->identifier + "\t";
+                std::string interms = "";
+                std::string oterms = "";
+                auto terminals = T->get_leaves_ids(n->identifier);
+                for (auto t: terminals) {
+                    if (assignments.find(t)->second == 1) {
+                        interms += "," + t;
+                    } else {
+                        oterms += "," + t;
+                    }
+                }
+                ostr += interms + "\t";
+                ostr += oterms + "\n";
+                outstrs.push_back(ostr);
+            }
         }
-        last = search->second;
     }
     return outstrs;
 }
