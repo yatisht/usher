@@ -118,3 +118,15 @@ The mask subcommand restricts indicated sample names and returns a masked protob
 **-o**: Output mutation-annotated tree file (REQUIRED)
 
 **-s**: Use to mask specific samples from the tree. 
+
+## Introduce [EXPERIMENTAL]
+
+The introduce subcommand uses a heuristic algorithm to identify likely points of introduction into a population from a global phylogeny.
+
+### Specific Options
+
+**-s**: List of samples originating from within the population of interest.
+
+**-m**: Maximum number of mutations to allow on branches from an introduction point.
+
+**-o**: Output tsv containing inferred introductions and the list of samples descending from that introduction.

@@ -2,6 +2,7 @@
 #include "mask.hpp"
 #include "summary.hpp"
 #include "extract.hpp"
+#include "introduce.hpp"
 
 Timer timer; 
 
@@ -46,6 +47,8 @@ int main (int argc, char** argv) {
         uncertainty_main(parsed);
     } else if (cmd == "summary") {
         summary_main(parsed);
+    } else if (cmd == "introduce") {
+        introduce_main(parsed);
     } else if (cmd == "help") { 
         fprintf(stderr, "\n");
         for (int i = 0; i < 6; ++i) {
