@@ -82,6 +82,9 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::vector<std::strin
                 auto sv = assignments.find(n->parent->identifier);
                 if (sv != assignments.end()) {
                     if (sv->second == 1) {
+                        r3 = true;
+                        assignments[n->identifier] = 1;
+                    } else {
                         //now we get the most complex bit of logic
                         //get terminals descended from this node, and for each one, if theyre members of population
                         //then check to see if there are less than k total mutations on the rsearch
