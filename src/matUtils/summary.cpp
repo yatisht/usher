@@ -159,9 +159,6 @@ void write_aberrant_table(MAT::Tree& T, std::string filename) {
             badfile << n->identifier << "\tduplicate-node-id\n";
         }
         if (n->mutations.size() == 0 && !n->is_leaf() && !n->is_root()) {
-            badfile << n->identifier << "\tinternal-branch-length-0\n";
-        }
-        if (n->mutations.size() == 0 && !n->is_leaf() && !n->is_root()) {
             badfile << n->identifier << "\tinternal-no-mutations\n";
         }
     }
