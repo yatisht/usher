@@ -543,7 +543,7 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
 void Mutation_Annotated_Tree::save_mutation_annotated_tree (Mutation_Annotated_Tree::Tree tree, std::string filename) {
     TIMEIT();
     Parsimony::data data;
-    data.set_newick(get_newick_string(tree, false, true));
+    data.set_newick(get_newick_string(tree, false, true, true));
 
     auto dfs = tree.depth_first_expansion();
 
