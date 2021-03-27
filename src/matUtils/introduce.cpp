@@ -2,11 +2,11 @@
 
 po::variables_map parse_introduce_command(po::parsed_options parsed) {
 
-    uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
-    std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
+    // uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
+    // std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
 
     po::variables_map vm;
-    po::options_description filt_desc("mask options");
+    po::options_description filt_desc("introduce options");
     filt_desc.add_options()
         ("input-mat,i", po::value<std::string>()->required(),
          "Input mutation-annotated tree file [REQUIRED]")
@@ -14,7 +14,7 @@ po::variables_map parse_introduce_command(po::parsed_options parsed) {
          "Names of samples from the population of interest [REQUIRED].") 
         ("output,o", po::value<std::string>()->required(),
         "Name of the file to save the introduction information to.")
-        ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
+        // ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
         ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
     // (positional) command name, so we need to erase that.
@@ -38,9 +38,46 @@ po::variables_map parse_introduce_command(po::parsed_options parsed) {
     }
     return vm;
 }
-std::vector<std::string> find_introductions(MAT::Tree* T, std::vector<std::string> samples) {
-    //k is going to be unused for the moment while I test out this new algo
-    //if I like it, I'll cut the k argument
+
+std::map<std::string, std::vector<std::string>> read_two_column (std::string sample_filename) {
+    std::map<std::string, std::vector<std::string>> amap;
+    //this variant on a sample reader can optionally parse a second column of values
+    //because this is handling multiple vectors, it takes vector pointers instead of defining its own and returning them
+    std::ifstream infile(sample_filename);
+    if (!infile) {
+        fprintf(stderr, "ERROR: Could not open the file: %s!\n", sample_filename.c_str());
+        exit(1);
+    }    
+    std::string line;
+    while (std::getline(infile, line)) {
+        std::vector<std::string> words;
+        MAT::string_split(line, words);
+
+        std::string sname = words[0];
+        std::string rname;
+        if (words.size() == 1) {
+            //default region for a single-column file is "default".
+            rname = "default";
+            //carriage return handling
+            if (sname[sname.size()-1] == '\r') {
+                sname = sname.substr(0,sname.size()-1);
+            }
+        } else if (words.size() == 2) {
+            rname = words[1];
+            if (rname[rname.size()-1] == '\r') {
+                rname = rname.substr(0,rname.size()-1);
+            }
+        } else {
+            fprintf(stderr, "ERROR: Too many columns in file %s- check format\n", sample_filename.c_str());
+            exit(1);
+        }
+        amap[rname].push_back(sname);
+    }
+    infile.close();
+    return amap;
+}
+
+std::map<std::string, int> get_assignments(MAT::Tree* T, std::unordered_set<std::string> sample_set) {
     /*
     This function applies a heuristic series of steps to label internal nodes as in or out of a geographic area
     based on their relationship to the samples in the input list. The rules are:
@@ -52,9 +89,9 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::vector<std::strin
     It's worth noting that if a sample is an identical child to the internal node, that state will always win
     5. On a tie, the node is assigned to the state of its parent
 
-    Introductions are identified as locations where assignments shift from OUT to IN on a depth first search.
+    Introductions are identified as locations where assignments in an rsearch from an IN sample shift from IN to OUT.
     */
-    std::unordered_set<std::string> sample_set(samples.begin(), samples.end());
+
     std::map<std::string, int> assignments;
     auto dfs = T->depth_first_expansion();
     for (auto n: dfs) {
@@ -146,162 +183,143 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::vector<std::strin
             }
         }
     }
-    //after the wild ride that was that set of heuristics
-    //its time to identify introductions. we're going to do this by iterating
-    //over all of the leaves. For each sample, rsearch back until it hits a 0 assignment
-    //then record the last encountered 1 assignment as the point of introduction
+    return assignments;
+}
+
+std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, std::vector<std::string>> sample_regions) {
+    //for every region, independently assign IN/OUT states
+    //and save these assignments into a map of maps
+    //so we can check membership of introduction points in each of the other groups
+    //this allows us to look for migrant flow between regions
+    std::map<std::string, std::map<std::string, int>> region_assignments;
+    //TODO: This could be parallel for a significant speedup when dozens or hundreds of regions are being passed in
+    //I also suspect I could use pointers for the assignment maps to make this more memory efficient
+    for (auto ms: sample_regions) {
+        std::string region = ms.first;
+        std::vector<std::string> samples = ms.second;
+        fprintf(stderr, "Processing region %s with %ld samples\n", region.c_str(), samples.size());
+        std::unordered_set<std::string> sample_set(samples.begin(), samples.end());
+        auto assignments = get_assignments(T, sample_set);
+        region_assignments[region] = assignments;
+    }
+    //there are some significant runtime issues when checking assignment states repeatedly for different groups
+    //so I'm going to generate a series of sets of nodes which are 1 for any given assignment
+    //these will be used when looking for the origin of an introduction, as that only
+    //cares about whether its 1 for a given region, not about the context.
+    std::map<std::string, std::unordered_set<std::string>> region_ins;
+    for (auto ra: region_assignments) {
+        std::unordered_set<std::string> ins;
+        for (auto ass: ra.second) {
+            if (ass.second == 1) {
+
+                ins.insert(ass.first);
+            }
+        }
+        region_ins[ra.first] = ins;
+    }
+
+    fprintf(stderr, "Regions processed; identifying introductions.\n");
+
+
+
+    //now that we have all assignments sorted out, pass over it again
+    //looking for introductions.
     std::vector<std::string> outstrs;
-    for (auto s: samples) {
-        //everything in this vector is going to be 1 (IN)
-        std::string last_encountered = s;
-        size_t traversed = 0;
-        for (auto a: T->rsearch(s,true)) {
-            if (a->is_root()) {
-                //if we get back to the root, the root is necessarily the point of introduction for this sample
-                last_encountered = a->identifier;
-                std::stringstream ostr;
-                ostr << s << "\t" << last_encountered << "\t" << traversed << "\n";
-                outstrs.push_back(ostr.str());
-                break;
+    if (region_assignments.size() == 1) {
+        outstrs.push_back("sample\tintroduction_node\tdistance\n");
+    } else {
+        //add a column for the putative origin of the sample introduction
+        //if we're using multiple regions.
+        outstrs.push_back("sample\tintroduction_node\tdistance\tregion\torigins\n");
+    }
+    for (auto ra: region_assignments) {
+        std::string region = ra.first;
+        auto assignments = ra.second;
+        std::vector<std::string> samples = sample_regions[region];
+        //its time to identify introductions. we're going to do this by iterating
+        //over all of the leaves. For each sample, rsearch back until it hits a 0 assignment
+        //then record the last encountered 1 assignment as the point of introduction
+        int total_processed = 0;
+        for (auto s: samples) {
+            timer.Start();
+            total_processed++;
+            //everything in this vector is going to be 1 (IN) this region
+            std::string last_encountered = s;
+            size_t traversed = 0;
+            for (auto a: T->rsearch(s,true)) {
+                if (a->is_root()) {
+                    //if we get back to the root, the root is necessarily the point of introduction for this sample
+                    last_encountered = a->identifier;
+                    //check whether root is assigned to any other region
+                    std::string origins;
+                    if (region_ins.size() > 1) {
+                        for (auto ra: region_ins) {
+                            if (ra.second.find(a->identifier) != ra.second.end()) {
+                                if (origins.size() == 0) {
+                                    origins += ra.first;
+                                } else {
+                                    origins += "," + ra.first;
+                                }                            
+                            }
+                        }
+                    }
+                    std::stringstream ostr;
+                    if (region_assignments.size() == 1) {
+                        ostr << s << "\t" << last_encountered << "\t" << traversed << "\n";
+                    } else {
+                        ostr << s << "\t" << last_encountered << "\t" << traversed << "\t" << origins << "\n";
+                    }
+                    outstrs.push_back(ostr.str());
+                    break;
+                }
+                //every node should be in assignments at this point.
+                int anc_state = assignments.find(a->identifier)->second;
+                if (anc_state == 0) {
+                    //check whether this 0 node is 1 in any other region
+                    //record each region where this is true
+                    //(in the single region case, its never true, but its only like two operations to check anyways)
+                    std::string origins;
+                    if (region_ins.size() > 1) {
+                        // fprintf(stderr, "DEBUG: %ld regions\n", region_ins.size());
+                        for (auto ra: region_ins) {
+                            // fprintf(stderr, "DEBUG: %ld samples in map\n", ra.second.size());
+                            if (ra.second.find(a->identifier) != ra.second.end()) {
+                                if (origins.size() == 0) {
+                                    origins += ra.first;
+                                } else {
+                                    origins += "," + ra.first;
+                                }                            
+                            }
+                        }
+                    }
+                    if (origins.size() == 0) {
+                        //if we didn't find anything which has the pre-introduction node at 1, we don't know where it came from
+                        origins = "indeterminate";
+                    }
+                    std::stringstream ostr;
+                    if (region_assignments.size() == 1) {
+                        ostr << s << "\t" << last_encountered << "\t" << traversed << "\n";
+                    } else {
+                        ostr << s << "\t" << last_encountered << "\t" << traversed << "\t" << region << "\t" << origins << "\n";
+                    }
+                    break;
+                } else {
+                    last_encountered = a->identifier;
+                    traversed += a->mutations.size();
+                }
             }
-            //every node should be in assignments at this point.
-            int anc_state = assignments.find(a->identifier)->second;
-            if (anc_state == 0) {
-                //encountered a 0, record the last encountered.
-                std::stringstream ostr;
-                ostr << s << "\t" << last_encountered << "\t" << traversed << "\n";
-                outstrs.push_back(ostr.str());
-                break;
-            } else {
-                last_encountered = a->identifier;
-                traversed += a->mutations.size();
-            }
+        fprintf(stderr, "Found introduction for sample %s, time taken %ld msec, %d processed\n", s.c_str(), timer.Stop(), total_processed);
         }
     }
     return outstrs;
 }
-
-//old code below
-// std::vector<std::string> find_introductions(MAT::Tree* T, std::vector<std::string> samples, int k) {
-//     /*
-//     This function applies a five-step heuristic process to identify putative introductions to a population defined by the samples vector
-//     1. The root is initialized as OUT.
-//     2. Traversal of nodes in DFS order. Labels of leaf nodes don't change. For internal nodes, if there is a direct leaf descendant with 0 mutations to the internal node labelled IN, the internal node is labelled IN.
-//     3. If there is no direct leaf descendant labelled as IN, the internal node is labelled IN only if its parent is labelled IN and the closest IN leaf node is at most k mutations from this internal node.
-//     4. If 2 and 3 are not satisfied, the node is labelled as OUT.
-//     5. Now all nodes are labelled IN or OUT. The number of introductions is simply the number of OUT->IN transitions in parent-child pairs which can be computed by traversing the tree again in a DFS order.
-//     */
-//     std::unordered_set<std::string> sample_set(samples.begin(), samples.end());
-//     std::map<std::string, int> assignments;
-//     //the first real step is traversing nodes in DFS order.
-//     auto dfs = T->depth_first_expansion();
-//     for (auto n: dfs) {
-//         if (n->is_root()) {
-//             //rule 1
-//             assignments[n->identifier] = 0;
-//         } else if (n->is_leaf()) {
-//             //rule 2. Leaves are in or out based on membership in samples only.
-//             if (sample_set.find(n->identifier) != sample_set.end()) {
-//                 assignments[n->identifier] = 1;
-//             } else {
-//                 assignments[n->identifier] = 0;
-//             }
-//         } else {
-//             //check rule 2
-//             bool r2 = false;
-//             for (auto child: n->children) {
-//                 if (child->is_leaf()) {
-//                     if (sample_set.find(child->identifier) != sample_set.end() & (child->mutations.size() == 0)) {
-//                         assignments[n->identifier] = 1;
-//                         r2 = true;
-//                     }
-//                 }
-//             }
-//             //if not assigned via rule 2, check rule 3
-//             bool r3 = false;
-//             if (!r2) {
-//                 auto sv = assignments.find(n->parent->identifier);
-//                 if (sv != assignments.end()) {
-//                     if (sv->second == 1) {
-//                         r3 = true;
-//                         assignments[n->identifier] = 1;
-//                     } else {
-//                         //now we get the most complex bit of logic
-//                         //get terminals descended from this node, and for each one, if theyre members of population
-//                         //then check to see if there are less than k total mutations on the rsearch
-//                         auto leaves = T->get_leaves(n->identifier);
-//                         for (auto l: leaves) {
-//                             if (sample_set.find(l->identifier) != sample_set.end() & !r3) {
-//                                 auto path = T->rsearch(l->identifier, true);
-//                                 size_t mcount = 0;
-//                                 for (auto p: path) {
-//                                     if (p->identifier == n->identifier & (mcount <= static_cast<size_t>(k))) {
-//                                         assignments[n->identifier] = 1;
-//                                         r3 = true;
-//                                         break;
-//                                     } else if (mcount > k) {
-//                                         break;
-//                                     }
-//                                     mcount += p->mutations.size();
-//                                 }
-//                             }
-//                         }
-//                     }
-//                 }
-//             }
-//             if (!r3 & !r2) {
-//                 assignments[n->identifier] = 0;
-//             }
-//         }
-//     }
-//     //now that we have assignments in a map objects of node identifiers to states
-//     //we can traverse again in dfs order and check where it changes from 0 to 1
-//     //rule 4
-//     std::vector<std::string> outstrs;
-//     for (auto n: dfs) {
-//         auto search = assignments.find(n->identifier);
-//         assert (search != assignments.end());
-//         bool has_ancestral = false;
-//         if (search->second == 1) {
-//             //check whether any ancestor of this node is IN
-//             //we're only reporting the furthest back introductions on the tree.
-//             size_t total_traversed = 0;
-//             for (auto a: T->rsearch(n->identifier, true)) {
-//                 if (a->identifier != n->identifier) {
-//                     auto ancsearch = assignments.find(a->identifier);
-//                     if ((ancsearch->second == 1) & (total_traversed <= static_cast<size_t>(k))) {
-//                         //this had some IN in its history that is a relatively short mutational distance away
-//                         //don't treat it as a novel event
-//                         has_ancestral = true;
-//                         break;
-//                     }
-//                 }
-//                 total_traversed += a->mutations.size();
-//             }
-//             if (!has_ancestral) {
-//                 //novel introduction
-//                 //collect some info.
-//                 //column 1 is the internal node identifier, column 2 is a comma-delineated list of terminals from
-//                 //this internal node which are IN, and column 3 is a comma-delineated list of terminals which are OUT
-//                 auto terminals = T->get_leaves(n->identifier);
-//                 for (auto t: terminals) {
-//                     if (assignments.find(t->identifier)->second == 1) {
-//                         std::string ostr = t->identifier + "\t" + n->identifier + "\n";
-//                         outstrs.push_back(ostr);
-//                     } 
-//                 }
-//             }
-//         }
-//     }
-//     return outstrs;
-// }
 
 void introduce_main(po::parsed_options parsed) {
     po::variables_map vm = parse_introduce_command(parsed);
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string samples_filename = vm["population-samples"].as<std::string>();
     std::string output_file = vm["output"].as<std::string>();
-    //uint32_t num_threads = vm["threads"].as<uint32_t>();
+    // int32_t num_threads = vm["threads"].as<uint32_t>();
 
     // Load input MAT and uncondense tree
     MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
@@ -309,12 +327,11 @@ void introduce_main(po::parsed_options parsed) {
     if (T.condensed_nodes.size() > 0) {
       T.uncondense_leaves();
     }
-    auto popsamples = read_sample_names(samples_filename);
-    auto outstrings = find_introductions(&T, popsamples);
+    auto region_map = read_two_column(samples_filename);
+    auto outstrings = find_introductions(&T, region_map);
 
     std::ofstream of;
     of.open(output_file);
-    of << "sample\tintroduction_node\tdistance\n";
     for (std::string o: outstrings) {
         of << o;
     }
