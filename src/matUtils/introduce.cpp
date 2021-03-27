@@ -12,8 +12,6 @@ po::variables_map parse_introduce_command(po::parsed_options parsed) {
          "Input mutation-annotated tree file [REQUIRED]")
         ("population-samples,s", po::value<std::string>()->required(), 
          "Names of samples from the population of interest [REQUIRED].") 
-        ("max-mutations,m", po::value<int>()->default_value(3),
-        "Maximum number of mutations allowed per branch on path to putative introduction")
         ("output,o", po::value<std::string>()->required(),
         "Name of the file to save the introduction information to.")
         ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
@@ -40,7 +38,7 @@ po::variables_map parse_introduce_command(po::parsed_options parsed) {
     }
     return vm;
 }
-std::vector<std::string> find_introductions(MAT::Tree* T, std::vector<std::string> samples, int k) {
+std::vector<std::string> find_introductions(MAT::Tree* T, std::vector<std::string> samples) {
     //k is going to be unused for the moment while I test out this new algo
     //if I like it, I'll cut the k argument
     /*
@@ -158,6 +156,14 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::vector<std::strin
         std::string last_encountered = s;
         size_t traversed = 0;
         for (auto a: T->rsearch(s,true)) {
+            if (a->is_root()) {
+                //if we get back to the root, the root is necessarily the point of introduction for this sample
+                last_encountered = a->identifier;
+                std::stringstream ostr;
+                ostr << s << "\t" << last_encountered << "\t" << traversed << "\n";
+                outstrs.push_back(ostr.str());
+                break;
+            }
             //every node should be in assignments at this point.
             int anc_state = assignments.find(a->identifier)->second;
             if (anc_state == 0) {
@@ -294,7 +300,6 @@ void introduce_main(po::parsed_options parsed) {
     po::variables_map vm = parse_introduce_command(parsed);
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string samples_filename = vm["population-samples"].as<std::string>();
-    int max_mutations = vm["max-mutations"].as<int>();
     std::string output_file = vm["output"].as<std::string>();
     //uint32_t num_threads = vm["threads"].as<uint32_t>();
 
@@ -305,10 +310,11 @@ void introduce_main(po::parsed_options parsed) {
       T.uncondense_leaves();
     }
     auto popsamples = read_sample_names(samples_filename);
-    auto outstrings = find_introductions(&T, popsamples, max_mutations);
+    auto outstrings = find_introductions(&T, popsamples);
 
     std::ofstream of;
     of.open(output_file);
+    of << "sample\tintroduction_node\tdistance\n";
     for (std::string o: outstrings) {
         of << o;
     }
