@@ -206,17 +206,18 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
     //so I'm going to generate a series of sets of nodes which are 1 for any given assignment
     //these will be used when looking for the origin of an introduction, as that only
     //cares about whether its 1 for a given region, not about the context.
-    std::map<std::string, std::unordered_set<std::string>> region_ins;
+    
+    //this structure holds the ID of every node which is 1 in at least one region
+    //and all corresponding regions it is 1 for. 
+    std::map<std::string, std::vector<std::string>> region_ins;
     for (auto ra: region_assignments) {
-        std::unordered_set<std::string> ins;
         for (auto ass: ra.second) {
             if (ass.second == 1) {
-
-                ins.insert(ass.first);
+                region_ins[ass.first].push_back(ra.first);
             }
         }
-        region_ins[ra.first] = ins;
     }
+    // fprintf(stderr, "DEBUG: %ld nodes are IN across all regions\n", region_ins.size());
 
     fprintf(stderr, "Regions processed; identifying introductions.\n");
 
@@ -239,57 +240,40 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
         //its time to identify introductions. we're going to do this by iterating
         //over all of the leaves. For each sample, rsearch back until it hits a 0 assignment
         //then record the last encountered 1 assignment as the point of introduction
-        int total_processed = 0;
+        //int total_processed = 0;
         for (auto s: samples) {
-            timer.Start();
-            total_processed++;
+            //timer.Start();
+            //total_processed++;
             //everything in this vector is going to be 1 (IN) this region
             std::string last_encountered = s;
             size_t traversed = 0;
             for (auto a: T->rsearch(s,true)) {
+                int anc_state;
                 if (a->is_root()) {
                     //if we get back to the root, the root is necessarily the point of introduction for this sample
                     last_encountered = a->identifier;
-                    //check whether root is assigned to any other region
-                    std::string origins;
-                    if (region_ins.size() > 1) {
-                        for (auto ra: region_ins) {
-                            if (ra.second.find(a->identifier) != ra.second.end()) {
-                                if (origins.size() == 0) {
-                                    origins += ra.first;
-                                } else {
-                                    origins += "," + ra.first;
-                                }                            
-                            }
-                        }
-                    }
-                    std::stringstream ostr;
-                    if (region_assignments.size() == 1) {
-                        ostr << s << "\t" << last_encountered << "\t" << traversed << "\n";
-                    } else {
-                        ostr << s << "\t" << last_encountered << "\t" << traversed << "\t" << origins << "\n";
-                    }
-                    outstrs.push_back(ostr.str());
-                    break;
+                    anc_state = 0;
+                } else {
+                    //every node should be in assignments at this point.
+                    anc_state = assignments.find(a->identifier)->second;
                 }
-                //every node should be in assignments at this point.
-                int anc_state = assignments.find(a->identifier)->second;
                 if (anc_state == 0) {
                     //check whether this 0 node is 1 in any other region
                     //record each region where this is true
                     //(in the single region case, its never true, but its only like two operations to check anyways)
                     std::string origins;
-                    if (region_ins.size() > 1) {
-                        // fprintf(stderr, "DEBUG: %ld regions\n", region_ins.size());
-                        for (auto ra: region_ins) {
-                            // fprintf(stderr, "DEBUG: %ld samples in map\n", ra.second.size());
-                            if (ra.second.find(a->identifier) != ra.second.end()) {
+                    if (region_assignments.size() > 1) {
+                        auto assign_search = region_ins.find(a->identifier);
+                        if (assign_search != region_ins.end()) {
+                            for (auto r: assign_search->second) {
                                 if (origins.size() == 0) {
-                                    origins += ra.first;
+                                    origins += r;
                                 } else {
-                                    origins += "," + ra.first;
-                                }                            
+                                    origins += "," + r;
+                                }
                             }
+                        } else {
+                            origins = "indeterminate";
                         }
                     }
                     if (origins.size() == 0) {
@@ -302,13 +286,14 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                     } else {
                         ostr << s << "\t" << last_encountered << "\t" << traversed << "\t" << region << "\t" << origins << "\n";
                     }
+                    outstrs.push_back(ostr.str());
                     break;
                 } else {
                     last_encountered = a->identifier;
                     traversed += a->mutations.size();
                 }
             }
-        fprintf(stderr, "Found introduction for sample %s, time taken %ld msec, %d processed\n", s.c_str(), timer.Stop(), total_processed);
+        //fprintf(stderr, "Found introduction for sample %s, time taken %ld msec, %d processed\n", s.c_str(), timer.Stop(), total_processed);
         }
     }
     return outstrs;
