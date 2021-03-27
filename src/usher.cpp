@@ -254,6 +254,12 @@ int main(int argc, char** argv) {
         tbb::flow::function_node<mapper_input, int> mapper(mapper_graph, tbb::flow::unlimited, mapper_body());
         tbb::flow::source_node <mapper_input> reader (mapper_graph,
                 [&] (mapper_input &inp) -> bool {
+                
+                //check if reached end-of-file
+                int curr_char = instream.peek();
+                if(curr_char == EOF)
+                    return false;
+                
                 std::string s;
                 std::getline(instream, s);
                 std::vector<std::string> words;
@@ -312,13 +318,7 @@ int main(int argc, char** argv) {
                         }
                     }
                 }
-
-                //check if reached end-of-file
-                int curr_char = instream.peek();
-                if(curr_char == EOF)
-                    return false;
-                else
-                    return true;
+                return true;
                 }, true );
         tbb::flow::make_edge(reader, mapper);
         mapper_graph.wait_for_all();
