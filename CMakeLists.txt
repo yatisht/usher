@@ -31,6 +31,7 @@ INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIRS})
 
 file(GLOB MATUTIL_SRCS "src/matUtils/*.cpp" "src/matUtils/*.hpp")
 file(GLOB MATOPTIMIZE_SRCS "src/matOptimize/*.cpp" "src/matOptimize/*.hpp")
+file(GLOB FINDRECOMBINATION_SRCS "src/recombination/*.cpp" "src/recombination/*.hpp")
 
 if(DEFINED Protobuf_PATH)
     add_executable(usher
@@ -50,6 +51,13 @@ if(DEFINED Protobuf_PATH)
         src/usher_mapper.cpp
         ${MATOPTIMIZE_SRCS}
         )
+    
+    add_executable(findRecombination
+        src/mutation_annotated_tree.cpp
+        src/usher_mapper.cpp
+        ${FINDRECOMBINATION_SRCS}
+        )
+
 
     protobuf_generate(
         LANGUAGE cpp
@@ -64,6 +72,11 @@ if(DEFINED Protobuf_PATH)
     protobuf_generate(
         LANGUAGE cpp
         TARGET matOptimize
+        PROTOS parsimony.proto)
+    
+    protobuf_generate(
+        LANGUAGE cpp
+        TARGET findRecombination
         PROTOS parsimony.proto)
 else()
     protobuf_generate_cpp(
@@ -93,6 +106,14 @@ else()
         ${PROTO_SRCS}
         ${PROTO_HDRS}
         )
+
+    add_executable(findRecombination
+        src/mutation_annotated_tree.cpp
+        src/usher_mapper.cpp
+        ${FINDRECOMBINATION_SRCS}
+        ${PROTO_SRCS}
+        ${PROTO_HDRS}
+        )
 endif()
 
 if(SAVE_PROFILE)
@@ -116,3 +137,6 @@ TARGET_LINK_LIBRARIES(matUtils PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED
 
 TARGET_COMPILE_OPTIONS(matOptimize PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
 TARGET_LINK_LIBRARIES(matOptimize PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
+
+TARGET_COMPILE_OPTIONS(findRecombination PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
+TARGET_LINK_LIBRARIES(findRecombination PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
