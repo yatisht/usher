@@ -23,9 +23,9 @@ po::variables_map check_options(int argc, char** argv) {
          "Input mutation-annotated tree file to optimize [REQUIRED].")
         ("branch-length,l", po::value<uint32_t>()->default_value(4), \
          "Minimum length of the branch to consider to recombination events")
-        ("max-coordinate-range,R", po::value<uint32_t>()->default_value(1e7), \
+        ("max-coordinate-range,R", po::value<int>()->default_value(1e7), \
          "Maximum range of the genomic coordinates of the mutations on the branch")
-        ("min-coordinate-range,r", po::value<uint32_t>()->default_value(1e3), \
+        ("min-coordinate-range,r", po::value<int>()->default_value(1e3), \
          "Minimum range of the genomic coordinates of the mutations on the branch")
         ("num-descendants,n", po::value<uint32_t>()->default_value(10), \
          "Minimum number of leaves that node should have to be considered for recombination.")
@@ -82,8 +82,8 @@ int main(int argc, char** argv) {
     po::variables_map vm = check_options(argc, argv);
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     uint32_t branch_len = vm["branch-length"].as<uint32_t>();
-    uint32_t max_range = vm["max-coordinate-range"].as<uint32_t>();
-    uint32_t min_range = vm["min-coordinate-range"].as<uint32_t>();
+    int max_range = vm["max-coordinate-range"].as<int>();
+    int min_range = vm["min-coordinate-range"].as<int>();
     uint32_t num_descendants = vm["num-descendants"].as<uint32_t>();
     
     uint32_t num_threads = vm["threads"].as<uint32_t>();
@@ -116,8 +116,8 @@ int main(int argc, char** argv) {
                    continue;
                }
                if (n->mutations.size() >= branch_len) {
-                   size_t start_range_high = n->mutations[0].position;
-                   size_t end_range_low = n->mutations[0].position;
+                   int start_range_high = n->mutations[0].position;
+                   int end_range_low = n->mutations[0].position;
                    for (auto m: n->mutations) {
                        if (m.position < start_range_high) {
                            start_range_high = m.position;
@@ -141,6 +141,7 @@ int main(int argc, char** argv) {
     
     fprintf(stderr, "Running placement individually for %zu branches to identify potential recombination events.\n", nodes_to_consider.size());
 
+    size_t num_done = 0;
     for (auto nid_to_consider: nodes_to_consider) {
         Pruned_Sample pruned_sample(nid_to_consider);
 
@@ -153,10 +154,8 @@ int main(int argc, char** argv) {
         }
         
         auto node_to_consider = T.get_node(nid_to_consider);
-        size_t start_range_high = node_to_consider->mutations[0].position;
-        size_t end_range_low = node_to_consider->mutations[0].position;
-        size_t start_range_low = 0; 
-        size_t end_range_high = 1e9; 
+        int start_range_high = node_to_consider->mutations[0].position;
+        int end_range_low = node_to_consider->mutations[0].position;
         for (auto m: node_to_consider->mutations) {
             if (m.position < start_range_high) {
                 start_range_high = m.position;
@@ -192,14 +191,21 @@ int main(int argc, char** argv) {
 
         size_t num_recombinations = 0;
 
+        tbb::mutex tbb_lock;
+
         tbb::parallel_for( tbb::blocked_range<size_t>(0, total_nodes),
                 [&](tbb::blocked_range<size_t> r) {
             for (size_t k=r.begin(); k<r.end(); ++k) {
 
-                if ((T.is_ancestor(nid_to_consider, bfs[k]->identifier)) || (T.is_ancestor(bfs[k]->identifier, nid_to_consider)) || (num_recombinations >= 10)) {
+                if ((nid_to_consider == bfs[k]->identifier) || (T.is_ancestor(nid_to_consider, bfs[k]->identifier)) || 
+                        (T.is_ancestor(bfs[k]->identifier, nid_to_consider)) || (num_recombinations >= 10) ||
+                        (T.get_num_leaves(bfs[k]) < num_descendants)) {
                     continue;
                 }
                 
+                int start_range_low = 0; 
+                int end_range_high = 1e9; 
+
                 node_has_unique[k] = false;
 
                 mapper2_input inp;
@@ -225,6 +231,8 @@ int main(int argc, char** argv) {
                 inp.node_has_unique = &(node_has_unique);
 
                 mapper2_body(inp, true);
+
+                bool is_recomb = false;
 
                 // Is placement as sibling
                 if (bfs[k]->is_leaf() || node_has_unique[k]) {
@@ -259,29 +267,7 @@ int main(int argc, char** argv) {
                     }
 
                     if (l2_mut.size() == 0) {
-                        __sync_fetch_and_add(&num_recombinations, 1);
-                        std::string end_range_high_str = (end_range_high == 1e9) ? "GENOME_SIZE" : std::to_string(end_range_high);
-                        fprintf(stdout, "Node %s is potentially recombinant with node %s (sibling).\n"
-                                "Supporting mutation list in the range [%zu, %zu] to [%zu, %s] is as follows:\n",  
-                                nid_to_consider.c_str(), bfs[k]->identifier.c_str(), start_range_low, start_range_high, end_range_low, 
-                                end_range_high_str.c_str());
-
-                        size_t tot_mutations = node_to_consider->mutations.size();
-                        for (size_t idx = 0; idx < tot_mutations; idx++) {
-                            auto m = node_to_consider->mutations[idx];
-                            fprintf(stdout, "%s", m.get_string().c_str());
-                            if (idx+1 <tot_mutations) {
-                                fprintf(stdout, ",");
-                            }
-                            else {
-                                fprintf(stdout, "\n");
-                            }
-                        }
-
-                        fprintf(stdout, "Descendants of the recombinant node are:\n");
-                        for (auto l: T.get_leaves(node_to_consider->identifier)) {
-                            fprintf(stdout, "%s\n", l->identifier.c_str());
-                        }
+                        is_recomb = true;
                     }
                 }
                 // Else placement as child
@@ -316,10 +302,17 @@ int main(int argc, char** argv) {
                     }
                     
                     if (node_mut.size() == 0) {
-                        __sync_fetch_and_add(&num_recombinations, 1);
+                        is_recomb = true;
+                    }
+                }
+
+                if (is_recomb) {
+                    tbb_lock.lock();
+                    if (num_recombinations <= 10) {
+                        num_recombinations++;
                         std::string end_range_high_str = (end_range_high == 1e9) ? "GENOME_SIZE" : std::to_string(end_range_high);
-                        fprintf(stdout, "Node %s is potentially recombinant with node %s (child).\n"
-                                "Supporting mutation list in the range [%zu, %zu] to [%zu, %s] is as follows:\n",  
+                        fprintf(stdout, "Node %s is potentially recombinant with node %s.\n"
+                                "Breakpoints are between interval [%i, %i] to interval [%i, %s]. Mutation list on the node follows:\n",  
                                 nid_to_consider.c_str(), bfs[k]->identifier.c_str(), start_range_low, start_range_high, end_range_low, 
                                 end_range_high_str.c_str());
 
@@ -340,9 +333,11 @@ int main(int argc, char** argv) {
                             fprintf(stdout, "%s\n", l->identifier.c_str());
                         }
                     }
+                    tbb_lock.unlock();
                 }
             }       
         }, ap); 
+        fprintf(stderr, "Done %zu/%zu.\n", ++num_done, nodes_to_consider.size());
     }
 
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
