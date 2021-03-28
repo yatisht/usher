@@ -342,7 +342,8 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::create_tree_from_newick_s
     std::vector<std::string> leaves;
     std::vector<size_t> num_open;
     std::vector<size_t> num_close;
-    std::stack<float> branch_len;
+    std::vector<std::queue<float>> branch_len (128);  // will be resized later if needed
+    size_t level = 0;
 
     std::vector<std::string> s1;
     string_split(newick_string, ',', s1);
@@ -365,12 +366,17 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::create_tree_from_newick_s
             }
             else if (c == '(') {
                 no++;
+                level++;
+                if (branch_len.size() <= level) {
+                  branch_len.resize(level*2);
+                }
             }
             else if (c == ')') {
                 stop = true;
                 nc++;
                 float len = (branch.size() > 0) ? std::stof(branch) : -1.0;
-                branch_len.push(len);
+                branch_len[level].push(len);
+                level--;
                 branch_start = false;
             }
             else if (!stop) {
@@ -387,10 +393,10 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::create_tree_from_newick_s
         num_open.push_back(no);
         num_close.push_back(nc);
         float len = (branch.size() > 0) ? std::stof(branch) : -1.0;
-        branch_len.push(len);
+        branch_len[level].push(len);
     }
 
-    if (num_open.size() != num_close.size()) {
+    if (level != 0) {
         fprintf(stderr, "ERROR: incorrect Newick format!\n");
         exit(1);
     }
@@ -406,19 +412,20 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::create_tree_from_newick_s
             std::string nid = std::to_string(++T.curr_internal_node);
             Node* new_node = NULL;
             if (parent_stack.size() == 0) {
-                new_node = T.create_node(nid, branch_len.top());
-                branch_len.pop();
+                new_node = T.create_node(nid, branch_len[level].front());
             }
             else {
-                new_node = T.create_node(nid, parent_stack.top(), branch_len.top());
-                branch_len.pop();
+                new_node = T.create_node(nid, parent_stack.top(), branch_len[level].front());
             }
+            branch_len[level].pop();
+            level++;
             parent_stack.push(new_node);
         }
-        T.create_node(leaf, parent_stack.top(), branch_len.top());
-        branch_len.pop();
+        T.create_node(leaf, parent_stack.top(), branch_len[level].front());
+        branch_len[level].pop();
         for (size_t j=0; j<nc; j++) {
             parent_stack.pop();
+            level--;
         }
     }
 
