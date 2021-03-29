@@ -12,6 +12,8 @@ po::variables_map parse_introduce_command(po::parsed_options parsed) {
          "Input mutation-annotated tree file [REQUIRED]")
         ("population-samples,s", po::value<std::string>()->required(), 
          "Names of samples from the population of interest [REQUIRED].") 
+        ("additional-info,a", po::bool_switch(),
+        "Set to print clade membership and full mutation paths at inferred introduction points.")
         ("output,o", po::value<std::string>()->required(),
         "Name of the file to save the introduction information to.")
         // ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
@@ -186,7 +188,7 @@ std::map<std::string, int> get_assignments(MAT::Tree* T, std::unordered_set<std:
     return assignments;
 }
 
-std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, std::vector<std::string>> sample_regions) {
+std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, std::vector<std::string>> sample_regions, bool add_info) {
     //for every region, independently assign IN/OUT states
     //and save these assignments into a map of maps
     //so we can check membership of introduction points in each of the other groups
@@ -227,11 +229,19 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
     //looking for introductions.
     std::vector<std::string> outstrs;
     if (region_assignments.size() == 1) {
-        outstrs.push_back("sample\tintroduction_node\tdistance\n");
+        if (add_info) {
+            outstrs.push_back("sample\tintroduction_node\tdistance\tclades\tmutation_path\n");
+        } else {
+            outstrs.push_back("sample\tintroduction_node\tdistance\n");
+        }
     } else {
         //add a column for the putative origin of the sample introduction
         //if we're using multiple regions.
-        outstrs.push_back("sample\tintroduction_node\tdistance\tregion\torigins\n");
+        if (add_info) {
+            outstrs.push_back("sample\tintroduction_node\tdistance\tregion\torigins\tclades\tmutation_path\n");            
+        } else {
+            outstrs.push_back("sample\tintroduction_node\tdistance\tregion\torigins\n");
+        }
     }
     for (auto ra: region_assignments) {
         std::string region = ra.first;
@@ -280,11 +290,53 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                         //if we didn't find anything which has the pre-introduction node at 1, we don't know where it came from
                         origins = "indeterminate";
                     }
+                    //collect additional information if requested.
+                    std::string intro_clades = "";
+                    std::string intro_mut_path = "";
+                    if (add_info) {
+                        //both of these require an rsearch back from the point of origin to the tree root
+                        //mutation path is going to be in reverse for simplicity, so using < to indicate direction
+                        for (auto a: T->rsearch(a->identifier, true)) {
+                            //collect mutations
+                            std::string mutstr;
+                            for (auto m: a->mutations) {
+                                if (mutstr.size() == 0) {
+                                    mutstr += m.get_string();
+                                } else {
+                                    mutstr += "," + m.get_string();
+                                }
+                            }
+                            intro_mut_path += mutstr + "<";
+                            //check for any clade identifiers, record comma delineated
+                            for (auto ann: a->clade_annotations) {
+                                if (ann.size() > 0) {
+                                    if (intro_clades.size() == 0) {
+                                        intro_clades += ann;
+                                    } else {
+                                        intro_clades += "," + ann;
+                                    }    
+                                }
+                            }
+                        }
+                        if (intro_clades.size() == 0) {
+                            intro_clades = "none";
+                        }
+                    }
                     std::stringstream ostr;
                     if (region_assignments.size() == 1) {
-                        ostr << s << "\t" << last_encountered << "\t" << traversed << "\n";
+                        ostr << s << "\t" << last_encountered << "\t" << traversed;
+                        if (add_info) {
+                            ostr << "\t" << intro_clades << "\t" << intro_mut_path << "\n";
+                        } else {
+                            ostr << "\n";
+                        }
                     } else {
-                        ostr << s << "\t" << last_encountered << "\t" << traversed << "\t" << region << "\t" << origins << "\n";
+                        ostr << s << "\t" << last_encountered << "\t" << traversed << "\t" << region << "\t" << origins;
+                        if (add_info) {
+                            ostr << "\t" << intro_clades << "\t" << intro_mut_path << "\n";
+                        } else {
+                            ostr << "\n";
+                        }
                     }
                     outstrs.push_back(ostr.str());
                     break;
@@ -303,6 +355,7 @@ void introduce_main(po::parsed_options parsed) {
     po::variables_map vm = parse_introduce_command(parsed);
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string samples_filename = vm["population-samples"].as<std::string>();
+    bool add_info = vm["additional-info"].as<bool>();
     std::string output_file = vm["output"].as<std::string>();
     // int32_t num_threads = vm["threads"].as<uint32_t>();
 
@@ -313,7 +366,7 @@ void introduce_main(po::parsed_options parsed) {
       T.uncondense_leaves();
     }
     auto region_map = read_two_column(samples_filename);
-    auto outstrings = find_introductions(&T, region_map);
+    auto outstrings = find_introductions(&T, region_map, add_info);
 
     std::ofstream of;
     of.open(output_file);
