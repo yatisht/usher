@@ -487,6 +487,10 @@ int main(int argc, char** argv) {
         timer.Start();
         fprintf(stderr, "Sorting missing samples based on the number of ambiguous bases \n");
         std::stable_sort(missing_samples.begin(), missing_samples.end());
+        // Reverse sorted order if specified
+        if (reverse_sort) {
+            std::reverse(missing_samples.begin(), missing_samples.end());
+        }
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
         
