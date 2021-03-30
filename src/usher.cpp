@@ -517,7 +517,7 @@ int main(int argc, char** argv) {
             fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
         } 
         else {
-            if ((sort_before_placement_1 || sort_before_placement_2 || sort_before_placement_3) && (missing_samples.size() > 1)) {
+            if ((sort_before_placement_1 || sort_before_placement_2) && (missing_samples.size() > 1)) {
                 timer.Start();
                 fprintf(stderr, "Computing parsimony scores and number of parsimony-optimal placements for new samples and using them to sort the samples.\n"); 
                 if (max_trees > 1) {
