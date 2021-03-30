@@ -14,6 +14,8 @@ po::variables_map parse_introduce_command(po::parsed_options parsed) {
          "Names of samples from the population of interest [REQUIRED].") 
         ("additional-info,a", po::bool_switch(),
         "Set to print clade membership and full mutation paths at inferred introduction points.")
+        ("clade-regions,c", po::value<std::string>()->default_value(""),
+        "Set to optionally record, for each clade root in the tree, the support for that clade root being IN each region in the input, as a tsv with the indicated name.")
         ("output,o", po::value<std::string>()->required(),
         "Name of the file to save the introduction information to.")
         // ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
@@ -77,6 +79,38 @@ std::map<std::string, std::vector<std::string>> read_two_column (std::string sam
     }
     infile.close();
     return amap;
+}
+
+void record_clade_regions(MAT::Tree* T, std::map<std::string, std::map<std::string, float>> region_assignments, std::string filename) {
+    //record a tsv with a column for each annotated region (single will have label default)
+    //and a row for each clade label. The contents are the assignment support for that specific clade root being IN the indicated region
+    std::ofstream of;
+    of.open(filename);
+    //write the header line
+    //save the regions into an explicit vector just to make sure we don't get scrambled (iteration over hash maps...)
+    of << "clade\t";
+    std::vector<std::string> region_order;
+    for (auto r: region_assignments) {
+        of << r.first << "\t";
+        region_order.push_back(r.first);
+    }
+    of << "\n";
+
+    for (auto n: T->depth_first_expansion()) {
+        for (auto ca: n->clade_annotations){
+            if (ca.size() > 0) {
+                //we have a clade root here
+                std::stringstream rowstr;
+                rowstr << ca << "\t";
+                for (auto r: region_order) {
+                    auto search = region_assignments[r].find(n->identifier);
+                    //this can be anything from 0 to 1.
+                    rowstr << search->second << "\t";
+                }
+                of << rowstr.str() << "\n";
+            }
+        }
+    }
 }
 
 std::map<std::string, float> get_assignments(MAT::Tree* T, std::unordered_set<std::string> sample_set) {
@@ -200,7 +234,7 @@ std::map<std::string, float> get_assignments(MAT::Tree* T, std::unordered_set<st
     return assignments;
 }
 
-std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, std::vector<std::string>> sample_regions, bool add_info) {
+std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, std::vector<std::string>> sample_regions, bool add_info, std::string clade_output) {
     //for every region, independently assign IN/OUT states
     //and save these assignments into a map of maps
     //so we can check membership of introduction points in each of the other groups
@@ -215,6 +249,11 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
         std::unordered_set<std::string> sample_set(samples.begin(), samples.end());
         auto assignments = get_assignments(T, sample_set);
         region_assignments[region] = assignments;
+    }
+    //if requested, record the clade output
+    if (clade_output.size() > 0) {
+        fprintf(stderr, "Clade root region support requested; recording...\n");
+        record_clade_regions(T, region_assignments, clade_output);
     }
     //there are some significant runtime issues when checking assignment states repeatedly for different groups
     //so I'm going to generate a series of sets of nodes which are 1 for any given assignment
@@ -378,6 +417,7 @@ void introduce_main(po::parsed_options parsed) {
     po::variables_map vm = parse_introduce_command(parsed);
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string samples_filename = vm["population-samples"].as<std::string>();
+    std::string clade_regions = vm["clade-regions"].as<std::string>();
     bool add_info = vm["additional-info"].as<bool>();
     std::string output_file = vm["output"].as<std::string>();
     // int32_t num_threads = vm["threads"].as<uint32_t>();
@@ -389,7 +429,7 @@ void introduce_main(po::parsed_options parsed) {
       T.uncondense_leaves();
     }
     auto region_map = read_two_column(samples_filename);
-    auto outstrings = find_introductions(&T, region_map, add_info);
+    auto outstrings = find_introductions(&T, region_map, add_info, clade_regions);
 
     std::ofstream of;
     of.open(output_file);
