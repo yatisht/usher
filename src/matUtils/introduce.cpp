@@ -242,17 +242,17 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
     std::vector<std::string> outstrs;
     if (region_assignments.size() == 1) {
         if (add_info) {
-            outstrs.push_back("sample\tntroduction_node\tconfidence\tdistance\tclades\tmutation_path\n");
+            outstrs.push_back("sample\tintroduction_node\tintro_confidence\torigin_confidence\tdistance\tclades\tmutation_path\n");
         } else {
-            outstrs.push_back("sample\tintroduction_node\tconfidence\tdistance\n");
+            outstrs.push_back("sample\tintroduction_node\tintro_confidence\torigin_confidence\tconfidence\tdistance\n");
         }
     } else {
         //add a column for the putative origin of the sample introduction
         //if we're using multiple regions.
         if (add_info) {
-            outstrs.push_back("sample\tintroduction_node\tconfidence\tdistance\tregion\torigins\tclades\tmutation_path\n");            
+            outstrs.push_back("sample\tintroduction_node\tintro_confidence\torigin_confidence\tdistance\tregion\torigins\tclades\tmutation_path\n");            
         } else {
-            outstrs.push_back("sample\tintroduction_node\tconfidence\tdistance\tregion\torigins\n");
+            outstrs.push_back("sample\tintroduction_node\tintro_confidence\torigin_confidence\tdistance\tregion\torigins\n");
         }
     }
     for (auto ra: region_assignments) {
@@ -337,14 +337,14 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                     }
                     std::stringstream ostr;
                     if (region_assignments.size() == 1) {
-                        ostr << s << "\t" << last_encountered << "\t" << last_anc_state << "\t" << traversed;
+                        ostr << s << "\t" << last_encountered << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed;
                         if (add_info) {
                             ostr << "\t" << intro_clades << "\t" << intro_mut_path << "\n";
                         } else {
                             ostr << "\n";
                         }
                     } else {
-                        ostr << s << "\t" << last_encountered << "\t" << last_anc_state << "\t" << traversed << "\t" << region << "\t" << origins;
+                        ostr << s << "\t" << last_encountered << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed << "\t" << region << "\t" << origins;
                         if (add_info) {
                             ostr << "\t" << intro_clades << "\t" << intro_mut_path << "\n";
                         } else {
