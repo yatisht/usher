@@ -223,11 +223,13 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
     
     //this structure holds the ID of every node which is 1 in at least one region
     //and all corresponding regions it is 1 for. 
+    std::map<std::string, std::vector<float>> region_cons;
     std::map<std::string, std::vector<std::string>> region_ins;
     for (auto ra: region_assignments) {
         for (auto ass: ra.second) {
             if (ass.second > 0.5) {
                 region_ins[ass.first].push_back(ra.first);
+                region_cons[ass.first].push_back(ass.second);
             }
         }
     }
@@ -242,17 +244,17 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
     std::vector<std::string> outstrs;
     if (region_assignments.size() == 1) {
         if (add_info) {
-            outstrs.push_back("sample\tintroduction_node\tintro_confidence\torigin_confidence\tdistance\tclades\tmutation_path\n");
+            outstrs.push_back("sample\tintroduction_node\tintro_confidence\tparent_confidence\tdistance\tclades\tmutation_path\n");
         } else {
-            outstrs.push_back("sample\tintroduction_node\tintro_confidence\torigin_confidence\tconfidence\tdistance\n");
+            outstrs.push_back("sample\tintroduction_node\tintro_confidence\tparent_confidence\tdistance\n");
         }
     } else {
         //add a column for the putative origin of the sample introduction
         //if we're using multiple regions.
         if (add_info) {
-            outstrs.push_back("sample\tintroduction_node\tintro_confidence\torigin_confidence\tdistance\tregion\torigins\tclades\tmutation_path\n");            
+            outstrs.push_back("sample\tintroduction_node\tintro_confidence\tparent_confidence\tdistance\tregion\torigins\torigins_confidence\tclades\tmutation_path\n");            
         } else {
-            outstrs.push_back("sample\tintroduction_node\tintro_confidence\torigin_confidence\tdistance\tregion\torigins\n");
+            outstrs.push_back("sample\tintroduction_node\tintro_confidence\tparent_confidence\tdistance\tregion\torigins\torigins_confidence\n");
         }
     }
     for (auto ra: region_assignments) {
@@ -285,7 +287,9 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                     //record each region where this is true
                     //(in the single region case, its never true, but its only like two operations to check anyways)
                     std::string origins;
-                    if (region_assignments.size() > 1) {
+                    std::stringstream origins_cons;
+                    //can't assign region of origin if introduction point is root (no information about parent)
+                    if ((region_assignments.size() > 1) & (!a->is_root())) {
                         auto assign_search = region_ins.find(a->identifier);
                         if (assign_search != region_ins.end()) {
                             for (auto r: assign_search->second) {
@@ -295,13 +299,18 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                                     origins += "," + r;
                                 }
                             }
+                            for (auto v: region_cons.find(a->identifier)->second) {
+                                origins_cons << v << ",";
+                            }
                         } else {
                             origins = "indeterminate";
+                            origins_cons << 0.0;
                         }
                     }
                     if (origins.size() == 0) {
                         //if we didn't find anything which has the pre-introduction node at 1, we don't know where it came from
                         origins = "indeterminate";
+                        origins_cons << 0.0;
                     }
                     //collect additional information if requested.
                     std::string intro_clades = "";
@@ -344,7 +353,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                             ostr << "\n";
                         }
                     } else {
-                        ostr << s << "\t" << last_encountered << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed << "\t" << region << "\t" << origins;
+                        ostr << s << "\t" << last_encountered << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed << "\t" << region << "\t" << origins << "\t" << origins_cons.str();
                         if (add_info) {
                             ostr << "\t" << intro_clades << "\t" << intro_mut_path << "\n";
                         } else {
