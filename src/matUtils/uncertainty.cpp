@@ -28,7 +28,7 @@ std::vector<float> get_all_distances(MAT::Node* target, std::vector<std::vector<
                 //stop iterating when its reached the indicated common ancestor (remember, path is sorted nearest to root)
                 break; 
             }
-            tdist += paths[p][i]->branch_length;
+            tdist += paths[p][i]->mutations.size();
 
         //then record the total distance in distvs
         distvs.emplace_back(tdist);
