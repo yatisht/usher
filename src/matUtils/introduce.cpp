@@ -79,7 +79,7 @@ std::map<std::string, std::vector<std::string>> read_two_column (std::string sam
     return amap;
 }
 
-std::map<std::string, int> get_assignments(MAT::Tree* T, std::unordered_set<std::string> sample_set) {
+std::map<std::string, float> get_assignments(MAT::Tree* T, std::unordered_set<std::string> sample_set) {
     /*
     This function applies a heuristic series of steps to label internal nodes as in or out of a geographic area
     based on their relationship to the samples in the input list. The rules are:
@@ -94,13 +94,13 @@ std::map<std::string, int> get_assignments(MAT::Tree* T, std::unordered_set<std:
     Introductions are identified as locations where assignments in an rsearch from an IN sample shift from IN to OUT.
     */
 
-    std::map<std::string, int> assignments;
+    std::map<std::string, float> assignments;
     auto dfs = T->depth_first_expansion();
     for (auto n: dfs) {
         if (n->is_leaf()) {
             //rule 1
             if (sample_set.find(n->identifier) != sample_set.end()) {
-                assignments[n->identifier] = 1;
+                assignments[n->identifier] = 1; 
             } else {
                 assignments[n->identifier] = 0;
             }
@@ -164,23 +164,35 @@ std::map<std::string, int> get_assignments(MAT::Tree* T, std::unordered_set<std:
                         } 
                     }
                 }
+                //update to rule 4- 1 is IN, 0 is OUT, but we want to have in-between numbers to represent relative confidence.
+                //we calculate the balance by computing C=1/(1+((OUT_MD/OUT_LEAVES)/(IN_MD/IN_LEAVES)))
+                //C is near 0 when OUT is large, C is near 1 when IN is large, C is 0.5 when they are the same
                 //now we complete rule 4 by checking the balance.
-                if ((min_to_in / in_leaves.size()) < (min_to_out / out_leaves.size())) {
-                    //IN wins
+                //I am getting lazier about tiebreaking with the new method but... oh well.
+                if (min_to_in == 0) {
+                    //this calculation is unnecessary in these cases.
+                    //tiebreaker for both being 0 is IN with this ordering.
+                    //identical IN sample, its IN.
                     assignments[n->identifier] = 1;
-                } else if ((min_to_in / in_leaves.size()) > (min_to_out / out_leaves.size())) {
-                    //OUT wins
+                } else if (min_to_out == 0) {
                     assignments[n->identifier] = 0;
                 } else {
-                    //if we end up with a tie, the parent state is tiebreaker.
-                    //check if this is the root (this should rarely be the case that its perfectly balanced across the tree)
-                    //(but if it is, we're going to default to OUT)
-                    if (n->is_root()) {
-                        assignments[n->identifier] = 0;
-                    } else {
-                        auto search = assignments.find(n->parent->identifier);
-                        assignments[n->identifier] = search->second;
+                    // fprintf(stderr, "DEBUG: min %ld, mout %ld, ols %ld, ils %ld\n", min_to_in, min_to_out, out_leaves.size(), in_leaves.size());                    
+                    //unnecessary variable declarations because I was hitting floating point exceptions.
+                    //float vor = (min_to_out/out_leaves.size());
+                    //float vir = (min_to_in/in_leaves.size());
+                    float vor = (static_cast<float>(min_to_out) / static_cast<float>(out_leaves.size()));
+                    float vir = (static_cast<float>(min_to_in) / static_cast<float>(in_leaves.size()));
+                    // fprintf(stderr, "DEBUG: or %f, ir %f\n", vor, vir);
+                    float r = (vor/vir);
+                    // fprintf(stderr, "DEBUG: ratio is %f, ", r);
+                    float c = (1/(1+r));
+                    // fprintf(stderr, "confidence is %f\n", c);
+                    if (isnan(c)) {
+                        fprintf(stderr, "DEBUG: nan out. min %ld, mout %ld, ols %ld, ils %ld,", min_to_in, min_to_out, out_leaves.size(), in_leaves.size());                    
+                        fprintf(stderr, " vor %f, vir %f, r %f\n", vor, vir, r);
                     }
+                    assignments[n->identifier] = c;
                 }
             }
         }
@@ -193,7 +205,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
     //and save these assignments into a map of maps
     //so we can check membership of introduction points in each of the other groups
     //this allows us to look for migrant flow between regions
-    std::map<std::string, std::map<std::string, int>> region_assignments;
+    std::map<std::string, std::map<std::string, float>> region_assignments;
     //TODO: This could be parallel for a significant speedup when dozens or hundreds of regions are being passed in
     //I also suspect I could use pointers for the assignment maps to make this more memory efficient
     for (auto ms: sample_regions) {
@@ -214,7 +226,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
     std::map<std::string, std::vector<std::string>> region_ins;
     for (auto ra: region_assignments) {
         for (auto ass: ra.second) {
-            if (ass.second == 1) {
+            if (ass.second > 0.5) {
                 region_ins[ass.first].push_back(ra.first);
             }
         }
@@ -230,17 +242,17 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
     std::vector<std::string> outstrs;
     if (region_assignments.size() == 1) {
         if (add_info) {
-            outstrs.push_back("sample\tintroduction_node\tdistance\tclades\tmutation_path\n");
+            outstrs.push_back("sample\tntroduction_node\tconfidence\tdistance\tclades\tmutation_path\n");
         } else {
-            outstrs.push_back("sample\tintroduction_node\tdistance\n");
+            outstrs.push_back("sample\tintroduction_node\tconfidence\tdistance\n");
         }
     } else {
         //add a column for the putative origin of the sample introduction
         //if we're using multiple regions.
         if (add_info) {
-            outstrs.push_back("sample\tintroduction_node\tdistance\tregion\torigins\tclades\tmutation_path\n");            
+            outstrs.push_back("sample\tintroduction_node\tconfidence\tdistance\tregion\torigins\tclades\tmutation_path\n");            
         } else {
-            outstrs.push_back("sample\tintroduction_node\tdistance\tregion\torigins\n");
+            outstrs.push_back("sample\tintroduction_node\tconfidence\tdistance\tregion\torigins\n");
         }
     }
     for (auto ra: region_assignments) {
@@ -256,9 +268,10 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
             //total_processed++;
             //everything in this vector is going to be 1 (IN) this region
             std::string last_encountered = s;
+            float last_anc_state = 1;
             size_t traversed = 0;
             for (auto a: T->rsearch(s,true)) {
-                int anc_state;
+                float anc_state;
                 if (a->is_root()) {
                     //if we get back to the root, the root is necessarily the point of introduction for this sample
                     last_encountered = a->identifier;
@@ -267,7 +280,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                     //every node should be in assignments at this point.
                     anc_state = assignments.find(a->identifier)->second;
                 }
-                if (anc_state == 0) {
+                if (anc_state < 0.5) {
                     //check whether this 0 node is 1 in any other region
                     //record each region where this is true
                     //(in the single region case, its never true, but its only like two operations to check anyways)
@@ -324,14 +337,14 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                     }
                     std::stringstream ostr;
                     if (region_assignments.size() == 1) {
-                        ostr << s << "\t" << last_encountered << "\t" << traversed;
+                        ostr << s << "\t" << last_encountered << "\t" << last_anc_state << "\t" << traversed;
                         if (add_info) {
                             ostr << "\t" << intro_clades << "\t" << intro_mut_path << "\n";
                         } else {
                             ostr << "\n";
                         }
                     } else {
-                        ostr << s << "\t" << last_encountered << "\t" << traversed << "\t" << region << "\t" << origins;
+                        ostr << s << "\t" << last_encountered << "\t" << last_anc_state << "\t" << traversed << "\t" << region << "\t" << origins;
                         if (add_info) {
                             ostr << "\t" << intro_clades << "\t" << intro_mut_path << "\n";
                         } else {
@@ -342,6 +355,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                     break;
                 } else {
                     last_encountered = a->identifier;
+                    last_anc_state = anc_state;
                     traversed += a->mutations.size();
                 }
             }
