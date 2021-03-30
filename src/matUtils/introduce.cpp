@@ -218,7 +218,7 @@ std::map<std::string, float> get_assignments(MAT::Tree* T, std::unordered_set<st
                     float vor = (static_cast<float>(min_to_out) / static_cast<float>(out_leaves.size()));
                     float vir = (static_cast<float>(min_to_in) / static_cast<float>(in_leaves.size()));
                     // fprintf(stderr, "DEBUG: or %f, ir %f\n", vor, vir);
-                    float r = (vor/vir);
+                    float r = (vir/vor);
                     // fprintf(stderr, "DEBUG: ratio is %f, ", r);
                     float c = (1/(1+r));
                     // fprintf(stderr, "confidence is %f\n", c);
