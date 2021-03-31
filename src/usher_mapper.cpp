@@ -59,7 +59,7 @@ int mapper_body::operator()(mapper_input input) {
             // If variant is for the missing sample to be placed, simply add the
             // variant to the sample mutation list
             else {
-                auto mutations_iter = input.missing_sample_mutations->begin() + (iter - input.missing_samples->begin());
+                //auto mutations_iter = input.missing_sample_mutations->begin() + (iter - input.missing_samples->begin());
                 data_lock.lock();
                 MAT::Mutation m;
                 m.chrom = input.chrom;
@@ -73,7 +73,7 @@ int mapper_body::operator()(mapper_input input) {
                     assert ((nuc > 0) && (nuc < 15));
                     m.mut_nuc = nuc;
                 }
-                (*mutations_iter).emplace_back(m);
+                (*iter).mutations.emplace_back(m);
                 data_lock.unlock();
             }
         }
