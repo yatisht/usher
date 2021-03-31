@@ -27,6 +27,7 @@ int main(int argc, char** argv) {
     uint32_t max_uncertainty;
     bool sort_before_placement_1 = false;
     bool sort_before_placement_2 = false;
+    bool sort_before_placement_3 = false;
     bool reverse_sort = false;
     bool collapse_tree=false;
     bool collapse_output_tree=false;
@@ -48,6 +49,8 @@ int main(int argc, char** argv) {
          "Sort new samples based on computed parsimony score and then number of optimal placements before the actual placement [EXPERIMENTAL].")
         ("sort-before-placement-2,S", po::bool_switch(&sort_before_placement_2), \
          "Sort new samples based on the number of optimal placements and then the parsimony score before the actual placement [EXPERIMENTAL].")
+        ("sort-before-placement-3,A", po::bool_switch(&sort_before_placement_3), \
+         "Sort new samples based on the number of ambiguous bases [EXPERIMENTAL].")
         ("reverse-sort,r", po::bool_switch(&reverse_sort), \
          "Reverse the sorting order of sorting options (sort-before-placement-1 or sort-before-placement-2) [EXPERIMENTAL]")
         ("collapse-tree,c", po::bool_switch(&collapse_tree), \
@@ -92,12 +95,12 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    if (sort_before_placement_1 && sort_before_placement_2) {
-        std::cerr << "ERROR: Can't use sort-before-placement-1 and sort-before-placement-2 simultaneously. Please specify only one.\n";
+    if (sort_before_placement_1 + sort_before_placement_2 + sort_before_placement_3 > 1) {
+        std::cerr << "ERROR: Can't use two or more of sort-before-placement-1, sort-before-placement-2 and sort-before-placement-3 simultaneously. Please specify only one.\n";
         return 1;
     }
 
-    if (sort_before_placement_1 || sort_before_placement_2) { 
+    if (sort_before_placement_1 || sort_before_placement_2 || sort_before_placement_3) { 
         std::cerr << "WARNING: Using experimental option ";
         if (sort_before_placement_1) {
             std::cerr << "--sort-before-placement-1 (-s)\n";
@@ -105,9 +108,12 @@ int main(int argc, char** argv) {
         if (sort_before_placement_2) {
             std::cerr << "--sort-before-placement-2 (-S)\n";
         }
+        if (sort_before_placement_3) {
+            std::cerr << "--sort-before-placement-3 (-A)\n";
+        }
     }
     else if (reverse_sort) {
-        std::cerr << "ERROR: Can't use reverse-sort without sorting options (sort-before-placement-1 or sort-before-placement-2)\n";
+        std::cerr << "ERROR: Can't use reverse-sort without sorting options (sort-before-placement-1 or sort-before-placement-2 or sort-before-placement-3)\n";
         return 1;
     }
 
@@ -117,7 +123,8 @@ int main(int argc, char** argv) {
             return 1;
         }
     
-        if (sort_before_placement_1 || sort_before_placement_2 || collapse_tree || collapse_output_tree || print_uncondensed_tree || (print_subtrees_size > 0) || (dout_filename != "")) {
+        if (sort_before_placement_1 || sort_before_placement_2 || sort_before_placement_3 ||
+                collapse_tree || collapse_output_tree || print_uncondensed_tree || (print_subtrees_size > 0) || (dout_filename != "")) {
             fprintf (stderr, "WARNING: --print-parsimony-scores-per-node is set. Will terminate without modifying the original tree.\n");
         }
     }
@@ -183,9 +190,7 @@ int main(int argc, char** argv) {
     // Variables below used to store the different fields of the input VCF file 
     bool header_found = false;
     std::vector<std::string> variant_ids;
-    std::vector<std::string> missing_samples;
-    std::vector<std::vector<MAT::Mutation>> missing_sample_mutations;
-    size_t num_missing = 0;
+    std::vector<Missing_Sample> missing_samples;
 
     // Vector used to store all tree nodes in breadth-first search (BFS) order
     std::vector<MAT::Node*> bfs;
@@ -274,11 +279,11 @@ int main(int argc, char** argv) {
                       variant_ids.emplace_back(words[j]);
                       // If sample name not in tree, add it to missing_samples
                       if (bfs_idx.find(words[j]) == bfs_idx.end()) {
-                        missing_samples.emplace_back(words[j]);
-                        num_missing++;
+                        missing_samples.emplace_back(Missing_Sample(words[j]));
+//                        num_missing++;
                       }
                     }
-                    missing_sample_mutations.resize(num_missing);
+//                    missing_sample_mutations.resize(num_missing);
                     header_found = true;
                   }
                 }
@@ -299,7 +304,6 @@ int main(int argc, char** argv) {
                     inp.bfs_idx = &bfs_idx;
                     inp.variant_ids = &variant_ids;
                     inp.missing_samples = &missing_samples;
-                    inp.missing_sample_mutations = &missing_sample_mutations;
                     // Ref nuc id uses one-hot encoding (A:0b1, C:0b10, G:0b100,
                     // T:0b1000)
                     inp.ref_nuc = MAT::get_nuc_id(words[3][0]);
@@ -375,15 +379,13 @@ int main(int argc, char** argv) {
                     for (size_t j=9; j < words.size(); j++) {
                         variant_ids.emplace_back(words[j]);
                         if ((T->get_node(words[j]) == NULL) && (T->condensed_leaves.find(words[j]) == T->condensed_leaves.end())) {
-                            missing_samples.emplace_back(words[j]);
-                            num_missing++;
+                            missing_samples.emplace_back(Missing_Sample(words[j]));
                             missing_idx.emplace_back(j);
                         }
                         else {
                             fprintf(stderr, "WARNING: Ignoring sample %s as it is already in the tree.\n", words[j].c_str());
                         }
                     }
-                    missing_sample_mutations.resize(num_missing);
                     header_found = true;
                 }
             }
@@ -400,7 +402,6 @@ int main(int argc, char** argv) {
                     auto iter = missing_samples.begin();
                     std::advance(iter, k);
                     if (iter != missing_samples.end()) {
-                        auto mutations_iter = missing_sample_mutations.begin() + (iter - missing_samples.begin());
                         MAT::Mutation m;
                         m.chrom = words[0];
                         m.position = std::stoi(words[1]);
@@ -428,13 +429,16 @@ int main(int argc, char** argv) {
                                     }
                                     m.mut_nuc = nuc;
                                 }
-                                (*mutations_iter).emplace_back(m);
+                                (*iter).mutations.emplace_back(m);
                             }
                         }
                         else {
                             m.is_missing = true;
                             m.mut_nuc = MAT::get_nuc_id('N');
-                            (*mutations_iter).emplace_back(m);
+                            (*iter).mutations.emplace_back(m);
+                        }
+                        if ((m.mut_nuc & (m.mut_nuc-1)) !=0) {
+                            (*iter).num_ambiguous++;
                         }
                     }
                 }
@@ -477,6 +481,18 @@ int main(int argc, char** argv) {
     fprintf(stderr, "Found %zu missing samples.\n\n", missing_samples.size()); 
 
     FILE* parsimony_scores_file = NULL; 
+
+    //Sort samples based on number of ambiguous bases if specified
+    if (sort_before_placement_3) {
+        timer.Start();
+        fprintf(stderr, "Sorting missing samples based on the number of ambiguous bases \n");
+        std::stable_sort(missing_samples.begin(), missing_samples.end());
+        // Reverse sorted order if specified
+        if (reverse_sort) {
+            std::reverse(missing_samples.begin(), missing_samples.end());
+        }
+        fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+    }
         
     // If samples found in VCF that are missing from the input tree, they are
     // now placed using maximum parsimony or if print_parsimony_score is set,
@@ -521,7 +537,7 @@ int main(int argc, char** argv) {
                 for (size_t s=0; s<missing_samples.size(); s++) {
 
                     //Sort the missing sample mutations by position
-                    std::sort(missing_sample_mutations[s].begin(), missing_sample_mutations[s].end());
+                    std::sort(missing_samples[s].mutations.begin(), missing_samples[s].mutations.end());
 
                     auto dfs = T->depth_first_expansion();
                     size_t total_nodes = dfs.size();
@@ -556,7 +572,7 @@ int main(int argc, char** argv) {
                     // TODO: currently number of root mutations is also added to
                     // this value since it forces placement as child but this
                     // could be changed later 
-                    int best_set_difference = missing_sample_mutations[s].size() + T->root->mutations.size() + 1;
+                    int best_set_difference = missing_samples[s].mutations.size() + T->root->mutations.size() + 1;
 
                     size_t best_j = 0;
                     size_t num_best = 1;
@@ -576,7 +592,7 @@ int main(int argc, char** argv) {
                                 mapper2_input inp;
                                 inp.T = T;
                                 inp.node = dfs[k];
-                                inp.missing_sample_mutations = &missing_sample_mutations[s];
+                                inp.missing_sample_mutations = &missing_samples[s].mutations;
                                 inp.excess_mutations = &node_excess_mutations[k];
                                 inp.imputed_mutations = &node_imputed_mutations[k];
                                 inp.best_node_num_leaves = &best_node_num_leaves;
@@ -638,7 +654,7 @@ int main(int argc, char** argv) {
                 }
 
                 size_t s = indexes[idx];
-                auto sample = missing_samples[s];
+                auto sample = missing_samples[s].name;
 
                 if (print_parsimony_scores) {
                     auto parsimony_scores_filename = outdir + "/parsimony-scores.tsv";
@@ -683,7 +699,7 @@ int main(int argc, char** argv) {
                 // TODO: currently number of root mutations is also added to
                 // this value since it forces placement as child but this
                 // could be changed later 
-                int best_set_difference = missing_sample_mutations[s].size() + T->root->mutations.size() + 1;
+                int best_set_difference = missing_samples[s].mutations.size() + T->root->mutations.size() + 1;
                 
                 size_t best_j = 0;
                 bool best_node_has_unique = false;
@@ -704,7 +720,7 @@ int main(int argc, char** argv) {
                         mapper2_input inp;
                         inp.T = T;
                         inp.node = dfs[k];
-                        inp.missing_sample_mutations = &missing_sample_mutations[s];
+                        inp.missing_sample_mutations = &missing_samples[s].mutations;
                         inp.excess_mutations = &node_excess_mutations[k];
                         inp.imputed_mutations = &node_imputed_mutations[k];
                         inp.best_node_num_leaves = &best_node_num_leaves;
@@ -753,8 +769,8 @@ int main(int argc, char** argv) {
                 // best node and the list of mutations at the best node
 #if DEBUG == 1
                 fprintf (stderr, "Sample mutations:\t");
-                if (missing_sample_mutations[s].size() > 0) {
-                    for (auto m: missing_sample_mutations[s]) {
+                if (missing_samples[s].mutations.size() > 0) {
+                    for (auto m: missing_samples[s].mutations) {
                         if (m.is_missing) {
                             continue;
                         }
@@ -1163,7 +1179,7 @@ int main(int argc, char** argv) {
             FILE* mutation_paths_file = fopen(mutation_paths_filename.c_str(), "w");
 
             for (size_t s=0; s<missing_samples.size(); s++) {
-                auto sample = missing_samples[s];
+                auto sample = missing_samples[s].name;
                 auto sample_node = T->get_node(sample);
                 
                 // If the missing sample is not found in the tree, it was not placed
@@ -1247,7 +1263,7 @@ int main(int argc, char** argv) {
                 FILE* annotations_file = fopen(annotations_filename.c_str(), "w");
 
                 for (size_t s=0; s<missing_samples.size(); s++) {
-                    auto sample = missing_samples[s];
+                    auto sample = missing_samples[s].name;
                     std::vector<std::string> sample_annotations(num_annotations, "UNDEFINED");
                     for (auto anc: T->rsearch(sample, true)) {
                         for (size_t k=0; k<num_annotations; k++) {
@@ -1291,7 +1307,7 @@ int main(int argc, char** argv) {
 
             std::set<MAT::Node*> leaves_to_keep_set;
             for (size_t i = 0; i < missing_samples.size(); i++) {
-                leaves_to_keep_set.insert(T->get_node(missing_samples[i]));
+                leaves_to_keep_set.insert(T->get_node(missing_samples[i].name));
             }
 
             auto all_leaves = T->get_leaves();
@@ -1421,7 +1437,7 @@ int main(int argc, char** argv) {
             // because of max_uncertainty. Mark those samples as already
             // displayed. 
             for (size_t ms_idx = 0; ms_idx < missing_samples.size(); ms_idx++) {
-                if (T->get_node(missing_samples[ms_idx]) == NULL) {
+                if (T->get_node(missing_samples[ms_idx].name) == NULL) {
                     displayed_mising_sample[ms_idx] = true;
                 }
             }
@@ -1432,12 +1448,12 @@ int main(int argc, char** argv) {
                     continue;
                 }
 
-                MAT::Node* last_anc = T->get_node(missing_samples[i]);
+                MAT::Node* last_anc = T->get_node(missing_samples[i].name);
                 std::vector<std::string> leaves_to_keep;
 
                 // Keep moving up the tree till a subtree of required size is
                 // found
-                for (auto anc: T->rsearch(missing_samples[i], true)) {
+                for (auto anc: T->rsearch(missing_samples[i].name, true)) {
                     size_t num_leaves = T->get_num_leaves(anc);
                     if (num_leaves <= nearest_subtree_size) {
                         last_anc = anc;
@@ -1490,7 +1506,7 @@ int main(int argc, char** argv) {
                             for (size_t j=r.begin(); j<r.end(); ++j){
                               for (size_t j = i+1; j < missing_samples.size(); j++) {
                                 if (!displayed_mising_sample[j]) {
-                                  if (new_T.get_node(missing_samples[j]) != NULL) {
+                                  if (new_T.get_node(missing_samples[j].name) != NULL) {
                                     displayed_mising_sample[j] = true;
                                    }
                                  }

@@ -1,5 +1,6 @@
 #include "optimize.hpp"
 #include <time.h>  
+#include <set>  
 
 Timer timer;
 
@@ -13,6 +14,8 @@ po::variables_map check_options(int argc, char** argv) {
          "Input mutation-annotated tree file to optimize [REQUIRED].")
         ("output-mat,o", po::value<std::string>()->required(),
          "Output optimized mutation-annotated tree file [REQUIRED].") 
+        ("sample-names,f", po::value<std::string>()->default_value(""),
+         "File containing sample names whose ancestral nodes would be considered for optimization.") 
         ("radius,r", po::value<uint32_t>()->default_value(10), \
          "Radius in which to restrict the SPR moves.")
         ("optimization-seconds,s", po::value<uint32_t>()->default_value(3600), \
@@ -396,6 +399,7 @@ int main(int argc, char** argv) {
     po::variables_map vm = check_options(argc, argv);
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string output_mat_filename = vm["output-mat"].as<std::string>();
+    std::string sample_name_filename = vm["sample-names"].as<std::string>();
     uint32_t max_seconds = vm["optimization-seconds"].as<uint32_t>();
     uint32_t save_every = vm["save-every-seconds"].as<uint32_t>();
     uint32_t radius = vm["radius"].as<uint32_t>();
@@ -420,49 +424,83 @@ int main(int argc, char** argv) {
     fprintf(stderr, "The parsimony score for this MAT is %zu\n", T.get_parsimony_score());
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 
-    timer.Start();
-    fprintf(stderr, "Starting tree optimization.\n\n"); 
-
     float last_update = 0;
     
+    timer.Start();
     fprintf(stderr, "Finding the nodes to prune.\n");
     auto bfs = T.breadth_first_expansion();
     
-    std::vector<std::string> nodes_to_prune;
+    std::set<std::string> nodes_to_prune;
+    
+    if (sample_name_filename != "") {
+        std::ifstream infile(sample_name_filename);
+        if (!infile) {
+            fprintf(stderr, "ERROR: Could not open the sample name file: %s!\n", sample_name_filename.c_str());
+            exit(1);
+        }    
+        std::string line;
 
-    for (auto n: bfs) {
-        if ((n == T.root) || (n->level < 4)) {
-            continue;
-        }
-        size_t count=0;
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, bfs.size()),
-                [&](const tbb::blocked_range<size_t> r) {
-                for (size_t i=r.begin(); i<r.end(); ++i){
-                    auto n2 = bfs[i];
-                    if (n == n2) {
-                        continue;
-                    }
-                    for (auto m1: n->mutations) {
-                        for (auto m2: n2->mutations) {
-                            if  (m1.position == m2.position)  {
-                                if (get_node_distance(T, n, n2) <= radius) {
-                                    __sync_fetch_and_add(&count, 1);
-                                }
-                            }
-                        }
+        fprintf(stderr, "Reading sample name file.\n"); 
+        timer.Start();
+        while (std::getline(infile, line)) {
+            std::vector<std::string> words;
+            MAT::string_split(line, words);
+            if (words.size() != 1) {
+                fprintf(stderr, "ERROR: Incorrect format for sample name file: %s!\n", sample_name_filename.c_str());
+                exit(1);
+            }
+            auto n = T.get_node(words[0]);
+            if (n == NULL) {
+                fprintf(stderr, "WARNING: Node id %s not found in the tree!\n", words[0].c_str());
+                exit(1);
+            }
+            else {
+                for (auto anc: T.rsearch(words[0], true)) {
+                    if (anc->level >= 4) { 
+                        nodes_to_prune.insert(anc->identifier);
                     }
                 }
-            }, ap);
+            }
+        }
+        infile.close();
+    }
 
-        if (count > 0) {
-            nodes_to_prune.emplace_back(n->identifier);
+    else {
+        for (auto n: bfs) {
+            if ((n == T.root) || (n->level < 4)) {
+                continue;
+            }
+            size_t count=0;
+            tbb::parallel_for(tbb::blocked_range<size_t>(0, bfs.size()),
+                    [&](const tbb::blocked_range<size_t> r) {
+                    for (size_t i=r.begin(); i<r.end(); ++i){
+                    auto n2 = bfs[i];
+                    if (n == n2) {
+                    continue;
+                    }
+                    for (auto m1: n->mutations) {
+                    for (auto m2: n2->mutations) {
+                    if  (m1.position == m2.position)  {
+                    if (get_node_distance(T, n, n2) <= radius) {
+                    __sync_fetch_and_add(&count, 1);
+                    }
+                    }
+                    }
+                    }
+                    }
+                    }, ap);
+
+            if (count > 0) {
+                nodes_to_prune.insert(n->identifier);
+            }
         }
     }
 
-    // Shuffle the nodes to be pruned
-    std::random_shuffle(nodes_to_prune.begin(), nodes_to_prune.end());
-
-    fprintf(stderr, "%zu nodes found to prune.\n\n", nodes_to_prune.size());
+    fprintf(stderr, "%zu nodes found to prune.\n", nodes_to_prune.size());
+    fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+    
+    timer.Start();
+    fprintf(stderr, "Starting tree optimization.\n\n"); 
 
     auto best_parsimony_score = T.get_parsimony_score();
     for (auto nid_to_prune: nodes_to_prune) {

@@ -78,6 +78,7 @@ MAT::Tree get_sample_prune (const MAT::Tree& T, std::vector<std::string> sample_
 
 void resolve_polytomy(MAT::Tree* T, std::vector<MAT::Node*> polytomy_nodes) {
     assert (polytomy_nodes.size() > 2);
+    // fprintf(stderr, "DEBUG: Resolving polytomy with %ld children\n", polytomy_nodes.size());
     std::vector<MAT::Node*> new_parents;
     auto og_parent = polytomy_nodes[0]->parent;
     new_parents.push_back(og_parent);
@@ -108,24 +109,20 @@ MAT::Tree resolve_all_polytomies(MAT::Tree T) {
     //go through the tree, identify every uncondensed polytomy
     //then resolve the polytomy positionally and save the results
     //this will conflict with condensing the tree but that's fine.
-    for (auto l: T.get_leaves()) {
-        //for every leaf, check the leaf's parent's children
-        //parallel to the implementation for node condensing in the class definition
-        //adding lots of safety checks to minimize strange behavior, though leaves we care about should always pass these
-        //same checks as the node condenser routine.
-        if (l == NULL || l->mutations.size() > 0) {
-            continue;
+
+    //step one is go through the tree and delete all single children nodes.
+    for (auto n: T.depth_first_expansion()) {
+        if (n->children.size() == 1) {
+            //remove nodes with only one child when resolving to a binary tree.
+            T.remove_node(n->identifier, true);
         }
-        std::vector<MAT::Node*> polytomy_nodes;
-        for (auto l2: l->parent->children) {
-            if (l2->is_leaf() && (T.get_node(l2->identifier) != NULL) && (l2->mutations.size() == 0)) {
-                polytomy_nodes.push_back(l2);
-            }
-        }
+    }
+    
+    for (auto n: T.depth_first_expansion()) {
         //greater than 2 because a polytomy of two nodes is already resolved (unlike condenser, which can condense a polytomy of 2)
-        if (polytomy_nodes.size() > 2) {
+        if (n->children.size() > 2) {
             //pass by reference, modify in place
-            resolve_polytomy(&T, polytomy_nodes);
+            resolve_polytomy(&T, n->children);
         }
     }
     return T;
