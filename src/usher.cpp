@@ -769,8 +769,8 @@ int main(int argc, char** argv) {
                 // best node and the list of mutations at the best node
 #if DEBUG == 1
                 fprintf (stderr, "Sample mutations:\t");
-                if (missing_sample[s].mutations.size() > 0) {
-                    for (auto m: missing_sample[s].mutations) {
+                if (missing_samples[s].mutations.size() > 0) {
+                    for (auto m: missing_samples[s].mutations) {
                         if (m.is_missing) {
                             continue;
                         }
