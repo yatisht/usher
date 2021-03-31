@@ -17,7 +17,9 @@ po::variables_map parse_mask_command(po::parsed_options parsed) {
         // ("create-pseudosample,p", po::value<size_t>()->default_value(0),
         // "Set to a positive integer to collapse groups of p samples into single pseudosamples containing their mutational information.")
         ("restricted-samples,s", po::value<std::string>()->default_value(""), 
-         "Sample names to restrict. Use to perform masking of specific samples and their mutations only") 
+         "Sample names to restrict. Use to perform masking") 
+        ("rename-samples,r", po::value<std::string>()->default_value(""), 
+         "Name of the TSV file containing names of the samples to be renamed and their new names") 
         ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
         ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
@@ -50,6 +52,7 @@ void mask_main(po::parsed_options parsed) {
     std::string samples_filename = vm["restricted-samples"].as<std::string>();
     // size_t pseudosample_size = vm["create-pseudosample"].as<size_t>();
     bool simplify = vm["simplify"].as<bool>();
+    std::string rename_filename = vm["rename-samples"].as<std::string>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
 
     tbb::task_scheduler_init init(num_threads);
@@ -60,6 +63,7 @@ void mask_main(po::parsed_options parsed) {
     if (T.condensed_nodes.size() > 0) {
       T.uncondense_leaves();
     }
+
     // If a restricted samples file was provided, perform masking procedure
     if (samples_filename != "") {
         fprintf(stderr, "Performing Masking...\n");
@@ -75,6 +79,13 @@ void mask_main(po::parsed_options parsed) {
         fprintf(stderr, "Recondensing leaves..\n");
         T.condense_leaves();
     }
+
+    // If a rename file was provided, perform renaming procedure
+    if (rename_filename != "") {
+        fprintf(stderr, "Performing Renaming\n");
+        renameSamples(rename_filename, T);
+    }
+
     // Store final MAT to output file
     if (output_mat_filename != "") {
         fprintf(stderr, "Saving Final Tree\n");
@@ -135,8 +146,33 @@ void simplify_tree(MAT::Tree* T) {
     }
 }
 
-void restrictSamples (std::string samples_filename, MAT::Tree& T) {
+void renameSamples (std::string rename_filename, MAT::Tree& T) {
     
+    std::ifstream infile(rename_filename);
+    if (!infile) {
+        fprintf(stderr, "ERROR: Could not open the renaming file: %s!\n", rename_filename.c_str());
+        exit(1);
+    }    
+    std::string line;
+    while (std::getline(infile, line)) {
+        std::vector<std::string> words;
+        MAT::string_split(line, words);
+        if (words.size() != 2) {
+            fprintf(stderr, "ERROR: Incorrect format for the renaming file: %s!\n", rename_filename.c_str());
+            exit(1);
+        }
+        if (T.get_node(words[0]) == NULL) {
+            fprintf(stderr, "WARNING: Node %s not found in the MAT.\n", words[0].c_str());
+        }
+        else {
+            fprintf(stderr, "Renaming node %s to %s.\n", words[0].c_str(), words[1].c_str());
+            T.rename_node(words[0], words[1]);
+        }
+    }
+}
+
+
+void restrictSamples (std::string samples_filename, MAT::Tree& T) {
     std::ifstream infile(samples_filename);
     if (!infile) {
         fprintf(stderr, "ERROR: Could not open the restricted samples file: %s!\n", samples_filename.c_str());
