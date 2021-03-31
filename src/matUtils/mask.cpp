@@ -12,6 +12,8 @@ po::variables_map parse_mask_command(po::parsed_options parsed) {
          "Input mutation-annotated tree file [REQUIRED]")
         ("output-mat,o", po::value<std::string>()->required(),
          "Path to output masked mutation-annotated tree file [REQUIRED]")
+        ("simplify,S", po::bool_switch(),
+        "Use to automatically remove identifying information from the tree, including all sample names and private mutations.")
         ("restricted-samples,s", po::value<std::string>()->default_value(""), 
          "Sample names to restrict. Use to perform masking") 
         ("rename-samples,r", po::value<std::string>()->default_value(""), 
@@ -46,11 +48,18 @@ void mask_main(po::parsed_options parsed) {
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string output_mat_filename = vm["output-mat"].as<std::string>();
     std::string samples_filename = vm["restricted-samples"].as<std::string>();
+    bool simplify = vm["simplify"].as<bool>();
     std::string rename_filename = vm["rename-samples"].as<std::string>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
 
     tbb::task_scheduler_init init(num_threads);
 
+    //check for mutually exclusive arguments
+    if ((simplify) & (rename_filename != "")) {
+        //doesn't make any sense to rename nodes after you just scrambled their names. Or to rename them, then scramble them.
+        fprintf(stderr, "ERROR: Sample renaming and simplification are mutually exclusive operations. Review argument choices\n");
+        exit(1);
+    }
     // Load input MAT and uncondense tree
     MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
     //T here is the actual object.
@@ -60,8 +69,14 @@ void mask_main(po::parsed_options parsed) {
 
     // If a restricted samples file was provided, perform masking procedure
     if (samples_filename != "") {
-        fprintf(stderr, "Performing Masking\n");
+        fprintf(stderr, "Performing Masking...\n");
         restrictSamples(samples_filename, T);
+    }
+    if (simplify) {
+        fprintf(stderr, "Removing identifying information...\n");
+        simplify_tree(&T);
+        fprintf(stderr, "Recondensing leaves..\n");
+        T.condense_leaves();
     }
 
     // If a rename file was provided, perform renaming procedure
@@ -75,6 +90,26 @@ void mask_main(po::parsed_options parsed) {
         fprintf(stderr, "Saving Final Tree\n");
         MAT::save_mutation_annotated_tree(T, output_mat_filename);
     }    
+}
+
+void simplify_tree(MAT::Tree* T) {
+    /*
+    This function is intended for the removal of potentially problematic information from the tree while keeping the core structure.
+    This renames all samples to arbitrary numbers, similar to internal nodes, and removes sample mutations.
+    */
+    auto all_leaves = T->get_leaves();
+    std::random_shuffle(all_leaves.begin(), all_leaves.end());
+    int rid = 0;
+    for (auto l: all_leaves) {
+        //only leaves need to have their information altered.
+        //remove the mutations first, then change the identifier.
+        l->mutations.clear();
+        std::stringstream nname;
+        //add the l to distinguish them from internal node IDs
+        nname << "l" << rid;
+        T->rename_node(l->identifier, nname.str());
+        rid++;
+    }
 }
 
 void renameSamples (std::string rename_filename, MAT::Tree& T) {
