@@ -13,9 +13,7 @@ po::variables_map parse_mask_command(po::parsed_options parsed) {
         ("output-mat,o", po::value<std::string>()->required(),
          "Path to output masked mutation-annotated tree file [REQUIRED]")
         ("simplify,S", po::bool_switch(),
-        "Use to automatically mask identifying information from the tree, including all sample names and private mutations.")
-        // ("create-pseudosample,p", po::value<size_t>()->default_value(0),
-        // "Set to a positive integer to collapse groups of p samples into single pseudosamples containing their mutational information.")
+        "Use to automatically remove identifying information from the tree, including all sample names and private mutations.")
         ("restricted-samples,s", po::value<std::string>()->default_value(""), 
          "Sample names to restrict. Use to perform masking") 
         ("rename-samples,r", po::value<std::string>()->default_value(""), 
@@ -50,7 +48,6 @@ void mask_main(po::parsed_options parsed) {
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string output_mat_filename = vm["output-mat"].as<std::string>();
     std::string samples_filename = vm["restricted-samples"].as<std::string>();
-    // size_t pseudosample_size = vm["create-pseudosample"].as<size_t>();
     bool simplify = vm["simplify"].as<bool>();
     std::string rename_filename = vm["rename-samples"].as<std::string>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
@@ -69,10 +66,6 @@ void mask_main(po::parsed_options parsed) {
         fprintf(stderr, "Performing Masking...\n");
         restrictSamples(samples_filename, T);
     }
-    // if (pseudosample_size > 0) {
-    //     fprintf(stderr, "Collapsing groups into pseudosamples...\n");
-    //     create_pseudosamples(&T, pseudosample_size);
-    // }
     if (simplify) {
         fprintf(stderr, "Removing identifying information...\n");
         simplify_tree(&T);
@@ -91,39 +84,6 @@ void mask_main(po::parsed_options parsed) {
         fprintf(stderr, "Saving Final Tree\n");
         MAT::save_mutation_annotated_tree(T, output_mat_filename);
     }    
-}
-
-void create_pseudosamples(MAT::Tree* T, size_t min_terminals) {
-    //this function goes through the tree and collapses groups of leaves into pseudosamples
-    //each internal node with exactly min_terminals is collapsed into a single pseudosample
-    //first, we iterate through and record all the points we're going to collapse to
-    //in order to avoid issues with a changing DFS as we iterate
-    std::vector<MAT::Node*> targets;
-    for (auto n: T->breadth_first_expansion()) {
-        if ((T->get_leaves(n->identifier).size() == min_terminals) | (n->children.size() >= min_terminals)) {
-            //we check on either the total terminals being exactly equal to the minimum cutoff
-            //or collapse an immediate polytomy which may have more than the minimum terminals
-            //we allow >= for immediate children only.
-            //record the actual pointer.
-            targets.push_back(n);
-        }
-    }
-    fprintf(stderr, "DEBUG: %ld nodes targeted for collapse points\n", targets.size());
-    for (auto t: targets) {
-        MAT::Node* new_node = T->create_node("pseudo_" + t->identifier, t->parent, t->branch_length);
-
-        auto subtree = T->depth_first_expansion(t);
-        for (auto c: subtree) {
-            //shove its mutations into the target node
-            for (auto m: c->mutations) {
-                new_node->mutations.push_back(m);
-            }
-        }
-        //delete the original node. this will remove all its children as well.
-        T->remove_node(t->identifier, true);
-        //check that we have a leaf.
-        assert (new_node->is_leaf());
-    }
 }
 
 void simplify_tree(MAT::Tree* T) {
