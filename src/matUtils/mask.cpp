@@ -54,6 +54,12 @@ void mask_main(po::parsed_options parsed) {
 
     tbb::task_scheduler_init init(num_threads);
 
+    //check for mutually exclusive arguments
+    if ((simplify) & (rename_filename != "")) {
+        //doesn't make any sense to rename nodes after you just scrambled their names. Or to rename them, then scramble them.
+        fprintf(stderr, "ERROR: Sample renaming and simplification are mutually exclusive operations. Review argument choices\n");
+        exit(1);
+    }
     // Load input MAT and uncondense tree
     MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
     //T here is the actual object.
