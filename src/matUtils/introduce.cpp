@@ -81,6 +81,64 @@ std::map<std::string, std::vector<std::string>> read_two_column (std::string sam
     return amap;
 }
 
+float get_association_index(MAT::Tree* T, std::map<std::string, float> assignments, MAT::Node* subroot) {
+    /*
+    The association index was introduced by Wang et al 2001 for the estimation of phylogeny and trait correlation. Parker et al 2008 has a good summary.
+    It's an index that is small for strong correlation and large for weak correlation, with non-integer values.
+    AI = sum(for all internal nodes) (1-tips_with_trait) / (2 ^ (total_tips - 1))
+    This can be calculated for a full tree or for an introduction-specific subtree.
+    */
+    float total_ai = 0.0;
+    for (auto n: T->depth_first_expansion(subroot)) {
+        if (!n->is_leaf()) {
+            auto assoc_leaves = T->get_leaves(n->identifier);
+            size_t in_leaf_counts = 0;
+            for (auto l: assoc_leaves) {
+                auto search = assignments.find(l->identifier);
+                if (search != assignments.end()) {
+                    if (search->second > 0.5) {
+                        in_leaf_counts++;
+                    }
+                } else {
+                    fprintf(stderr, "ERROR: Sample not correctly assigned before statistical calculation!\n");
+                    exit(1);
+                }
+            }
+            float specific_ai = (1 - in_leaf_counts) / (pow(2, (assoc_leaves.size()-1)));
+            total_ai += specific_ai;
+        }
+    }
+    return total_ai;
+}
+
+size_t get_monophyletic_cladesize(MAT::Tree* T, std::map<std::string, float> assignments, MAT::Node* subroot) {
+    /*
+    The monophyletic clade statistic was introduced by Salemi et al 2005. Parker et al 2008 has a good summary.
+    MC is bigger for strong correlations, bounded 1 to N where N is the number of samples in the subtree.
+    This is a simple qualifier which just searches across the subtree and identifies the largest clade which entirely and only contains IN samples.
+    */
+    size_t biggest = 0;
+    for (auto n: T->depth_first_expansion(subroot)) {
+        auto clade_leaves = T->get_leaves_ids(n->identifier);
+        bool is_pure = true;
+        for (auto cl: clade_leaves) {
+            auto search = assignments.find(cl);
+            if (search != assignments.end()) {
+                if (search->second < 0.5) {
+                    //this is not pure, we should ignore this set.
+                    is_pure = false;
+                }
+            }
+        }
+        if (is_pure) {
+            if (clade_leaves.size() > biggest) {
+                biggest = clade_leaves.size();
+            }
+        }
+    }
+    return biggest;
+}
+
 void record_clade_regions(MAT::Tree* T, std::map<std::string, std::map<std::string, float>> region_assignments, std::string filename) {
     //record a tsv with a column for each annotated region (single will have label default)
     //and a row for each clade label. The contents are the assignment support for that specific clade root being IN the indicated region
