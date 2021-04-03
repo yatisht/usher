@@ -303,9 +303,14 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
     for (auto ms: sample_regions) {
         std::string region = ms.first;
         std::vector<std::string> samples = ms.second;
-        fprintf(stderr, "Processing region %s with %ld samples\n", region.c_str(), samples.size());
+        fprintf(stderr, "Processing region %s with %ld total samples; ", region.c_str(), samples.size());
         std::unordered_set<std::string> sample_set(samples.begin(), samples.end());
         auto assignments = get_assignments(T, sample_set);
+        //print my fancy new statistics.
+        size_t global_mc = get_monophyletic_cladesize(T, assignments);
+        //float global_ai = get_association_index(T, assignments);
+        //fprintf(stderr, "MC: %ld, AI: %f\n", global_mc, global_ai);
+        fprintf(stderr, "largest identified regional subclade contains %ld samples\n", global_mc);
         region_assignments[region] = assignments;
     }
     //if requested, record the clade output
