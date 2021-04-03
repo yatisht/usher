@@ -104,7 +104,7 @@ float get_association_index(MAT::Tree* T, std::map<std::string, float> assignmen
                     exit(1);
                 }
             }
-            float specific_ai = (1 - in_leaf_counts) / (pow(2, (assoc_leaves.size()-1)));
+            float specific_ai = ((1 - in_leaf_counts/assoc_leaves.size()) / (pow(2, (assoc_leaves.size()-1))));
             total_ai += specific_ai;
         }
     }
@@ -308,9 +308,9 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
         auto assignments = get_assignments(T, sample_set);
         //print my fancy new statistics.
         size_t global_mc = get_monophyletic_cladesize(T, assignments);
-        //float global_ai = get_association_index(T, assignments);
-        //fprintf(stderr, "MC: %ld, AI: %f\n", global_mc, global_ai);
-        fprintf(stderr, "largest identified regional subclade contains %ld samples\n", global_mc);
+        float global_ai = get_association_index(T, assignments);
+        fprintf(stderr, "MC: %ld, AI: %f\n", global_mc, global_ai);
+        //fprintf(stderr, "largest identified regional subclade contains %ld samples\n", global_mc);
         region_assignments[region] = assignments;
     }
     //if requested, record the clade output
