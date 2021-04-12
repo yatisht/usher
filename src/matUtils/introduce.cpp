@@ -18,6 +18,8 @@ po::variables_map parse_introduce_command(po::parsed_options parsed) {
         "Set to optionally record, for each clade root in the tree, the support for that clade root being IN each region in the input, as a tsv with the indicated name.")
         ("output,o", po::value<std::string>()->required(),
         "Name of the file to save the introduction information to.")
+        ("origin-confidence,C", po::value<float>()->default_value(0.5),
+        "Set the threshold for recording of putative origins of introductions. Default is 0.5")
         // ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
         ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
@@ -88,9 +90,34 @@ float get_association_index(MAT::Tree* T, std::map<std::string, float> assignmen
     AI = sum(for all internal nodes) (1-tips_with_trait) / (2 ^ (total_tips - 1))
     This can be calculated for a full tree or for an introduction-specific subtree.
     */
+
     float total_ai = 0.0;
+    std::set<std::string> internals_to_check;
+    std::vector<std::string> all_leaf_ids;
+    if (subroot != NULL) {
+        all_leaf_ids = T->get_leaves_ids(subroot->identifier);
+    } else {
+        all_leaf_ids = T->get_leaves_ids();
+    }
+    for (auto l: all_leaf_ids) {
+        auto search = assignments.find(l);
+        if (search != assignments.end()) {
+            if (search->second > 0.5) {
+                //for each in sample, for each of its ancestor internal nodes, ensure its internal node is in the set to check.
+                for (auto a: T->rsearch(l)) {
+                    internals_to_check.insert(a->identifier);
+                }
+            }
+        }
+    }
+    //now when we proceed through the dfs, before we find any leaf identifiers, we check whether that internal node is in our list to check
+    //if its not, we just skip it. This should remove the vast majority of the tree from consideration for most regions
+    //and speed our implementation signficantly.
+    //the below is the naive implementation
+    //we can optimize this by only checking AI values of internal nodes along the rsearch path from each IN sample in the assignments
+    //instead of repeatedly getting all leaves for all internal nodes
     for (auto n: T->depth_first_expansion(subroot)) {
-        if (!n->is_leaf()) {
+        if (internals_to_check.find(n->identifier) != internals_to_check.end()) {
             auto assoc_leaves = T->get_leaves(n->identifier);
             size_t in_leaf_counts = 0;
             for (auto l: assoc_leaves) {
@@ -118,24 +145,58 @@ size_t get_monophyletic_cladesize(MAT::Tree* T, std::map<std::string, float> ass
     This is a simple qualifier which just searches across the subtree and identifies the largest clade which entirely and only contains IN samples.
     */
     size_t biggest = 0;
+    //investigating alternative ways to calculate this more quickly
+    //the depth-first expansion order should have the largest sample set be the longest contiguous line of samples
+    fprintf(stderr, "DEBUG: trying alternative method for MC\n");
+    timer.Start();
+    std::vector<std::string> acls;
+    //depth-first search order is required for this implementation.
     for (auto n: T->depth_first_expansion(subroot)) {
-        auto clade_leaves = T->get_leaves_ids(n->identifier);
-        bool is_pure = true;
-        for (auto cl: clade_leaves) {
-            auto search = assignments.find(cl);
-            if (search != assignments.end()) {
-                if (search->second < 0.5) {
-                    //this is not pure, we should ignore this set.
-                    is_pure = false;
-                }
-            }
+        if (n->is_leaf()) {
+            acls.push_back(n->identifier);
         }
-        if (is_pure) {
-            if (clade_leaves.size() > biggest) {
-                biggest = clade_leaves.size();
+    }
+    //the largest contiguous clade of IN samples will be represented in a depth first expansion by the longest contiguous stretch of IN sample identifiers
+    //this is significantly more efficient then checking each internal node
+    size_t current = 0;
+    for (auto l: acls) {
+        auto search = assignments.find(l);
+        if (search != assignments.end()) {
+            if (search->second >= 0.5) {
+                current++;
+            } else {
+                if (current > biggest) {
+                    biggest = current;
+                }
+                current = 0;
             }
         }
     }
+    if (current > biggest) {
+        biggest = current;
+    }
+    fprintf(stderr, "DEBUG: Alternative method finds %ld from %ld total, takes %ld msec\n", biggest, acls.size(), timer.Stop());
+    // fprintf(stderr, "DEBUG: Trying naive method for MC\n");
+    // timer.Start();
+    // for (auto n: T->depth_first_expansion(subroot)) {
+    //     auto clade_leaves = T->get_leaves_ids(n->identifier);
+    //     bool is_pure = true;
+    //     for (auto cl: clade_leaves) {
+    //         auto search = assignments.find(cl);
+    //         if (search != assignments.end()) {
+    //             if (search->second < 0.5) {
+    //                 //this is not pure, we should ignore this set.
+    //                 is_pure = false;
+    //             }
+    //         }
+    //     }
+    //     if (is_pure) {
+    //         if (clade_leaves.size() > biggest) {
+    //             biggest = clade_leaves.size();
+    //         }
+    //     }
+    // }
+    // fprintf(stderr, "DEBUG: Naive method yields %ld, takes %ld msec\n", biggest, timer.Stop());
     return biggest;
 }
 
@@ -292,7 +353,7 @@ std::map<std::string, float> get_assignments(MAT::Tree* T, std::unordered_set<st
     return assignments;
 }
 
-std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, std::vector<std::string>> sample_regions, bool add_info, std::string clade_output) {
+std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, std::vector<std::string>> sample_regions, bool add_info, std::string clade_output, float min_origin_confidence) {
     //for every region, independently assign IN/OUT states
     //and save these assignments into a map of maps
     //so we can check membership of introduction points in each of the other groups
@@ -303,14 +364,19 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
     for (auto ms: sample_regions) {
         std::string region = ms.first;
         std::vector<std::string> samples = ms.second;
-        fprintf(stderr, "Processing region %s with %ld total samples; ", region.c_str(), samples.size());
+        fprintf(stderr, "Processing region %s with %ld total samples\n", region.c_str(), samples.size());
+        // timer.Start();
         std::unordered_set<std::string> sample_set(samples.begin(), samples.end());
         auto assignments = get_assignments(T, sample_set);
+        // fprintf(stderr, "Time to do assignment %ld\n", timer.Stop());
         //print my fancy new statistics.
-        size_t global_mc = get_monophyletic_cladesize(T, assignments);
-        float global_ai = get_association_index(T, assignments);
-        fprintf(stderr, "MC: %ld, AI: %f\n", global_mc, global_ai);
-        //fprintf(stderr, "largest identified regional subclade contains %ld samples\n", global_mc);
+        // timer.Start();
+        // size_t global_mc = get_monophyletic_cladesize(T, assignments);
+        //float global_ai = get_association_index(T, assignments);
+        //fprintf(stderr, "MC: %ld, AI: %f\n", global_mc, global_ai);
+        //AI for the full tree doesn't seem to make much sense/be very sensitive, but MC seems good. Running with it.
+        // fprintf(stderr, "largest identified regional subclade contains %ld samples\n", global_mc);
+        // fprintf(stderr, "MC calculation took %ld msec\n", timer.Stop());
         region_assignments[region] = assignments;
     }
     //if requested, record the clade output
@@ -329,7 +395,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
     std::map<std::string, std::vector<std::string>> region_ins;
     for (auto ra: region_assignments) {
         for (auto ass: ra.second) {
-            if (ass.second > 0.5) {
+            if (ass.second > min_origin_confidence) {
                 region_ins[ass.first].push_back(ra.first);
                 region_cons[ass.first].push_back(ass.second);
             }
@@ -346,7 +412,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
     std::vector<std::string> outstrs;
     if (region_assignments.size() == 1) {
         if (add_info) {
-            outstrs.push_back("sample\tintroduction_node\tintro_confidence\tparent_confidence\tdistance\tclades\tmutation_path\n");
+            outstrs.push_back("sample\tintroduction_node\tintro_confidence\tparent_confidence\tdistance\tmonophyl_size\tassoc_index\tclades\tmutation_path\n");
         } else {
             outstrs.push_back("sample\tintroduction_node\tintro_confidence\tparent_confidence\tdistance\n");
         }
@@ -354,7 +420,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
         //add a column for the putative origin of the sample introduction
         //if we're using multiple regions.
         if (add_info) {
-            outstrs.push_back("sample\tintroduction_node\tintro_confidence\tparent_confidence\tdistance\tregion\torigins\torigins_confidence\tclades\tmutation_path\n");            
+            outstrs.push_back("sample\tintroduction_node\tintro_confidence\tparent_confidence\tdistance\tregion\torigins\torigins_confidence\tmonophyl_size\tassoc_index\tclades\tmutation_path\n");            
         } else {
             outstrs.push_back("sample\tintroduction_node\tintro_confidence\tparent_confidence\tdistance\tregion\torigins\torigins_confidence\n");
         }
@@ -363,6 +429,8 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
         std::string region = ra.first;
         auto assignments = ra.second;
         std::vector<std::string> samples = sample_regions[region];
+        std::map<std::string, size_t> recorded_mc;
+        std::map<std::string, float> recorded_ai;
         //its time to identify introductions. we're going to do this by iterating
         //over all of the leaves. For each sample, rsearch back until it hits a 0 assignment
         //then record the last encountered 1 assignment as the point of introduction
@@ -388,13 +456,23 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                     //check whether this 0 node is 1 in any other region
                     //record each region where this is true
                     //(in the single region case, its never true, but its only like two operations to check anyways)
+                    //revise this to assign origin as the highest confidence IN for ANY region, no matter how lacking in confidence it is
                     std::string origins;
                     std::stringstream origins_cons;
                     //can't assign region of origin if introduction point is root (no information about parent)
                     if ((region_assignments.size() > 1) & (!a->is_root())) {
                         auto assign_search = region_ins.find(a->identifier);
+                        // float highest_conf = 0.0;
+                        // std::string highest_conf_origin = "indeterminate";
                         if (assign_search != region_ins.end()) {
+                            // size_t index = 0;
                             for (auto r: assign_search->second) {
+                                // index++;
+                                // float conf = region_cons.find(a->identifier)->second[index];
+                                // if (conf > highest_conf) {
+                                //     highest_conf_origin = r;
+                                //     highest_conf = conf;
+                                // }
                                 if (origins.size() == 0) {
                                     origins += r;
                                 } else {
@@ -408,6 +486,8 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                             origins = "indeterminate";
                             origins_cons << 0.0;
                         }
+                        // origins = highest_conf_origin;
+                        // origins_cons << highest_conf;
                     }
                     if (origins.size() == 0) {
                         //if we didn't find anything which has the pre-introduction node at 1, we don't know where it came from
@@ -446,18 +526,50 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                             intro_clades = "none";
                         }
                     }
+                    //calculate the trait phylogeny association metrics
+                    //only if additional info is requested because of how it affects total runtime.
+                    size_t mc = 0;
+                    float ai = 0.0;
+                    if (add_info) {
+                        //timer.Start();
+                        auto mc_s = recorded_mc.find(a->identifier);
+                        if (mc_s != recorded_mc.end()) {
+                            mc = mc_s->second;
+                        } else {
+                            timer.Start();
+                            fprintf(stderr, "Fetching MC for introduction.\n");
+                            mc = get_monophyletic_cladesize(T, assignments, a);
+                            fprintf(stderr, "Took %ld msec\n", timer.Stop());
+                            recorded_mc[a->identifier] = mc;
+                        }
+                        //fprintf(stderr, "DEBUG: Time to run subtree MC calculation: %ld msec\n", timer.Stop());
+                        //disable AI calculation for now as it is painrfully slow compared to efficient MC or whatnot
+                        // timer.Start();
+                        // auto ai_s = recorded_ai.find(a->identifier);
+                        // if (ai_s != recorded_ai.end()) {
+                        //     ai = ai_s->second;
+                        // } else {
+                        //     timer.Start();
+                        //     fprintf(stderr, "Fetching AI for introduction.\n");
+                        //     ai = get_association_index(T, assignments, a);
+                        //     fprintf(stderr, "Took %ld msec\n", timer.Stop());
+                        //     recorded_ai[a->identifier] = ai;
+                        // }
+                        // ai = get_association_index(T, assignments, a);
+                        // fprintf(stderr, "DEBUG: Time to run subtree AI calculation: %ld msec\n", timer.Stop());
+                    }
                     std::stringstream ostr;
                     if (region_assignments.size() == 1) {
                         ostr << s << "\t" << last_encountered << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed;
                         if (add_info) {
-                            ostr << "\t" << intro_clades << "\t" << intro_mut_path << "\n";
+                            ostr << "\t" << mc << "\t" << ai << "\t" << intro_clades << "\t" << intro_mut_path << "\n";
                         } else {
                             ostr << "\n";
                         }
                     } else {
                         ostr << s << "\t" << last_encountered << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed << "\t" << region << "\t" << origins << "\t" << origins_cons.str();
                         if (add_info) {
-                            ostr << "\t" << intro_clades << "\t" << intro_mut_path << "\n";
+                            ostr << "\t" << mc << "\t" << ai << "\t" << intro_clades << "\t" << intro_mut_path << "\n";
                         } else {
                             ostr << "\n";
                         }
@@ -483,6 +595,7 @@ void introduce_main(po::parsed_options parsed) {
     std::string clade_regions = vm["clade-regions"].as<std::string>();
     bool add_info = vm["additional-info"].as<bool>();
     std::string output_file = vm["output"].as<std::string>();
+    float moconf = vm["origin-confidence"].as<float>();
     // int32_t num_threads = vm["threads"].as<uint32_t>();
 
     // Load input MAT and uncondense tree
@@ -492,7 +605,7 @@ void introduce_main(po::parsed_options parsed) {
       T.uncondense_leaves();
     }
     auto region_map = read_two_column(samples_filename);
-    auto outstrings = find_introductions(&T, region_map, add_info, clade_regions);
+    auto outstrings = find_introductions(&T, region_map, add_info, clade_regions, moconf);
 
     std::ofstream of;
     of.open(output_file);
