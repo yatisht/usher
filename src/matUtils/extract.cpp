@@ -39,6 +39,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
         "Write the path of mutations defining each clade in the subtree to the target file.")
         ("all-paths,A", po::value<std::string>()->default_value(""),
         "Write mutations assigned to each node in the subtree in depth-first traversal order to the target file.")
+        ("num-leaves,L", po::value<std::string>()->default_value(""),
+         "Write the number of descendants for each internal node of the MAT to the target file.")
         ("write-vcf,v", po::value<std::string>()->default_value(""),
          "Output VCF file representing selected subtree. Default is full tree")
         ("no-genotypes,n", po::bool_switch(),
@@ -109,6 +111,7 @@ void extract_main (po::parsed_options parsed) {
     std::string sample_path_filename = dir_prefix + vm["sample-paths"].as<std::string>();
     std::string clade_path_filename = dir_prefix + vm["clade-paths"].as<std::string>();
     std::string all_path_filename = dir_prefix + vm["all-paths"].as<std::string>();
+    std::string num_leaves_filename = dir_prefix + vm["num-leaves"].as<std::string>();
     std::string tree_filename = dir_prefix + vm["write-tree"].as<std::string>();
     std::string vcf_filename = dir_prefix + vm["write-vcf"].as<std::string>();
     std::string output_mat_filename = dir_prefix + vm["write-mat"].as<std::string>();
@@ -118,7 +121,7 @@ void extract_main (po::parsed_options parsed) {
     uint32_t num_threads = vm["threads"].as<uint32_t>();
     //check that at least one of the output filenames (things which take dir_prefix)
     //are set before proceeding. 
-    std::vector<std::string> outs = {sample_path_filename, clade_path_filename, all_path_filename, tree_filename, vcf_filename, output_mat_filename, json_filename, used_sample_filename};
+    std::vector<std::string> outs = {sample_path_filename, clade_path_filename, all_path_filename, num_leaves_filename, tree_filename, vcf_filename, output_mat_filename, json_filename, used_sample_filename};
     if (!std::any_of(outs.begin(), outs.end(), [=](std::string f){return f != dir_prefix;})) {
         fprintf(stderr, "ERROR: No output files requested!\n");
         exit(1);
@@ -346,7 +349,7 @@ void extract_main (po::parsed_options parsed) {
             outfile << s << "\n";
         }
     }
-    if (sample_path_filename != dir_prefix || clade_path_filename != dir_prefix || all_path_filename != dir_prefix) {
+    if (sample_path_filename != dir_prefix || clade_path_filename != dir_prefix || all_path_filename != dir_prefix || num_leaves_filename != dir_prefix) {
         timer.Start();
         fprintf(stderr,"Retriving path information...\n");
         if (sample_path_filename != dir_prefix) {
@@ -362,6 +365,13 @@ void extract_main (po::parsed_options parsed) {
             auto apaths = all_nodes_paths(subtree);
             for (auto astr: apaths) {
                 outfile << astr << "\n";
+            }
+            outfile.close();
+        }
+        if (num_leaves_filename != dir_prefix) {
+            std::ofstream outfile (num_leaves_filename);
+            for (auto n: subtree.depth_first_expansion()) {
+                outfile << n->identifier << "\t" << subtree.get_num_leaves(n) << "\n";
             }
             outfile.close();
         }
