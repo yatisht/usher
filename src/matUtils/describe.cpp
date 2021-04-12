@@ -17,7 +17,7 @@ std::vector<std::string> mutation_paths(const MAT::Tree& T, std::vector<std::str
             if (n != root_to_sample.back()) {
                 //note, for uncondensed samples with parsimony score 0,
                 //this will leave a > at the end. That's basically fine.
-                cpath += " > ";
+                cpath += " (" + n->identifier + ") > ";
             }
         }
         mpaths.push_back(cpath);
