@@ -27,6 +27,8 @@ po::variables_map check_options(int argc, char** argv) {
          "Maximum range of the genomic coordinates of the mutations on the branch")
         ("min-coordinate-range,r", po::value<int>()->default_value(1e3), \
          "Minimum range of the genomic coordinates of the mutations on the branch")
+        ("max-parsimony,p", po::value<int>()->default_value(0), \
+         "Maximum parsimony score of the recombinant sequence when placing it back after pruning and masking.")
         ("num-descendants,n", po::value<uint32_t>()->default_value(10), \
          "Minimum number of leaves that node should have to be considered for recombination.")
         ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
@@ -82,11 +84,17 @@ int main(int argc, char** argv) {
     po::variables_map vm = check_options(argc, argv);
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     uint32_t branch_len = vm["branch-length"].as<uint32_t>();
+    int max_parsimony = vm["max-parsimony"].as<int>();
     int max_range = vm["max-coordinate-range"].as<int>();
     int min_range = vm["min-coordinate-range"].as<int>();
     uint32_t num_descendants = vm["num-descendants"].as<uint32_t>();
     
     uint32_t num_threads = vm["threads"].as<uint32_t>();
+
+    if (max_parsimony >= branch_len) {
+        fprintf(stderr, "ERROR: --max-parsimony should be less than --branch-length.\n");
+        exit(1);
+    }
 
     tbb::task_scheduler_init init(num_threads);
     srand (time(NULL));
@@ -266,7 +274,7 @@ int main(int argc, char** argv) {
                         }
                     }
 
-                    if (l2_mut.size() == 0) {
+                    if (l2_mut.size() <= max_parsimony) {
                         is_recomb = true;
                     }
                 }
