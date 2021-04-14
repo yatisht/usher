@@ -209,7 +209,6 @@ int main(int argc, char** argv) {
                 tbb::mutex tbb_lock;
 
                 // find acceptor(s) 
-                if (acceptor_nodes.size() == 0)
                 {
                     size_t total_nodes = bfs.size();
 
@@ -340,7 +339,6 @@ int main(int argc, char** argv) {
                 }
 
                 // find donor(s) 
-                if (donor_nodes.size() == 0)
                 {
                     size_t total_nodes = bfs.size();
 
@@ -466,6 +464,9 @@ int main(int argc, char** argv) {
                         }, ap);
                 }
 
+                // to print any pair of breakpoint interval exactly once for
+                // multiple donor-acceptor pairs
+                bool has_printed = false;
                 for (auto d: donor_nodes) {
                     for (auto a:acceptor_nodes) {
                         if (d!=a) {
@@ -473,7 +474,12 @@ int main(int argc, char** argv) {
                             fprintf(recomb_file, "%s\t(%i,%i)\t(%i,%s)\t%s\t%s\n", nid_to_consider.c_str(), start_range_low, start_range_high,
                                     end_range_low, end_range_high_str.c_str(), d.c_str(), a.c_str());
                             has_recomb = true;
+                            has_printed = true;
+                            break;
                         }
+                    }
+                    if (has_printed) {
+                        break;
                     }
                 }
 
