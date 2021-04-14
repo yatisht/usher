@@ -88,7 +88,6 @@ int main(int argc, char** argv) {
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string outdir = vm["outdir"].as<std::string>();
     uint32_t branch_len = vm["branch-length"].as<uint32_t>();
-//    int max_parsimony = vm["max-parsimony"].as<int>();
     int max_range = vm["max-coordinate-range"].as<int>();
     int min_range = vm["min-coordinate-range"].as<int>();
     uint32_t num_descendants = vm["num-descendants"].as<uint32_t>();
@@ -127,22 +126,10 @@ int main(int argc, char** argv) {
                    continue;
                }
                if (n->mutations.size() >= branch_len) {
-//                   int start_range_high = n->mutations[0].position;
-//                   int end_range_low = n->mutations[0].position;
-//                   for (auto m: n->mutations) {
-//                       if (m.position < start_range_high) {
-//                           start_range_high = m.position;
-//                       }
-//                       if (m.position > end_range_low) {
-//                           end_range_low = m.position;
-//                       }
-//                   }
-//                   if ((end_range_low-start_range_high >= min_range) && (end_range_low-start_range_high <= max_range) && (T.get_num_leaves(n) >= num_descendants)) {
                    if (T.get_num_leaves(n) >= num_descendants) {
                        nodes_to_consider.insert(n->identifier);
                    }
                }
-//            }
             }
         }, ap);
     
@@ -219,10 +206,10 @@ int main(int argc, char** argv) {
                 std::vector<std::string> donor_nodes;
                 std::vector<std::string> acceptor_nodes;
 
-                donor_nodes.clear();
-                acceptor_nodes.clear();
+                tbb::mutex tbb_lock;
 
                 // find acceptor(s) 
+                if (acceptor_nodes.size() == 0)
                 {
                     size_t total_nodes = bfs.size();
 
@@ -309,7 +296,9 @@ int main(int argc, char** argv) {
                                    }
 
                                    if (l2_mut.size() == 0) {
+                                       tbb_lock.lock();
                                        acceptor_nodes.emplace_back(bfs[k]->identifier);
+                                       tbb_lock.unlock();
                                    }
                                }
                                // Else placement as child
@@ -337,7 +326,9 @@ int main(int argc, char** argv) {
                                    }
 
                                    if (node_mut.size() == 0) {
+                                       tbb_lock.lock();
                                        acceptor_nodes.emplace_back(bfs[k]->identifier);
+                                       tbb_lock.unlock();
                                    }
                                }
                             }
@@ -349,6 +340,7 @@ int main(int argc, char** argv) {
                 }
 
                 // find donor(s) 
+                if (donor_nodes.size() == 0)
                 {
                     size_t total_nodes = bfs.size();
 
@@ -435,7 +427,9 @@ int main(int argc, char** argv) {
                                    }
 
                                    if (l2_mut.size() == 0) {
+                                       tbb_lock.lock();
                                        donor_nodes.emplace_back(bfs[k]->identifier);
+                                       tbb_lock.unlock();
                                    }
                                }
                                // Else placement as child
@@ -463,7 +457,9 @@ int main(int argc, char** argv) {
                                    }
 
                                    if (node_mut.size() == 0) {
+                                       tbb_lock.lock();
                                        donor_nodes.emplace_back(bfs[k]->identifier);
+                                       tbb_lock.unlock();
                                    }
                                }
                             }
