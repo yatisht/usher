@@ -475,6 +475,7 @@ int main(int argc, char** argv) {
                                     end_range_low, end_range_high_str.c_str(), d.c_str(), a.c_str());
                             has_recomb = true;
                             has_printed = true;
+                            fflush(recomb_file);
                             break;
                         }
                     }
@@ -492,6 +493,7 @@ int main(int argc, char** argv) {
                 fprintf(desc_file, "%s,", l->identifier.c_str());
             }
             fprintf(desc_file, "\n");
+            fflush(desc_file);
             fprintf(stderr, "Done %zu/%zu branches [RECOMBINATION FOUND!]\n", ++num_done, nodes_to_consider.size());
         }
         else {
