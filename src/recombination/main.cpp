@@ -21,7 +21,7 @@ po::variables_map check_options(int argc, char** argv) {
     desc.add_options()
         ("input-mat,i", po::value<std::string>()->required(),
          "Input mutation-annotated tree file to optimize [REQUIRED].")
-        ("branch-length,l", po::value<uint32_t>()->default_value(4), \
+        ("branch-length,l", po::value<uint32_t>()->default_value(3), \
          "Minimum length of the branch to consider to recombination events")
         ("max-coordinate-range,R", po::value<int>()->default_value(1e7), \
          "Maximum range of the genomic coordinates of the mutations on the branch")
