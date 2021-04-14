@@ -470,7 +470,8 @@ int main(int argc, char** argv) {
                     for (auto a:acceptor_nodes) {
                         // Ensure donor and acceptor are not the same and
                         // neither of them is a descendant of the other
-                        if ((d!=a) && (!T.is_ancestor(d,a)) && (!T.is_ancestor(a,d))) {
+                        if ((d!=a) && (d!=nid_to_consider) && (a!=nid_to_consider) && (!T.is_ancestor(nid_to_consider,d)) && 
+                                (!T.is_ancestor(nid_to_consider,a)) && (!T.is_ancestor(d,a)) && (!T.is_ancestor(a,d))) {
                             std::string end_range_high_str = (end_range_high == 1e9) ? "GENOME_SIZE" : std::to_string(end_range_high);
                             fprintf(recomb_file, "%s\t(%i,%i)\t(%i,%s)\t%s\t%s\n", nid_to_consider.c_str(), start_range_low, start_range_high,
                                     end_range_low, end_range_high_str.c_str(), d.c_str(), a.c_str());
