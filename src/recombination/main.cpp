@@ -132,9 +132,6 @@ int main(int argc, char** argv) {
                }
             }
         }, ap);
-
-    nodes_to_consider.clear();
-    nodes_to_consider.insert("4274");
     
     fprintf(stderr, "Found %zu long branches\n", nodes_to_consider.size());
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
