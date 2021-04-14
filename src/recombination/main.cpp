@@ -132,6 +132,9 @@ int main(int argc, char** argv) {
                }
             }
         }, ap);
+
+    nodes_to_consider.clear();
+    nodes_to_consider.insert("4274");
     
     fprintf(stderr, "Found %zu long branches\n", nodes_to_consider.size());
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
@@ -240,9 +243,7 @@ int main(int argc, char** argv) {
                     tbb::parallel_for( tbb::blocked_range<size_t>(0, total_nodes),
                             [&](tbb::blocked_range<size_t> r) {
                             for (size_t k=r.begin(); k<r.end(); ++k) {
-                               // Ignore the descendants of the node under consideration. 
-                               if ((nid_to_consider == bfs[k]->identifier) || (T.is_ancestor(nid_to_consider, bfs[k]->identifier)) ||
-                                       (T.get_num_leaves(bfs[k]) < num_descendants)) {
+                               if (T.get_num_leaves(bfs[k]) < num_descendants) {
                                    continue;
                                }
                                
@@ -370,9 +371,7 @@ int main(int argc, char** argv) {
                     tbb::parallel_for( tbb::blocked_range<size_t>(0, total_nodes),
                             [&](tbb::blocked_range<size_t> r) {
                             for (size_t k=r.begin(); k<r.end(); ++k) {
-                               // Ignore the descendants of the node under consideration. 
-                               if ((nid_to_consider == bfs[k]->identifier) || (T.is_ancestor(nid_to_consider, bfs[k]->identifier)) ||
-                                       (T.get_num_leaves(bfs[k]) < num_descendants)) {
+                               if (T.get_num_leaves(bfs[k]) < num_descendants) {
                                    continue;
                                }
                                
@@ -466,7 +465,7 @@ int main(int argc, char** argv) {
                             }
                         }, ap);
                 }
-
+                
                 // to print any pair of breakpoint interval exactly once for
                 // multiple donor-acceptor pairs
                 bool has_printed = false;
