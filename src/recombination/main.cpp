@@ -164,6 +164,8 @@ int main(int argc, char** argv) {
 
     size_t num_done = 0;
     for (auto nid_to_consider: nodes_to_consider) {
+        fprintf(stderr, "At node id: %s\n", nid_to_consider.c_str());
+
         Pruned_Sample pruned_sample(nid_to_consider);
         // Find mutations on the node to prune
         auto node_to_root = T.rsearch(nid_to_consider, true); 
@@ -334,7 +336,7 @@ int main(int argc, char** argv) {
                             }
                         }, ap);
                 }
-                
+
                 if (acceptor_nodes.size() == 0) {
                     continue;
                 }
@@ -469,9 +471,10 @@ int main(int argc, char** argv) {
                 for (auto d: donor_nodes) {
                     for (auto a:acceptor_nodes) {
                         // Ensure donor and acceptor are not the same and
-                        // neither of them is a descendant of the other
+                        // neither of them is a descendant of the recombinant
+                        // node 
                         if ((d!=a) && (d!=nid_to_consider) && (a!=nid_to_consider) && (!T.is_ancestor(nid_to_consider,d)) && 
-                                (!T.is_ancestor(nid_to_consider,a)) && (!T.is_ancestor(d,a)) && (!T.is_ancestor(a,d))) {
+                                (!T.is_ancestor(nid_to_consider,a))) {
                             std::string end_range_high_str = (end_range_high == 1e9) ? "GENOME_SIZE" : std::to_string(end_range_high);
                             fprintf(recomb_file, "%s\t(%i,%i)\t(%i,%s)\t%s\t%s\n", nid_to_consider.c_str(), start_range_low, start_range_high,
                                     end_range_low, end_range_high_str.c_str(), d.c_str(), a.c_str());
@@ -496,10 +499,10 @@ int main(int argc, char** argv) {
             }
             fprintf(desc_file, "\n");
             fflush(desc_file);
-            fprintf(stderr, "Done %zu/%zu branches [RECOMBINATION FOUND!]\n", ++num_done, nodes_to_consider.size());
+            fprintf(stderr, "Done %zu/%zu branches [RECOMBINATION FOUND!]\n\n", ++num_done, nodes_to_consider.size());
         }
         else {
-            fprintf(stderr, "Done %zu/%zu branches\n", ++num_done, nodes_to_consider.size());
+            fprintf(stderr, "Done %zu/%zu branches\n\n", ++num_done, nodes_to_consider.size());
         }
     }
         
