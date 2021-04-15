@@ -194,10 +194,10 @@ int main(int argc, char** argv) {
                     }
                 }
                 
-                int start_range_high = donor.sample_mutations.front().position;
-                int end_range_low = donor.sample_mutations.back().position;
-
+                int start_range_high = pruned_sample.sample_mutations[i].position;
                 int start_range_low = (i>=1) ? pruned_sample.sample_mutations[i-1].position : 0;
+
+                int end_range_low = pruned_sample.sample_mutations[j].position; 
                 int end_range_high = (j+1<num_mutations) ? pruned_sample.sample_mutations[j+1].position : 1e9;
 
                 if ((donor.sample_mutations.size() < branch_len) || (acceptor.sample_mutations.size() < branch_len) ||
@@ -291,7 +291,7 @@ int main(int argc, char** argv) {
                                            }
                                        }
                                        if (!found) {
-                                           if ((m1.position < start_range_high) || (m1.position > end_range_low)) {
+                                           if ((m1.position <= start_range_low) || (m1.position > end_range_high)) {
                                                l2_mut.emplace_back(m1.copy());
                                            }
                                        }
@@ -321,7 +321,7 @@ int main(int argc, char** argv) {
                                            }
                                        }
                                        if (!found) {
-                                           if ((m1.position < start_range_high) || (m1.position > end_range_low)) {
+                                           if ((m1.position < start_range_low) || (m1.position > end_range_high)) {
                                                node_mut.emplace_back(m1.copy());
                                            }
                                        }
