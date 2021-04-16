@@ -99,11 +99,15 @@ float get_association_index(MAT::Tree* T, std::map<std::string, float> assignmen
     */
     float total_ai = 0.0;
     std::map<std::string,std::pair<size_t,size_t>> internal_tracker;
-
-    auto bfs = T->breadth_first_expansion();
+    std::vector<MAT::Node*> bfs;
+    if (subroot != NULL) {
+        bfs = T->breadth_first_expansion(subroot->identifier);
+    } else {
+        bfs = T->breadth_first_expansion();
+    }
     std::reverse(bfs.begin(), bfs.end());
     for (auto n: bfs) {
-        if (!n->is_leaf()) {
+       if (!n->is_leaf()) {
             size_t in_c = 0;
             size_t out_c = 0;
             for (auto c: n->children) {
@@ -124,7 +128,7 @@ float get_association_index(MAT::Tree* T, std::map<std::string, float> assignmen
                         out_c += search->second.second;
                     } else {
                         //this SHOULD not happen, logically...
-                        fprintf(stderr, "DEBUG: AI calculation encountered mystery internal child node\n");
+                        fprintf(stderr, "ERROR: AI calculation encountered mystery internal child node\n");
                         exit(1);
                     }
                 }
@@ -142,12 +146,12 @@ size_t get_monophyletic_cladesize(MAT::Tree* T, std::map<std::string, float> ass
     The monophyletic clade statistic was introduced by Salemi et al 2005. Parker et al 2008 has a good summary.
     MC is bigger for strong correlations, bounded 1 to N where N is the number of samples in the subtree.
     This is a simple qualifier which just searches across the subtree and identifies the largest clade which entirely and only contains IN samples.
+
+    My implementation accomplishes this by looking across the depth-first expansion of leaves only
+    and identifying the longest contiguous string of IN sample identifiers, which reflects the largest
+    clade subtree which is entirely IN.
     */
     size_t biggest = 0;
-    //investigating alternative ways to calculate this more quickly
-    //the depth-first expansion order should have the largest sample set be the longest contiguous line of samples
-    fprintf(stderr, "DEBUG: trying alternative method for MC\n");
-    timer.Start();
     std::vector<std::string> acls;
     //depth-first search order is required for this implementation.
     for (auto n: T->depth_first_expansion(subroot)) {
@@ -155,8 +159,6 @@ size_t get_monophyletic_cladesize(MAT::Tree* T, std::map<std::string, float> ass
             acls.push_back(n->identifier);
         }
     }
-    //the largest contiguous clade of IN samples will be represented in a depth first expansion by the longest contiguous stretch of IN sample identifiers
-    //this is significantly more efficient then checking each internal node
     size_t current = 0;
     for (auto l: acls) {
         auto search = assignments.find(l);
@@ -174,7 +176,6 @@ size_t get_monophyletic_cladesize(MAT::Tree* T, std::map<std::string, float> ass
     if (current > biggest) {
         biggest = current;
     }
-    fprintf(stderr, "DEBUG: Alternative method finds %ld from %ld total, takes %ld msec\n", biggest, acls.size(), timer.Stop());
     return biggest;
 }
 
@@ -314,14 +315,13 @@ std::map<std::string, float> get_assignments(MAT::Tree* T, std::unordered_set<st
                     //float vir = (min_to_in/in_leaves.size());
                     float vor = (static_cast<float>(min_to_out) / static_cast<float>(out_leaves.size()));
                     float vir = (static_cast<float>(min_to_in) / static_cast<float>(in_leaves.size()));
-                    // fprintf(stderr, "DEBUG: or %f, ir %f\n", vor, vir);
                     float r = (vir/vor);
-                    // fprintf(stderr, "DEBUG: ratio is %f, ", r);
                     float c = (1/(1+r));
-                    // fprintf(stderr, "confidence is %f\n", c);
                     if (isnan(c)) {
-                        fprintf(stderr, "DEBUG: nan out. min %ld, mout %ld, ols %ld, ils %ld,", min_to_in, min_to_out, out_leaves.size(), in_leaves.size());                    
+                        fprintf(stderr, "ERROR: Invalid introduction assignment calculation. Debug information follows.\n");
+                        fprintf(stderr, "min %ld, mout %ld, ols %ld, ils %ld,", min_to_in, min_to_out, out_leaves.size(), in_leaves.size());                    
                         fprintf(stderr, " vor %f, vir %f, r %f\n", vor, vir, r);
+                        exit(1);
                     }
                     assignments[n->identifier] = c;
                 }
@@ -343,23 +343,11 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
         std::string region = ms.first;
         std::vector<std::string> samples = ms.second;
         fprintf(stderr, "Processing region %s with %ld total samples\n", region.c_str(), samples.size());
-        // timer.Start();
         std::unordered_set<std::string> sample_set(samples.begin(), samples.end());
         auto assignments = get_assignments(T, sample_set);
-        // fprintf(stderr, "Time to do assignment %ld\n", timer.Stop());
-        //print my fancy new statistics.
-        // timer.Start();
         size_t global_mc = get_monophyletic_cladesize(T, assignments);
-        timer.Start();
-        float global_ai_old = get_association_index(T, assignments);
-        fprintf(stderr, "DEBUG: Old AI calculation yields %f in %ld msec\n", global_ai_old, timer.Stop());
-        timer.Start();
         float global_ai = get_association_index(T, assignments);
-        fprintf(stderr, "MC: %ld, AI: %f\n", global_mc, global_ai);
-        fprintf(stderr, "DEBUG: new AI calculations takes %ld msec\n", timer.Stop());
-        //AI for the full tree doesn't seem to make much sense/be very sensitive, but MC seems good. Running with it.
-        // fprintf(stderr, "largest identified regional subclade contains %ld samples\n", global_mc);
-        // fprintf(stderr, "MC calculation took %ld msec\n", timer.Stop());
+        fprintf(stderr, "Region largest monophyletic clade: %ld, regional association index: %f\n", global_mc, global_ai);
         region_assignments[region] = assignments;
     }
     //if requested, record the clade output
@@ -384,28 +372,23 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
             }
         }
     }
-    // fprintf(stderr, "DEBUG: %ld nodes are IN across all regions\n", region_ins.size());
-
     fprintf(stderr, "Regions processed; identifying introductions.\n");
-
-
-
     //now that we have all assignments sorted out, pass over it again
     //looking for introductions.
     std::vector<std::string> outstrs;
     if (region_assignments.size() == 1) {
         if (add_info) {
-            outstrs.push_back("sample\tintroduction_node\tintro_confidence\tparent_confidence\tdistance\tmonophyl_size\tassoc_index\tclades\tmutation_path\n");
+            outstrs.push_back("sample\tintroduction_node\tintro_confidence\tparent_confidence\tdistance\tclades\tmutation_path\tmonophyl_size\tassoc_index\n");
         } else {
-            outstrs.push_back("sample\tintroduction_node\tintro_confidence\tparent_confidence\tdistance\n");
+            outstrs.push_back("sample\tintroduction_node\tintro_confidence\tparent_confidence\tdistance\tclades\tmutation_path\n");
         }
     } else {
         //add a column for the putative origin of the sample introduction
         //if we're using multiple regions.
         if (add_info) {
-            outstrs.push_back("sample\tintroduction_node\tintro_confidence\tparent_confidence\tdistance\tregion\torigins\torigins_confidence\tmonophyl_size\tassoc_index\tclades\tmutation_path\n");            
+            outstrs.push_back("sample\tintroduction_node\tintro_confidence\tparent_confidence\tdistance\tregion\torigins\torigins_confidence\tclades\tmutation_path\tmonophyl_size\tassoc_index\n");            
         } else {
-            outstrs.push_back("sample\tintroduction_node\tintro_confidence\tparent_confidence\tdistance\tregion\torigins\torigins_confidence\n");
+            outstrs.push_back("sample\tintroduction_node\tintro_confidence\tparent_confidence\tdistance\tregion\torigins\torigins_confidence\tclades\tmutation_path\n");
         }
     }
     for (auto ra: region_assignments) {
@@ -423,6 +406,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
             //total_processed++;
             //everything in this vector is going to be 1 (IN) this region
             std::string last_encountered = s;
+            MAT::Node* last_node;
             float last_anc_state = 1;
             size_t traversed = 0;
             for (auto a: T->rsearch(s,true)) {
@@ -480,79 +464,66 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                     //collect additional information if requested.
                     std::string intro_clades = "";
                     std::string intro_mut_path = "";
-                    if (add_info) {
-                        //both of these require an rsearch back from the point of origin to the tree root
-                        //mutation path is going to be in reverse for simplicity, so using < to indicate direction
-                        for (auto a: T->rsearch(a->identifier, true)) {
-                            //collect mutations
-                            std::string mutstr;
-                            for (auto m: a->mutations) {
-                                if (mutstr.size() == 0) {
-                                    mutstr += m.get_string();
+                    //get the mutations and clade information
+                    //both of these require an rsearch back from the point of origin to the tree root
+                    //mutation path is going to be in reverse for simplicity, so using < to indicate direction
+                    for (auto a: T->rsearch(a->identifier, true)) {
+                        //collect mutations
+                        std::string mutstr;
+                        for (auto m: a->mutations) {
+                            if (mutstr.size() == 0) {
+                                mutstr += m.get_string();
+                            } else {
+                                mutstr += "," + m.get_string();
+                            }
+                        }
+                        intro_mut_path += mutstr + "<";
+                        //check for any clade identifiers, record comma delineated
+                        for (auto ann: a->clade_annotations) {
+                            if (ann.size() > 0) {
+                                if (intro_clades.size() == 0) {
+                                    intro_clades += ann;
                                 } else {
-                                    mutstr += "," + m.get_string();
-                                }
-                            }
-                            intro_mut_path += mutstr + "<";
-                            //check for any clade identifiers, record comma delineated
-                            for (auto ann: a->clade_annotations) {
-                                if (ann.size() > 0) {
-                                    if (intro_clades.size() == 0) {
-                                        intro_clades += ann;
-                                    } else {
-                                        intro_clades += "," + ann;
-                                    }    
-                                }
+                                    intro_clades += "," + ann;
+                                }    
                             }
                         }
-                        if (intro_clades.size() == 0) {
-                            intro_clades = "none";
-                        }
+                    }
+                    if (intro_clades.size() == 0) {
+                        intro_clades = "none";
                     }
                     //calculate the trait phylogeny association metrics
                     //only if additional info is requested because of how it affects total runtime.
                     size_t mc = 0;
                     float ai = 0.0;
                     if (add_info) {
-                        //timer.Start();
                         auto mc_s = recorded_mc.find(a->identifier);
                         if (mc_s != recorded_mc.end()) {
                             mc = mc_s->second;
                         } else {
-                            timer.Start();
-                            fprintf(stderr, "Fetching MC for introduction.\n");
-                            mc = get_monophyletic_cladesize(T, assignments, a);
-                            fprintf(stderr, "Took %ld msec\n", timer.Stop());
+                            mc = get_monophyletic_cladesize(T, assignments, last_node);
                             recorded_mc[a->identifier] = mc;
                         }
-                        //fprintf(stderr, "DEBUG: Time to run subtree MC calculation: %ld msec\n", timer.Stop());
-                        //disable AI calculation for now as it is painrfully slow compared to efficient MC or whatnot
-                        timer.Start();
                         auto ai_s = recorded_ai.find(a->identifier);
                         if (ai_s != recorded_ai.end()) {
                             ai = ai_s->second;
                         } else {
-                            timer.Start();
-                            fprintf(stderr, "Fetching AI for introduction.\n");
-                            ai = get_association_index(T, assignments, a);
-                            fprintf(stderr, "Took %ld msec\n", timer.Stop());
+                            ai = get_association_index(T, assignments, last_node);
                             recorded_ai[a->identifier] = ai;
                         }
-                        //ai = get_association_index(T, assignments, a);
-                        fprintf(stderr, "DEBUG: Time to run subtree AI calculation: %ld msec\n", timer.Stop());
                     }
                     std::stringstream ostr;
                     if (region_assignments.size() == 1) {
-                        ostr << s << "\t" << last_encountered << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed;
+                        ostr << s << "\t" << last_encountered << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed << "\t" << intro_clades << "\t" << intro_mut_path;
                         if (add_info) {
-                            ostr << "\t" << mc << "\t" << ai << "\t" << intro_clades << "\t" << intro_mut_path << "\n";
+                            ostr << "\t" << mc << "\t" << ai << "\n";
                         } else {
                             ostr << "\n";
                         }
                     } else {
-                        ostr << s << "\t" << last_encountered << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed << "\t" << region << "\t" << origins << "\t" << origins_cons.str();
+                        ostr << s << "\t" << last_encountered << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed << "\t" << region << "\t" << origins << "\t" << origins_cons.str() << "\t" << intro_clades << "\t" << intro_mut_path;
                         if (add_info) {
-                            ostr << "\t" << mc << "\t" << ai << "\t" << intro_clades << "\t" << intro_mut_path << "\n";
+                            ostr << "\t" << mc << "\t" << ai << "\n";
                         } else {
                             ostr << "\n";
                         }
@@ -561,11 +532,11 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                     break;
                 } else {
                     last_encountered = a->identifier;
+                    last_node = a;
                     last_anc_state = anc_state;
                     traversed += a->mutations.size();
                 }
             }
-        //fprintf(stderr, "Found introduction for sample %s, time taken %ld msec, %d processed\n", s.c_str(), timer.Stop(), total_processed);
         }
     }
     return outstrs;
