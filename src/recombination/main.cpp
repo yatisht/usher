@@ -30,8 +30,8 @@ po::variables_map check_options(int argc, char** argv) {
         ("outdir,d", po::value<std::string>()->default_value("."), 
          "Output directory to dump output files [DEFAULT uses current directory]")
     
-        //        ("max-parsimony,p", po::value<int>()->default_value(0), \
-        //         "Maximum parsimony score of the recombinant sequence when placing it back after pruning and masking.")
+        ("max-parsimony,p", po::value<int>()->default_value(0), \
+         "Maximum parsimony score of the recombinant sequence when placing it back after pruning and masking.")
         ("num-descendants,n", po::value<uint32_t>()->default_value(10), \
          "Minimum number of leaves that node should have to be considered for recombination.")
         ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
@@ -83,20 +83,23 @@ struct Pruned_Sample {
     }
 };
 
+struct Recomb_Node {
+    std::string name;
+    int parsimony;
+    Recomb_Node(std::string n, int p) : name(n), parsimony(p)
+    {}
+};
+
 int main(int argc, char** argv) {
     po::variables_map vm = check_options(argc, argv);
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string outdir = vm["outdir"].as<std::string>();
     uint32_t branch_len = vm["branch-length"].as<uint32_t>();
+    int max_parsimony = vm["max-parsimony"].as<int>();
     int max_range = vm["max-coordinate-range"].as<int>();
     int min_range = vm["min-coordinate-range"].as<int>();
     uint32_t num_descendants = vm["num-descendants"].as<uint32_t>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
-
-//    if (max_parsimony >= branch_len) {
-//        fprintf(stderr, "ERROR: --max-parsimony should be less than --branch-length.\n");
-//        exit(1);
-//    }
 
     tbb::task_scheduler_init init(num_threads);
     srand (time(NULL));
@@ -203,8 +206,8 @@ int main(int argc, char** argv) {
                     continue;
                 }
 
-                std::vector<std::string> donor_nodes;
-                std::vector<std::string> acceptor_nodes;
+                std::vector<Recomb_Node> donor_nodes;
+                std::vector<Recomb_Node> acceptor_nodes;
 
                 donor_nodes.clear();
                 acceptor_nodes.clear();
@@ -297,9 +300,9 @@ int main(int argc, char** argv) {
                                        }
                                    }
 
-                                   if (l2_mut.size() == 0) {
+                                   if (l2_mut.size() <= max_parsimony) {
                                        tbb_lock.lock();
-                                       acceptor_nodes.emplace_back(bfs[k]->identifier);
+                                       acceptor_nodes.emplace_back(Recomb_Node(bfs[k]->identifier, l2_mut.size()));
                                        tbb_lock.unlock();
                                    }
                                }
@@ -327,9 +330,9 @@ int main(int argc, char** argv) {
                                        }
                                    }
 
-                                   if (node_mut.size() == 0) {
+                                   if (node_mut.size() <= max_parsimony) {
                                        tbb_lock.lock();
-                                       acceptor_nodes.emplace_back(bfs[k]->identifier);
+                                       acceptor_nodes.emplace_back(Recomb_Node(bfs[k]->identifier, node_mut.size()));
                                        tbb_lock.unlock();
                                    }
                                }
@@ -427,9 +430,9 @@ int main(int argc, char** argv) {
                                        }
                                    }
 
-                                   if (l2_mut.size() == 0) {
+                                   if (l2_mut.size() <= max_parsimony) {
                                        tbb_lock.lock();
-                                       donor_nodes.emplace_back(bfs[k]->identifier);
+                                       donor_nodes.emplace_back(Recomb_Node(bfs[k]->identifier, l2_mut.size()));
                                        tbb_lock.unlock();
                                    }
                                }
@@ -457,9 +460,9 @@ int main(int argc, char** argv) {
                                        }
                                    }
 
-                                   if (node_mut.size() == 0) {
+                                   if (node_mut.size() <= max_parsimony) {
                                        tbb_lock.lock();
-                                       donor_nodes.emplace_back(bfs[k]->identifier);
+                                       donor_nodes.emplace_back(Recomb_Node(bfs[k]->identifier, node_mut.size()));
                                        tbb_lock.unlock();
                                    }
                                }
@@ -473,11 +476,13 @@ int main(int argc, char** argv) {
                 for (auto d: donor_nodes) {
                     for (auto a:acceptor_nodes) {
                         // Ensure donor and acceptor are not the same and
-                        // neither of them is a descendant of the other
-                        if ((d!=a) && (!T.is_ancestor(d,a)) && (!T.is_ancestor(a,d))) {
+                        // neither of them is a descendant of the other and
+                        // total parsimony is less than the maximum allowed
+                        if ((d.name!=a.name) && (!T.is_ancestor(d.name,a.name)) && (!T.is_ancestor(a.name,d.name)) && 
+                                (d.parsimony+a.parsimony <= max_parsimony)) {
                             std::string end_range_high_str = (end_range_high == 1e9) ? "GENOME_SIZE" : std::to_string(end_range_high);
                             fprintf(recomb_file, "%s\t(%i,%i)\t(%i,%s)\t%s\t%s\n", nid_to_consider.c_str(), start_range_low, start_range_high,
-                                    end_range_low, end_range_high_str.c_str(), d.c_str(), a.c_str());
+                                    end_range_low, end_range_high_str.c_str(), d.name.c_str(), a.name.c_str());
                             has_recomb = true;
                             has_printed = true;
                             fflush(recomb_file);
