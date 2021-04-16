@@ -21,7 +21,7 @@ po::variables_map check_options(int argc, char** argv) {
     desc.add_options()
         ("input-mat,i", po::value<std::string>()->required(),
          "Input mutation-annotated tree file to optimize [REQUIRED].")
-        ("branch-length,l", po::value<uint32_t>()->default_value(4), \
+        ("branch-length,l", po::value<uint32_t>()->default_value(3), \
          "Minimum length of the branch to consider to recombination events")
         ("max-coordinate-range,R", po::value<int>()->default_value(1e7), \
          "Maximum range of the genomic coordinates of the mutations on the branch")
@@ -167,6 +167,8 @@ int main(int argc, char** argv) {
 
     size_t num_done = 0;
     for (auto nid_to_consider: nodes_to_consider) {
+        fprintf(stderr, "At node id: %s\n", nid_to_consider.c_str());
+
         Pruned_Sample pruned_sample(nid_to_consider);
         // Find mutations on the node to prune
         auto node_to_root = T.rsearch(nid_to_consider, true); 
@@ -195,10 +197,10 @@ int main(int argc, char** argv) {
                     }
                 }
                 
-                int start_range_high = donor.sample_mutations.front().position;
-                int end_range_low = donor.sample_mutations.back().position;
-
+                int start_range_high = pruned_sample.sample_mutations[i].position;
                 int start_range_low = (i>=1) ? pruned_sample.sample_mutations[i-1].position : 0;
+
+                int end_range_low = pruned_sample.sample_mutations[j].position; 
                 int end_range_high = (j+1<num_mutations) ? pruned_sample.sample_mutations[j+1].position : 1e9;
 
                 if ((donor.sample_mutations.size() < branch_len) || (acceptor.sample_mutations.size() < branch_len) ||
@@ -243,9 +245,7 @@ int main(int argc, char** argv) {
                     tbb::parallel_for( tbb::blocked_range<size_t>(0, total_nodes),
                             [&](tbb::blocked_range<size_t> r) {
                             for (size_t k=r.begin(); k<r.end(); ++k) {
-                               // Ignore the descendants of the node under consideration. 
-                               if ((nid_to_consider == bfs[k]->identifier) || (T.is_ancestor(nid_to_consider, bfs[k]->identifier)) ||
-                                       (T.get_num_leaves(bfs[k]) < num_descendants)) {
+                               if (T.get_num_leaves(bfs[k]) < num_descendants) {
                                    continue;
                                }
                                
@@ -294,7 +294,7 @@ int main(int argc, char** argv) {
                                            }
                                        }
                                        if (!found) {
-                                           if ((m1.position < start_range_high) || (m1.position > end_range_low)) {
+                                           if ((m1.position <= start_range_low) || (m1.position > end_range_high)) {
                                                l2_mut.emplace_back(m1.copy());
                                            }
                                        }
@@ -324,7 +324,7 @@ int main(int argc, char** argv) {
                                            }
                                        }
                                        if (!found) {
-                                           if ((m1.position < start_range_high) || (m1.position > end_range_low)) {
+                                           if ((m1.position < start_range_low) || (m1.position > end_range_high)) {
                                                node_mut.emplace_back(m1.copy());
                                            }
                                        }
@@ -339,7 +339,7 @@ int main(int argc, char** argv) {
                             }
                         }, ap);
                 }
-                
+
                 if (acceptor_nodes.size() == 0) {
                     continue;
                 }
@@ -373,9 +373,7 @@ int main(int argc, char** argv) {
                     tbb::parallel_for( tbb::blocked_range<size_t>(0, total_nodes),
                             [&](tbb::blocked_range<size_t> r) {
                             for (size_t k=r.begin(); k<r.end(); ++k) {
-                               // Ignore the descendants of the node under consideration. 
-                               if ((nid_to_consider == bfs[k]->identifier) || (T.is_ancestor(nid_to_consider, bfs[k]->identifier)) ||
-                                       (T.get_num_leaves(bfs[k]) < num_descendants)) {
+                               if (T.get_num_leaves(bfs[k]) < num_descendants) {
                                    continue;
                                }
                                
@@ -469,17 +467,17 @@ int main(int argc, char** argv) {
                             }
                         }, ap);
                 }
-
+                
                 // to print any pair of breakpoint interval exactly once for
                 // multiple donor-acceptor pairs
                 bool has_printed = false;
                 for (auto d: donor_nodes) {
                     for (auto a:acceptor_nodes) {
                         // Ensure donor and acceptor are not the same and
-                        // neither of them is a descendant of the other and
-                        // total parsimony is less than the maximum allowed
-                        if ((d.name!=a.name) && (!T.is_ancestor(d.name,a.name)) && (!T.is_ancestor(a.name,d.name)) && 
-                                (d.parsimony+a.parsimony <= max_parsimony)) {
+                        // neither of them is a descendant of the recombinant
+                        // node total parsimony is less than the maximum allowed
+                        if ((d!=a) && (d!=nid_to_consider) && (a!=nid_to_consider) && (!T.is_ancestor(nid_to_consider,d)) && 
+                                (!T.is_ancestor(nid_to_consider,a)) && (d.parsimony+a.parsimony <= max_parsimony)) {
                             std::string end_range_high_str = (end_range_high == 1e9) ? "GENOME_SIZE" : std::to_string(end_range_high);
                             fprintf(recomb_file, "%s\t(%i,%i)\t(%i,%s)\t%s\t%s\n", nid_to_consider.c_str(), start_range_low, start_range_high,
                                     end_range_low, end_range_high_str.c_str(), d.name.c_str(), a.name.c_str());
@@ -504,10 +502,10 @@ int main(int argc, char** argv) {
             }
             fprintf(desc_file, "\n");
             fflush(desc_file);
-            fprintf(stderr, "Done %zu/%zu branches [RECOMBINATION FOUND!]\n", ++num_done, nodes_to_consider.size());
+            fprintf(stderr, "Done %zu/%zu branches [RECOMBINATION FOUND!]\n\n", ++num_done, nodes_to_consider.size());
         }
         else {
-            fprintf(stderr, "Done %zu/%zu branches\n", ++num_done, nodes_to_consider.size());
+            fprintf(stderr, "Done %zu/%zu branches\n\n", ++num_done, nodes_to_consider.size());
         }
     }
         
