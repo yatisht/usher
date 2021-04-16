@@ -83,20 +83,25 @@ std::map<std::string, std::vector<std::string>> read_two_column (std::string sam
     return amap;
 }
 
-float get_association_index_new(MAT::Tree* T, std::map<std::string, float> assignments, MAT::Node* subroot) {
+float get_association_index(MAT::Tree* T, std::map<std::string, float> assignments, MAT::Node* subroot) {
     /*
-    Trying a new implementation which may be more efficient by relying on dynamic programming.
+    The association index was introduced by Wang et al 2001 for the estimation of phylogeny and trait correlation. Parker et al 2008 has a good summary.
+    It's an index that is small for strong correlation and large for weak correlation, with non-integer values.
+    AI = sum(for all internal nodes) (1-tips_with_trait) / (2 ^ (total_tips - 1))
+    This can be calculated for a full tree or for an introduction-specific subtree.
+
+    My implementation is an efficient one that relies on dynamic programming and useful ordering of node traversal.
     This searches over a reverse breadth first order. For each internal node, check the children.
     Count the number of direct leaf children which are in/out and get the records for the counts for in/out 
-    from the internal_tracker map. Add these up. If the child node isn't in the internal tracker despite the BFS order, well,
-    go ahead and use the get_leaves() routine I guess. Print a warning so I can see what's up.
+    from the internal_tracker map. Add these up to get the total number of in/out leaves associated with a node.
+    This avoids repeatedly traversing the tree to identify leaves for each internal node, since reverse breadth-first search order
+    means that all children of a node will be traversed over before the node itself is. 
     */
     float total_ai = 0.0;
     std::map<std::string,std::pair<size_t,size_t>> internal_tracker;
 
     auto bfs = T->breadth_first_expansion();
     std::reverse(bfs.begin(), bfs.end());
-
     for (auto n: bfs) {
         if (!n->is_leaf()) {
             size_t in_c = 0;
@@ -126,62 +131,7 @@ float get_association_index_new(MAT::Tree* T, std::map<std::string, float> assig
             }
             internal_tracker[n->identifier] = std::make_pair(in_c,out_c);
             size_t total_leaves = in_c + out_c;
-            total_ai += ((1 - in_c/total_leaves) / (pow(2, (total_leaves-1))));
-        }
-    }
-    return total_ai;
-}
-
-float get_association_index(MAT::Tree* T, std::map<std::string, float> assignments, MAT::Node* subroot) {
-    /*
-    The association index was introduced by Wang et al 2001 for the estimation of phylogeny and trait correlation. Parker et al 2008 has a good summary.
-    It's an index that is small for strong correlation and large for weak correlation, with non-integer values.
-    AI = sum(for all internal nodes) (1-tips_with_trait) / (2 ^ (total_tips - 1))
-    This can be calculated for a full tree or for an introduction-specific subtree.
-    */
-
-    float total_ai = 0.0;
-    std::set<std::string> internals_to_check;
-    std::vector<std::string> all_leaf_ids;
-    if (subroot != NULL) {
-        all_leaf_ids = T->get_leaves_ids(subroot->identifier);
-    } else {
-        all_leaf_ids = T->get_leaves_ids();
-    }
-    for (auto l: all_leaf_ids) {
-        auto search = assignments.find(l);
-        if (search != assignments.end()) {
-            if (search->second > 0.5) {
-                //for each in sample, for each of its ancestor internal nodes, ensure its internal node is in the set to check.
-                for (auto a: T->rsearch(l)) {
-                    internals_to_check.insert(a->identifier);
-                }
-            }
-        }
-    }
-    //now when we proceed through the dfs, before we find any leaf identifiers, we check whether that internal node is in our list to check
-    //if its not, we just skip it. This should remove the vast majority of the tree from consideration for most regions
-    //and speed our implementation signficantly.
-    //the below is the naive implementation
-    //we can optimize this by only checking AI values of internal nodes along the rsearch path from each IN sample in the assignments
-    //instead of repeatedly getting all leaves for all internal nodes
-    for (auto n: T->depth_first_expansion(subroot)) {
-        if (internals_to_check.find(n->identifier) != internals_to_check.end()) {
-            auto assoc_leaves = T->get_leaves(n->identifier);
-            size_t in_leaf_counts = 0;
-            for (auto l: assoc_leaves) {
-                auto search = assignments.find(l->identifier);
-                if (search != assignments.end()) {
-                    if (search->second > 0.5) {
-                        in_leaf_counts++;
-                    }
-                } else {
-                    fprintf(stderr, "ERROR: Sample not correctly assigned before statistical calculation!\n");
-                    exit(1);
-                }
-            }
-            float specific_ai = ((1 - in_leaf_counts/assoc_leaves.size()) / (pow(2, (assoc_leaves.size()-1))));
-            total_ai += specific_ai;
+            total_ai += ((1 - std::max(in_c,out_c)/total_leaves) / (pow(2, (total_leaves-1))));
         }
     }
     return total_ai;
@@ -225,27 +175,6 @@ size_t get_monophyletic_cladesize(MAT::Tree* T, std::map<std::string, float> ass
         biggest = current;
     }
     fprintf(stderr, "DEBUG: Alternative method finds %ld from %ld total, takes %ld msec\n", biggest, acls.size(), timer.Stop());
-    // fprintf(stderr, "DEBUG: Trying naive method for MC\n");
-    // timer.Start();
-    // for (auto n: T->depth_first_expansion(subroot)) {
-    //     auto clade_leaves = T->get_leaves_ids(n->identifier);
-    //     bool is_pure = true;
-    //     for (auto cl: clade_leaves) {
-    //         auto search = assignments.find(cl);
-    //         if (search != assignments.end()) {
-    //             if (search->second < 0.5) {
-    //                 //this is not pure, we should ignore this set.
-    //                 is_pure = false;
-    //             }
-    //         }
-    //     }
-    //     if (is_pure) {
-    //         if (clade_leaves.size() > biggest) {
-    //             biggest = clade_leaves.size();
-    //         }
-    //     }
-    // }
-    // fprintf(stderr, "DEBUG: Naive method yields %ld, takes %ld msec\n", biggest, timer.Stop());
     return biggest;
 }
 
@@ -420,9 +349,14 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
         // fprintf(stderr, "Time to do assignment %ld\n", timer.Stop());
         //print my fancy new statistics.
         // timer.Start();
-        // size_t global_mc = get_monophyletic_cladesize(T, assignments);
-        //float global_ai = get_association_index(T, assignments);
-        //fprintf(stderr, "MC: %ld, AI: %f\n", global_mc, global_ai);
+        size_t global_mc = get_monophyletic_cladesize(T, assignments);
+        timer.Start();
+        float global_ai_old = get_association_index(T, assignments);
+        fprintf(stderr, "DEBUG: Old AI calculation yields %f in %ld msec\n", global_ai_old, timer.Stop());
+        timer.Start();
+        float global_ai = get_association_index(T, assignments);
+        fprintf(stderr, "MC: %ld, AI: %f\n", global_mc, global_ai);
+        fprintf(stderr, "DEBUG: new AI calculations takes %ld msec\n", timer.Stop());
         //AI for the full tree doesn't seem to make much sense/be very sensitive, but MC seems good. Running with it.
         // fprintf(stderr, "largest identified regional subclade contains %ld samples\n", global_mc);
         // fprintf(stderr, "MC calculation took %ld msec\n", timer.Stop());
@@ -593,19 +527,19 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                         }
                         //fprintf(stderr, "DEBUG: Time to run subtree MC calculation: %ld msec\n", timer.Stop());
                         //disable AI calculation for now as it is painrfully slow compared to efficient MC or whatnot
-                        // timer.Start();
-                        // auto ai_s = recorded_ai.find(a->identifier);
-                        // if (ai_s != recorded_ai.end()) {
-                        //     ai = ai_s->second;
-                        // } else {
-                        //     timer.Start();
-                        //     fprintf(stderr, "Fetching AI for introduction.\n");
-                        //     ai = get_association_index(T, assignments, a);
-                        //     fprintf(stderr, "Took %ld msec\n", timer.Stop());
-                        //     recorded_ai[a->identifier] = ai;
-                        // }
-                        // ai = get_association_index(T, assignments, a);
-                        // fprintf(stderr, "DEBUG: Time to run subtree AI calculation: %ld msec\n", timer.Stop());
+                        timer.Start();
+                        auto ai_s = recorded_ai.find(a->identifier);
+                        if (ai_s != recorded_ai.end()) {
+                            ai = ai_s->second;
+                        } else {
+                            timer.Start();
+                            fprintf(stderr, "Fetching AI for introduction.\n");
+                            ai = get_association_index(T, assignments, a);
+                            fprintf(stderr, "Took %ld msec\n", timer.Stop());
+                            recorded_ai[a->identifier] = ai;
+                        }
+                        //ai = get_association_index(T, assignments, a);
+                        fprintf(stderr, "DEBUG: Time to run subtree AI calculation: %ld msec\n", timer.Stop());
                     }
                     std::stringstream ostr;
                     if (region_assignments.size() == 1) {
