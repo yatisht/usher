@@ -158,7 +158,7 @@ int main(int argc, char** argv) {
     fprintf(stderr, "Creating file %s to write recombination events\n", 
             recomb_filename.c_str());
     FILE* recomb_file = fopen(recomb_filename.c_str(), "w");
-    fprintf(recomb_file, "#recomb_node_id\tbreakpoint-1_interval\tbreakpoint-2_interval\tdonor_node_id\tacceptor_node_id\n");
+    fprintf(recomb_file, "#recomb_node_id\tbreakpoint-1_interval\tbreakpoint-2_interval\tdonor_node_id\tacceptor_node_id\tparsimony\n");
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     
     timer.Start();
@@ -476,11 +476,12 @@ int main(int argc, char** argv) {
                         // Ensure donor and acceptor are not the same and
                         // neither of them is a descendant of the recombinant
                         // node total parsimony is less than the maximum allowed
-                        if ((d!=a) && (d!=nid_to_consider) && (a!=nid_to_consider) && (!T.is_ancestor(nid_to_consider,d)) && 
-                                (!T.is_ancestor(nid_to_consider,a)) && (d.parsimony+a.parsimony <= max_parsimony)) {
+                        if ((d.name!=a.name) && (d.name!=nid_to_consider) && (a.name!=nid_to_consider) && 
+                                (!T.is_ancestor(nid_to_consider,d.name)) && (!T.is_ancestor(nid_to_consider,a.name)) 
+                                && (d.parsimony+a.parsimony <= max_parsimony)) {
                             std::string end_range_high_str = (end_range_high == 1e9) ? "GENOME_SIZE" : std::to_string(end_range_high);
-                            fprintf(recomb_file, "%s\t(%i,%i)\t(%i,%s)\t%s\t%s\n", nid_to_consider.c_str(), start_range_low, start_range_high,
-                                    end_range_low, end_range_high_str.c_str(), d.name.c_str(), a.name.c_str());
+                            fprintf(recomb_file, "%s\t(%i,%i)\t(%i,%s)\t%s\t%s\t%i\n", nid_to_consider.c_str(), start_range_low, start_range_high,
+                                    end_range_low, end_range_high_str.c_str(), d.name.c_str(), a.name.c_str(), d.parsimony+a.parsimony);
                             has_recomb = true;
                             has_printed = true;
                             fflush(recomb_file);
