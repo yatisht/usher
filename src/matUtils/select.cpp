@@ -206,8 +206,8 @@ std::vector<std::string> get_nearby (MAT::Tree T, std::string sample_id, int num
         subset_start = all_leaves.size() - number_to_get - 1;
         subset_end = all_leaves.size() - 1;
     }
-    fprintf(stderr, "Start index is %d\n", subset_start);
-    fprintf(stderr, "Stop index is %d\n", subset_end);
+    //fprintf(stderr, "Start index is %d\n", subset_start);
+    //fprintf(stderr, "Stop index is %d\n", subset_end);
     std::vector<std::string> neighborhood_leaves(all_leaves.begin() + subset_start, all_leaves.begin() + subset_end);
     return neighborhood_leaves;
 }
