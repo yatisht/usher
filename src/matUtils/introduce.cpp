@@ -83,6 +83,55 @@ std::map<std::string, std::vector<std::string>> read_two_column (std::string sam
     return amap;
 }
 
+float get_association_index_new(MAT::Tree* T, std::map<std::string, float> assignments, MAT::Node* subroot) {
+    /*
+    Trying a new implementation which may be more efficient by relying on dynamic programming.
+    This searches over a reverse breadth first order. For each internal node, check the children.
+    Count the number of direct leaf children which are in/out and get the records for the counts for in/out 
+    from the internal_tracker map. Add these up. If the child node isn't in the internal tracker despite the BFS order, well,
+    go ahead and use the get_leaves() routine I guess. Print a warning so I can see what's up.
+    */
+    float total_ai = 0.0;
+    std::map<std::string,std::pair<size_t,size_t>> internal_tracker;
+
+    auto bfs = T->breadth_first_expansion();
+    std::reverse(bfs.begin(), bfs.end());
+
+    for (auto n: bfs) {
+        if (!n->is_leaf()) {
+            size_t in_c = 0;
+            size_t out_c = 0;
+            for (auto c: n->children) {
+                if (c->is_leaf()) {
+                    auto search = assignments.find(c->identifier);
+                    if (search != assignments.end()) {
+                        if (search->second > 0.5) {                
+                            in_c++;
+                        } else {
+                            out_c++;
+                        }
+                    }   
+                } else {
+                    //check to see if we've recorded the internal child- we definitely should have in reverse BFS
+                    auto search = internal_tracker.find(c->identifier);
+                    if (search != internal_tracker.end()) {
+                        in_c += search->second.first;
+                        out_c += search->second.second;
+                    } else {
+                        //this SHOULD not happen, logically...
+                        fprintf(stderr, "DEBUG: AI calculation encountered mystery internal child node\n");
+                        exit(1);
+                    }
+                }
+            }
+            internal_tracker[n->identifier] = std::make_pair(in_c,out_c);
+            size_t total_leaves = in_c + out_c;
+            total_ai += ((1 - in_c/total_leaves) / (pow(2, (total_leaves-1))));
+        }
+    }
+    return total_ai;
+}
+
 float get_association_index(MAT::Tree* T, std::map<std::string, float> assignments, MAT::Node* subroot) {
     /*
     The association index was introduced by Wang et al 2001 for the estimation of phylogeny and trait correlation. Parker et al 2008 has a good summary.
