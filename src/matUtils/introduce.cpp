@@ -13,7 +13,7 @@ po::variables_map parse_introduce_command(po::parsed_options parsed) {
         ("population-samples,s", po::value<std::string>()->required(), 
          "Names of samples from the population of interest [REQUIRED].") 
         ("additional-info,a", po::bool_switch(),
-        "Set to print clade membership and full mutation paths at inferred introduction points.")
+        "Set to calculate additional phylogenetic trait association statistics for whole regions and individual introductions. WARNING: Adds significantly to runtime.")
         ("clade-regions,c", po::value<std::string>()->default_value(""),
         "Set to optionally record, for each clade root in the tree, the support for that clade root being IN each region in the input, as a tsv with the indicated name.")
         ("output,o", po::value<std::string>()->required(),
@@ -385,20 +385,20 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
         fprintf(stderr, "Processing region %s with %ld total samples\n", region.c_str(), samples.size());
         std::unordered_set<std::string> sample_set(samples.begin(), samples.end());
         auto assignments = get_assignments(T, sample_set);
-        size_t global_mc = get_monophyletic_cladesize(T, assignments);
-        float global_ai = get_association_index(T, assignments);
-        fprintf(stderr, "Region largest monophyletic clade: %ld, regional association index: %f\n", global_mc, global_ai);
-
-//        float total_permd = 0.0;
-        std::vector<float> permvec;
-        for (int i = 0; i < 100; i++) {
-            float perm = get_association_index(T, assignments, true);
-//            total_permd += perm;
-            permvec.push_back(perm);
+        if (add_info) {
+            size_t global_mc = get_monophyletic_cladesize(T, assignments);
+            float global_ai = get_association_index(T, assignments);
+            fprintf(stderr, "Region largest monophyletic clade: %ld, regional association index: %f\n", global_mc, global_ai);
         }
-//        float baseline_ai = total_permd/100;
-        std::sort(permvec.begin(), permvec.end());
-        fprintf(stderr, "Real value %f. Quantiles of random expected AI for this sample size: %f, %f, %f, %f, %f\n", global_ai, permvec[5],permvec[25],permvec[50],permvec[75],permvec[95]);
+        if (add_info) {
+            std::vector<float> permvec;
+            for (int i = 0; i < 100; i++) {
+                float perm = get_association_index(T, assignments, true);
+                permvec.push_back(perm);
+            }
+            std::sort(permvec.begin(), permvec.end());
+            fprintf(stderr, "Real value %f. Quantiles of random expected AI for this sample size: %f, %f, %f, %f, %f\n", global_ai, permvec[5],permvec[25],permvec[50],permvec[75],permvec[95]);       
+        }
 
         region_assignments[region] = assignments;
     }
