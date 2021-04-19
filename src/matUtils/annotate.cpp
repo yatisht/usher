@@ -19,6 +19,8 @@ po::variables_map parse_annotate_command(po::parsed_options parsed) {
          "Path to a tsv file mapping clades to their respective internal node identifiers.")
         ("allele-frequency,f", po::value<float>()->default_value(0.8),
          "Minimum allele frequency in input samples for finding the best clade root. Used only with -l")
+        ("mask-frequency,m", po::value<float>()->default_value(0.2),
+         "Minimum allele frequency below -l in input samples that should be masked for finding the best clade root.")
         ("set-overlap,s", po::value<float>()->default_value(0.6),
         "Minimum fraction of the clade samples that should be desecendants of the assigned clade root")
         ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
@@ -57,6 +59,7 @@ void annotate_main(po::parsed_options parsed) {
     std::string clade_to_nid_filename = vm["clade-to-nid"].as<std::string>();
     bool clear_current = vm["clear-current"].as<bool>();
     float allele_frequency = vm["allele-frequency"].as<float>();
+    float mask_frequency = vm["mask-frequency"].as<float>();
     float set_overlap = vm["set-overlap"].as<float>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
 
@@ -76,7 +79,7 @@ void annotate_main(po::parsed_options parsed) {
     else {
         fprintf(stderr, "Annotating Lineage Root Nodes\n");
         if (clade_filename != "") {
-            assignLineages(T, clade_filename, allele_frequency, set_overlap, clear_current);
+            assignLineages(T, clade_filename, allele_frequency, mask_frequency, set_overlap, clear_current);
         }
         else {
             assignLineages(T, clade_to_nid_filename, clear_current);
@@ -153,7 +156,7 @@ void assignLineages (MAT::Tree& T, const std::string& clade_to_nid_filename, boo
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 }
 
-void assignLineages (MAT::Tree& T, const std::string& clade_filename, float min_freq, float set_overlap, bool clear_current) {
+void assignLineages (MAT::Tree& T, const std::string& clade_filename, float min_freq, float mask_freq, float set_overlap, bool clear_current) {
     static tbb::affinity_partitioner ap;
     
     fprintf(stderr, "Copying tree with uncondensed leaves.\n"); 
@@ -303,6 +306,17 @@ void assignLineages (MAT::Tree& T, const std::string& clade_filename, float min_
                 m.par_nuc = m.ref_nuc; 
                 m.position = std::stoi(words[2]);
                 m.mut_nuc = static_cast<int8_t>(std::stoi(words[3]));
+                clade_mutations.emplace_back(m);
+            }
+            else if (static_cast<float>(mc.second)/it.second.size() >= mask_freq) {
+                std::vector<std::string> words;
+                MAT::string_split(mc.first, words);
+                MAT::Mutation m;
+                m.chrom = words[0];
+                m.ref_nuc = static_cast<int8_t>(std::stoi(words[1]));
+                m.par_nuc = m.ref_nuc; 
+                m.position = std::stoi(words[2]);
+                m.mut_nuc = MAT::get_nuc_id('N');
                 clade_mutations.emplace_back(m);
             }
         }
