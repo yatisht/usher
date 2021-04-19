@@ -83,9 +83,9 @@ std::map<std::string, std::vector<std::string>> read_two_column (std::string sam
     return amap;
 }
 
-float get_association_index(MAT::Tree* T, std::map<std::string, float> assignments, MAT::Node* subroot) {
+float get_association_index(MAT::Tree* T, std::map<std::string, float> assignments, bool permute, MAT::Node* subroot) {
     /*
-    The association index was introduced by Wang et al 2001 for the estimation of phylogeny and trait correlation. Parker et al 2008 has a good summary.
+    The association index was introduced by Wang et al 2005 for the estimation of phylogeny and trait correlation. Parker et al 2008 has a good summary.
     It's an index that is small for strong correlation and large for weak correlation, with non-integer values.
     AI = sum(for all internal nodes) (1-tips_with_trait) / (2 ^ (total_tips - 1))
     This can be calculated for a full tree or for an introduction-specific subtree.
@@ -95,8 +95,13 @@ float get_association_index(MAT::Tree* T, std::map<std::string, float> assignmen
     Count the number of direct leaf children which are in/out and get the records for the counts for in/out 
     from the internal_tracker map. Add these up to get the total number of in/out leaves associated with a node.
     This avoids repeatedly traversing the tree to identify leaves for each internal node, since reverse breadth-first search order
-    means that all children of a node will be traversed over before the node itself is. 
+    means that all children of a node will necessarily be traversed over before the node itself is. 
+
+    The permute boolean, when true, sets a mode where in/out traits are randomly assigned on a uniform distribution based on 
+    the baseline frequency of the trait across the tree instead of actually checking membership. Used to evaluate the results with 
+    some statistical grounding, though full repeated permutations are too computationally costly. 
     */
+    //timer.Start();
     float total_ai = 0.0;
     std::map<std::string,std::pair<size_t,size_t>> internal_tracker;
     std::vector<MAT::Node*> bfs;
@@ -105,6 +110,27 @@ float get_association_index(MAT::Tree* T, std::map<std::string, float> assignmen
     } else {
         bfs = T->breadth_first_expansion();
     }
+
+    srand(time(nullptr));
+    //float freq = 0.0;
+    size_t leaf_count = 0;
+    size_t permuted_inc = 0;
+    size_t sample_count = 0;
+    if (permute) {
+        //fprintf(stderr, "DEBUG: Initiating permutation with bfs of %ld size\n", bfs.size());
+        for (auto b: bfs) {
+            if (b->is_leaf()) {
+                leaf_count++;
+                auto search = assignments.find(b->identifier);
+                if (search != assignments.end()) {
+                    if (search->second > 0.5) {                
+                        sample_count++;
+                    }
+                }
+            }
+        }
+    }
+
     std::reverse(bfs.begin(), bfs.end());
     for (auto n: bfs) {
        if (!n->is_leaf()) {
@@ -112,14 +138,24 @@ float get_association_index(MAT::Tree* T, std::map<std::string, float> assignmen
             size_t out_c = 0;
             for (auto c: n->children) {
                 if (c->is_leaf()) {
-                    auto search = assignments.find(c->identifier);
-                    if (search != assignments.end()) {
-                        if (search->second > 0.5) {                
+                    if (permute) {
+                        int random = rand()%leaf_count;
+                        if (random <= sample_count) {
                             in_c++;
+                            permuted_inc++;
                         } else {
                             out_c++;
                         }
-                    }   
+                    } else {
+                        auto search = assignments.find(c->identifier);
+                        if (search != assignments.end()) {
+                            if (search->second > 0.5) {                
+                                in_c++;
+                            } else {
+                                out_c++;
+                            }
+                        }
+                    }
                 } else {
                     //check to see if we've recorded the internal child- we definitely should have in reverse BFS
                     auto search = internal_tracker.find(c->identifier);
@@ -138,6 +174,10 @@ float get_association_index(MAT::Tree* T, std::map<std::string, float> assignmen
             total_ai += ((1 - std::max(in_c,out_c)/total_leaves) / (pow(2, (total_leaves-1))));
         }
     }
+    //if (permute) {
+    //    fprintf(stderr, "DEBUG: Permutation gets %f in %ld msec\n", total_ai, timer.Stop());
+    //    fprintf(stderr, "DEBUG: Permutation assigned %ld nodes as IN with %ld real in nodes.\n", permuted_inc, sample_count);
+    //}
     return total_ai;
 }
 
@@ -348,6 +388,18 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
         size_t global_mc = get_monophyletic_cladesize(T, assignments);
         float global_ai = get_association_index(T, assignments);
         fprintf(stderr, "Region largest monophyletic clade: %ld, regional association index: %f\n", global_mc, global_ai);
+
+//        float total_permd = 0.0;
+        std::vector<float> permvec;
+        for (int i = 0; i < 100; i++) {
+            float perm = get_association_index(T, assignments, true);
+//            total_permd += perm;
+            permvec.push_back(perm);
+        }
+//        float baseline_ai = total_permd/100;
+        std::sort(permvec.begin(), permvec.end());
+        fprintf(stderr, "Real value %f. Quantiles of random expected AI for this sample size: %f, %f, %f, %f, %f\n", global_ai, permvec[5],permvec[25],permvec[50],permvec[75],permvec[95]);
+
         region_assignments[region] = assignments;
     }
     //if requested, record the clade output
@@ -508,7 +560,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                         if (ai_s != recorded_ai.end()) {
                             ai = ai_s->second;
                         } else {
-                            ai = get_association_index(T, assignments, last_node);
+                            ai = get_association_index(T, assignments, false, last_node);
                             recorded_ai[a->identifier] = ai;
                         }
                     }
