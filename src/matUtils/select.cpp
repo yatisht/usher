@@ -187,7 +187,14 @@ std::vector<std::string> get_nearby (MAT::Tree T, std::string sample_id, int num
     //by far the simplest way to do this is to get_leaves_ids and subset out a distance around the index
     //increment the number to get by 1.
     number_to_get++;
-    auto all_leaves = T.get_leaves_ids();
+    //trying the set of leaves in breadth-first search order
+    std::vector<std::string> all_leaves;
+    for (auto n: T.depth_first_expansion()) {
+        if (n->is_leaf()) {
+            all_leaves.push_back(n->identifier);
+        }
+    }
+    //auto all_leaves = T.get_leaves_ids();
     auto target = std::find(all_leaves.begin(), all_leaves.end(), sample_id);
     if (target == all_leaves.cend()) {
         fprintf(stderr, "ERROR: Indicated sample does not exist in the tree!\n");
