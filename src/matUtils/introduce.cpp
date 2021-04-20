@@ -174,10 +174,6 @@ float get_association_index(MAT::Tree* T, std::map<std::string, float> assignmen
             total_ai += ((1 - std::max(in_c,out_c)/total_leaves) / (pow(2, (total_leaves-1))));
         }
     }
-    //if (permute) {
-    //    fprintf(stderr, "DEBUG: Permutation gets %f in %ld msec\n", total_ai, timer.Stop());
-    //    fprintf(stderr, "DEBUG: Permutation assigned %ld nodes as IN with %ld real in nodes.\n", permuted_inc, sample_count);
-    //}
     return total_ai;
 }
 
@@ -389,8 +385,6 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
             size_t global_mc = get_monophyletic_cladesize(T, assignments);
             float global_ai = get_association_index(T, assignments);
             fprintf(stderr, "Region largest monophyletic clade: %ld, regional association index: %f\n", global_mc, global_ai);
-        }
-        if (add_info) {
             std::vector<float> permvec;
             for (int i = 0; i < 100; i++) {
                 float perm = get_association_index(T, assignments, true);
