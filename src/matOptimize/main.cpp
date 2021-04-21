@@ -1,4 +1,8 @@
 #include "optimize.hpp"
+#include <boost/program_options.hpp> 
+#include <boost/iostreams/filtering_stream.hpp>
+#include <boost/iostreams/filter/gzip.hpp>
+#include "boost/filesystem.hpp"
 #include <time.h>  
 #include <set>  
 
@@ -16,6 +20,8 @@ po::variables_map check_options(int argc, char** argv) {
          "Output optimized mutation-annotated tree file [REQUIRED].") 
         ("sample-names,f", po::value<std::string>()->default_value(""),
          "File containing sample names whose ancestral nodes would be considered for optimization.") 
+        ("input-vcf,v", po::value<std::string>()->default_value(""),
+         "Input vcf filename to reassign resolved bases using Fitch-Sankoff initially.")
         ("radius,r", po::value<uint32_t>()->default_value(10), \
          "Radius in which to restrict the SPR moves.")
         ("optimization-seconds,s", po::value<uint32_t>()->default_value(3600), \
@@ -398,6 +404,7 @@ void optimize_main_old(po::parsed_options parsed) {
 int main(int argc, char** argv) {
     po::variables_map vm = check_options(argc, argv);
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
+    std::string input_vcf_filename = vm["input-vcf"].as<std::string>();
     std::string output_mat_filename = vm["output-mat"].as<std::string>();
     std::string sample_name_filename = vm["sample-names"].as<std::string>();
     uint32_t max_seconds = vm["optimization-seconds"].as<uint32_t>();
@@ -417,6 +424,133 @@ int main(int argc, char** argv) {
     // Load input MAT and uncondense tree
     MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
     T.uncondense_leaves();
+
+
+
+    // If VCF specified, re-compute the assignments using Fitch-Sankoff
+    if (input_vcf_filename != "") {
+        fprintf(stderr, "Computing parsimonious assignments for input variants.\n"); 
+        timer.Start();
+
+        // Variables below used to store the different fields of the input VCF file 
+        bool header_found = false;
+        std::vector<std::string> variant_ids;
+        std::vector<Missing_Sample> missing_samples;
+
+        // Vector used to store all tree nodes in breadth-first search (BFS) order
+        std::vector<MAT::Node*> bfs;
+        // Map the node identifier string to index in the BFS traversal
+        std::unordered_map<std::string, size_t> bfs_idx;
+
+        // Breadth-first expansion to populate bfs and bfs_idx
+        bfs = T.breadth_first_expansion();
+        for (size_t idx = 0; idx < bfs.size(); idx++) {
+            bfs_idx[bfs[idx]->identifier] = idx;
+            // clear the node mutations
+            bfs[idx]->clear_mutations();
+        }
+
+        // Boost library used to stream the contents of the input VCF file in
+        // uncompressed or compressed .gz format
+        std::ifstream infile(input_vcf_filename, std::ios_base::in | std::ios_base::binary);
+        if (!infile) {
+            fprintf(stderr, "ERROR: Could not open the VCF file: %s!\n", input_vcf_filename.c_str());
+            exit(1);
+        }
+        boost::iostreams::filtering_istream instream;
+        try {
+            if (input_vcf_filename.find(".gz\0") != std::string::npos) {
+                instream.push(boost::iostreams::gzip_decompressor());
+            }
+            instream.push(infile);
+        }
+        catch(const boost::iostreams::gzip_error& e) {
+            std::cout << e.what() << '\n';
+        }
+        
+
+        // A TBB flow graph containing a single source_node (reader) connected
+        // to several mappers. The source_node sequentially reads in the different 
+        // lines of the input VCF file and constructs a mapper task for each
+        // VCF line. Each mapper task takes a mapper_input as input, which stores
+        // the alternate alleles, ambiguous bases and missing data (Ns) for
+        // different tree samples at the corresponding VCF line/position. The 
+        // mappers use Fitch-Sankoff algorithm to assign mutations at different
+        // branches of the tree and update the mutation-annotated tree (T)
+        // accordingly. 
+        tbb::flow::graph mapper_graph;
+
+        tbb::flow::function_node<mapper_input, int> mapper(mapper_graph, tbb::flow::unlimited, mapper_body());
+        tbb::flow::source_node <mapper_input> reader (mapper_graph,
+                [&] (mapper_input &inp) -> bool {
+                
+                //check if reached end-of-file
+                int curr_char = instream.peek();
+                if(curr_char == EOF)
+                    return false;
+                
+                std::string s;
+                std::getline(instream, s);
+                std::vector<std::string> words;
+                MAT::string_split(s, words);
+                inp.variant_pos = -1;
+
+                // Header is found when "POS" is the second word in the line
+                if ((not header_found) && (words.size() > 1)) {
+                  if (words[1] == "POS") {
+                  // Sample names start from the 10th word in the header
+                    for (size_t j=9; j < words.size(); j++) {
+                      variant_ids.emplace_back(words[j]);
+                      // If sample name not in tree, add it to missing_samples
+                      if (bfs_idx.find(words[j]) == bfs_idx.end()) {
+                        missing_samples.emplace_back(Missing_Sample(words[j]));
+                      }
+                    }
+                    header_found = true;
+                  }
+                }
+                else if (header_found) {
+                    if (words.size() != 9+variant_ids.size()) {
+                        fprintf(stderr, "ERROR! Incorrect VCF format.\n");
+                        exit(1);
+                    }
+                    std::vector<std::string> alleles;
+                    alleles.clear();
+                    inp.variant_pos = std::stoi(words[1]); 
+                    MAT::string_split(words[4], ',', alleles);
+                    // T will be modified by the mapper with mutation
+                    // annotations
+                    inp.T = &T;
+                    inp.chrom = words[0];
+                    inp.bfs = &bfs;
+                    inp.bfs_idx = &bfs_idx;
+                    inp.variant_ids = &variant_ids;
+                    inp.missing_samples = &missing_samples;
+                    // Ref nuc id uses one-hot encoding (A:0b1, C:0b10, G:0b100,
+                    // T:0b1000)
+                    inp.ref_nuc = MAT::get_nuc_id(words[3][0]);
+                    assert((inp.ref_nuc & (inp.ref_nuc-1)) == 0); //check if it is power of 2
+                    inp.variants.clear();
+                    for (size_t j=9; j < words.size(); j++) {
+                        if (isdigit(words[j][0])) {
+                            int allele_id = std::stoi(words[j]);
+                            if (allele_id > 0) { 
+                                std::string allele = alleles[allele_id-1];
+                                inp.variants.emplace_back(std::make_tuple(j-9, MAT::get_nuc_id(allele[0])));
+                            }
+                        }
+                        else {
+                            inp.variants.emplace_back(std::make_tuple(j-9, MAT::get_nuc_id('N')));
+                        }
+                    }
+                }
+                return true;
+                }, true );
+        tbb::flow::make_edge(reader, mapper);
+        mapper_graph.wait_for_all();
+
+        fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+    }
 
     // Collapse tree for optimal performance and results
     T.collapse_tree();
