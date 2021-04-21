@@ -1084,31 +1084,29 @@ void Mutation_Annotated_Tree::Tree::uncondense_leaves() {
     tbb::mutex tbb_lock;
     static tbb::affinity_partitioner ap;
     tbb::parallel_for(tbb::blocked_range<size_t>(0, condensed_nodes.size()),
-            [&](tbb::blocked_range<size_t> r) {
-            for (size_t it = r.begin(); it < r.end(); it++) {
-                auto cn = condensed_nodes.begin();
-                std::advance(cn, it);
-
-                auto n = get_node(cn->first);
-                auto par = (n->parent != NULL) ? n->parent : n;
-
-                size_t num_samples = cn->second.size();
-
-                if (num_samples > 0) {
-                    tbb_lock.lock();
-                    rename_node(n->identifier, cn->second[0]);
-                    tbb_lock.unlock();
-                }
-
-                for (size_t s = 1; s < num_samples; s++) {
-                    tbb_lock.lock();
-                    auto new_n = create_node(cn->second[s], par, n->branch_length);
-                    tbb_lock.unlock();
-                    for (auto m: n->mutations) {
-                        new_n->add_mutation(m.copy());
-                    }
+        [&](tbb::blocked_range<size_t> r) {
+        for (size_t it = r.begin(); it < r.end(); it++) {
+            auto cn = condensed_nodes.begin();
+            std::advance(cn, it);
+            tbb_lock.lock();
+            auto n = get_node(cn->first);
+            tbb_lock.unlock();
+            auto par = (n->parent != NULL) ? n->parent : n;
+            size_t num_samples = cn->second.size();
+            if (num_samples > 0) {
+                tbb_lock.lock();
+                rename_node(n->identifier, cn->second[0]);
+                tbb_lock.unlock();
+            }
+            for (size_t s = 1; s < num_samples; s++) {
+                tbb_lock.lock();
+                auto new_n = create_node(cn->second[s], par, n->branch_length);
+                tbb_lock.unlock();
+                for (auto m: n->mutations) {
+                    new_n->add_mutation(m.copy());
                 }
             }
+        }
         }, ap);
     condensed_nodes.clear();
     condensed_leaves.clear();
