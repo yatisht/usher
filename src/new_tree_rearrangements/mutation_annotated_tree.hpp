@@ -235,31 +235,11 @@ namespace Mutation_Annotated_Tree {
     class Mutations_Collection{
         public:
         std::vector<Mutation> mutations;
-        static const char IS_DIRTY_MASK=1;
-        static const char DIRTY_INIT_MASK=2;
-        char dirty_flag;
         std::vector<char> remove_or_replace;
         std::vector<Mutation> new_inserts;
 
-        void init_dirty(){
-            if (dirty_flag&DIRTY_INIT_MASK) {
-                return;
-            }
-            {
-                std::lock_guard<mutex_type> lock(mutex);
-                if (dirty_flag&DIRTY_INIT_MASK) {return;}
-                new_inserts.reserve(mutations.size());
-                remove_or_replace=std::vector<char>(mutations.size());
-                dirty_flag|=DIRTY_INIT_MASK;
-            }
-        }
-        void set_dirty(){
-            //This won't work if more flags, will need atomics
-            assert(dirty_flag&DIRTY_INIT_MASK);
-            dirty_flag=(IS_DIRTY_MASK|DIRTY_INIT_MASK);
-        }
         typedef std::mutex mutex_type;
-        mutex_type mutex;
+        //mutex_type mutex;
         static const char NO_DUPLICATE=-1;
         static const char KEEP_SELF=1;
         static const char KEEP_OTHER=0;
@@ -268,11 +248,7 @@ namespace Mutation_Annotated_Tree {
         typedef std::vector<Mutation>::iterator iterator;
         typedef std::vector<Mutation>::const_iterator const_iterator;
         size_t size() const {return mutations.size();}
-        Mutations_Collection():dirty_flag(0){}
-        Mutations_Collection(const Mutations_Collection& ori):mutations(ori.mutations),dirty_flag(0){
-            assert(!ori.is_dirty());
-        }
-        bool is_dirty()const{return dirty_flag&(IS_DIRTY_MASK);}
+        Mutations_Collection(){}
         void swap(Mutations_Collection& in){
             mutations.swap(in.mutations);
         }
@@ -340,10 +316,6 @@ namespace Mutation_Annotated_Tree {
         iterator find(const Mutation& mut) {
             return find(mut.get_position());
         }
-
-        std::pair<bool,bool> dirty_remove(int pos);
-        std::pair<bool,bool> dirty_insert(const Mutation &mut, char keep_self = NO_DUPLICATE);
-        //bool dirty_set_difference(Mutations_Collection& common, Mutations_Collection& original);
         bool remove(int pos){
             auto iter=find(pos);
             if(iter==mutations.end()){
@@ -414,8 +386,6 @@ namespace Mutation_Annotated_Tree {
             bool add_mutation(Mutation& mut){
                 return mutations.insert(mut,Mutations_Collection::KEEP_OTHER);
             }
-            bool dirty_remove(int pos);
-            bool dirty_insert(const Mutation &mut, char keep_self = -1);
             void finalize(){
                 mutations.finalize();
             }
@@ -454,7 +424,6 @@ namespace Mutation_Annotated_Tree {
             void remove_node_helper (std::string nid, bool move_level);
         public:
             std::unordered_map <std::string, Node*> all_nodes;
-            tbb::concurrent_vector<Node*> dirty_nodes;
             Tree() {
                 root = NULL;
                 all_nodes.clear();
