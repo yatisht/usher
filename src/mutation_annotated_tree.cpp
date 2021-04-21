@@ -1089,7 +1089,9 @@ void Mutation_Annotated_Tree::Tree::uncondense_leaves() {
                 auto cn = condensed_nodes.begin();
                 std::advance(cn, it);
 
+                tbb_lock.lock();
                 auto n = get_node(cn->first);
+                tbb_lock.unlock();
                 auto par = (n->parent != NULL) ? n->parent : n;
 
                 size_t num_samples = cn->second.size();
