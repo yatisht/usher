@@ -465,7 +465,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                     //every node should be in assignments at this point.
                     anc_state = assignments.find(a->identifier)->second;
                 }
-                if (anc_state < 0.5) {
+                if (anc_state < min_origin_confidence) {
                     //check whether this 0 node is 1 in any other region
                     //record each region where this is true
                     //(in the single region case, its never true, but its only like two operations to check anyways)
