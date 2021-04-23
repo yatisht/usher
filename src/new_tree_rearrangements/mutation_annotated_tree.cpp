@@ -10,6 +10,7 @@
 #include <tbb/parallel_for.h>
 #include <stack>
 #include <queue>
+#include <vector>
 // Uses one-hot encoding if base is unambiguous
 // A:1,C:2,G:4,T:8
 using Mutation_Annotated_Tree::Node;
@@ -166,7 +167,6 @@ size_t Mutation_Annotated_Tree::Tree::get_parsimony_score() {
     }
     return score;
 }
-
 
 void Mutation_Annotated_Tree::Tree::condense_leaves(std::vector<std::string> missing_samples) {
     if (condensed_nodes.size() > 0) {

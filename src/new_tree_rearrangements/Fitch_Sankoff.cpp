@@ -188,6 +188,9 @@ static nuc_one_hot set_state(MAT::Node* this_node,uint8_t boundary1_major_allele
 
     nuc_one_hot major_allele(boundary1_major_allele&0xf);
     nuc_one_hot tie_allele=major_allele&(~this_state);
+    if (this_node->is_leaf()&&tie_allele) {
+        fputc('a', stderr);
+    }
     nuc_one_hot boundary1_allele=boundary1_major_allele>>4;
     #ifdef DETAIL_DEBUG_FITCH_SANKOFF
     assert(major_allele&this_state);

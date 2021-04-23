@@ -1,6 +1,7 @@
 #include "mutation_annotated_tree.hpp"
 #include <boost/iostreams/filtering_stream.hpp>
 #include <fstream>
+#include <cstdio>
 #include <iostream>
 #include <boost/iostreams/filter/gzip.hpp>
 #include "parsimony.pb.h"
@@ -8,6 +9,7 @@
 #include <fstream>
 #include <sstream>
 #include "tbb/parallel_for.h"
+#include <queue>
 std::vector<int8_t> Mutation_Annotated_Tree::get_nuc_vec_from_id (int8_t nuc_id) {
     return get_nuc_vec(get_nuc(nuc_id));
 }
@@ -126,6 +128,19 @@ void Mutation_Annotated_Tree::string_split (std::string s, std::vector<std::stri
 
 static void populate_node(const char*& in,const char* end, Mutation_Annotated_Tree::Node* this_node, Mutation_Annotated_Tree::Tree& T,bool use_internal_node_label){
     auto start_iter=in;
+    errno=0;
+    char *endptr;
+    float loaded=strtof(in,&endptr);
+    if(errno==0){
+    if (*endptr==':'||*endptr==','||*endptr==')'||*endptr==';') {
+        assert(!this_node->is_leaf());
+        this_node->branch_length=loaded;
+        this_node->identifier=std::to_string(++T.curr_internal_node);
+        T.all_nodes.emplace(this_node->identifier,this_node);
+        in=endptr-1;
+        return;
+    }
+    }
     while (in!=end&&*in!=':'&&*in!=','&&*in!=')') {
         in++;
     }
@@ -136,12 +151,11 @@ static void populate_node(const char*& in,const char* end, Mutation_Annotated_Tr
         this_node->identifier=std::to_string(++T.curr_internal_node);
     }
     T.all_nodes.emplace(this_node->identifier,this_node);
-    char *endptr;
     if (*in==':') {
         in++;
     }
     errno=0;
-    float loaded=strtof(in,&endptr);
+    loaded=strtof(in,&endptr);
     if(errno==0){
 this_node->branch_length=loaded;
     }
@@ -149,42 +163,100 @@ this_node->branch_length=loaded;
     
 }
 void Mutation_Annotated_Tree::Tree::load_from_newick(const std::string& newick_string,bool use_internal_node_label){
-    this->curr_internal_node=0;
-    this->root=new Node();
-    this->root->tree=this;
-    Node* this_node=this->root;
-    auto iter=newick_string.c_str();
-    auto end=newick_string.c_str()+newick_string.size();
-    while (iter!=end-1) {
-        assert(iter<end);
-        if (*iter=='(') {
-            this_node->children.push_back(new Node);
-            this_node->children.back()->parent=this_node;
-            this_node=this_node->children.back();
-            this_node->tree=this;
-        }else if (*iter==',') {
-            Node* parent=this_node->parent;
-            this_node=new Node();
-            this_node->parent=parent;
-            this_node->tree=this;
-            parent->children.push_back(this_node);
-        }else if (*iter==')') {
-            this_node=this_node->parent;
-            char next_val=*(iter+1);
-            assert(next_val!='(');
-            if (next_val==','||next_val==')') {
-                this_node->identifier=std::to_string(++this->curr_internal_node);
-                this->all_nodes.emplace(this_node->identifier,this_node);
+    std::vector<std::string> leaves;
+    std::vector<size_t> num_open;
+    std::vector<size_t> num_close;
+    std::vector<std::queue<float>> branch_len (128);  // will be resized later if needed
+    size_t level = 0;
+
+    std::vector<std::string> s1;
+    string_split(newick_string, ',', s1);
+
+    num_open.reserve(s1.size());
+    num_close.reserve(s1.size());
+
+    for (auto s: s1) {
+        size_t no = 0;
+        size_t nc = 0;
+        bool stop = false;
+        bool branch_start = false;
+        std::string leaf = "";
+        std::string branch = "";
+        for (auto c: s) {
+            if (c == ':') {
+                stop = true;
+                branch = "";
+                branch_start = true;
             }
-        }else{
-            populate_node(iter, end, this_node, *this,use_internal_node_label);
+            else if (c == '(') {
+                no++;
+                level++;
+                if (branch_len.size() <= level) {
+                  branch_len.resize(level*2);
+                }
+            }
+            else if (c == ')') {
+                stop = true;
+                nc++;
+                float len = (branch.size() > 0) ? std::stof(branch) : -1.0;
+                branch_len[level].push(len);
+                level--;
+                branch_start = false;
+            }
+            else if (!stop) {
+                leaf += c;
+                branch_start = false;
+            }
+            else if (branch_start) {
+                if (isdigit(c)  || c == '.' || c == 'e' || c == 'E' || c == '-' || c == '+') {
+                    branch += c;
+                }
+            }
         }
-        iter++;
+        leaves.push_back(std::move(leaf));
+        num_open.push_back(no);
+        num_close.push_back(nc);
+        float len = (branch.size() > 0) ? std::stof(branch) : -1.0;
+        branch_len[level].push(len);
     }
-    if (root->identifier=="") {
-        root->identifier=std::to_string(++this->curr_internal_node);
-        this->all_nodes.emplace(root->identifier,root);
+
+    if (level != 0) {
+        fprintf(stderr, "ERROR: incorrect Newick format!\n");
+        exit(1);
     }
+
+    curr_internal_node = 0;
+    std::stack<Node*> parent_stack;
+
+    for (size_t i=0; i<leaves.size(); i++) {
+        auto leaf = leaves[i];
+        auto no = num_open[i];
+        auto nc = num_close[i];
+        for (size_t j=0; j<no; j++) {
+            std::string nid = std::to_string(++curr_internal_node);
+            Node* new_node = NULL;
+            if (parent_stack.size() == 0) {
+                new_node = create_node(nid, branch_len[level].front());
+            }
+            else {
+                new_node = create_node(nid, parent_stack.top(), branch_len[level].front());
+            }
+            branch_len[level].pop();
+            level++;
+            parent_stack.push(new_node);
+        }
+        create_node(leaf, parent_stack.top(), branch_len[level].front());
+        branch_len[level].pop();
+        for (size_t j=0; j<nc; j++) {
+            parent_stack.pop();
+            level--;
+        }
+    }
+
+    if (root == NULL) {
+        fprintf(stderr, "WARNING: Tree found empty!\n");
+    }
+
 }
 
 Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::create_tree_from_newick_string (const std::string newick_string) {

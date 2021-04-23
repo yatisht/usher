@@ -2,7 +2,6 @@
 #include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
 #include <cstdio>
 #include <vector>
-extern int debug_mask;
 
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
 static void update_par_cur_nuc(MAT::Mutations_Collection::const_iterator parent_mutation_iter,dbg_iter& debug_iter,dbg_iter& debug_end){

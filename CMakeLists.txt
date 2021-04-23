@@ -41,7 +41,8 @@ file(GLOB MATUTIL_SRCS "src/matUtils/*.cpp" "src/matUtils/*.hpp")
 file(GLOB MATOPTIMIZE_SRCS "src/matOptimize/*.cpp" "src/matOptimize/*.hpp")
 
 
-#set_source_files_properties(src/tree_rearrangements/tree_rearrangement_helper.cpp PROPERTIES COMPILE_FLAGS -O0)
+set_source_files_properties(src/new_tree_rearrangements/check_samples.cpp PROPERTIES COMPILE_FLAGS -O0)
+set_source_files_properties(src/new_tree_rearrangements/main_load_tree.cpp PROPERTIES COMPILE_FLAGS -O0)
 if(DEFINED Protobuf_PATH)
     add_executable(usher
         ${tree_rearrange_src}
@@ -115,7 +116,10 @@ else()
     src/new_tree_rearrangements/mutation_annotated_tree_load_store.cpp
     src/new_tree_rearrangements/detailed_mutations_load_store.cpp
     src/new_tree_rearrangements/mutation_annotated_tree_nuc_util.cpp
-    src/new_tree_rearrangements/test.cpp
+    src/new_tree_rearrangements/main.cpp
+    src/new_tree_rearrangements/main_save_intermediate_tree.cpp
+    src/new_tree_rearrangements/import_vcf.cpp
+    src/new_tree_rearrangements/main_load_tree.cpp
     src/new_tree_rearrangements/Get_parsimony_Score_FS.cpp
     src/new_tree_rearrangements/apply_moves.cpp
     src/new_tree_rearrangements/main_helper.cpp

@@ -396,22 +396,16 @@ namespace Mutation_Annotated_Tree {
                 clade_annotations.clear();
             }
             template<typename iter_t>
-            void refill(iter_t begin,iter_t end,size_t size=0){
-                std::vector<Mutation> valid_mutations;
-                //std::vector<Mutation> boundary_mutations;
-                valid_mutations.reserve(size);
-                //boundary_mutations.reserve(size);
+            void refill(iter_t begin,iter_t end,size_t size=0,bool retain_invalid=true){
+                std::vector<Mutation> mutations;
+                mutations.reserve(size);
                 for(;begin<end;begin++){
-                    //if (begin->is_valid) {
-                        valid_mutations.push_back(*begin);
-                    //}else {
-                    //    boundary_mutations.push_back(*begin);
-                    //}
+                    if (retain_invalid||begin->is_valid()) {
+                        mutations.push_back(*begin);
+                    }
                 }
-                valid_mutations.shrink_to_fit();
-                //boundary_mutations.shrink_to_fit();
-                mutations.refill(valid_mutations);
-                //this->boundary_mutations.refill(boundary_mutations);
+                mutations.shrink_to_fit();
+                this->mutations.refill(mutations);
             }
             Node* add_child(Node* new_child);
             #ifdef MEMDEBUG
@@ -423,6 +417,7 @@ namespace Mutation_Annotated_Tree {
         private:
             void remove_node_helper (std::string nid, bool move_level);
         public:
+            typedef  tbb::concurrent_unordered_map<std::string, std::vector<std::string>> condensed_node_t;
             std::unordered_map <std::string, Node*> all_nodes;
             Tree() {
                 root = NULL;
@@ -435,7 +430,7 @@ namespace Mutation_Annotated_Tree {
             //size_t max_level;
 
             Node* root;
-            tbb::concurrent_unordered_map<std::string, std::vector<std::string>> condensed_nodes;
+            condensed_node_t condensed_nodes;
             tbb::concurrent_unordered_set<std::string> condensed_leaves;
 
             size_t curr_internal_node;

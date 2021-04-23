@@ -35,10 +35,10 @@ typedef std::unordered_map<std::string, Mutation_Set>
 void check_samples(
     Mutation_Annotated_Tree::Node *root,
     Original_State_t &samples,Mutation_Annotated_Tree::Tree* tree);
-void get_mutation_set(Mutation_Annotated_Tree::Node* node, Mutation_Set& out);
+//void get_mutation_set(Mutation_Annotated_Tree::Node* node, Mutation_Set& out);
 void check_samples_worker(Mutation_Annotated_Tree::Node *root,
                                  Mutation_Set parent_mutations,
                                  Original_State_t &samples,Mutation_Annotated_Tree::Tree* tree=nullptr);
 
-void ins_mut(Mutation_Set &parent_mutations,const Mutation_Annotated_Tree::Mutation &m);
+//void ins_mut(Mutation_Set &parent_mutations,const Mutation_Annotated_Tree::Mutation &m);
 #endif

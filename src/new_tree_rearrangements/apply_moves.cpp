@@ -5,10 +5,6 @@
 #include "tbb/parallel_for_each.h"
 #include "tbb/parallel_for.h"
 namespace MAT = Mutation_Annotated_Tree;
-extern std::unordered_map<MAT::Mutation,
-                   std::unordered_map<std::string, nuc_one_hot> *,
-                   Mutation_Pos_Only_Hash, Mutation_Pos_Only_Comparator>
-    mutated_positions;
     int get_parsimmony_score_only(MAT::Node* src, MAT::Node* dst,MAT::Node* start_node);
 /*
 static void acc_counts(std::array<int, 4> &count,nuc_one_hot majority_nuc){

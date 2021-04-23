@@ -10,10 +10,6 @@
 #include <utility>
 #include <vector>
 
-extern std::unordered_map<MAT::Mutation, std::unordered_map<std::string, nuc_one_hot>*,Mutation_Pos_Only_Hash,
-                       Mutation_Pos_Only_Comparator>
-        mutated_positions;
-        
 struct Mutation_Count{
     int position;
     int count;
