@@ -91,7 +91,7 @@ MAT::Tree load_vcf_nh_directly(const std::string& nh_path,const std::string& vcf
     }
     std::vector<MAT::Node*> bfs_ordered_nodes=ret.breadth_first_expansion();
     std::vector<tbb::concurrent_vector<Mutation_Annotated_Tree::Mutation>> output(bfs_ordered_nodes.size());
-    tbb::parallel_pipeline(20,tbb::make_filter<void,Parsed_VCF_Line>(tbb::filter::serial,VCF_Reader(instream))&tbb::make_filter<Parsed_VCF_Line,void>(tbb::filter::parallel,Assign_State{bfs_ordered_nodes,output}));
+    tbb::parallel_pipeline(160,tbb::make_filter<void,Parsed_VCF_Line>(tbb::filter::serial,VCF_Reader(instream))&tbb::make_filter<Parsed_VCF_Line,void>(tbb::filter::parallel,Assign_State{bfs_ordered_nodes,output}));
     tbb::affinity_partitioner ap;
     tbb::parallel_for(
         tbb::blocked_range<size_t>(0, bfs_ordered_nodes.size()),

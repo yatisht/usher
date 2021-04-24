@@ -317,10 +317,10 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
                         mut_one_hot|= (1<<mut.mut_nuc(n));
                      }
                   }
-                  
-                  Mutation m(mut.chromosome(),mut.position(),nuc_one_hot(mut_one_hot),two_bit_to_one_hot(mut.par_nuc()),0,0,0,two_bit_to_one_hot(mut.ref_nuc()));
-
-                  node->add_mutation(m);
+                  if(mut_one_hot!=two_bit_to_one_hot(mut.par_nuc())){
+                    Mutation m(mut.chromosome(),mut.position(),nuc_one_hot(mut_one_hot),two_bit_to_one_hot(mut.par_nuc()),0,0,0,two_bit_to_one_hot(mut.ref_nuc()));
+                    node->add_mutation(m);
+                  }
                }
                if (!std::is_sorted(node->mutations.begin(), node->mutations.end())) {
                    fprintf(stderr, "WARNING: Mutations not sorted!\n");
