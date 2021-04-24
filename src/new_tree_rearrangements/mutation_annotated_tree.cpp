@@ -422,7 +422,6 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_subtree (const Mutati
     return subtree;
 }
 
-#ifdef MEMDEBUG
 void Node::delete_this(){
     for(Node* n:children){
         n->delete_this();
@@ -432,4 +431,3 @@ void Node::delete_this(){
 void Mutation_Annotated_Tree::Tree::delete_nodes(){
     root->delete_this();
 }
-#endif

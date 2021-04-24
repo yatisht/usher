@@ -408,9 +408,7 @@ namespace Mutation_Annotated_Tree {
                 this->mutations.refill(mutations);
             }
             Node* add_child(Node* new_child);
-            #ifdef MEMDEBUG
             void delete_this();
-            #endif
     };
 
     class Tree {
@@ -476,9 +474,7 @@ namespace Mutation_Annotated_Tree {
             
             void finalize();
             friend class Node;
-            #ifdef MEMDEBUG
             void delete_nodes();
-            #endif
     };
     
     std::string get_newick_string(const Tree& T, bool b1, bool b2, bool b3=false, bool b4=false);
