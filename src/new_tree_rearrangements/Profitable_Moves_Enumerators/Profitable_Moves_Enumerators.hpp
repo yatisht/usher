@@ -1,3 +1,5 @@
+#ifndef PROFITABLE_MOVES_ENUMERATOR
+#define PROFITABLE_MOVES_ENUMERATOR
 #include "../tree_rearrangement_internal.hpp"
 #include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
 #include <algorithm>
@@ -14,6 +16,7 @@ class Mutation_Count_Change {
     bool was_valid;
     nuc_one_hot ori_state;
     nuc_one_hot par_state;
+    nuc_one_hot new_state;
 
   public:
   static const char VALID_MASK=1;
@@ -26,7 +29,7 @@ class Mutation_Count_Change {
         position = pos.get_position();
         chromIdx = pos.get_chromIdx();
         was_valid=pos.is_valid();
-        ori_state=pos.get_mut_one_hot()|pos.get_tie_one_hot();
+        ori_state=pos.get_all_major_allele();
         par_state=pos.get_par_one_hot();
         decremented_allele=0;
         incremented_allele=0;
@@ -41,9 +44,14 @@ class Mutation_Count_Change {
     nuc_one_hot get_decremented() const { assert(decremented_allele!=0xff); return decremented_allele; }
     nuc_one_hot get_incremented() const { assert(incremented_allele!=0xff); return incremented_allele; }
     nuc_one_hot get_ori_state() const{return ori_state;}
-    void set_change(nuc_one_hot decremented, nuc_one_hot incremented) {
+    void set_change(nuc_one_hot decremented, nuc_one_hot incremented,nuc_one_hot new_state) {
         decremented_allele = decremented;
         incremented_allele = incremented;
+        this->new_state=new_state;
+        assert(new_state=(ori_state|incremented)&(~decremented));
+    }
+    nuc_one_hot get_new_state() const{
+        return new_state;
     }
     nuc_one_hot get_par_state() const {
         return par_state;
@@ -150,7 +158,18 @@ void prep_LCA_checker(
     std::vector<LCA_merged_states> &out);
 
 int rewind_mutations(int target_position,dbg_iter& debug,dbg_iter& end);
+void update_par_cur_nuc(MAT::Mutations_Collection::const_iterator parent_mutation_iter,dbg_iter& debug_iter,dbg_iter& debug_end);
+void update_dbg_vector_score_only(
+    int position, dbg_iter &debug_iter,dbg_iter &debug_end,
+    int par_score_change);
 
+void set_LCA_par_score_change(
+    const Mutation_Count_Change &change,
+    std::vector<state_change_hist_dbg> &debug,
+    std::vector<LCA_merged_states>::const_iterator &in,
+    const std::vector<LCA_merged_states>::const_iterator &begin,
+    const std::vector<LCA_merged_states>::const_iterator &end,
+    int score_change);
 #endif
 
 /*
@@ -180,3 +199,4 @@ resolve_ties(New_Tie_Collection_t::const_iterator &parent_unresolved_iter,
              New_Tie_Collection_t &remain_unresolved,
              int &parsimony_score_change);
 */
+#endif

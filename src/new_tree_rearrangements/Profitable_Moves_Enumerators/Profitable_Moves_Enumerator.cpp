@@ -36,7 +36,7 @@ static void update_debug(MAT::Node* cur, MAT::Node* LCA,std::vector<MAT::Node*>&
                 ele.count_change.push_back(Mutation_Count_Change());
                 ele.mutation_score_change.push_back(0);
                 ele.par_nuc.push_back(cur_mut_iter->get_par_one_hot());
-                ele.major_allele.push_back(cur_mut_iter->get_mut_one_hot()|cur_mut_iter->get_tie_one_hot());
+                ele.major_allele.push_back(cur_mut_iter->get_all_major_allele());
             }else {
                 ele.count_change.push_back(Mutation_Count_Change());
                 ele.mutation_score_change.push_back(0);
@@ -93,15 +93,25 @@ static int check_move_profitable(
             );
             this_node = this_node->parent;
             while (this_node != LCA) {
-
-                get_intermediate_nodes_mutations(
-                    this_node, parent_added, parent_of_parent_added,
-                    parsimony_score_change
+                if (this_node->children.size() == 2) {
+                    get_two_child_intermediate_node_mutations(
+                        this_node, node_stack_from_dst.back(), parent_added,
+                        parent_of_parent_added, parsimony_score_change
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-                    ,
-                    debug_from_dst, node_stack_from_dst
+                        ,
+                        debug_from_dst, node_stack_from_dst
 #endif
-                );
+                    );
+                } else {
+                    get_intermediate_nodes_mutations(
+                        this_node, parent_added, parent_of_parent_added,
+                        parsimony_score_change
+#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
+                        ,
+                        debug_from_dst, node_stack_from_dst
+#endif
+                    );
+                }
                 node_stack_from_dst.push_back(this_node);
                 parent_added = std::move(parent_of_parent_added);
                 if (parent_added.empty()) {
@@ -175,7 +185,7 @@ static int check_move_profitable(
                 iter++;
             }
             if(iter!=end&&iter->get_position()==in.position){
-                debug_above_LCA.emplace_back(iter->get_position(),iter->get_par_one_hot(), iter->get_mut_one_hot()|iter->get_tie_one_hot(), 0,Mutation_Count_Change());
+                debug_above_LCA.emplace_back(iter->get_position(),iter->get_par_one_hot(), iter->get_all_major_allele(), 0,Mutation_Count_Change());
             }else {
                 debug_above_LCA.emplace_back(in.position, in.par_allele,in.par_allele, 0,Mutation_Count_Change());
             }
@@ -253,7 +263,7 @@ merge_mutation_LCA_to_dst(MAT::Node *child,
                *child_mutation_iter < m) {
             child_mutations.push_back(*child_mutation_iter);
             child_mutations.back().set_change(
-                0, child_mutation_iter->get_par_one_hot());
+                0, child_mutation_iter->get_par_one_hot(),child_mutation_iter->get_par_one_hot());
             child_mutations.back().set_par_nuc(
                 child_mutation_iter->get_mut_one_hot());
             child_mutation_iter++;
@@ -271,7 +281,7 @@ merge_mutation_LCA_to_dst(MAT::Node *child,
     while (child_mutation_iter != child_mutation_end) {
         child_mutations.push_back(*child_mutation_iter);
         child_mutations.back().set_change(
-            0, child_mutation_iter->get_par_one_hot());
+            0, child_mutation_iter->get_par_one_hot(),child_mutation_iter->get_par_one_hot());
         child_mutations.back().set_par_nuc(
             child_mutation_iter->get_mut_one_hot());
         child_mutation_iter++;
@@ -340,7 +350,7 @@ merge_mutation_src_to_LCA(const MAT::Node *root,
             iter++;
         } else {
             merged_mutations.emplace_back(m);
-            merged_mutations.back().set_change(0, m.get_mut_one_hot());
+            merged_mutations.back().set_change(0, m.get_mut_one_hot(), m.get_mut_one_hot());
         }
     }
     while (iter!=end) {
@@ -352,10 +362,9 @@ merge_mutation_src_to_LCA(const MAT::Node *root,
 static void init_mutation_change(MAT::Node* src, Mutation_Count_Change_Collection& mutations){
     mutations.reserve(src->mutations.size());
     for (const auto &m : src->mutations) {
-        if (m.is_valid()||m.get_tie_one_hot()) {
+        if (m.is_valid()||m.get_all_major_allele()!=m.get_mut_one_hot()) {
             mutations.emplace_back(m);
-            mutations.back().set_change(0, m.get_mut_one_hot() |
-                                               m.get_tie_one_hot());
+            mutations.back().set_change(0, m.get_all_major_allele(),m.get_all_major_allele());
         }
     }
 }

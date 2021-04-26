@@ -35,7 +35,7 @@ void set_protobuf(const MAT::Mutation &m,
     out->set_position((uint32_t)m.position);
     out->set_chrom_idx((uint32_t)m.chrom_idx);
     out->set_par_mut_nuc((uint32_t)m.par_mut_nuc);
-    out->set_boundary1_tie((uint32_t)m.boundary1_tie);
+    out->set_boundary1_tie((uint32_t)m.boundary1_all_major_allele);
     out->set_boundary2_flag((uint32_t)m.boundary2_flag);
 }
 static MAT::Mutation load_mutation_from_protobuf(
@@ -44,7 +44,7 @@ static MAT::Mutation load_mutation_from_protobuf(
     m.position = to_load.position();
     m.chrom_idx = to_load.chrom_idx();
     m.par_mut_nuc = to_load.par_mut_nuc();
-    m.boundary1_tie = to_load.boundary1_tie();
+    m.boundary1_all_major_allele = to_load.boundary1_tie();
     m.boundary2_flag = to_load.boundary2_flag();
     return m;
 }

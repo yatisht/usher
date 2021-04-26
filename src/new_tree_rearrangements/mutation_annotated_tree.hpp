@@ -1,5 +1,6 @@
 #ifndef MUTATION_ANNOTATED_TREE
 #define MUTATION_ANNOTATED_TREE
+#include <bits/stdint-uintn.h>
 #include <cstddef>
 #include <mutex>
 #include <sys/types.h>
@@ -96,7 +97,7 @@ namespace Mutation_Annotated_Tree {
         int position;
         uint8_t chrom_idx;
         uint8_t par_mut_nuc;
-        uint8_t boundary1_tie;
+        uint8_t boundary1_all_major_allele;
         uint8_t boundary2_flag;
         static tbb::concurrent_unordered_map<std::string, uint8_t> chromosome_map;
         static std::mutex ref_lock;
@@ -104,18 +105,31 @@ namespace Mutation_Annotated_Tree {
         static std::vector<std::string> chromosomes;
         static std::vector<nuc_one_hot> refs;
         void set_boundary_one_hot(nuc_one_hot boundary1){
-            boundary1_tie=(boundary1_tie&0xf)|(boundary1<<4);
+            boundary1_all_major_allele=(boundary1_all_major_allele&0xf)|(boundary1<<4);
         }
         
         Mutation(const std::string& chromosome,int position,nuc_one_hot mut,nuc_one_hot par,nuc_one_hot tie,nuc_one_hot boundary1, nuc_one_hot boundary2,nuc_one_hot ref=0);
 
-        Mutation(int pos):position(pos),chrom_idx(0),par_mut_nuc(0),boundary1_tie(0),boundary2_flag(0){}
+        Mutation(int pos):position(pos),chrom_idx(0),par_mut_nuc(0),boundary1_all_major_allele(0),boundary2_flag(0){}
         bool same_chrom(const Mutation& other) const{
             return chrom_idx==other.chrom_idx;
         }
 
         const std::string& get_chromosome() const{
             return chromosomes[chrom_idx];
+        }
+
+        void set_children(nuc_one_hot boundary1_alleles,nuc_one_hot tie_nuc,nuc_one_hot left_child_state,nuc_one_hot right_child_state){
+            boundary1_all_major_allele=(boundary1_alleles<<4)|tie_nuc;
+            boundary2_flag=(left_child_state<<4)|right_child_state;
+        }
+
+        uint8_t get_left_child_state()const{
+            return boundary2_flag>>4;
+        }
+
+        uint8_t get_right_child_state()const{
+            return boundary2_flag&0xf;
         }
 
         const uint8_t get_chromIdx()const{
@@ -139,7 +153,7 @@ namespace Mutation_Annotated_Tree {
             return m;
         }
         
-        Mutation():position(-1),chrom_idx(0),par_mut_nuc(0),boundary1_tie(0),boundary2_flag(0){
+        Mutation():position(-1),chrom_idx(0),par_mut_nuc(0),boundary1_all_major_allele(0),boundary2_flag(0){
         }
 
 /*
@@ -172,20 +186,21 @@ namespace Mutation_Annotated_Tree {
             return par_mut_nuc>>4;
         }
 
-        nuc_one_hot get_tie_one_hot() const{
-            return boundary1_tie&0xf;
+        nuc_one_hot get_all_major_allele() const{
+            return boundary1_all_major_allele&0xf;
         }
 
         nuc_one_hot get_boundary1_one_hot() const{
-            return boundary1_tie>>4;
+            return boundary1_all_major_allele>>4;
         }
 
         nuc_one_hot get_boundary2_one_hot() const{
             return boundary2_flag>>4;
         }
 
-        void set_auxillary(nuc_one_hot tie,nuc_one_hot boundary1,nuc_one_hot boundary2){
-            boundary1_tie=tie|(boundary1<<4);
+        void set_auxillary(nuc_one_hot all_major_allele,nuc_one_hot boundary1,nuc_one_hot boundary2){
+            assert(all_major_allele&get_mut_one_hot());
+            boundary1_all_major_allele=boundary1_all_major_allele|(boundary1<<4);
             boundary2_flag=(boundary2_flag&0xf)|(boundary2<<4);
         }
 
@@ -210,7 +225,7 @@ namespace Mutation_Annotated_Tree {
         bool operator==(const Mutation& other) const{
             if(other.par_mut_nuc!=par_mut_nuc) return false;
             if(other.position!=position) return false;
-            if (other.boundary1_tie!=boundary1_tie) {
+            if (other.boundary1_all_major_allele!=boundary1_all_major_allele) {
                 return false;
             }
             if (other.boundary2_flag!=boundary2_flag) {

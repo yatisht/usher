@@ -10,6 +10,30 @@
 #include <utility>
 #include <vector>
 
+void update_par_cur_nuc(MAT::Mutations_Collection::const_iterator parent_mutation_iter,dbg_iter& debug_iter,dbg_iter& debug_end){
+    rewind_mutations(parent_mutation_iter->get_position(), debug_iter,debug_end);
+    if (debug_iter!=debug_end&&debug_iter->position==parent_mutation_iter->get_position()) {
+                debug_iter->par_nuc.push_back(parent_mutation_iter->get_par_one_hot());
+                debug_iter->major_allele.push_back(parent_mutation_iter->get_all_major_allele());
+                debug_iter->mutation_score_change.push_back(0);
+                debug_iter->count_change.emplace_back(*parent_mutation_iter);
+                debug_iter->count_change.back().set_change(0, 0,0);
+                debug_iter++;
+    }
+}
+void update_dbg_vector_score_only(
+    int position, dbg_iter &debug_iter,dbg_iter &debug_end,
+    int par_score_change) {
+    rewind_mutations(position, debug_iter,debug_end);
+    assert(debug_iter->position == position);
+    nuc_one_hot parent_nuc = debug_iter->par_nuc.back();
+    debug_iter->par_nuc.push_back(parent_nuc);
+    debug_iter->major_allele.push_back(parent_nuc);
+    debug_iter->mutation_score_change.push_back(par_score_change);
+    debug_iter->count_change.push_back(debug_iter->count_change.back());
+    debug_iter->count_change.back().set_change(0, 0,0);
+    debug_iter++;
+}
 struct Mutation_Count{
     int position;
     int count;
@@ -64,7 +88,7 @@ bool get_children_alleles_count(const MAT::Node *this_node,
             par_allele_count++;
         } else {
             nuc_one_hot majority_nuc =
-                mut_iter->get_mut_one_hot() | mut_iter->get_tie_one_hot();
+                mut_iter->get_all_major_allele();
             for (int i = 0; i < 4; i++) {
                 if (majority_nuc & (1 << i)) {
                     count[i]++;
@@ -122,8 +146,7 @@ static void check_mutation(const MAT::Mutation& mutation,
                const Mutation_Count_Change_Collection &inserted_count,
                uint8_t major_alleles_ref) {
     assert(major_alleles_ref == major_alleles_to_check);
-    nuc_one_hot ori_majority_allele =
-        mutation.get_mut_one_hot() | mutation.get_tie_one_hot();
+    nuc_one_hot ori_majority_allele =mutation.get_all_major_allele();
     if (ori_majority_allele == major_alleles_ref) {
         assert(inserted_count.empty()||inserted_count.back().get_position() < mutation.get_position());
     } else {
@@ -155,7 +178,7 @@ void test_allele_out_init(
     nuc_one_hot major_alleles_ref=temp.first;
     check_mutation(mutation, major_alleles_to_check, last_inserted_count, major_alleles_ref);
     if (is_add_leaf) {
-        assert(!mutation.get_tie_one_hot());
+       // assert(!mutation.get_tie_one_hot());
         temp.second++;
         /*if (this_node->mutations.find(mutation.get_position())!=this_node->mutations.end()&&mutation.is_valid()) {
             score_change++;
@@ -176,7 +199,7 @@ int rewind_mutations(int target_position,dbg_iter& debug,dbg_iter& end){
                 debug->major_allele.push_back(parent_nuc);
                 debug->mutation_score_change.push_back(0);
                 debug->count_change.push_back(debug->count_change.back());
-                debug->count_change.back().set_change(0, 0);
+                debug->count_change.back().set_change(0, 0,0);
                 rewinded++;
                 debug++;
             }
@@ -336,7 +359,7 @@ static void check_change_with_full_fitch_sankoff(const state_change_hist_dbg& to
             }else {
                 const auto& corresponding_input_change=to_check.count_change[idx];
                 if (corresponding_input_change.get_incremented()==0&&corresponding_input_change.get_decremented()==0) {
-                    allele_to_check=iter->get_mut_one_hot()|iter->get_tie_one_hot();
+                    allele_to_check=iter->get_all_major_allele();
                 }
             }
             std::vector<std::pair<MAT::Node*, MAT::Mutation*>> ori_mutation_map;
@@ -386,7 +409,7 @@ static void confirm_no_change(
         old_state = get_parent_state(node, position);
     } else {
         old_state =
-            old_mut_iter->get_mut_one_hot() | old_mut_iter->get_tie_one_hot();
+            old_mut_iter->get_all_major_allele();
     }
 
     assert(old_state = major_allele_ref);
