@@ -65,6 +65,10 @@ def alleleComp(sampleIds, apos, aref, alts, bref, blts, iupac, asamples, bsample
     return problemCases
 
 iupac = {
+'A': ['A'],
+'T': ['T'],
+'C': ['C'],
+'G': ['G'],
 'R': ['A', 'G'],
 'Y': ['C', 'T'],
 'S': ['G', 'C'],
