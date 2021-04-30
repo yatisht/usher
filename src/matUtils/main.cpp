@@ -1,49 +1,63 @@
 #include "annotate.hpp"
-#include "filter.hpp"
-#include "convert.hpp"
-#include "prune.hpp"
-#include "describe.hpp"
-#include "uncertainty.hpp"
+#include "mask.hpp"
+#include "summary.hpp"
+#include "extract.hpp"
 
 Timer timer; 
 
 int main (int argc, char** argv) {
     po::options_description global("Command options");
     global.add_options()
-        ("command", po::value<std::string>(), "Command to execute. Valid options are annotate, filter, convert, prune and describe.")
+        ("command", po::value<std::string>(), "Command to execute. Valid options are annotate, mask, extract, uncertainty, and summary.")
         ("subargs", po::value<std::vector<std::string> >(), "Command-specific arguments.");
     po::positional_options_description pos;
     pos.add("command",1 ).add("subargs", -1);
-    
+    std::string cmd;
+    po::variables_map vm;
+    po::parsed_options parsed = po::command_line_parser(argc, argv).options(global).positional(pos).allow_unregistered().run();
+    //this help string shows up over and over, lets just define it once
+    std::string cnames[6] = {"COMMAND","summary","extract","annotate","uncertainty","mask"};
+    std::string chelp[6] = {
+        "DESCRIPTION\n\n",
+        "calculates basic statistics and counts samples, mutations, and clades in the input MAT\n\n",
+        "subsets the input MAT on various conditions and/or converts to other formats (newick, VCF, JSON)\n\n",
+        "assigns clade identities to nodes, directly or by inference\n\n",
+        "calculates sample placement uncertainty metrics and writes the results to tsv\n\n",
+        "masks the input samples\n\n"
+    };
     try {
-        po::variables_map vm;
-        po::parsed_options parsed = po::command_line_parser(argc, argv).options(global).positional(pos).allow_unregistered().run();
-
         po::store(parsed, vm);
-        std::string cmd = vm["command"].as<std::string>();
-        if (cmd == "annotate"){
-            annotate_main(parsed);
-        } else if (cmd == "convert"){
-            convert_main(parsed);
-        } else if (cmd == "filter"){
-            filter_main(parsed); 
-        } else if (cmd == "prune"){
-            prune_main(parsed); 
-        } else if (cmd == "describe"){
-            describe_main(parsed); 
-        } else if (cmd == "uncertainty") {
-            uncertainty_main(parsed);
-        } else if (cmd == "help" || cmd == "--help" || cmd == "-h") { 
-            // TODO: improve this message
-            fprintf(stderr, "matUtils has several major subcommands: annotate, filter, convert, prune, uncertainty, and describe.\nIndividual command options can be accessed with matUtils command --help, e.g. matUtils annotate --help will show annotation-specific help messages.");
-            exit(0);
-        } else {
-            fprintf(stderr, "Invalid command. Please choose from annotate, filter, convert, prune, describe, uncertainty, or help and try again.\n");
-            exit(1);
-        }
+        cmd = vm["command"].as<std::string>();
     } catch (...) { //not sure this is the best way to catch it when matUtils is called with no positional arguments.
-        fprintf(stderr, "No command selected. Please choose from annotate, filter, convert, prune, describe, uncertainty, or help and try again.\n");
+        fprintf(stderr, "\nNo command selected. Help follows:\n\n");
+        for (int i = 0; i < 6; ++i) {
+            fprintf(stderr, "%-15s\t%s", cnames[i].c_str(), chelp[i].c_str());
+        }
+        //0 when no command is selected because that's what passes tests.
         exit(0);
+    }
+    if (cmd == "extract") {
+        extract_main(parsed);
+    } else if (cmd == "annotate") {
+        annotate_main(parsed);
+    } else if (cmd == "mask"){
+        mask_main(parsed); 
+    } else if (cmd == "uncertainty") {
+        uncertainty_main(parsed);
+    } else if (cmd == "summary") {
+        summary_main(parsed);
+    } else if (cmd == "help") { 
+        fprintf(stderr, "\n");
+        for (int i = 0; i < 6; ++i) {
+            fprintf(stderr, "%-15s\t%s", cnames[i].c_str(), chelp[i].c_str());
+        }        
+        exit(0);
+    } else {
+        fprintf(stderr, "\nInvalid command. Help follows:\n\n");
+        for (int i = 0; i < 6; ++i) {
+            fprintf(stderr, "%-15s\t%s", cnames[i].c_str(), chelp[i].c_str());
+        }        
+        exit(1);
     }
 
     return 0;

@@ -1,79 +1,5 @@
 #include "convert.hpp"
 
-po::variables_map parse_convert_command(po::parsed_options parsed) {
-
-    uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
-    std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
-
-    po::variables_map vm;
-    po::options_description conv_desc("convert options");
-    conv_desc.add_options()
-        ("input-mat,i", po::value<std::string>()->required(),
-         "Input mutation-annotated tree file [REQUIRED]")
-        ("write-vcf,v", po::value<std::string>()->default_value(""),
-         "Output VCF file ")
-        ("no-genotypes,n", po::bool_switch(),
-        "Do not include sample genotype columns in VCF output. Used only with the vcf option")
-        ("write-tree,t", po::value<std::string>()->default_value(""),
-         "Use to write a newick tree to the indicated file.")
-        ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
-        ("help,h", "Print help messages");
-    // Collect all the unrecognized options from the first pass. This will include the
-    // (positional) command name, so we need to erase that.
-    std::vector<std::string> opts = po::collect_unrecognized(parsed.options, po::include_positional);
-    opts.erase(opts.begin());
-
-    // Run the parser, with try/catch for help
-    try{
-        po::store(po::command_line_parser(opts)
-                  .options(conv_desc)
-                  .run(), vm);
-        po::notify(vm);
-    }
-    catch(std::exception &e){
-        std::cerr << conv_desc << std::endl;
-        // Return with error code 1 unless the user specifies help
-        if (vm.count("help"))
-            exit(0);
-        else
-            exit(1);
-    }
-    return vm;
-}
-
-void convert_main(po::parsed_options parsed) {
-    //the convert subcommand converts the protobuf into another file format, returning some other file type that represents an equivalent structure
-    po::variables_map vm = parse_convert_command(parsed);
-    std::string input_mat_filename = vm["input-mat"].as<std::string>();
-    std::string tree_filename = vm["write-tree"].as<std::string>();
-    std::string vcf_filename = vm["write-vcf"].as<std::string>();
-    bool no_genotypes = vm["no-genotypes"].as<bool>();
-    uint32_t num_threads = vm["threads"].as<uint32_t>();
-
-    tbb::task_scheduler_init init(num_threads);
-
-    // Load input MAT and uncondense tree
-    MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
-    //T here is the actual object.
-    if (T.condensed_nodes.size() > 0) {
-      T.uncondense_leaves();
-    }
-    //if a vcf filename was given, write a vcf to it
-    if (vcf_filename != "") {
-        fprintf(stderr, "Generating VCF\n");
-        make_vcf(T, vcf_filename, no_genotypes);
-    }
-    //if a newick tree filename was given, write a tree to it
-    if (tree_filename != "") {
-        fprintf(stderr, "Generating Newick file\n");
-        auto tree_filepath = "./" + tree_filename; //for simplicity, write it to this directory
-        FILE *tree_file = fopen(tree_filepath.c_str(), "w");
-        fprintf(tree_file, "%s\n",
-            MAT::get_newick_string(T, true, true, true).c_str());
-        fclose(tree_file);        
-    }
-}
-
 void write_vcf_header(FILE *vcf_file, std::vector<Mutation_Annotated_Tree::Node*> &dfs,
                       bool print_genotypes) {
     // Write minimal VCF header with sample names in same order that genotypes
@@ -293,8 +219,7 @@ void write_vcf_rows(FILE *vcf_file, MAT::Tree T, std::vector<MAT::Node*> &dfs, b
     }
 }
 
-void make_vcf (MAT::Tree T, std::string vcf_filename, bool no_genotypes) {
-    auto vcf_filepath = "./" + vcf_filename; //taking away a touch of functionality for simplicity. just write it to this directory.
+void make_vcf (MAT::Tree T, std::string vcf_filepath, bool no_genotypes) {
     FILE *vcf_file = fopen(vcf_filepath.c_str(), "w");
     std::vector<Mutation_Annotated_Tree::Node*> dfs = T.depth_first_expansion();
     write_vcf_header(vcf_file, dfs, !no_genotypes);
@@ -302,3 +227,122 @@ void make_vcf (MAT::Tree T, std::string vcf_filename, bool no_genotypes) {
     fclose(vcf_file);
 }
 
+
+/// JSON functions below
+
+std::string write_mutations(MAT::Node *N) { // writes muts as a list, e.g. "A23403G,G1440A,G23403A,G2891A" for "nuc mutations" under labels
+    std::string muts = ": \"" ;
+    for (unsigned int m = 0 ; m < N->mutations.size() ; m ++ ){
+        auto mut_string = N->mutations[m].get_string();
+        muts += mut_string ;
+        if ( m < (N->mutations.size()-1) ){
+            muts +=  "," ; // if not last, add comma
+        }
+    }
+    return muts ;
+}
+
+std::string write_individual_mutations(MAT::Node *N) { // writes muts for "nuc" subfield of "mutations", e.g. "A23403G","G1440A","G23403A","G2891A"
+    std::string muts = " [ " ;
+    for (unsigned int m = 0 ; m < N->mutations.size() ; m ++ ){
+        auto mut_string = N->mutations[m].get_string();
+        muts += "\"" + mut_string + "\"" ;
+        if ( m < (N->mutations.size()-1) ){
+            muts +=  "," ; // if not last, add comma
+        }        
+    }
+    muts +=  " ]" ;
+    return muts ;
+}
+
+
+std::string leaf_to_json( MAT::Node *N, int div ) { /// for leafs, which are children of internal nodes. this function should only be called by node_to_json.
+    std::string datestr = N->identifier.substr( N->identifier.find_last_of("|")+1, N->identifier.size() ) ;
+    std::string countrystr = N->identifier.substr( 0, N->identifier.find("/") ) ;
+    std::string jsonstr = "{\n\"name\": \""  ; 
+    jsonstr += N->identifier + "\",\n\"branch_attrs\": {\n \"labels\": { \"nuc mutations\"" + write_mutations( N ) ;
+    jsonstr += "\" },\n\"mutations\": { \"nuc\" : " + write_individual_mutations( N ) + " }\n },\n" ; // close branch_attrs
+    jsonstr += "\"node_attrs\": { \"div\": " + std::to_string(div + N->mutations.size()) + ", \"date\": {\"value\": \"" + datestr + "\"}, \"country\": {\"value\": \"" + countrystr + "\"}" ;
+    if ( N->clade_annotations.size() > 0 ){
+        jsonstr += ", " ;
+        for ( unsigned int ca = 0 ; ca < N->clade_annotations.size() ; ca ++  ){
+            jsonstr += "\"MAT_Clade_" + std::to_string(ca) + "\": {\"value\": \"" + N->clade_annotations[ca] + "\"}" ;
+            if ( ca < N->clade_annotations.size() - 1 ){
+                jsonstr += ", " ;
+            }
+        }
+    }
+    jsonstr += "}\n}\n" ; // close node_attrs dict and node dict
+    return jsonstr ;
+}
+
+
+
+std::string node_to_json( MAT::Node *N, int div ) {  //this function converts a single INTERNAL node into json string.
+    std::string jsonstr = "{\n\"name\": \"" ;
+    jsonstr += N->identifier ; 
+    jsonstr += "\",\n\"branch_attrs\": {\n \"labels\": { \"nuc mutations\"" + write_mutations( N ) + "\" },\n" ;
+    jsonstr += "\"mutations\": { \"nuc\" : " + write_individual_mutations( N ) + " }\n },\n" ; //close branch_attrs
+    jsonstr += "\"node_attrs\": {\n \"div\":" + std::to_string(div + N->mutations.size()) ; // node attributes here are div, clade info
+    if ( N->clade_annotations.size() > 0 ){
+        jsonstr += ", " ;
+        for ( unsigned int ca = 0 ; ca < N->clade_annotations.size() ; ca ++ ){
+            jsonstr += "\"MAT_Clade_" + std::to_string(ca) + "\": {\"value\": \"" + N->clade_annotations[ca] + "\"}" ;
+            if ( ca < N->clade_annotations.size() - 1 ){
+                jsonstr += ", " ;
+            }
+        }
+    }
+    jsonstr += "},\n" ; // close node_attrs
+    if ( N->children.size() > 0 ){ // i figure it must, but good to check?
+        jsonstr += "\"children\":[ " ;
+        for ( unsigned int c = 0 ; c < N->children.size() ; c ++ ){
+            if ( N->children[c]->is_leaf() ){
+                jsonstr += leaf_to_json( N->children[c], div + N->mutations.size() ) ;
+                if ( c < N->children.size()-1 ){
+                    jsonstr += ",\n" ; // open & close brackets within leaf_to_json 
+                } 
+            }
+            else {
+                jsonstr += node_to_json( N->children[c], div + N->mutations.size() ) ;
+                if ( c < N->children.size()-1 ){
+                    jsonstr += ",\n" ; // open & close brackets within node_to_json 
+                } 
+            }
+        }
+        jsonstr += "] \n" ; // close children
+    }
+    jsonstr += "}\n" ; // close node dict
+    return jsonstr ;
+}
+
+
+std::string MAT_to_json(MAT::Tree T ) { /// write version and meta dicts first:
+    std::string tree_json = "{\n\"version\":\"v2\",\n\"meta\":{\n\"title\":\"mutation_annotated_tree\",\n\"filters\": [\"country\"],\n" ; // placeholder title
+    tree_json += "\"panels\": [\"tree\"],\n\"colorings\": [ " ;
+    if ( T.get_num_annotations() > 0 ) {// if MAT has clade information:
+        for ( unsigned int a = 0 ; a < T.get_num_annotations() ; a ++ ){
+            tree_json += "{\"key\":\"MAT_Clade_" + std::to_string(a) ; 
+            tree_json += "\",\"title\":\"MAT_Clade\",\"type\":\"categorical\"}" ; // if clade sets can have "titles", sub in here. i don't think they do...
+            if ( a < T.get_num_annotations()-1 ) {
+                tree_json += ", \n" ;
+            }
+        }
+    }
+    tree_json += " ],\n" ;
+    tree_json += "\"display_defaults\":{\"branch_label\":\"nuc mutations\"},\"description\":\"JSON generated by matUtils. If you have " ;
+    tree_json += "metadata you wish to display, you can now drag on a CSV/TSV file and it will be added into this view, [see here](https://" ;
+    tree_json += "docs.nextstrain.org/projects/auspice/en/latest/advanced-functionality/drag-drop-csv-tsv.html) for more info.\"},\n" ; // end meta dict
+    tree_json += "\"tree\":{ \"name\":\"wrapper\",\n\"children\":[ " ; /// now write tree dict:
+    tree_json +=  node_to_json( T.root , 0 ) ;
+    tree_json += "]\n}\n}\n" ; // end list of children, end tree dict, end dict containing entire string
+    return tree_json ;
+}
+
+void make_json ( MAT::Tree T, std::string json_filename ){
+    std::string json_str = MAT_to_json( T ) ;
+    std::ofstream json_file_ofstream ;
+    json_file_ofstream.open( json_filename ) ;
+    json_file_ofstream << json_str ;
+    json_file_ofstream.close() ;
+}

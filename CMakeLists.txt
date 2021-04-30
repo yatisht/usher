@@ -30,6 +30,7 @@ FIND_PACKAGE(Boost COMPONENTS program_options iostreams filesystem REQUIRED)
 INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIRS})
 
 file(GLOB MATUTIL_SRCS "src/matUtils/*.cpp" "src/matUtils/*.hpp")
+file(GLOB MATOPTIMIZE_SRCS "src/matOptimize/*.cpp" "src/matOptimize/*.hpp")
 
 if(DEFINED Protobuf_PATH)
     add_executable(usher
@@ -44,6 +45,12 @@ if(DEFINED Protobuf_PATH)
         ${MATUTIL_SRCS}
         )
 
+    add_executable(matOptimize
+        src/mutation_annotated_tree.cpp
+        src/usher_mapper.cpp
+        ${MATOPTIMIZE_SRCS}
+        )
+
     protobuf_generate(
         LANGUAGE cpp
         TARGET usher 
@@ -52,6 +59,11 @@ if(DEFINED Protobuf_PATH)
     protobuf_generate(
         LANGUAGE cpp
         TARGET matUtils
+        PROTOS parsimony.proto)
+    
+    protobuf_generate(
+        LANGUAGE cpp
+        TARGET matOptimize
         PROTOS parsimony.proto)
 else()
     protobuf_generate_cpp(
@@ -70,6 +82,14 @@ else()
         src/mutation_annotated_tree.cpp
         src/usher_mapper.cpp
         ${MATUTIL_SRCS}
+        ${PROTO_SRCS}
+        ${PROTO_HDRS}
+        )
+
+    add_executable(matOptimize
+        src/mutation_annotated_tree.cpp
+        src/usher_mapper.cpp
+        ${MATOPTIMIZE_SRCS}
         ${PROTO_SRCS}
         ${PROTO_HDRS}
         )
@@ -93,3 +113,6 @@ TARGET_LINK_LIBRARIES(usher PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TA
 
 TARGET_COMPILE_OPTIONS(matUtils PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
 TARGET_LINK_LIBRARIES(matUtils PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
+
+TARGET_COMPILE_OPTIONS(matOptimize PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
+TARGET_LINK_LIBRARIES(matOptimize PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)

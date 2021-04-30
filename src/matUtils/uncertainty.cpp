@@ -28,7 +28,7 @@ std::vector<float> get_all_distances(MAT::Node* target, std::vector<std::vector<
                 //stop iterating when its reached the indicated common ancestor (remember, path is sorted nearest to root)
                 break; 
             }
-            tdist += paths[p][i]->branch_length;
+            tdist += paths[p][i]->mutations.size();
 
         //then record the total distance in distvs
         distvs.emplace_back(tdist);
@@ -128,7 +128,132 @@ size_t get_neighborhood_size(std::vector<MAT::Node*> nodes, MAT::Tree* T) {
     return best_size;
 }
 
-void findEPPs (MAT::Tree Tobj, std::string sample_file, std::string fepps, std::string fneigh) {
+void findEPPs (MAT::Tree* T, MAT::Node* node, bool get_nsize, size_t* nbest, size_t* nsize) {
+    //calculating neighborhood size is optional.
+
+    //retrieve the full set of mutations associated with this Node object from root to it
+    //to do this, get the full set of ancestral nodes and their mutations
+
+    //NOTE (TODO): The below code was copied from the Usher main.cpp
+    //if that code is ever refactored or updated in a way that significantly
+    //affects efficiency or accuracy outside of the usher_mapper.cpp,
+    //this code needs to be manually updated
+    
+    //tracking positions is required to account for backmutation/overwriting along the path
+    std::vector<int> anc_positions;
+    std::vector<MAT::Mutation> ancestral_mutations;
+    //first load in the current mutations
+    for (auto m: node->mutations){ 
+        if (m.is_masked() || (std::find(anc_positions.begin(), anc_positions.end(), m.position) == anc_positions.end())) {
+            ancestral_mutations.emplace_back(m);
+            if (!m.is_masked()) {
+                anc_positions.emplace_back(m.position);
+            }            
+        }
+    }
+    //then load in ancestral mutations
+    for (auto n: T->rsearch(node->identifier)) {
+        for (auto m: n->mutations) {
+            if (m.is_masked() || (std::find(anc_positions.begin(), anc_positions.end(), m.position) == anc_positions.end())) {
+                ancestral_mutations.emplace_back(m);
+                if (!m.is_masked()) {
+                    anc_positions.emplace_back(m.position);
+                }
+            }
+        }
+    }
+    if (ancestral_mutations.size()>0) {
+        //the ancestral_mutations vector, plus the mutations assigned to this specific node, constitute the "missing_sample" equivalents for calling the mapper
+        //this is where code copied from usher_main.cpp begins
+        //comments included.
+        auto dfs = T->depth_first_expansion();
+        size_t total_nodes = dfs.size();
+
+        // Stores the excess mutations to place the sample at each
+        // node of the tree in DFS order. When placement is as a
+        // child, it only contains parsimony-increasing mutations in
+        // the sample. When placement is as a sibling, it contains 
+        // parsimony-increasing mutations as well as the mutations
+        // on the placed node in common with the new sample. Note
+        // guaranteed to be corrrect only for optimal nodes since
+        // the mapper can terminate the search early for non-optimal
+        // nodes
+        std::vector<std::vector<MAT::Mutation>> node_excess_mutations(total_nodes);
+        // Stores the imputed mutations for ambiguous bases in the
+        // sampled in order to place the sample at each node of the 
+        // tree in DFS order. Again, guaranteed to be corrrect only 
+        // for pasrimony-optimal nodes 
+        std::vector<std::vector<MAT::Mutation>> node_imputed_mutations(total_nodes);
+
+        // Stores the parsimony score to place the sample at each
+        // node of the tree in DFS order.
+        std::vector<int> node_set_difference;
+        size_t best_node_num_leaves = 0;
+        // The maximum number of mutations is bound by the number
+        // of mutations in the missing sample (place at root)
+        //int best_set_difference = 1e9;
+        // TODO: currently number of root mutations is also added to
+        // this value since it forces placement as child but this
+        // could be changed later 
+        int best_set_difference = ancestral_mutations.size() + T->root->mutations.size() + 1;
+
+        size_t best_j = 0;
+        size_t num_best = 1;
+        bool best_node_has_unique = false;
+        MAT::Node* best_node = T->root;
+        std::vector<bool> node_has_unique(total_nodes, false);
+        std::vector<size_t> best_j_vec;
+        best_j_vec.emplace_back(0);
+
+        // Parallel for loop to search for most parsimonious
+        // placements. Real action happens within mapper2_body
+        auto grain_size = 400; 
+        tbb::parallel_for( tbb::blocked_range<size_t>(0, total_nodes, grain_size),
+                [&](tbb::blocked_range<size_t> r) {
+                for (size_t k=r.begin(); k<r.end(); ++k){
+                    if (dfs[k]->identifier != node->identifier) { //do not allow self-mapping (e.g. can't remap leaf as child of itself)
+                        mapper2_input inp;
+                        inp.T = T;
+                        inp.node = dfs[k];
+                        inp.missing_sample_mutations = &ancestral_mutations;
+                        inp.excess_mutations = &node_excess_mutations[k];
+                        inp.imputed_mutations = &node_imputed_mutations[k];
+                        inp.best_node_num_leaves = &best_node_num_leaves;
+                        inp.best_set_difference = &best_set_difference;
+                        inp.best_node = &best_node;
+                        inp.best_j =  &best_j;
+                        inp.num_best = &num_best;
+                        inp.j = k;
+                        inp.has_unique = &best_node_has_unique;
+                        inp.best_j_vec = &best_j_vec;
+                        inp.node_has_unique = &(node_has_unique);
+
+                        mapper2_body(inp, false);
+                    }
+                }       
+                }); 
+        //assign the result to the input pointer for epps
+        *nbest = num_best;
+        //if the num_best is big enough and if the bool is set, get the neighborhood size value and assign it
+        if (get_nsize) {
+            if (num_best > 1) { 
+                std::vector<MAT::Node*> best_placements;
+                //for every index in best_j_vec, find the corresponding node from dfs
+                for (size_t z=0; z<best_j_vec.size(); z++) {
+                    auto nobj = dfs[best_j_vec[z]];
+                    best_placements.emplace_back(nobj);
+                }
+                size_t neighborhood_size = get_neighborhood_size(best_placements, T);
+                *nsize = neighborhood_size;
+            } else {
+                //one best placement, total distance is 0
+                *nsize = 0;
+            }
+        }
+    }
+}
+
+void findEPPs_wrapper (MAT::Tree Tobj, std::string sample_file, std::string fepps, std::string fneigh) {
     /*
     The number of equally parsimonious placements (EPPs) is a placement uncertainty metric that 
     indicates when a sample is ambiguous and could have been produced by more than one path
@@ -158,7 +283,8 @@ void findEPPs (MAT::Tree Tobj, std::string sample_file, std::string fepps, std::
     //mapper code wants a pointer.
     MAT::Tree* T = &Tobj; 
 
-    std::vector<MAT::Node*> fdfs;
+    //std::vector<MAT::Node*> fdfs;
+    std::vector<std::string> samples;
     //read in the samples files and get the nodes corresponding to each sample.
     if (sample_file != "") { 
         std::ifstream infile(sample_file);
@@ -183,157 +309,33 @@ void findEPPs (MAT::Tree Tobj, std::string sample_file, std::string fepps, std::
                 std::cerr << std::endl;
                 exit(1);
             }
-            fdfs.emplace_back(T->get_node(sample));
+            //fdfs.emplace_back(T->get_node(sample));
+            samples.emplace_back(sample);
         }
-        fprintf(stderr, "Processing %ld samples\n", fdfs.size()); 
+        fprintf(stderr, "Processing %ld samples\n", samples.size()); 
     } else {
-        //if unspecified, it does it for all samples in the MAT
-        //which can take several hours on the full reference tree
-        //this is useful default behavior for future subtree MATs though
-        fprintf(stderr, "No sample file specified; calculating metrics for all samples in the tree\n");
-        fdfs = Tobj.depth_first_expansion();
+        fprintf(stderr, "WARNING: No sample file indicated; calculating for full tree\n");
+        samples = T->get_leaves_ids();
     }
     //this loop is not a parallel for because its going to contain a parallel for.
-    //TODO: this would likely be better optimized if the outer loop was parallelized and the inner one single-thread
-    //given how parallelization does relatively little for the efficiency of sample placement
-    for (size_t s=0; s<fdfs.size(); s++){ 
+    //this specific function would probably be better optimized if the outer was parallelized and the inner was not
+    //but having the inner loop parallelized lets me use parallelization when calculating EPPs for very few or single samples in the future
+    
+    for (size_t s=0; s<samples.size(); s++){ 
         //get the node object.
-        auto node = fdfs[s];
-        if (node->is_leaf()) { 
-            //retrieve the full set of mutations associated with this Node object from root to it
-            //to do this, get the full set of ancestral nodes and their mutations
-
-            //NOTE (TODO): The below code was copied from the Usher main.cpp
-            //if that code is ever refactored or updated in a way that significantly
-            //affects efficiency or accuracy outside of the usher_mapper.cpp,
-            //this code needs to be manually updated
-            
-            //tracking positions is required to account for backmutation/overwriting along the path
-            std::vector<int> anc_positions;
-            std::vector<MAT::Mutation> ancestral_mutations;
-            //first load in the current mutations
-            for (auto m: node->mutations){ 
-                if (m.is_masked() || (std::find(anc_positions.begin(), anc_positions.end(), m.position) == anc_positions.end())) {
-                    ancestral_mutations.emplace_back(m);
-                    if (!m.is_masked()) {
-                        anc_positions.emplace_back(m.position);
-                    }            
-                }
-            }
-            //then load in ancestral mutations
-            for (auto n: Tobj.rsearch(node->identifier)) {
-                for (auto m: n->mutations) {
-                    if (m.is_masked() || (std::find(anc_positions.begin(), anc_positions.end(), m.position) == anc_positions.end())) {
-                        ancestral_mutations.emplace_back(m);
-                        if (!m.is_masked()) {
-                            anc_positions.emplace_back(m.position);
-                        }
-                    }
-                }
-            }
-            if (ancestral_mutations.size()>0) {
-                //the ancestral_mutations vector, plus the mutations assigned to this specific node, constitute the "missing_sample" equivalents for calling the mapper
-                //this is where code copied from usher_main.cpp begins
-                //comments included.
-                auto dfs = T->depth_first_expansion();
-                size_t total_nodes = dfs.size();
-
-                // Stores the excess mutations to place the sample at each
-                // node of the tree in DFS order. When placement is as a
-                // child, it only contains parsimony-increasing mutations in
-                // the sample. When placement is as a sibling, it contains 
-                // parsimony-increasing mutations as well as the mutations
-                // on the placed node in common with the new sample. Note
-                // guaranteed to be corrrect only for optimal nodes since
-                // the mapper can terminate the search early for non-optimal
-                // nodes
-                std::vector<std::vector<MAT::Mutation>> node_excess_mutations(total_nodes);
-                // Stores the imputed mutations for ambiguous bases in the
-                // sampled in order to place the sample at each node of the 
-                // tree in DFS order. Again, guaranteed to be corrrect only 
-                // for pasrimony-optimal nodes 
-                std::vector<std::vector<MAT::Mutation>> node_imputed_mutations(total_nodes);
-
-                // Stores the parsimony score to place the sample at each
-                // node of the tree in DFS order.
-                std::vector<int> node_set_difference;
-                size_t best_node_num_leaves = 0;
-                // The maximum number of mutations is bound by the number
-                // of mutations in the missing sample (place at root)
-                //int best_set_difference = 1e9;
-                // TODO: currently number of root mutations is also added to
-                // this value since it forces placement as child but this
-                // could be changed later 
-                int best_set_difference = ancestral_mutations.size() + T->root->mutations.size() + 1;
-
-                size_t best_j = 0;
-                size_t num_best = 1;
-                bool best_node_has_unique = false;
-                MAT::Node* best_node = T->root;
-                std::vector<bool> node_has_unique(total_nodes, false);
-                std::vector<size_t> best_j_vec;
-                best_j_vec.emplace_back(0);
-
-                // Parallel for loop to search for most parsimonious
-                // placements. Real action happens within mapper2_body
-                auto grain_size = 400; 
-                tbb::parallel_for( tbb::blocked_range<size_t>(0, total_nodes, grain_size),
-                        [&](tbb::blocked_range<size_t> r) {
-                        for (size_t k=r.begin(); k<r.end(); ++k){
-                            if (dfs[k]->identifier != node->identifier) { //do not allow self-mapping (e.g. can't remap leaf as child of itself)
-                                mapper2_input inp;
-                                inp.T = T;
-                                inp.node = dfs[k];
-                                inp.missing_sample_mutations = &ancestral_mutations;
-                                inp.excess_mutations = &node_excess_mutations[k];
-                                inp.imputed_mutations = &node_imputed_mutations[k];
-                                inp.best_node_num_leaves = &best_node_num_leaves;
-                                inp.best_set_difference = &best_set_difference;
-                                inp.best_node = &best_node;
-                                inp.best_j =  &best_j;
-                                inp.num_best = &num_best;
-                                inp.j = k;
-                                inp.has_unique = &best_node_has_unique;
-                                inp.best_j_vec = &best_j_vec;
-                                inp.node_has_unique = &(node_has_unique);
-
-                                mapper2_body(inp, false);
-                            }
-                        }       
-                        }); 
-                
-                if (fepps != "") {
-                    eppfile << node->identifier << "\t" << num_best << "\n";
-                }
-
-                if (fneigh != "") { 
-                    if (num_best > 1) { 
-                        std::vector<MAT::Node*> best_placements;
-                        //for every index in best_j_vec, find the corresponding node from dfs
-                        for (size_t z=0; z<best_j_vec.size(); z++) {
-                            auto nobj = dfs[best_j_vec[z]];
-                            best_placements.emplace_back(nobj);
-                        }
-                        size_t neighborhood_size = get_neighborhood_size(best_placements, T);
-                        neighfile << node->identifier << "\t" << neighborhood_size << "\n";
-                    } else {
-                        //one best placement, total distance is 0
-                        neighfile << node->identifier << "\t0\n";
-                    }
-                }
-            } 
-            else {
-                //save default values 
-                if (fepps != "") {
-                    eppfile << node->identifier << "\t1\n";
-                }
-                if (fneigh != "") {
-                    neighfile << node->identifier << "\t0\n";
-                }
-
-            }
+        auto node = T->get_node(samples[s]);
+        size_t num_best;
+        size_t neighborhood_size;
+        //get neighborhood size if that file name is set
+        findEPPs(&Tobj, node, (fneigh != ""), &num_best, &neighborhood_size);
+        if (fepps != "") {
+            eppfile << node->identifier << "\t" << num_best << "\n";
+        }
+        if (fneigh != "") { 
+            neighfile << node->identifier << "\t" << neighborhood_size << "\n";
         }
     }
+
     if (fepps != ""){
         eppfile.close();
     }
@@ -341,6 +343,27 @@ void findEPPs (MAT::Tree Tobj, std::string sample_file, std::string fepps, std::
         neighfile.close();
     }
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+}
+
+//a variation on sample selection specific to uncertainty metrics.
+std::vector<std::string> get_samples_epps (MAT::Tree T, size_t max_epps, std::vector<std::string> to_check) {
+    //calculate uncertainty for all samples in the tree
+    //and return the set of samples which have EPPs less than max_epps
+    //default filter value is 1, which 85% of samples have
+    std::vector<std::string> good_samples;
+    auto dfs = T.depth_first_expansion();
+    for (auto n: dfs) {
+        //check every sample if the ones to check is unset, else only calculate for the input sample set to_check
+        if (to_check.size() == 0 || std::find(to_check.begin(), to_check.end(), n->identifier) != to_check.end()) {
+            size_t nb;
+            size_t ns;
+            findEPPs(&T, n, false, &nb, &ns);
+            if (nb <= max_epps) {
+                good_samples.push_back(n->identifier);
+            }
+        }
+    }
+    return good_samples;
 }
 
 po::variables_map parse_uncertainty_command(po::parsed_options parsed) {    
@@ -407,9 +430,12 @@ void uncertainty_main(po::parsed_options parsed) {
     }
     if (fepps != "" || fneigh != "") {
         fprintf(stderr, "Calculating placement uncertainty\n");
-        findEPPs(T, sample_file, fepps, fneigh);
+        findEPPs_wrapper(T, sample_file, fepps, fneigh);
     }
     if (get_parsimony){
-        fprintf(stderr, "Total Tree Parsimony %ld", T.get_parsimony_score());
+        fprintf(stdout, "Total Tree Parsimony %ld\n", T.get_parsimony_score());
+    } else if (fepps.size() == 0 && fneigh.size() == 0) {
+        fprintf(stderr, "No actions chosen. Review arguments\n");
+        exit(1);
     }
 }

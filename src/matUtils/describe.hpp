@@ -1,5 +1,5 @@
 #include "common.hpp"
 
-po::variables_map parse_describe_command(po::parsed_options parsed);
-void describe_main(po::parsed_options parsed);
-void mutation_paths(const MAT::Tree& T, std::string sample_filename);
+std::vector<std::string> mutation_paths(const MAT::Tree& T, std::vector<std::string> samples);
+std::vector<std::string> clade_paths(MAT::Tree T, std::vector<std::string> clades);
+std::vector<std::string> all_nodes_paths(MAT::Tree T);

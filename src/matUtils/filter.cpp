@@ -1,195 +1,129 @@
 #include "filter.hpp"
 
-po::variables_map parse_filter_command(po::parsed_options parsed) {
-
-    uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
-    std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
-
-    po::variables_map vm;
-    po::options_description filt_desc("filter options");
-    filt_desc.add_options()
-        ("input-mat,i", po::value<std::string>()->required(),
-         "Input mutation-annotated tree file [REQUIRED]")
-        ("output-mat,o", po::value<std::string>()->required(),
-         "Path to output filtered mutation-annotated tree file [REQUIRED]")
-        ("restricted-samples,s", po::value<std::string>()->default_value(""), 
-         "Sample names to restrict. Use to perform masking") 
-//        ("placement-confidence,c", po::value<int>()->default_value(0),
-//        "Maximum number of equally parsimonious placements among nodes included in the tree (lower values is better, with 1 as highest confidence). Set to 0 to skip filtering. Default 0")
-        ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
-        ("help,h", "Print help messages");
-    // Collect all the unrecognized options from the first pass. This will include the
-    // (positional) command name, so we need to erase that.
-    std::vector<std::string> opts = po::collect_unrecognized(parsed.options, po::include_positional);
-    opts.erase(opts.begin());
-
-    // Run the parser, with try/catch for help
-    try{
-        po::store(po::command_line_parser(opts)
-                  .options(filt_desc)
-                  .run(), vm);
-        po::notify(vm);
+/*
+Functions in this module take a MAT and a set of samples and return the a smaller MAT
+representing those samples in an optimal manner.
+*/
+MAT::Tree filter_master(const MAT::Tree& T, std::vector<std::string> sample_names, bool prune) {
+    MAT::Tree subtree;
+    if (prune) {
+        subtree = prune_leaves(T, sample_names);
+    } else if (sample_names.size() < 10000) {
+        //for retaining only a subtree, get_subtree is the most effective method
+        //for subtress up to about 10 thousand samples in size; after that, pruning
+        //all other nodes becomes more efficient, because get_subtree scales with 
+        //the size of the input sample set, while prune takes a similar time for 
+        //any sample set size, while scaling on total tree size
+        subtree = get_sample_subtree(T, sample_names);
+    } else {
+        subtree = get_sample_prune(T, sample_names);
     }
-    catch(std::exception &e){
-        std::cerr << filt_desc << std::endl;
-        // Return with error code 1 unless the user specifies help
-        if (vm.count("help"))
-            exit(0);
-        else
-            exit(1);
-    }
-    return vm;
+    return subtree;
 }
 
-void filter_main(po::parsed_options parsed) {
-    //the filter subcommand prunes data from the protobuf based on some threshold, returning a protobuf file that is smaller than the input
-    po::variables_map vm = parse_filter_command(parsed);
-    std::string input_mat_filename = vm["input-mat"].as<std::string>();
-    std::string output_mat_filename = vm["output-mat"].as<std::string>();
-    std::string samples_filename = vm["restricted-samples"].as<std::string>();
-    //int maxcon = vm["placement-confidence"].as<int>();
-    uint32_t num_threads = vm["threads"].as<uint32_t>();
+MAT::Tree prune_leaves (const MAT::Tree& T, std::vector<std::string> sample_names) {
 
-    tbb::task_scheduler_init init(num_threads);
-
-    // Load input MAT and uncondense tree
-    MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
-    //T here is the actual object.
-    if (T.condensed_nodes.size() > 0) {
-      T.uncondense_leaves();
+    timer.Start();
+    fprintf(stderr, "Pruning %zu samples.\n", sample_names.size());
+    auto subtree = MAT::get_tree_copy(T);
+    for (auto s: sample_names) {
+        if (subtree.get_node(s) == NULL) {
+            fprintf(stderr, "ERROR: Sample %s not found in the tree!\n", s.c_str()); 
+        }
+        else {
+            assert (subtree.get_node(s)->is_leaf());
+            subtree.remove_node(s, true);
+        }
     }
-    // If a restricted samples file was provided, perform masking procedure
-    if (samples_filename != "") {
-        fprintf(stderr, "Performing Masking\n");
-        restrictSamples(samples_filename, T);
-    }
-    //there's a very simple filtering procedure which doesn't require a dedicated function
-    // if (maxcon > 0) { //value of 0 means skip this procedure (default behavior)
-        //fprintf(stderr, "Removing nodes with more than %d equally parsimonious placements", maxcon);
-        //just get all nodes, and for each one with an EPPs greater than maxcon, remove it.
-        //for the smallest possible maximum, 1, this should retain about 84% of samples. More for any other value
-        // auto dfs = T.depth_first_expansion(); //technically for now I would want to get just all leaves, but I think the epps concept could be extended to internal nodes that aren't true samples with some thought in the future
-        //for (auto it: dfs) {
-            //if (it->epps > maxcon) {
-            //    T.remove_node(it->identifier, false); //fairly sure I want this to be false for leaves
-            //}
-        //}
-    //}
+    fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 
-    // Store final MAT to output file
-    if (output_mat_filename != "") {
-        fprintf(stderr, "Saving Final Tree\n");
-        MAT::save_mutation_annotated_tree(T, output_mat_filename);
-    }    
+    return subtree;
 }
 
-void restrictSamples (std::string samples_filename, MAT::Tree& T) {
-    // Load restricted sample names from the input file and add it to the set
-    //BUG WARNING
-    //This does not actually work right now- all samples passed in are caught as missing. 
-    std::ifstream infile(samples_filename);
-    if (!infile) {
-        fprintf(stderr, "ERROR: Could not open the restricted samples file: %s!\n", samples_filename.c_str());
-        exit(1);
+MAT::Tree get_sample_subtree (const MAT::Tree& T, std::vector<std::string> sample_names) {
+
+    timer.Start();
+    fprintf(stderr, "Extracting subtree of %zu samples.\n", sample_names.size());
+    auto subtree = MAT::get_subtree(T, sample_names);
+    fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+
+    return subtree;
+}
+
+MAT::Tree get_sample_prune (const MAT::Tree& T, std::vector<std::string> sample_names) {
+    
+    timer.Start();
+    fprintf(stderr, "Large sample input; building subtree by pruning all but %zu samples.\n", sample_names.size());
+    //its going to be much quicker to check membership in a set then a vector O(logN)
+    //which is important when we're looking at large sample inputs
+    //so convert the sample names vector to an unordered set
+    std::unordered_set<std::string> setnames(sample_names.begin(),sample_names.end());
+    auto subtree = MAT::get_tree_copy(T);
+    auto dfs = T.depth_first_expansion();
+    for (auto s: dfs) {
+        //only call the remover on leaf nodes (can't be deleting the root...)
+        if (s->is_leaf()) {
+            //if the node is NOT in the set, remove it
+            if (setnames.find(s->identifier) == setnames.end()) {
+                //BUG NOTE: I'm setting the move to false here to patch over this problem
+                //if its set to true, then sometimes it will fail to save properly- overwriting root?
+                //leave this as not using the move for now, but needs to be revisited
+                subtree.remove_node(s->identifier, false);
+            }
+        }
     }    
-    std::unordered_set<std::string> restricted_samples;
-    std::string sample;
-    while (std::getline(infile, sample)) {
-        fprintf(stderr, "Checking for Sample %s\n", sample.c_str());
-        if (T.get_node(sample) == NULL) {
-            fprintf(stderr, "ERROR: Sample missing in input MAT!\n");
-            std::cerr << std::endl;
-            exit(1);
-        }
-        restricted_samples.insert(std::move(sample));
-    }
+    fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+    return subtree;
+}
 
-    // Set of nodes rooted at restricted samples
-    std::unordered_set<MAT::Node*> restricted_roots;
-    std::unordered_map<std::string, bool> visited;
-    for (auto s: restricted_samples) {
-        visited[s] = false;
+void resolve_polytomy(MAT::Tree* T, std::vector<MAT::Node*> polytomy_nodes) {
+    assert (polytomy_nodes.size() > 2);
+    // fprintf(stderr, "DEBUG: Resolving polytomy with %ld children\n", polytomy_nodes.size());
+    std::vector<MAT::Node*> new_parents;
+    auto og_parent = polytomy_nodes[0]->parent;
+    new_parents.push_back(og_parent);
+    //generate a number of new internal nodes to hang these samples on
+    //the number is the total number of polytomy nodes - 2 (remember, minimum 3 nodes to resolve)
+    for (size_t i=0; i<polytomy_nodes.size()-2; i++) {
+        //create a unique identifier indicating that this is a polytomy resolving node
+        const std::string nid = og_parent->identifier + "_polytomy_" + std::to_string(i);
+        //generate the actual node; its parent is going to be the last entry of new_parents
+        //for the first one, that's the original parent, for each after, its the last generated
+        auto nnode = T->create_node(nid, new_parents.back(), 0);
+        //I don't think these are initialized with mutations, but its called in the condenser, so...
+        nnode->clear_mutations();
+        new_parents.push_back(nnode);
     }
-    for (auto cn: T.breadth_first_expansion()) { 
-        auto s = cn->identifier;
-        if (restricted_samples.find(s) == restricted_samples.end()) {
-            continue;
-        }
-        if (visited[s]) {
-            continue;
-        }
-        auto curr_node = T.get_node(s);
-        for (auto n: T.rsearch(s)) {
-            bool found_unrestricted = false;
-            for (auto l: T.get_leaves_ids(n->identifier)) {
-                if (restricted_samples.find(l)  == restricted_samples.end()) {
-                    found_unrestricted = true;
-                    break;
-                }
-            }
-            if (!found_unrestricted) {
-                for (auto l: T.get_leaves_ids(n->identifier)) {
-                    visited[l] = true;
-                }
-                curr_node = n;
-                break;
-            }
-        }
-        restricted_roots.insert(curr_node);
+    //now, assign each of the polytomy samples to one of these new parents
+    //the first polytomy node can be ignored and stay a child to its current parent
+    //the rest are going to be moved to the parent which matches their index
+    //except for the last one, which will go to the last parent in line (index - 1),
+    //as the last parent can support two children.
+    for (size_t i=1; i<polytomy_nodes.size()-1; i++) {
+        T->move_node(polytomy_nodes[i]->identifier, new_parents[i]->identifier, false);
     }
+    T->move_node(polytomy_nodes.back()->identifier, new_parents.back()->identifier, false);
+}
 
-    fprintf(stderr, "Restricted roots size: %zu\n\n", restricted_roots.size());
+MAT::Tree resolve_all_polytomies(MAT::Tree T) {
+    //go through the tree, identify every uncondensed polytomy
+    //then resolve the polytomy positionally and save the results
+    //this will conflict with condensing the tree but that's fine.
 
-    // Map to store number of occurences of a mutation in the tree
-    std::unordered_map<std::string, int> mutations_counts;
+    //step one is go through the tree and delete all single children nodes.
     for (auto n: T.depth_first_expansion()) {
-        for (auto mut: n->mutations) {
-            if (mut.is_masked()) {
-                continue;
-            }
-            auto mut_string = mut.get_string();
-            if (mutations_counts.find(mut_string) == mutations_counts.end()) {
-                mutations_counts[mut_string] = 1;
-            }
-            else {
-                mutations_counts[mut_string] += 1;
-            }
+        if (n->children.size() == 1) {
+            //remove nodes with only one child when resolving to a binary tree.
+            T.remove_node(n->identifier, true);
         }
     }
     
-    // Reduce mutation counts for mutations in subtrees rooted at 
-    // restricted_roots. Mutations specific to restricted samples 
-    // will now be set to 0. 
-    for (auto r: restricted_roots) {
-        //fprintf(stdout, "At restricted root %s\n", r->identifier.c_str());
-        for (auto n: T.depth_first_expansion(r)) {
-            for (auto mut: n->mutations) {
-                if (mut.is_masked()) {
-                    continue;
-                }
-                auto mut_string = mut.get_string();
-                mutations_counts[mut_string] -= 1;
-            }
+    for (auto n: T.depth_first_expansion()) {
+        //greater than 2 because a polytomy of two nodes is already resolved (unlike condenser, which can condense a polytomy of 2)
+        if (n->children.size() > 2) {
+            //pass by reference, modify in place
+            resolve_polytomy(&T, n->children);
         }
     }
-
-    for (auto r: restricted_roots) {
-        for (auto n: T.depth_first_expansion(r)) {
-            for (auto& mut: n->mutations) {
-                if (mut.is_masked()) {
-                    continue;
-                }
-                auto mut_string = mut.get_string();
-                if (mutations_counts[mut_string] == 0) {
-                    fprintf(stderr, "Masking mutation %s at node %s\n", mut_string.c_str(), n->identifier.c_str());
-                    mut.position = -1;
-                    mut.ref_nuc = 0;
-                    mut.par_nuc = 0;
-                    mut.mut_nuc = 0;
-                }
-            }
-        }
-    }
+    return T;
 }
-
-

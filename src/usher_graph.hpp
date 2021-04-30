@@ -30,6 +30,27 @@ class Timer {
         
 };
 
+struct Missing_Sample {
+    std::string name;
+    std::vector<MAT::Mutation> mutations;
+    size_t num_ambiguous;
+
+    Missing_Sample (std::string sample_name) {
+        name = sample_name;
+        mutations.clear();
+        num_ambiguous = 0;
+    }
+
+    bool operator==(const Missing_Sample& other) const
+    {
+            return (*this).name == other.name;
+    }
+    bool operator<(const Missing_Sample& other) const
+    {
+            return (*this).num_ambiguous < other.num_ambiguous;
+    }
+};
+
 struct mapper_input {
     MAT::Tree* T;
     std::string chrom;
@@ -40,8 +61,8 @@ struct mapper_input {
     std::vector<std::tuple<size_t, int8_t>> variants;
     std::vector<std::string>* variant_ids;
     
-    std::vector<std::string>* missing_samples;
-    std::vector<std::vector<MAT::Mutation>>* missing_sample_mutations;
+    std::vector<Missing_Sample>* missing_samples;
+    //std::vector<std::vector<MAT::Mutation>>* missing_sample_mutations;
 };
 
 struct mapper_body {
@@ -59,6 +80,8 @@ struct mapper2_input {
     size_t* best_node_num_leaves;
     size_t j;
     size_t* best_j;
+    size_t distance;
+    size_t* best_distance;
     size_t* num_best;
     MAT::Node** best_node;
 
@@ -69,6 +92,11 @@ struct mapper2_input {
 
     std::vector<MAT::Mutation>* excess_mutations;
     std::vector<MAT::Mutation>* imputed_mutations;
+
+    mapper2_input () {
+        distance = 0;
+        best_distance = &distance;
+    }
 };
 
 void mapper2_body(mapper2_input& inp, bool compute_parsimony_scores);

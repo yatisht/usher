@@ -34,20 +34,8 @@ jobs:
         ./build/matUtils --help
         command -v mafft
 
-  macOS-10-14:
-    runs-on: macOS-10.14
-    steps:
-    - uses: actions/checkout@master
-    - name: install pre-reqs and build
-      run: ./installMacOS.sh
-    - name: test
-      run: |
-        ./build/usher --help
-        ./build/matUtils --help
-        command -v mafft
-
-  macOS-10-15:
-    runs-on: macOS-10.15
+  macOS-latest:
+    runs-on: macOS-latest
     steps:
     - uses: actions/checkout@master
     - name: install pre-reqs and build
