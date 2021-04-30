@@ -26,4 +26,4 @@ We thank Jim Kent and the UCSC Genome Browser team for allowing us to download t
 
 **For masking recomendations, please also cite:**
 * Yatish Turakhia, Nicola De Maio, Bryan Thornlow, Landen Gozashti, Robert Lanfear, Conor R. Walker, Angie S. Hinrichs, Jason D. Fernandes, Rui Borges, Greg Slodkowicz, Lukas Weilguny, David Haussler, Nick Goldman and Russell Corbett-Detig, "Stability of SARS-CoV-2 Phylogenies", PLOS Genetics 2020 (https://doi.org/10.1371/journal.pgen.1009175).
-* Landen Gozashti, Conor R. Walker, Robert Lanfear, Nick Goldman, Nicola De Maio and Russell Corbett-Detig, "Issues with SARS-CoV-2 sequencing data: Updated analysis with data from 4 March 2020", Virological 2020 (https://virological.org/t/issues-with-sars-cov-2-sequencing-data/473/15).
+* Landen Gozashti, Conor R. Walker, Robert Lanfear, Nick Goldman, Nicola De Maio and Russell Corbett-Detig, "Issues with SARS-CoV-2 sequencing data: Updated analysis with data from 4 March 2021", Virological 2021 (https://virological.org/t/issues-with-sars-cov-2-sequencing-data/473/15).
