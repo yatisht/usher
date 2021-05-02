@@ -8,7 +8,8 @@
 #include <utility>
 struct Parsed_VCF_Line{
     Mutation_Annotated_Tree::Mutation mutation;
-    std::unordered_map<std::string, nuc_one_hot> *mutated;
+    //std::unordered_map<std::string, nuc_one_hot> *mutated;
+    std::unordered_map<std::string, nuc_one_hot> mutated;
 };
 struct VCF_Reader{
     static const int CHROM_IDX=0;
