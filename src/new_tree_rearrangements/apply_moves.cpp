@@ -41,7 +41,7 @@ bool get_children_alleles_count(const MAT::Node *this_node,
     count[one_hot_to_two_bit(this_allele)] += par_allele_count;
 }*/
 
-static void clean_up_internal_nodes(MAT::Node* this_node,MAT::Tree& tree,std::vector<MAT::Node*>& to_filter){
+static void clean_up_internal_nodes(MAT::Node* this_node,MAT::Tree& tree,tbb::concurrent_vector<MAT::Node*>& to_filter){
 
     std::vector<MAT::Node *> &parent_children = this_node->parent->children;
     std::vector<MAT::Node *> this_node_ori_children = this_node->children;
@@ -64,6 +64,7 @@ static void clean_up_internal_nodes(MAT::Node* this_node,MAT::Tree& tree,std::ve
         clean_up_internal_nodes(child, tree,to_filter);
     }
 }
+
 void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t,
                  std::vector<MAT::Node *> &bfs_ordered_nodes,tbb::concurrent_vector<MAT::Node*>& to_filter) {
     std::vector<MAT::Node*> removed;
@@ -91,6 +92,7 @@ void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t,
         }
         to_filter=std::move(filtered);
     }
+    clean_up_internal_nodes(t.root->children.size()==1?t.root->children[0]:t.root, t, to_filter);
     bfs_ordered_nodes = t.breadth_first_expansion();
 
     std::vector<tbb::concurrent_vector<Mutation_Annotated_Tree::Mutation>>

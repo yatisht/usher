@@ -7,6 +7,7 @@
 #include <string>
 #include <array>
 #include <unordered_map>
+#include <array>
 #include <vector>
 #include <emmintrin.h>
 namespace MAT = Mutation_Annotated_Tree;
