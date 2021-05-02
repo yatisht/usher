@@ -8,7 +8,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer -march=native -s
 set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O3")
 set(CMAKE_INCLUDE_CURRENT_DIR ON) 
 #  -O0     DDETAIL_DEBUG_MUTATION_SORTED -DDEBUG_PARSIMONY_SCORE_CHANGE_CORRECT 
-set(CMAKE_CXX_FLAGS_DEBUG "-fsanitize=leak -fsanitize=address -fsanitize=undefined -O3 -DCONFLICT_RESOLVER_DEBUG")
+set(CMAKE_CXX_FLAGS_DEBUG " -O0 -fsanitize=leak -fsanitize=address -fsanitize=undefined -DCONFLICT_RESOLVER_DEBUG")
 #
 find_package(ZLIB)
 if(DEFINED Protobuf_PATH) 
@@ -42,8 +42,8 @@ file(GLOB MATOPTIMIZE_SRCS "src/matOptimize/*.cpp" "src/matOptimize/*.hpp")
 
 
 set_source_files_properties(src/new_tree_rearrangements/import_vcf_fast.cpp PROPERTIES COMPILE_FLAGS -O0)
-set_source_files_properties(src/new_tree_rearrangements/check_samples.cpp PROPERTIES COMPILE_FLAGS -O0)
-set_source_files_properties(src/new_tree_rearrangements/main_load_tree.cpp PROPERTIES COMPILE_FLAGS -O0)
+#set_source_files_properties(src/new_tree_rearrangements/check_samples.cpp PROPERTIES COMPILE_FLAGS -O0)
+#set_source_files_properties(src/new_tree_rearrangements/main_load_tree.cpp PROPERTIES COMPILE_FLAGS -O0)
 if(DEFINED Protobuf_PATH)
     add_executable(usher
         ${tree_rearrange_src}
@@ -135,6 +135,17 @@ else()
     ${DETAILED_MUTATIONS_PROTO_HDRS}
     )
 
+    add_executable(tree_stat
+    src/new_tree_rearrangements/mutation_annotated_tree.cpp
+    src/new_tree_rearrangements/tree_stat.cpp
+    src/new_tree_rearrangements/mutation_annotated_tree_node.cpp
+    src/new_tree_rearrangements/mutation_annotated_tree_load_store.cpp
+    src/new_tree_rearrangements/mutation_annotated_tree_nuc_util.cpp
+    src/new_tree_rearrangements/Mutation_Collection.cpp
+    ${PROTO_SRCS}
+    ${PROTO_HDRS}
+    )
+
     add_executable(single_move_test
     src/new_tree_rearrangements/mutation_annotated_tree.cpp
     src/new_tree_rearrangements/mutation_annotated_tree_node.cpp
@@ -174,6 +185,7 @@ endif(SAVE_PROFILE)
 
 TARGET_LINK_LIBRARIES(usher PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(tree_rearrange_new PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
+TARGET_LINK_LIBRARIES(tree_stat PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(single_move_test PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
 
 TARGET_COMPILE_OPTIONS(matUtils PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
