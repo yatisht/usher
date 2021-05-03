@@ -1,6 +1,5 @@
 #include "process_each_node.hpp"
 #include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
-#include <bits/stdint-uintn.h>
 int get_new_major_allele_binary_node(nuc_one_hot left_child,nuc_one_hot right_child,nuc_one_hot& major_allele_out){
     major_allele_out=left_child&right_child;
     if (!major_allele_out) {

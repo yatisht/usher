@@ -73,7 +73,8 @@ static void LCA_dst_match(const MAT::Mutation* LCA_mutation_iter,
         if (is_dst_terminal) {
             major_allele = increment_mutation_count(
                 LCA_parent_mutation_count_change_out, *LCA_mutation_iter,
-                *dst_add_count_iter, parsimony_score_change, true);
+                *dst_add_count_iter, parsimony_score_change);
+                parsimony_score_change++;
         } else if (is_src_terminal) {
             major_allele=dst_add_count_iter->get_new_state();
             parsimony_score_change+=register_change_from_new_state(LCA_parent_mutation_count_change_out, 0,*LCA_mutation_iter, major_allele);

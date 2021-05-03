@@ -20,7 +20,7 @@ void consume_parent_mutations(
     ,dbg_iter &debug_iter,dbg_iter &debug_end
 #endif
     ) ;
-void get_parsimony_score_change_from_add(
+bool get_parsimony_score_change_from_add(
     MAT::Node *parent_node,
     const Mutation_Count_Change_Collection &children_added_mutations,
     Mutation_Count_Change_Collection &parent_added_mutations, bool is_terminal,

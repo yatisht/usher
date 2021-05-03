@@ -12,24 +12,22 @@
 #include <emmintrin.h>
 namespace MAT = Mutation_Annotated_Tree;
 
-static void set_state_2(uint8_t child1,uint8_t child2,uint8_t& boundary1_major_allele,uint8_t& boundary2_allele){
+static void set_state_2(uint8_t child1,uint8_t child2,uint8_t& boundary1_major_allele){
     uint8_t major_abs=child1&child2&0xf;
     uint8_t nuc_present=(child1|child2)&0xf;
     if (major_abs) {
         uint8_t minor_allele=nuc_present&(~major_abs);
         boundary1_major_allele=(minor_allele<<4)|major_abs;
-        boundary2_allele=(~nuc_present)&0xf;
         //Not seting minor allele if nuc_present is ambiguous, because it cannot be boundary
     }else {
         //This is a tie, Forward pass will break tie with parent, (or arbitrarily if parent agree with neither), taking it as tie case, and boundary case, as alleles not present have a difference of 1 with present allele (can become a 3-allele tie and then follow parent when moving nodes around)
         boundary1_major_allele=((~nuc_present)<<4)|nuc_present;
-        boundary2_allele=0;
     }
 }
 static uint8_t movemask(int in){
     return (1&in)|(2&(in>>3))|(4&(in>>6))|(8&(in>>9));
 }
-static void set_state_from_cnt(const std::array<int,4>& data, uint8_t& boundary1_major_allele_out,uint8_t& boundary2_allele){
+static void set_state_from_cnt(const std::array<int,4>& data, uint8_t& boundary1_major_allele_out){
     __m128i ori=_mm_loadu_si128((__m128i*)data.data());
     __m128i suf=_mm_shuffle_epi32(ori, 0x4e);
     __m128i max1=_mm_max_epi32(ori, suf);
@@ -37,13 +35,10 @@ static void set_state_from_cnt(const std::array<int,4>& data, uint8_t& boundary1
     __m128i max_values=_mm_max_epi32(max1, max1_suf);
     //int32_t max=_mm_extract_epi32(max_values, 0);
     __m128i one=_mm_set1_epi32(1);
-    __m128i two=_mm_set1_epi32(2);
     int is_max_raw=_mm_movemask_epi8(_mm_cmpeq_epi32(ori, max_values));
     int is_boundary_1_raw=_mm_movemask_epi8(_mm_cmpeq_epi32(_mm_add_epi32(ori,one), max_values));
-    int is_boundary_2_raw=_mm_movemask_epi8(_mm_cmpeq_epi32(_mm_add_epi32(ori,two), max_values));
     uint8_t max_mask=movemask(is_max_raw);
     uint8_t boundary1_mask=movemask(is_boundary_1_raw);
-    boundary2_allele=movemask(is_boundary_2_raw);
     boundary1_major_allele_out=max_mask|(boundary1_mask<<4);
 }
 
@@ -123,7 +118,7 @@ std::array<int,4> count_right(MAT::Node* this_node, std::vector<uint8_t>& minor_
 }
 #endif
 
-void FS_backward_pass(const std::vector<MAT::Node*> bfs_ordered_nodes, std::vector<uint8_t>& boundary1_major_allele,std::vector<uint8_t>& boundary2_allele,const std::unordered_map<std::string, nuc_one_hot>& mutated,nuc_one_hot ref_nuc){
+void FS_backward_pass(const std::vector<MAT::Node*> bfs_ordered_nodes, std::vector<uint8_t>& boundary1_major_allele,const std::unordered_map<std::string, nuc_one_hot>& mutated,nuc_one_hot ref_nuc){
     for(long node_idx=bfs_ordered_nodes.size()-1;node_idx>=0;node_idx--){
         auto this_node=bfs_ordered_nodes[node_idx];
         auto child_size=this_node->children.size();
@@ -138,14 +133,12 @@ void FS_backward_pass(const std::vector<MAT::Node*> bfs_ordered_nodes, std::vect
                 allele=iter->second;
             }
             boundary1_major_allele[node_idx]=allele;
-            boundary2_allele[node_idx]=0;
         }else if (child_size==1) {
             auto child_idx=this_node->children[0]->bfs_index;
-            boundary2_allele[node_idx]=0;
             boundary1_major_allele[node_idx]=boundary1_major_allele[child_idx]&0xf;
         }else if (child_size==2) {
             size_t child_start_idx=this_node->children[0]->bfs_index;
-            set_state_2(boundary1_major_allele[child_start_idx],boundary1_major_allele[child_start_idx+1],boundary1_major_allele[node_idx],boundary2_allele[node_idx]);
+            set_state_2(boundary1_major_allele[child_start_idx],boundary1_major_allele[child_start_idx+1],boundary1_major_allele[node_idx]);
         }else {
             size_t child_start_idx=this_node->children[0]->bfs_index;
             size_t child_end_idx=child_start_idx+this_node->children.size();
@@ -170,13 +163,13 @@ void FS_backward_pass(const std::vector<MAT::Node*> bfs_ordered_nodes, std::vect
             auto right_count=count_right(this_node, boundary1_major_allele);
             assert(nuc_count==right_count);
             #endif
-            set_state_from_cnt(nuc_count, boundary1_major_allele[node_idx], boundary2_allele[node_idx]);
+            set_state_from_cnt(nuc_count, boundary1_major_allele[node_idx]);
         }
         assert(boundary1_major_allele[node_idx]&0xf);
     }
 }
 
-static nuc_one_hot set_state(MAT::Node* this_node,uint8_t boundary1_major_allele,uint8_t boundary2_allele,nuc_one_hot par_state,const MAT::Mutation& base,tbb::concurrent_vector<Mutation_Annotated_Tree::Mutation>& output){
+static nuc_one_hot set_state(MAT::Node* this_node,uint8_t boundary1_major_allele,nuc_one_hot par_state,const MAT::Mutation& base,tbb::concurrent_vector<Mutation_Annotated_Tree::Mutation>& output){
     nuc_one_hot this_state;
     bool need_add=false;
     if(boundary1_major_allele&par_state){
@@ -195,14 +188,14 @@ static nuc_one_hot set_state(MAT::Node* this_node,uint8_t boundary1_major_allele
     assert(major_allele&this_state);
     #endif
 
-    if (major_allele.is_ambiguous()||(boundary1_allele|boundary2_allele)||need_add) {
+    if (major_allele.is_ambiguous()||(boundary1_allele)||need_add) {
         MAT::Mutation to_add(base);
         to_add.set_par_mut(par_state, this_state);
         if (this_node->children.size()<=1) {
             assert(!boundary1_allele);
             boundary1_allele=(~major_allele)&0xf;
         }
-        to_add.set_auxillary(major_allele,boundary1_allele, boundary2_allele);
+        to_add.set_auxillary(major_allele,boundary1_allele);
         output.push_back(to_add);
     }
 
@@ -228,16 +221,16 @@ static nuc_one_hot set_binary_node_state(MAT::Node* node,nuc_one_hot this_bounda
     return this_state;
 }
 
-static void FS_forward_pass(const std::vector<MAT::Node*> bfs_ordered_nodes,const std::vector<uint8_t>& boundary1_major_allele,const std::vector<uint8_t>& boundary2_allele,const MAT::Mutation & base,std::vector<tbb::concurrent_vector<Mutation_Annotated_Tree::Mutation>>& output){
+static void FS_forward_pass(const std::vector<MAT::Node*> bfs_ordered_nodes,const std::vector<uint8_t>& boundary1_major_allele,const MAT::Mutation & base,std::vector<tbb::concurrent_vector<Mutation_Annotated_Tree::Mutation>>& output){
     std::vector<nuc_one_hot> states(bfs_ordered_nodes.size());
-    states[0]=set_state(bfs_ordered_nodes[0], boundary1_major_allele[0], boundary2_allele[0], base.get_ref_one_hot(), base,output[0]);
+    states[0]=set_state(bfs_ordered_nodes[0], boundary1_major_allele[0], base.get_ref_one_hot(), base,output[0]);
     for (size_t node_idx=1; node_idx<bfs_ordered_nodes.size(); node_idx++) {
         MAT::Node* this_node=bfs_ordered_nodes[node_idx];
         if (this_node->children.size()==2) {
             auto this_children=this_node->children;
             states[node_idx]=set_binary_node_state(this_node, boundary1_major_allele[node_idx], states[this_node->parent->bfs_index], boundary1_major_allele[this_children[0]->bfs_index], boundary1_major_allele[this_children[1]->bfs_index], base,output[node_idx]);
         }else {
-            states[node_idx]=set_state(bfs_ordered_nodes[node_idx], boundary1_major_allele[node_idx], boundary2_allele[node_idx], states[bfs_ordered_nodes[node_idx]->parent->bfs_index], base,output[node_idx]);
+            states[node_idx]=set_state(bfs_ordered_nodes[node_idx], boundary1_major_allele[node_idx], states[bfs_ordered_nodes[node_idx]->parent->bfs_index], base,output[node_idx]);
         }
     }
 }
@@ -271,9 +264,8 @@ int FS_forward_assign_states_only(const std::vector<MAT::Node*>& bfs_ordered_nod
 
 void Fitch_Sankoff_Whole_Tree(const std::vector<MAT::Node*> bfs_ordered_nodes,const MAT::Mutation & base,const std::unordered_map<std::string, nuc_one_hot>& mutated,std::vector<tbb::concurrent_vector<Mutation_Annotated_Tree::Mutation>>& output){
     std::vector<uint8_t> minor_major_allele(bfs_ordered_nodes.size()+8);
-    std::vector<uint8_t> major_minor_count_difference(bfs_ordered_nodes.size()+8);
 
-    FS_backward_pass(bfs_ordered_nodes,minor_major_allele,major_minor_count_difference,mutated,base.get_ref_one_hot());
-    FS_forward_pass(bfs_ordered_nodes,minor_major_allele,major_minor_count_difference,base,output);
+    FS_backward_pass(bfs_ordered_nodes,minor_major_allele,mutated,base.get_ref_one_hot());
+    FS_forward_pass(bfs_ordered_nodes,minor_major_allele,base,output);
 }
 

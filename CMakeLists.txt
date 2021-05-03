@@ -8,7 +8,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer -march=native -s
 set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O3")
 set(CMAKE_INCLUDE_CURRENT_DIR ON) 
 #  -O0     DDETAIL_DEBUG_MUTATION_SORTED -DDEBUG_PARSIMONY_SCORE_CHANGE_CORRECT 
-set(CMAKE_CXX_FLAGS_DEBUG " -O0 -fsanitize=leak -fsanitize=address -fsanitize=undefined -DCONFLICT_RESOLVER_DEBUG")
+set(CMAKE_CXX_FLAGS_DEBUG " -O0 -fsanitize=leak -fsanitize=address -fsanitize=undefined -DCONFLICT_RESOLVER_DEBUG -DDEBUG_PARSIMONY_SCORE_CHANGE_CORRECT")
 #
 find_package(ZLIB)
 if(DEFINED Protobuf_PATH) 

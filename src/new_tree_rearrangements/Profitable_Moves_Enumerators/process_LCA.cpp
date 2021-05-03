@@ -50,11 +50,13 @@ static void LCA_no_match(
     if (is_dst_terminal) {
         major_allele = increment_mutation_count(
             LCA_parent_mutation_count_change_out, *LCA_mutation_iter, temp,
-            parsimony_score_change, true);
+            parsimony_score_change);
+            parsimony_score_change++;
     } else if (is_src_terminal) {
         major_allele = decrement_mutation_count(
             LCA_parent_mutation_count_change_out, *LCA_mutation_iter, temp,
-            parsimony_score_change, true);
+            parsimony_score_change);
+            parsimony_score_change--;
     }
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
     test_allele_count_out_LCA(
@@ -84,14 +86,16 @@ static void LCA_dst_match(const MAT::Mutation* LCA_mutation_iter,
         if (is_dst_terminal) {
             major_allele = increment_mutation_count(
                 LCA_parent_mutation_count_change_out, *LCA_mutation_iter,
-                *dst_add_count_iter, parsimony_score_change, true);
+                *dst_add_count_iter, parsimony_score_change);
+            parsimony_score_change++;
         } else if (is_src_terminal) {
             Mutation_Count_Change temp(*LCA_mutation_iter);
             temp.set_change(LCA_mutation_iter->get_mut_one_hot(),
                             0,0);
             major_allele = dbl_inc_dec_mutations(
-                *dst_add_count_iter, false, temp, true, *LCA_mutation_iter,
+                *dst_add_count_iter, temp, *LCA_mutation_iter,
                 parsimony_score_change, LCA_parent_mutation_count_change_out);
+            parsimony_score_change--;
         } else {
             major_allele = decrement_increment_mutation_count(
                 *LCA_mutation_iter, *dst_add_count_iter,
@@ -153,7 +157,7 @@ LCA_dst(MAT::Mutations_Collection::const_iterator &LCA_mutation_iter,
         MAT::Mutation temp(dst_add_count_iter->get_position());
         nuc_one_hot par_state=dst_add_count_iter->get_par_state();
         temp.set_par_mut(par_state, par_state);
-        temp.set_auxillary(par_state, (~par_state)&0xf, 0);
+        temp.set_auxillary(par_state, (~par_state)&0xf);
         LCA_dst_match(&temp, dst_add_count_iter, LCA, is_src_terminal, is_dst_terminal, LCA_parent_mutation_count_change_out, parsimony_score_change
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
         , debug, debug_in_iter, begin, end, src_branch, dst_branch, old_score
@@ -202,9 +206,10 @@ static void LCA_src_match(Mutation_Count_Change_Collection::const_iterator& dst_
                 single_child(LCA_mutation, dst_add_count_iter->get_incremented(), LCA, src_count_change, major_allele, parsimony_score_change, LCA_parent_mutation_count_change_out);
             }else{
             major_allele = dbl_inc_dec_mutations(
-            *dst_add_count_iter, is_dst_terminal, src_count_change,
-            is_src_terminal, LCA_mutation, parsimony_score_change,
+            *dst_add_count_iter, src_count_change,
+             LCA_mutation, parsimony_score_change,
             LCA_parent_mutation_count_change_out);
+            parsimony_score_change+=(is_dst_terminal-is_src_terminal);
             }
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
         if (is_dst_terminal) {
@@ -215,16 +220,21 @@ static void LCA_src_match(Mutation_Count_Change_Collection::const_iterator& dst_
     } else if (is_src_terminal) {
         major_allele = decrement_mutation_count(
             LCA_parent_mutation_count_change_out, LCA_mutation,
-            src_count_change, parsimony_score_change, true);
+            src_count_change, parsimony_score_change);
+            parsimony_score_change--;
     } else if (is_dst_terminal) {
-        if(LCA->children.size()<=1){
-            single_child(LCA_mutation, LCA_mutation.get_mut_one_hot(), LCA, src_count_change, major_allele, parsimony_score_change, LCA_parent_mutation_count_change_out);
+        if (LCA->children.size() <= 1) {
+            single_child(LCA_mutation, LCA_mutation.get_mut_one_hot(), LCA,
+                         src_count_change, major_allele, parsimony_score_change,
+                         LCA_parent_mutation_count_change_out);
+        } else {
+            Mutation_Count_Change temp(LCA_mutation);
+            temp.set_change(0, LCA_mutation.get_mut_one_hot(), 0);
+            major_allele = dbl_inc_dec_mutations(
+                temp, src_count_change, LCA_mutation, parsimony_score_change,
+                LCA_parent_mutation_count_change_out);
+            parsimony_score_change++;
         }
-        else{Mutation_Count_Change temp(LCA_mutation);
-        temp.set_change(0, LCA_mutation.get_mut_one_hot(),0);
-        major_allele = dbl_inc_dec_mutations(
-            temp, true, src_count_change, false, LCA_mutation,
-            parsimony_score_change, LCA_parent_mutation_count_change_out);}
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
         if (is_dst_terminal) {
             dst_added = LCA_mutation.get_mut_one_hot();
@@ -328,7 +338,7 @@ void get_LCA_mutation(
         MAT::Mutation temp(src_count_change.get_position());
         nuc_one_hot par_state=src_count_change.get_par_state();
         temp.set_par_mut(par_state, par_state);
-        temp.set_auxillary(par_state, (~par_state)&0xf, 0);
+        temp.set_auxillary(par_state, (~par_state)&0xf);
         LCA_src_match(dst_add_count_iter, dst_add_count_end, src_count_change, major_allele, is_dst_terminal, is_src_terminal, temp, LCA_parent_mutation_count_change_out, parsimony_score_change, LCA
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
         , debug, debug_in_iter, debug_begin, end, src_branch, dst_branch, old_score

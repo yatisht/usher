@@ -11,7 +11,7 @@ static void register_change(Mutation_Count_Change_Collection &out,
 nuc_one_hot decrement_mutation_count(Mutation_Count_Change_Collection &out,
                                      const MAT::Mutation &parent_mut,
                                      const Mutation_Count_Change &change_in,
-                                     int &score_change, bool is_terminal) {
+                                     int &score_change) {
     // Score_change assumes we are operating on internal nodes, so it is
     // removing a possibility of the state a child may take, not the whole child
     // altogether
@@ -39,17 +39,11 @@ nuc_one_hot decrement_mutation_count(Mutation_Count_Change_Collection &out,
             // otherwise it is removing a child altogether. Then the parsimony
             // score remain the number of children whose state can only be that
             // of the other major allele, which stay the same
-            
-            if(is_terminal){
-                score_change--;
-            }
             return not_decremented;
         } else {
             // One additional child can only have state of minor alleles, if it
             // is not complete removal
-            if (!is_terminal) {
-                score_change++;
-            }
+            score_change++;
 
             // all alleles originally tied got decremented
             if (boundary1_not_decremented) {
@@ -66,32 +60,29 @@ nuc_one_hot decrement_mutation_count(Mutation_Count_Change_Collection &out,
     }
     // Decrementing minor alleles that is an alternative have no impact if it
     // doesn't remove the child
-    if (is_terminal&&(!(change_in.get_par_state()&change_in.get_decremented()))) {
+    /*if (is_terminal&&(!(change_in.get_par_state()&change_in.get_decremented()))) {
         score_change--;
-    }
+    }*/
     return all_nuc;
 }
 
 nuc_one_hot increment_mutation_count(Mutation_Count_Change_Collection &out,
                                      const MAT::Mutation &parent_mut,
                                      const Mutation_Count_Change &change_in,
-                                     int &score_change, bool is_terminal) {
+                                     int &score_change) {
     // Break ties as before
     nuc_one_hot incremented_allele = change_in.get_incremented();
     nuc_one_hot all_nuc =
         parent_mut.get_all_major_allele();
     nuc_one_hot effectively_incremented_alleles = all_nuc & incremented_allele;
-    if (is_terminal&&(!(effectively_incremented_alleles))) {
-        score_change++;
-    }
     if (effectively_incremented_alleles) {
         // Not incremented alleles no longer in the tie
         nuc_one_hot not_incremented = effectively_incremented_alleles ^ all_nuc;
-        if ((!is_terminal)) {
-            // originally a mutation to some other allele, now can follow major
-            // (potentially new )allele
-            score_change--;
-        }
+
+        // originally a mutation to some other allele, now can follow major
+        // (potentially new )allele
+        score_change--;
+
         if (not_incremented) {
             // Incremented major alleles are still major alleles
             // Not incremented major alleles was originally counted in count of
@@ -129,6 +120,11 @@ nuc_one_hot decrement_increment_mutation_count(
     nuc_one_hot incremented = change_in.get_incremented();
     nuc_one_hot decremented = change_in.get_decremented();
     assert(!(decremented & incremented));
+    if (incremented&&(!decremented)) {
+        return increment_mutation_count(parent_node_mutation_count_change,parent_mutation,change_in,score_change);
+    } else if (decremented&&(!incremented)) {
+        return decrement_mutation_count(parent_node_mutation_count_change,parent_mutation,change_in,score_change);
+    }
 
     nuc_one_hot all_major_alleles = parent_mutation.get_all_major_allele();
     nuc_one_hot major_alleles = all_major_alleles;
@@ -151,7 +147,7 @@ nuc_one_hot decrement_increment_mutation_count(
         // with incremented major allele either way.
         major_alleles = increment_mutation_count(
             parent_node_mutation_count_change, parent_mutation, change_in,
-            score_change, false);
+            score_change);
         change_in.set_change(0,major_allele_incremented,major_alleles);
         return major_alleles;
     } else if (major_allele_decremented) {
@@ -173,7 +169,7 @@ nuc_one_hot decrement_increment_mutation_count(
             // didn't change, as there are still same numbe of children that can
             // follow major_alleles
             return major_alleles;
-        } else if (parent_mutation.get_boundary_by_2() & incremented) {
+        } else if (incremented) {
             assert(!(major_allele_not_decremented));
             assert(!(boundary1_state & incremented));
             // All major allele are decremented to tie with boundary 1 alleles,
@@ -181,22 +177,12 @@ nuc_one_hot decrement_increment_mutation_count(
             // incremented. They become the new major alleles
             // so no change in mutations (it just follow parent),just change in
             // children mutation count in parent of parent;
-            nuc_one_hot new_major_alleles =
-                (boundary1_state & (!decremented)) |
-                (parent_mutation.get_boundary_by_2() & incremented);
-
-            major_alleles = new_major_alleles | all_major_alleles;
-
-            register_change(parent_node_mutation_count_change, parent_mutation,
-                            0, new_major_alleles,major_alleles);
-            // One less node that follow parent
-            score_change++;
-            return major_alleles;
+            assert(false);
         } else {
             // No thing interesting have been incremented
             major_alleles=decrement_mutation_count(parent_node_mutation_count_change,
                                             parent_mutation, change_in,
-                                            score_change, false);
+                                            score_change);
             change_in.set_change(decremented,0,major_alleles);
             return major_alleles;
         }
@@ -206,7 +192,7 @@ nuc_one_hot decrement_increment_mutation_count(
         if (incremented) {
             return increment_mutation_count(parent_node_mutation_count_change,
                                             parent_mutation, change_in,
-                                            score_change, false);
+                                            score_change);
         }
     }
     return major_alleles;
@@ -222,152 +208,24 @@ static void score_change_internal_node(nuc_one_hot original_state,const Mutation
 }
 
 nuc_one_hot dbl_inc_dec_mutations(
-    const Mutation_Count_Change &dst_add_count, bool is_dst_terminal,
-    const Mutation_Count_Change &src_count_change, bool is_src_terminal,
+    const Mutation_Count_Change &dst_add_count,
+    const Mutation_Count_Change &src_count_change, 
     const MAT::Mutation &this_mut, int &score_change,
     Mutation_Count_Change_Collection &parent_mutation_change_out) {
     nuc_one_hot dst_increment=dst_add_count.get_incremented();
     nuc_one_hot dst_decrement=dst_add_count.get_decremented();
     nuc_one_hot src_increment=src_count_change.get_incremented();
     nuc_one_hot src_decrement=src_count_change.get_decremented();
-    assert((!is_dst_terminal) || (!is_src_terminal));
 
-    nuc_one_hot dbl_increment_raw=dst_increment&src_increment;
-    nuc_one_hot dbl_decrement_raw=dst_decrement&src_decrement;
-    nuc_one_hot singe_decrement_raw=(dst_decrement|src_decrement)&(~dbl_decrement_raw);
-    nuc_one_hot singe_increment_raw=(dst_increment|src_increment)&(~dbl_increment_raw);
-
-    nuc_one_hot dbl_inc_w_singe=dbl_increment_raw&(~dbl_decrement_raw);
-    nuc_one_hot dbl_dec_w_singe=dbl_decrement_raw&(~dbl_increment_raw);
-
-    nuc_one_hot double_increment_canceled_by_single=dbl_inc_w_singe&singe_decrement_raw;
-    nuc_one_hot double_increment=dbl_inc_w_singe&(~double_increment_canceled_by_single);
-    nuc_one_hot remaining_single_decrement=singe_decrement_raw&(~double_increment_canceled_by_single);
-
-    nuc_one_hot double_decrement_canceled_by_single=dbl_dec_w_singe&singe_increment_raw;
-    nuc_one_hot double_decrement=dbl_dec_w_singe&(~double_decrement_canceled_by_single);
-    nuc_one_hot remaining_single_increment=singe_increment_raw&(~double_decrement_canceled_by_single);
-
-    nuc_one_hot single_canceled=remaining_single_decrement&remaining_single_increment;
-    nuc_one_hot single_increment=(remaining_single_increment&(~single_canceled))|double_increment_canceled_by_single;
-    nuc_one_hot single_decrement=(remaining_single_decrement&(~single_canceled))|double_decrement_canceled_by_single;
-
-
-    nuc_one_hot any_increment = single_increment | double_increment;
-    nuc_one_hot any_decrement = single_decrement | double_decrement;
+    nuc_one_hot any_increment = (src_increment&(~dst_decrement))|(dst_increment&(~src_decrement));
+    nuc_one_hot any_decrement = (src_decrement&(~dst_increment))|(dst_decrement&(~src_increment));
 
     nuc_one_hot all_mut =this_mut.get_all_major_allele();
     nuc_one_hot major_allele = all_mut;
 
-    nuc_one_hot boundary1_dbl_inc =
-        double_increment & this_mut.get_boundary1_one_hot();
-
-    nuc_one_hot boundary2_dbl_inc =
-        double_increment & this_mut.get_boundary2_one_hot();
-
-    if (double_increment) {
-        assert(!is_src_terminal);
-        // Double increment
-        if (all_mut & double_increment) {
-
-            major_allele = all_mut & double_increment;
-            // Nor incremented one are no longer tie
-            nuc_one_hot major_allele_not_incremented =
-                all_mut & (!double_increment);
-            if (major_allele_not_incremented) {
-                register_change(parent_mutation_change_out, this_mut,
-                                major_allele_not_incremented, 0,major_allele);
-            }
-            // it is incrementing the same majority alleles, so their count
-            // increases by 2, minor allele count shrink by 2
-            if (src_count_change) {
-                score_change--;
-            }
-            if (dst_add_count && (!is_dst_terminal)) {
-                score_change--;
-            }
-
-            return major_allele;
-        } else if (boundary1_dbl_inc) {
-
-            nuc_one_hot major_allele_inc = all_mut & any_increment;
-            nuc_one_hot major_allele_not_inc = all_mut & (!any_increment);
-
-            // Majority allele incremented and twice incremented boundary 1
-            // become tie
-            major_allele = major_allele_inc | boundary1_dbl_inc;
-            register_change(parent_mutation_change_out, this_mut,
-                            major_allele_not_inc, boundary1_dbl_inc,major_allele);
-            // Major allele count only increment by 1
-
-            if (src_count_change || (dst_add_count && !is_dst_terminal)) {
-                score_change--;
-            }
-            return major_allele;
-        } else if (boundary2_dbl_inc) {
-            nuc_one_hot major_allele_inc = all_mut & any_increment;
-            if (major_allele_inc) {
-                major_allele = major_allele_inc;
-                nuc_one_hot major_allele_not_inc = all_mut & (!any_increment);
-                register_change(parent_mutation_change_out, this_mut,
-                                major_allele_not_inc, 0,major_allele);
-                if (src_count_change &&
-                    src_increment & major_allele_inc) {
-                    score_change--;
-                } else if (dst_add_count &&
-                           dst_increment & major_allele_inc) {
-                    score_change--;
-                }
-            } else {
-                nuc_one_hot all_mut_decremented = all_mut & any_decrement;
-                nuc_one_hot boundary1_allele_inc =
-                    this_mut.get_boundary1_one_hot() & any_increment;
-                major_allele = (all_mut ^ (~any_decrement)) |
-                               boundary1_allele_inc | boundary2_dbl_inc;
-                register_change(parent_mutation_change_out, this_mut,
-                                all_mut_decremented,
-                                boundary1_allele_inc | boundary2_dbl_inc,major_allele);
-            }
-
-            return major_allele;
-        }
-    }
     Mutation_Count_Change temp(src_count_change);
     temp.set_change(any_decrement, any_increment,0);
-    int score_change_temp=0;
     major_allele = decrement_increment_mutation_count(
-        this_mut, temp, parent_mutation_change_out, score_change_temp);
-    // Fix up double decrement
-    if(!parent_mutation_change_out.empty()){
-    auto &last_change = parent_mutation_change_out.back();
-    if (last_change.get_position() == this_mut.get_position()) {
-        last_change.get_incremented() =
-            last_change.get_incremented() & (~double_decrement);
-        last_change.get_decremented() =
-            last_change.get_decremented() | (double_decrement & all_mut);
-    }
-    }
-    major_allele = major_allele & (~double_decrement);
-    if (!(is_dst_terminal ^ is_src_terminal)) {
-        score_change+=score_change_temp;
-        // Total number of nodes didn't change, equivalent to swapping a child
-        if ((!(all_mut & (~double_decrement)) &&
-             (!(this_mut.get_boundary1_one_hot() & (~any_decrement)))) &&
-            (!((all_mut | this_mut.get_boundary1_one_hot() |
-                this_mut.get_boundary2_one_hot()) &
-               any_increment))) {
-            score_change++;
-        }
-    } else if (is_dst_terminal) {
-        if (dst_increment!=major_allele) {
-            score_change++;
-        }
-        score_change_internal_node(this_mut.get_mut_one_hot(), src_count_change, score_change);
-        assert(!is_src_terminal);
-    } else {
-        assert(is_src_terminal);
-        score_change_internal_node(this_mut.get_mut_one_hot(), dst_add_count, score_change);
-        if(!(src_decrement&this_mut.get_mut_one_hot())){score_change--;}
-    }
+        this_mut, temp, parent_mutation_change_out, score_change);
     return major_allele;
 }
