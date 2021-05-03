@@ -1,20 +1,25 @@
 #include "convert.hpp"
 
-void write_vcf_header(FILE *vcf_file, std::vector<Mutation_Annotated_Tree::Node*> &dfs,
+void write_vcf_header(std::ostream& vcf_file, std::vector<Mutation_Annotated_Tree::Node*> &dfs,
                       bool print_genotypes) {
     // Write minimal VCF header with sample names in same order that genotypes
     // will be printed out (DFS).
-    fprintf(vcf_file, "##fileformat=VCFv4.2\n");
-    fprintf(vcf_file, "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO");
+    //fprintf(vcf_file, "##fileformat=VCFv4.2\n");
+    vcf_file << "##fileformat=VCFv4.2\n";
+    //fprintf(vcf_file, "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO");
+    vcf_file << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO";
     if (print_genotypes) {
-        fprintf(vcf_file, "\tFORMAT");
+        //fprintf(vcf_file, "\tFORMAT");
+        vcf_file << "\tFORMAT";
         for (auto node: dfs) {
             if (node->is_leaf()) {
-                fprintf(vcf_file, "\t%s", node->identifier.c_str());
+                //fprintf(vcf_file, "\t%s", node->identifier.c_str());
+                vcf_file << boost::format("\t%s") % node->identifier.c_str();
             }
         }
     }
-    fputc('\n', vcf_file);
+    vcf_file << "\n";
+    //fputc('\n', vcf_file);
 }
 
 uint count_leaves(std::vector<Mutation_Annotated_Tree::Node*> &dfs) {
@@ -180,7 +185,7 @@ int *make_allele_codes(int8_t ref, std::map<int8_t, uint> &alts) {
     return al_codes;
 }
 
-void write_vcf_rows(FILE *vcf_file, MAT::Tree T, std::vector<MAT::Node*> &dfs, bool print_genotypes) {
+void write_vcf_rows(std::ostream& vcf_file, MAT::Tree T, std::vector<MAT::Node*> &dfs, bool print_genotypes) {
     // Fill in a matrix of genomic positions and sample genotypes in the same order as the
     // sample names in the header, compute allele counts, and output VCF rows.
     uint leaf_count = count_leaves(dfs);
@@ -199,32 +204,54 @@ void write_vcf_rows(FILE *vcf_file, MAT::Tree T, std::vector<MAT::Node*> &dfs, b
               int8_t ref = chrom_pos_ref[chrom][pos];
               std::unordered_map<int8_t, uint>allele_counts = count_alleles(gt_array, leaf_count);
               std::map<int8_t, uint>alts = make_alts(allele_counts, ref);
+              if (alts.size() == 0) {
+                  fprintf(stderr, "WARNING: no-alternative site encountered in vcf output; skipping\n");
+                  continue;
+              }
               std::string id = make_id(ref, pos, alts);
               std::string alt_str = make_alt_str(alts);
               std::string info = make_info(alts, leaf_count);
-              fprintf(vcf_file, "%s\t%d\t%s\t%c\t%s\t.\t.\t%s",
-                      chrom.c_str(), pos, id .c_str(), MAT::get_nuc(ref), alt_str.c_str(),
-                      info.c_str());
+              //fprintf(vcf_file, "%s\t%d\t%s\t%c\t%s\t.\t.\t%s",
+                    //   chrom.c_str(), pos, id .c_str(), MAT::get_nuc(ref), alt_str.c_str(),
+                    //   info.c_str());
+              vcf_file << boost::format("%s\t%d\t%s\t%c\t%s\t.\t.\t%s")
+                      % chrom.c_str() % pos % id .c_str() % MAT::get_nuc(ref) % alt_str.c_str() % info.c_str();
               if (print_genotypes) {
                   int *allele_codes = make_allele_codes(ref, alts);
-                  fprintf(vcf_file, "\tGT");
+                  //fprintf(vcf_file, "\tGT");
+                  vcf_file << "\tGT";
                   for (uint i = 0;  i < leaf_count;  i++) {
                       int8_t allele = gt_array[i];
-                      fprintf(vcf_file, "\t%d", allele_codes[allele]);
+                      vcf_file << boost::format("\t%d") % allele_codes[allele];
+                      //fprintf(vcf_file, "\t%d", allele_codes[allele]);
                   }
               }
-              fputc('\n', vcf_file);
+              //fputc('\n', vcf_file);
+              vcf_file << '\n';
             }
         }
     }
 }
 
 void make_vcf (MAT::Tree T, std::string vcf_filepath, bool no_genotypes) {
-    FILE *vcf_file = fopen(vcf_filepath.c_str(), "w");
-    std::vector<Mutation_Annotated_Tree::Node*> dfs = T.depth_first_expansion();
-    write_vcf_header(vcf_file, dfs, !no_genotypes);
-    write_vcf_rows(vcf_file, T, dfs, !no_genotypes);
-    fclose(vcf_file);
+    try {
+        std::ofstream outfile(vcf_filepath, std::ios::out | std::ios::binary);
+        boost::iostreams::filtering_streambuf<boost::iostreams::output> outbuf;
+        if (vcf_filepath.find(".gz\0") != std::string::npos) {
+            outbuf.push(boost::iostreams::gzip_compressor());
+        } 
+        outbuf.push(outfile);
+        std::ostream vcf_file(&outbuf);
+        //FILE *vcf_file = fopen(vcf_filepath.c_str(), "w");
+        std::vector<Mutation_Annotated_Tree::Node*> dfs = T.depth_first_expansion();
+        write_vcf_header(vcf_file, dfs, !no_genotypes);
+        write_vcf_rows(vcf_file, T, dfs, !no_genotypes);
+        boost::iostreams::close(outbuf);
+        outfile.close();
+        //fclose(vcf_file);
+    } catch (const boost::iostreams::gzip_error& e) {
+        std::cout << e.what() << '\n';
+    }
 }
 
 
