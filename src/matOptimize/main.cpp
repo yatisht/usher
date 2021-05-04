@@ -639,10 +639,14 @@ int main(int argc, char** argv) {
                       auto n = T.get_node(cn->second[i]);
                       for (size_t j=i+1; j<num_elem; j++) {
                           auto n2 = T.get_node(cn->second[j]);
-                          if (get_node_distance(T, n, n2) <= radius) {
+                          if ((n->level >= 4) && (get_node_distance(T, n, n2) <= radius)) {
                               tbb_lock.lock();
-                              nodes_to_prune.insert(n->identifier);
-                              nodes_to_prune.insert(n2->identifier);
+                              if (n->level >= 4) {
+                                  nodes_to_prune.insert(n->identifier);
+                              }
+                              if (n2->level >= 4) {
+                                  nodes_to_prune.insert(n2->identifier);
+                              }  
                               tbb_lock.unlock();
                               break;
                           }
@@ -712,19 +716,16 @@ int main(int argc, char** argv) {
             auto child = curr_parent->children[0];
             if (curr_parent->parent != NULL) {
                 child->parent = curr_parent->parent;
-                child->level = curr_parent->parent->level + 1;
-
-                std::vector<MAT::Mutation> tmp;
-                for (auto m: child->mutations) {
-                    tmp.emplace_back(m.copy());
+                // Adjust levels
+                for (auto n: T.breadth_first_expansion(child->identifier)) {
+                    if (n == T.root) {
+                        n->level = 1;
+                    }
+                    else {
+                        n->level = n->parent->level+1;
+                    }
                 }
-
-                //Clear and add back mutations in chrono order
-                child->clear_mutations();
                 for (auto m: curr_parent->mutations) {
-                    child->add_mutation(m.copy());
-                }
-                for (auto m: tmp) {
                     child->add_mutation(m.copy());
                 }
 
