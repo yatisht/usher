@@ -59,7 +59,7 @@ struct line_parser{
             line_in++;
             //REF
             parsed_line=new Parsed_VCF_Line{MAT::Mutation(chromosome,pos, 0, 0, 0, 1,
-                      0,MAT::get_nuc_id(*line_in))};
+                      MAT::get_nuc_id(*line_in))};
             line_in++;
             assert(*line_in=='\t');
             line_in++;

@@ -224,7 +224,7 @@ nuc_one_hot dbl_inc_dec_mutations(
     nuc_one_hot major_allele = all_mut;
 
     Mutation_Count_Change temp(src_count_change);
-    temp.set_change(any_decrement, any_increment,0);
+    temp.set_change(any_decrement, any_increment,0,true);
     major_allele = decrement_increment_mutation_count(
         this_mut, temp, parent_mutation_change_out, score_change);
     return major_allele;

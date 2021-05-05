@@ -12,14 +12,14 @@
 void ins_mut(Mutation_Set &parent_mutations,const Mutation_Annotated_Tree::Mutation &m,bool is_leaf) {
     auto temp = parent_mutations.insert(m);
     if(!is_leaf)
-{    const_cast<MAT::Mutation&>(*temp.first).set_auxillary(temp.first->get_mut_one_hot(),0,0);
+{    const_cast<MAT::Mutation&>(*temp.first).set_auxillary(temp.first->get_mut_one_hot(),0);
 }    if (!temp.second) {
         assert(temp.first->get_mut_one_hot()==m.get_par_one_hot());
-        const_cast<MAT::Mutation&>(*temp.first).set_mut_one_hot(m.get_mut_one_hot());
         if (m.get_mut_one_hot() == m.get_ref_one_hot()) {
             parent_mutations.erase(temp.first);
         }else {
-            const_cast<MAT::Mutation&>(*temp.first).set_auxillary(temp.first->get_mut_one_hot(),0,0);
+        const_cast<MAT::Mutation&>(*temp.first).set_mut_one_hot(m.get_mut_one_hot());
+        const_cast<MAT::Mutation&>(*temp.first).set_auxillary(is_leaf?m.get_all_major_allele():m.get_mut_one_hot(),0);
         }
     }else {
         assert(m.get_mut_one_hot() != m.get_ref_one_hot());
@@ -84,7 +84,7 @@ void check_samples_worker(Mutation_Annotated_Tree::Node *root,
             assert(false);
                         
                 } else {
-                    if ((m.get_all_major_allele())!=m_iter->get_mut_one_hot()) {
+                    if ((m.get_all_major_allele())!=m_iter->get_all_major_allele()) {
                         fprintf(stderr, "Mut Nuc Mismatch at \t %d of sample \t %s at bfs_index \t %zu: original \t %c , altered :\t %c \n",m.get_position(),root->identifier.c_str(),root->bfs_index,Mutation_Annotated_Tree::get_nuc(m_iter->get_mut_one_hot()),MAT::get_nuc(m.get_mut_one_hot()));
             assert(false);
                         

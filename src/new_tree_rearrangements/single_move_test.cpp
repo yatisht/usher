@@ -52,8 +52,9 @@ int main(int argc,char** argv){
                         }
                     }
                 });
-    MAT::Node* src=t.get_node("EPI_ISL_479567");
-    MAT::Node* dst=t.get_node("5943");
+
+    MAT::Node* src=t.get_node("Shanghai_SH0007_2020");
+    MAT::Node* dst=t.get_node("Wuhan_HBCDC-HB-04_2020");
     MAT::Node* LCA=get_LCA(src, dst);
     individual_move(src,dst,LCA);
     /*individual_move(t.get_node("3034"),t.get_node("EPI_ISL_460417"),t.get_node("3036"));;

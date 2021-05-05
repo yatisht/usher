@@ -8,7 +8,14 @@ int get_new_major_allele_binary_node(nuc_one_hot left_child,nuc_one_hot right_ch
     }
     return 0;
 }
-
+#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
+void intermediate_node_tail_debug_update(
+    std::vector<state_change_hist_dbg> &debug,
+    MAT::Mutations_Collection::const_iterator &mutation_iter,
+    MAT::Mutations_Collection::const_iterator &mutation_end,
+    std::vector<state_change_hist_dbg>::iterator &debug_iter,
+    std::vector<state_change_hist_dbg>::iterator &debug_end);
+#endif
 int register_change_from_new_state(Mutation_Count_Change_Collection &out,int new_mut_count,
                             const MAT::Mutation &pos,nuc_one_hot new_state) {
 if(new_state!=pos.get_all_major_allele()){
@@ -50,6 +57,9 @@ void get_two_child_intermediate_node_mutations(
     auto debug_end=debug.end();
     #endif
     for(const auto& this_mut:this_node_mutation_count_change){
+        if (this_mut.get_position()==21552) {
+            fputc('a',stderr);
+        }
         consume_parent_mutations(
             mutation_iter, mutation_end, this_mut
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
@@ -86,6 +96,9 @@ void get_two_child_intermediate_node_mutations(
 #endif
         }
     }
+#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
+    intermediate_node_tail_debug_update(debug,mutation_iter,mutation_end,debug_iter,debug_end);
+#endif
 }
 
 void get_child_removed_binary_node(

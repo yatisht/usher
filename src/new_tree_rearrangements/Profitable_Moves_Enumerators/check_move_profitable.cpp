@@ -20,8 +20,7 @@ bool dst_branch(const MAT::Node *LCA,
            int &parsimony_score_change,
            std::vector<state_change_hist_dbg> &debug_from_dst,
            std::vector<MAT::Node *> &node_stack_from_dst, MAT::Node *this_node,
-           Mutation_Count_Change_Collection &parent_added,
-           Mutation_Count_Change_Collection &parent_of_parent_added);
+           Mutation_Count_Change_Collection &parent_added);
 
 void output_result(MAT::Node *&src, MAT::Node *&dst, MAT::Node *&LCA,
                int &parsimony_score_change, output_t &output,
@@ -51,21 +50,22 @@ void output_result(MAT::Node *&src, MAT::Node *&dst, MAT::Node *&LCA,
         output.moves.push_back(new_move);
     }
 }
-
-MAT::Node* check_move_profitable_LCA(
+MAT::Node *check_move_profitable_LCA(
     MAT::Node *src, MAT::Node *dst, MAT::Node *LCA,
     const Mutation_Count_Change_Collection &mutations,
     const Mutation_Count_Change_Collection &root_mutations_altered,
-    int parsimony_score_change,const std::vector<MAT::Node *>& node_stack_from_dst,
-    Mutation_Count_Change_Collection& parent_added,
-    const std::vector<MAT::Node *> node_stack_from_src, bool have_shared,
-    const Mutation_Count_Change_Collection &dst_unique_mutations,
-    std::vector<MAT::Node *> node_stack_above_LCA
+    int& parsimony_score_change,
+    const std::vector<MAT::Node *> &node_stack_from_dst,
+    Mutation_Count_Change_Collection &parent_added,
+    const std::vector<MAT::Node *>& node_stack_from_src,
+    std::vector<MAT::Node *>& node_stack_above_LCA
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
     ,
-    const std::vector<state_change_hist_dbg> debug_from_src,const std::vector<state_change_hist_dbg> debug_from_dst,std::vector<state_change_hist_dbg> debug_above_LCA
+    const std::vector<state_change_hist_dbg>& debug_from_src,
+    const std::vector<state_change_hist_dbg>& debug_from_dst,
+    std::vector<state_change_hist_dbg>& debug_above_LCA
 #endif
-);
+) ;
 
 int check_move_profitable(
     MAT::Node *src, MAT::Node *dst, MAT::Node *LCA,
@@ -73,8 +73,7 @@ int check_move_profitable(
     const Mutation_Count_Change_Collection &root_mutations_altered,
     // const New_Tie_Collection_t &unresolved_ties_from_LCA,
     int parsimony_score_change, output_t &output,
-    const std::vector<MAT::Node *> node_stack_from_src, bool have_shared,
-    const Mutation_Count_Change_Collection &dst_unique_mutations
+    const std::vector<MAT::Node *> node_stack_from_src
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
     ,
     const std::vector<state_change_hist_dbg> debug_from_src
@@ -89,12 +88,11 @@ int check_move_profitable(
     std::vector<MAT::Node *> node_stack_from_dst({});
 
     assert(dst);
-    Mutation_Count_Change_Collection parent_added;
-    Mutation_Count_Change_Collection parent_of_parent_added;
+    Mutation_Count_Change_Collection dst_added;
     if (LCA != dst) {
         if(!dst_branch(LCA, mutations, parsimony_score_change, debug_from_dst,
-                  node_stack_from_dst, dst, parent_added,
-                  parent_of_parent_added)){
+                  node_stack_from_dst, dst, dst_added
+                  )){
                       return 1;
         }
     }
@@ -104,11 +102,14 @@ int check_move_profitable(
 #endif
     std::vector<MAT::Node *> node_stack_above_LCA;
 
-    MAT::Node* ancestor=check_move_profitable_LCA(src, dst, LCA, mutations, root_mutations_altered, parsimony_score_change, node_stack_from_dst, parent_added, node_stack_from_src, have_shared, dst_unique_mutations, node_stack_above_LCA, debug_from_src, debug_from_dst, debug_above_LCA);
+    MAT::Node* ancestor=check_move_profitable_LCA(src, dst, LCA, mutations, root_mutations_altered, parsimony_score_change, node_stack_from_dst, dst_added, node_stack_from_src, node_stack_above_LCA, debug_from_src, debug_from_dst, debug_above_LCA);
+    if(!ancestor){
+        return 1;
+    }
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
     //fprintf(stderr, "LCA idx: %zu",LCA_a->bfs_index);
     int ref_parsimony_score = get_parsimmony_score_dumb(
-        ancestor ? ancestor : node_stack_above_LCA.back(), src, dst,
+        ancestor,LCA, src, dst,
         debug_from_src, node_stack_from_src, debug_from_dst,
         node_stack_from_dst, debug_above_LCA, node_stack_above_LCA);
     assert(ref_parsimony_score == parsimony_score_change);

@@ -34,8 +34,8 @@ static void LCA_no_match(
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
     int old_score = parsimony_score_change;
 #endif
-/*if (LCA_mutation_iter->get_position()==241) {
-    fputc('a', stderr);
+/*if (LCA_mutation_iter->get_position()==13270) {
+    fputc('ab', stderr);
 }*/
     nuc_one_hot major_allele=LCA_mutation_iter->get_all_major_allele();
     if (is_dst_terminal) {

@@ -184,9 +184,7 @@ static nuc_one_hot set_state(MAT::Node* this_node,uint8_t boundary1_major_allele
     nuc_one_hot major_allele(boundary1_major_allele&0xf);
 
     nuc_one_hot boundary1_allele=boundary1_major_allele>>4;
-    #ifdef DETAIL_DEBUG_FITCH_SANKOFF
     assert(major_allele&this_state);
-    #endif
 
     if (major_allele.is_ambiguous()||(boundary1_allele)||need_add) {
         MAT::Mutation to_add(base);
@@ -202,10 +200,10 @@ static nuc_one_hot set_state(MAT::Node* this_node,uint8_t boundary1_major_allele
     return this_state;
 }
 
-static nuc_one_hot set_binary_node_state(MAT::Node* node,nuc_one_hot this_boundary1_major_allele, nuc_one_hot par_state, nuc_one_hot left_child_major_allele,nuc_one_hot right_child_major_allele,const MAT::Mutation& base,tbb::concurrent_vector<Mutation_Annotated_Tree::Mutation>& output){
+static nuc_one_hot set_binary_node_state(MAT::Node* node,uint8_t this_boundary1_major_allele, nuc_one_hot par_state, nuc_one_hot left_child_major_allele,nuc_one_hot right_child_major_allele,const MAT::Mutation& base,tbb::concurrent_vector<Mutation_Annotated_Tree::Mutation>& output){
     nuc_one_hot this_major_allele=this_boundary1_major_allele&0xf;
     if (this_major_allele&par_state) {
-        if (this_major_allele!=par_state) {
+        if (this_major_allele!=par_state||(this_boundary1_major_allele>>4)) {
             MAT::Mutation to_add(base);
             to_add.set_par_mut(par_state, par_state);
             to_add.set_children(this_boundary1_major_allele>>4,this_major_allele, left_child_major_allele, right_child_major_allele);
@@ -228,7 +226,7 @@ static void FS_forward_pass(const std::vector<MAT::Node*> bfs_ordered_nodes,cons
         MAT::Node* this_node=bfs_ordered_nodes[node_idx];
         if (this_node->children.size()==2) {
             auto this_children=this_node->children;
-            states[node_idx]=set_binary_node_state(this_node, boundary1_major_allele[node_idx], states[this_node->parent->bfs_index], boundary1_major_allele[this_children[0]->bfs_index], boundary1_major_allele[this_children[1]->bfs_index], base,output[node_idx]);
+            states[node_idx]=set_binary_node_state(this_node, boundary1_major_allele[node_idx], states[this_node->parent->bfs_index], boundary1_major_allele[this_children[0]->bfs_index]&0xf, boundary1_major_allele[this_children[1]->bfs_index]&0xf, base,output[node_idx]);
         }else {
             states[node_idx]=set_state(bfs_ordered_nodes[node_idx], boundary1_major_allele[node_idx], states[bfs_ordered_nodes[node_idx]->parent->bfs_index], base,output[node_idx]);
         }

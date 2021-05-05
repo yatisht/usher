@@ -318,7 +318,7 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
                      }
                   }
                   if(mut_one_hot!=two_bit_to_one_hot(mut.par_nuc())){
-                    Mutation m(mut.chromosome(),mut.position(),nuc_one_hot(mut_one_hot),two_bit_to_one_hot(mut.par_nuc()),0,0,0,two_bit_to_one_hot(mut.ref_nuc()));
+                    Mutation m(mut.chromosome(),mut.position(),nuc_one_hot(mut_one_hot),two_bit_to_one_hot(mut.par_nuc()),0,0,two_bit_to_one_hot(mut.ref_nuc()));
                     node->add_mutation(m);
                   }
                }
@@ -424,17 +424,16 @@ Mutation_Annotated_Tree::Mutation::Mutation(const std::string &chromosome,
                                             int position, nuc_one_hot mut,
                                             nuc_one_hot par, nuc_one_hot tie,
                                             nuc_one_hot boundary1,
-                                            nuc_one_hot boundary2,
                                             nuc_one_hot ref)
     : position(position), par_mut_nuc((par << 4) | (mut)),
-      boundary1_tie(boundary1 << 4 | tie), boundary2_flag(boundary2 << 4) {
+      boundary1_all_major_allele(boundary1 << 4 | (tie|mut)) {
     auto ins_result = chromosome_map.emplace(chromosome, chromosome_map.size());
     if (ins_result.second) {
         std::lock_guard<std::mutex> lk(ref_lock);
         chromosomes.push_back(chromosome);
     }
     chrom_idx = ins_result.first->second;
-    assert(is_valid() || (boundary1 | boundary2 | tie));
+    assert(is_valid() || (boundary1 | (tie^mut)));
     if (ref) {
         std::lock_guard<std::mutex> lk(ref_lock);
         refs.resize(std::max((int)refs.size(), position + 1));

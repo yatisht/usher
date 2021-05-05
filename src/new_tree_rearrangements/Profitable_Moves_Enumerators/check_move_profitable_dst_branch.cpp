@@ -43,11 +43,12 @@ bool dst_branch(const MAT::Node *LCA,
            int &parsimony_score_change,
            std::vector<state_change_hist_dbg> &debug_from_dst,
            std::vector<MAT::Node *> &node_stack_from_dst, MAT::Node *this_node,
-           Mutation_Count_Change_Collection &parent_added,
-           Mutation_Count_Change_Collection &parent_of_parent_added) {
+           Mutation_Count_Change_Collection &parent_added) {
+
+    Mutation_Count_Change_Collection parent_of_parent_added;
     node_stack_from_dst.push_back(this_node);
     if(!get_parsimony_score_change_from_add(this_node, mutations, parent_added,
-                                        true, parsimony_score_change
+                                         parsimony_score_change
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
                                         ,
                                         debug_from_dst, node_stack_from_dst

@@ -37,8 +37,7 @@ int check_move_profitable(
     const Mutation_Count_Change_Collection &root_mutations_altered,
     // const New_Tie_Collection_t &unresolved_ties_from_LCA,
     int parsimony_score_change, output_t &output,
-    const std::vector<MAT::Node *> node_stack_from_src, bool have_shared,
-    const Mutation_Count_Change_Collection &dst_unique_mutations
+    const std::vector<MAT::Node *> node_stack_from_src
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
     ,
     const std::vector<state_change_hist_dbg> debug_from_src
@@ -59,7 +58,7 @@ merge_mutation_LCA_to_dst(MAT::Node *child,
                *child_mutation_iter < m) {
             child_mutations.push_back(*child_mutation_iter);
             child_mutations.back().set_change(
-                0, child_mutation_iter->get_par_one_hot(),child_mutation_iter->get_par_one_hot());
+                0, child_mutation_iter->get_par_one_hot(),child_mutation_iter->get_par_one_hot(),true);
             child_mutations.back().set_par_nuc(
                 child_mutation_iter->get_mut_one_hot());
             child_mutation_iter++;
@@ -77,14 +76,14 @@ merge_mutation_LCA_to_dst(MAT::Node *child,
     while (child_mutation_iter != child_mutation_end) {
         child_mutations.push_back(*child_mutation_iter);
         child_mutations.back().set_change(
-            0, child_mutation_iter->get_par_one_hot(),child_mutation_iter->get_par_one_hot());
+            0, child_mutation_iter->get_par_one_hot(),child_mutation_iter->get_par_one_hot(),true);
         child_mutations.back().set_par_nuc(
             child_mutation_iter->get_mut_one_hot());
         child_mutation_iter++;
     }
 }
 static void search_subtree_not_LCA(
-    MAT::Node *root, MAT::Node *child_exclude, MAT::Node *LCA, MAT::Node *src,
+    MAT::Node *root, MAT::Node *LCA, MAT::Node *src,
     Mutation_Count_Change_Collection mutations,
     output_t &profitable_moves,
     const Mutation_Count_Change_Collection &root_mutations_altered,int radius,
@@ -95,21 +94,19 @@ static void search_subtree_not_LCA(
 ) {
     if(!(root->children.size()==1&&root->children[0]->is_leaf())&&radius>0){
     for (MAT::Node *child : root->children) {
-        if (child != child_exclude) {
             Mutation_Count_Change_Collection child_mutations;
             merge_mutation_LCA_to_dst(child, mutations, child_mutations);
-            search_subtree_not_LCA(child, nullptr, LCA, src, child_mutations,
+            search_subtree_not_LCA(child, LCA, src, child_mutations,
                            profitable_moves, root_mutations_altered,radius-1,
                            parsimony_score_change_from_removal, node_stack_from_src
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
                            ,debug_from_src
 #endif
             );
-        }
     }}
         auto score_change = check_move_profitable(
             src, root, LCA, mutations, root_mutations_altered,
-            parsimony_score_change_from_removal,profitable_moves, node_stack_from_src,false,Mutation_Count_Change_Collection()
+            parsimony_score_change_from_removal,profitable_moves, node_stack_from_src
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
             ,debug_from_src
 #endif
@@ -117,26 +114,27 @@ static void search_subtree_not_LCA(
 }
 
 void search_subtree(
-    MAT::Node *LCA, MAT::Node *src,Mutation_Count_Change_Collection mutations,output_t &profitable_moves,const Mutation_Count_Change_Collection &src_branch_mutations_altered,int radius,int parsimony_score_change_from_removal,const std::vector<MAT::Node *> &node_stack_from_src, Mutation_Count_Change_Collection& node_unique_mutation, bool try_place_at_LCA,const Mutation_Count_Change_Collection &root_mutation_altered
+    MAT::Node *LCA, MAT::Node *src,Mutation_Count_Change_Collection mutations,output_t &profitable_moves,const Mutation_Count_Change_Collection &src_branch_mutations_altered,int radius,int parsimony_score_change_from_removal,const std::vector<MAT::Node *> &node_stack_from_src
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
     ,const std::vector<state_change_hist_dbg> &debug_from_src
 #endif
 ) {
-    if (try_place_at_LCA) {
+    if (src->parent!=LCA) {
         auto score_change = check_move_profitable(
             src, LCA, LCA, mutations, src_branch_mutations_altered,
-            parsimony_score_change_from_removal,profitable_moves, node_stack_from_src,true,node_unique_mutation
+            parsimony_score_change_from_removal,profitable_moves, node_stack_from_src
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
             ,debug_from_src
 #endif
         );
     }
+    MAT::Node* exclude=node_stack_from_src.empty()?src:node_stack_from_src.back();
     if(!(LCA->children.size()==1&&LCA->children[0]->is_leaf())&&radius>0){
     for (MAT::Node *child : LCA->children) {
-        if (child != src) {
+        if (child !=exclude) {
             Mutation_Count_Change_Collection child_mutations;
             merge_mutation_LCA_to_dst(child, mutations, child_mutations);
-            search_subtree_not_LCA(child, nullptr, LCA, src, child_mutations,
+            search_subtree_not_LCA(child, LCA, src, child_mutations,
                            profitable_moves, src_branch_mutations_altered,radius-1,
                            parsimony_score_change_from_removal, node_stack_from_src
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
@@ -149,13 +147,11 @@ void search_subtree(
 }
 
 
-static bool
+static void
 merge_mutation_src_to_LCA(const MAT::Node *root,
-                          Mutation_Count_Change_Collection &mutations,Mutation_Count_Change_Collection &dst_unique_mutation) {
+                          Mutation_Count_Change_Collection &mutations) {
     Mutation_Count_Change_Collection merged_mutations;
-    bool have_shared=false;
     merged_mutations.reserve(mutations.size() + root->mutations.size());
-    dst_unique_mutation.reserve(mutations.size());
     auto iter = mutations.begin();
     auto end = mutations.end();
     for (const auto &m : root->mutations) {
@@ -164,17 +160,13 @@ merge_mutation_src_to_LCA(const MAT::Node *root,
         }
         while (iter != end && iter->get_position() < m.get_position()) {
             merged_mutations.push_back(*iter);
-            dst_unique_mutation.push_back(*iter);
             iter++;
         }
         if (iter != end && iter->get_position() == m.get_position()) {
-            nuc_one_hot new_par_nuc = m.get_mut_one_hot();
+            nuc_one_hot new_par_nuc = m.get_par_one_hot();
             if (new_par_nuc != iter->get_incremented()) {
                 merged_mutations.push_back(*iter);
                 merged_mutations.back().set_par_nuc(m.get_par_one_hot());
-                dst_unique_mutation.push_back(*iter);
-            }else {
-                have_shared=true;
             }
             iter++;
         } else {
@@ -184,11 +176,9 @@ merge_mutation_src_to_LCA(const MAT::Node *root,
     }
     while (iter!=end) {
         merged_mutations.push_back(*iter);
-        dst_unique_mutation.push_back(*iter);
         iter++;
     }
     mutations = std::move(merged_mutations);
-    return have_shared;
 }
 static void init_mutation_change(MAT::Node* src, Mutation_Count_Change_Collection& mutations){
     mutations.reserve(src->mutations.size());
@@ -219,12 +209,11 @@ void find_profitable_moves(MAT::Node *src, output_t &out,int radius) {
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
     std::vector<state_change_hist_dbg> debug;
 #endif
-    Mutation_Count_Change_Collection enroute_unique;
     // Do searching on the current parent of src directly
     {
         search_subtree(root, src, mutations, out,
                        Mutation_Count_Change_Collection(),radius, 0,
-                       std::vector<MAT::Node *>({}),enroute_unique,false,Mutation_Count_Change_Collection()
+                       std::vector<MAT::Node *>({})
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
                        ,std::vector<state_change_hist_dbg>()
                        #endif
@@ -239,7 +228,7 @@ void find_profitable_moves(MAT::Node *src, output_t &out,int radius) {
     );
 
     node_stack.push_back(src->parent);
-    bool have_shared=merge_mutation_src_to_LCA(root, mutations,enroute_unique);
+    merge_mutation_src_to_LCA(root, mutations);
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
     assert(std::max(src->mutations.size(), src->parent->mutations.size()) <=
            debug.size());
@@ -250,7 +239,7 @@ void find_profitable_moves(MAT::Node *src, output_t &out,int radius) {
     while (root&&radius) {
         search_subtree(root, src, mutations, out,
                        alter_mutations,radius, parsimony_score_change,
-                       std::vector<MAT::Node *>(node_stack),enroute_unique,have_shared
+                       std::vector<MAT::Node *>(node_stack)
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
                        ,
                        std::vector<state_change_hist_dbg>(debug)
@@ -270,7 +259,7 @@ void find_profitable_moves(MAT::Node *src, output_t &out,int radius) {
 #endif
         // mutations.merge(root->mutations,
         // MAT::Mutations_Collection::KEEP_SELF);
-        have_shared=merge_mutation_src_to_LCA(root, mutations,enroute_unique);
+        merge_mutation_src_to_LCA(root, mutations);
         alter_mutations = std::move(new_alter_mutations);
         // unresolved_ties_from_LCA = std::move(new_tie);
         exclude = root;

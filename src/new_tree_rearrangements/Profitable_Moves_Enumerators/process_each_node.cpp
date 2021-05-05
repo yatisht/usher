@@ -1,4 +1,5 @@
 #include "process_individual_mutation.hpp"
+#include "process_each_node.hpp"
 #include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
 #include <cstdio>
 #include <vector>
@@ -19,6 +20,29 @@ void consume_parent_mutations(
         parent_mutation_iter++;
     }
 }
+
+#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
+void intermediate_node_tail_debug_update(
+    std::vector<state_change_hist_dbg> &debug,
+    MAT::Mutations_Collection::const_iterator &mutation_iter,
+    MAT::Mutations_Collection::const_iterator &mutation_end,
+    std::vector<state_change_hist_dbg>::iterator &debug_iter,
+    std::vector<state_change_hist_dbg>::iterator &debug_end) {
+    while (mutation_iter < mutation_end) {
+        update_par_cur_nuc(mutation_iter, debug_iter, debug_end);
+        mutation_iter++;
+    }
+    while (debug_iter < debug.end()) {
+        nuc_one_hot parent_nuc = debug_iter->par_nuc.back();
+        debug_iter->par_nuc.push_back(parent_nuc);
+        debug_iter->major_allele.push_back(parent_nuc);
+        debug_iter->mutation_score_change.push_back(0);
+        debug_iter->count_change.push_back(debug_iter->count_change.back());
+        debug_iter->count_change.back().set_change(0, 0, 0, true);
+        debug_iter++;
+    }
+}
+#endif
 
 void get_intermediate_nodes_mutations(
     const MAT::Node *node,
@@ -94,29 +118,15 @@ void get_intermediate_nodes_mutations(
 }
         }
     }
-    while (mutation_iter<mutation_end) {
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-        update_par_cur_nuc(mutation_iter, debug_iter, debug_end);
-#endif
-        mutation_iter++;
-    }
-#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-    while (debug_iter < debug.end()) {
-        nuc_one_hot parent_nuc = debug_iter->par_nuc.back();
-        debug_iter->par_nuc.push_back(parent_nuc);
-        debug_iter->major_allele.push_back(parent_nuc);
-        debug_iter->mutation_score_change.push_back(0);
-    debug_iter->count_change.push_back(debug_iter->count_change.back());
-    debug_iter->count_change.back().set_change(0, 0,0);
-        debug_iter++;
-    }
+    intermediate_node_tail_debug_update(debug, mutation_iter, mutation_end, debug_iter, debug_end);
 #endif
 }
 
 bool get_parsimony_score_change_from_add(
     MAT::Node *node,
     const Mutation_Count_Change_Collection &children_added_mutations,
-    Mutation_Count_Change_Collection &parent_added_mutations, bool is_terminal,
+    Mutation_Count_Change_Collection &parent_added_mutations,
     int &parsimony_score_change
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
     ,
@@ -128,112 +138,70 @@ bool get_parsimony_score_change_from_add(
     auto parent_addable_iter = node->mutations.begin();
     auto parent_addable_end = node->mutations.end();
     for (const auto &added_child_mutation : children_added_mutations) {
-        /*if(added_child_mutation.get_position()==22168){
+        if(added_child_mutation.get_position()==23635){
             fputc('a', stderr);
-        }*/
+        }
         while (parent_addable_end != parent_addable_iter &&
                parent_addable_iter->get_position() < added_child_mutation.get_position()) {
-            if (is_terminal) {
                 // Adding a children with parent state
-                int score_change=0;
-                Mutation_Count_Change temp(*parent_addable_iter);
-                temp.set_change(0, parent_addable_iter->get_mut_one_hot(),parent_addable_iter->get_mut_one_hot());
-                nuc_one_hot major_alleles = increment_mutation_count(
-                    parent_added_mutations, *parent_addable_iter, temp,
-                    score_change);
-                score_change++;
-                assert (score_change==0);
-                if (node->is_leaf()) {
-                    assert(parent_added_mutations.empty()||parent_added_mutations.back().get_position()!=parent_addable_iter->get_position());
-                }
+                nuc_one_hot major_alleles = parent_addable_iter->get_mut_one_hot();
+                register_change_from_new_state(parent_added_mutations, 0, *parent_addable_iter, major_alleles);
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
                 test_allele_out_init(node, 0, *parent_addable_iter,
-                                     score_change,
+                                     0,
                                      major_alleles,
                                      parent_addable_iter->get_mut_one_hot(),
                                      parent_added_mutations, debug);
 
 #endif
-            }
+            
             parent_addable_iter++;
         }
+int old_parsimony_score=parsimony_score_change;
         if (parent_addable_end != parent_addable_iter &&
             parent_addable_iter->get_position() ==
                 added_child_mutation.get_position()) {
 
             nuc_one_hot major_alleles;
-            int score_change=0;
-            major_alleles = increment_mutation_count(
-                parent_added_mutations, *parent_addable_iter,
-                added_child_mutation,score_change);
-            if (is_terminal) {
-                score_change++;
-                have_shared=have_shared||(score_change==0);
-            }else {
-                parsimony_score_change+=score_change;
-            }
+            int new_score=get_new_major_allele_binary_node(parent_addable_iter->get_all_major_allele(), added_child_mutation.get_incremented(), major_alleles);
+            have_shared=have_shared||(!new_score);
+            parsimony_score_change+=new_score;
+            register_change_from_new_state(parent_added_mutations, new_score, *parent_addable_iter, major_alleles);
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
             test_allele_out_init(node, 0, *parent_addable_iter,
-                                 score_change,
+                                 parsimony_score_change-old_parsimony_score,
                                  major_alleles,
                                  added_child_mutation.get_incremented(),
                                  parent_added_mutations, debug);
 
 #endif
             parent_addable_iter++;
-        } else if (is_terminal) {
-            if (node->children.size()<=1) {
-                MAT::Mutation parent_mutation(added_child_mutation.get_position());
-                //nuc_one_hot parent_state=get_parent_state(node, added_child_mutation.get_position());
-                nuc_one_hot parent_state=added_child_mutation.get_par_state();
-                parent_mutation.set_par_mut(parent_state, parent_state);
-                parent_mutation.set_auxillary(parent_state, (~parent_state)&0xf);
-                int score_change=0;
-                nuc_one_hot major_alleles = increment_mutation_count(
-                parent_added_mutations, parent_mutation,
-                added_child_mutation, score_change);
-                score_change++;
-                if (score_change==0) {
-                    have_shared=true;
-                }
-#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-            test_allele_out_init(node, 0, parent_mutation,
-                                 score_change,
-                                 major_alleles,
-                                 added_child_mutation.get_incremented(),
-                                 parent_added_mutations, debug);
-#endif
-            }else{
-            assert(false);
-            if (!(added_child_mutation.get_par_state()&added_child_mutation.get_incremented()) ){
-                parsimony_score_change++;
+        } else {
+            nuc_one_hot major_allele;
+            parsimony_score_change+=get_new_major_allele_binary_node(added_child_mutation.get_par_state() ,added_child_mutation.get_incremented(),major_allele);
+            if (major_allele!=added_child_mutation.get_par_state()) {
+                parent_added_mutations.emplace_back(added_child_mutation,major_allele);
             }
+
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-            debug.emplace_back(added_child_mutation.get_position(),added_child_mutation.get_par_state(),added_child_mutation.get_par_state(),0,added_child_mutation);
+            debug.emplace_back(added_child_mutation.get_position(),added_child_mutation.get_par_state(),major_allele,parsimony_score_change-old_parsimony_score,added_child_mutation);
 #endif
-            }
+
         }
     }
     while (parent_addable_iter != parent_addable_end) {
-        if (is_terminal) {
 
             // Adding a children with parent state
-            Mutation_Count_Change temp(*parent_addable_iter);
-            temp.set_change(0, parent_addable_iter->get_mut_one_hot(),parent_addable_iter->get_mut_one_hot());
-            int score_change=0;
-            nuc_one_hot major_alleles = increment_mutation_count(
-                parent_added_mutations, *parent_addable_iter, temp,
-                score_change);
-            score_change++;
+                nuc_one_hot major_alleles = parent_addable_iter->get_mut_one_hot();
+                register_change_from_new_state(parent_added_mutations, 0, *parent_addable_iter, major_alleles);
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
             test_allele_out_init(node, node_stack.back(), *parent_addable_iter,
-                                 score_change,
+                                 0,
                                  major_alleles,
                                  parent_addable_iter->get_mut_one_hot(),
                                  parent_added_mutations, debug);
 
 #endif
-        }
         parent_addable_iter++;
     }
     return have_shared;
@@ -274,7 +242,7 @@ void get_parent_altered_remove(
             int old_score_change = parent_parsimony_score_change;
 #endif
             Mutation_Count_Change temp(*parent_iter);
-            temp.set_change(parent_iter->get_mut_one_hot(), 0,0);
+            temp.set_change(parent_iter->get_mut_one_hot(), 0,0,true);
             nuc_one_hot major_alleles = decrement_mutation_count(
                 parent_mutation_count_change_out, *parent_iter, temp,
                 parent_parsimony_score_change);
@@ -328,7 +296,7 @@ void get_parent_altered_remove(
         int old_score_change = parent_parsimony_score_change;
 #endif
             Mutation_Count_Change temp(*parent_iter);
-            temp.set_change(parent_iter->get_mut_one_hot(), 0,0);
+            temp.set_change(parent_iter->get_mut_one_hot(), 0,0,true);
         nuc_one_hot major_alleles = decrement_mutation_count(
             parent_mutation_count_change_out, *parent_iter, temp,
             parent_parsimony_score_change);

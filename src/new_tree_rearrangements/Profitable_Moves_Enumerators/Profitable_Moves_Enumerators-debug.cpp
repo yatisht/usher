@@ -17,7 +17,7 @@ void update_par_cur_nuc(MAT::Mutations_Collection::const_iterator parent_mutatio
                 debug_iter->major_allele.push_back(parent_mutation_iter->get_all_major_allele());
                 debug_iter->mutation_score_change.push_back(0);
                 debug_iter->count_change.emplace_back(*parent_mutation_iter);
-                debug_iter->count_change.back().set_change(0, 0,0);
+                debug_iter->count_change.back().set_change(0, 0,0,true);
                 debug_iter++;
     }
 }
@@ -31,7 +31,7 @@ void update_dbg_vector_score_only(
     debug_iter->major_allele.push_back(parent_nuc);
     debug_iter->mutation_score_change.push_back(par_score_change);
     debug_iter->count_change.push_back(debug_iter->count_change.back());
-    debug_iter->count_change.back().set_change(0, 0,0);
+    debug_iter->count_change.back().set_change(0, 0,0,true);
     debug_iter++;
 }
 struct Mutation_Count{
@@ -45,6 +45,9 @@ struct Mutation_Count{
 
 static void count_mutations(MAT::Node* start, std::vector<Mutation_Count>& mutations_count){
     size_t mut_idx=0;
+    if (start->identifier=="Wuhan_HBCDC-HB-04_2020") {
+    fputc('a', stderr);
+    }
     for(const MAT::Mutation& m:start->mutations){
         while (mut_idx!=mutations_count.size()&&mutations_count[mut_idx].position<m.get_position()) {
             mut_idx++;
@@ -60,6 +63,7 @@ static void count_mutations(MAT::Node* start, std::vector<Mutation_Count>& mutat
 }
 
 
+#ifdef DEBUG_CHECK_MAJOR_ALLELE_EACH_STEP
 bool get_children_alleles_count(const MAT::Node *this_node,
                                        const MAT::Node *override_node1,
                                        const MAT::Node *override_node2,
@@ -159,6 +163,7 @@ static void check_mutation(const MAT::Mutation& mutation,
         assert(last_inserted_count.get_decremented()==expected_decremented);
     }
 }
+#endif
 
 void test_allele_out_init(
     const MAT::Node *this_node,const MAT::Node *altered_node,
@@ -199,7 +204,7 @@ int rewind_mutations(int target_position,dbg_iter& debug,dbg_iter& end){
                 debug->major_allele.push_back(parent_nuc);
                 debug->mutation_score_change.push_back(0);
                 debug->count_change.push_back(debug->count_change.back());
-                debug->count_change.back().set_change(0, 0,0);
+                debug->count_change.back().set_change(0, 0,0,true);
                 rewinded++;
                 debug++;
             }
@@ -315,7 +320,7 @@ static void remove_child(MAT::Node* child_to_remove){
         assert(iter!=parent->children.end());
         parent->children.erase(iter);
 }
-static void check_change_with_full_fitch_sankoff(const state_change_hist_dbg& to_check,const std::vector<MAT::Node*>& node_stack, const MAT::Tree& new_tree, const std::vector<uint8_t>& boundary1_major_allele, const std::unordered_map<std::string, std::vector<MAT::Node*>>& mutation_counts_old,const std::vector<std::vector<MAT::Node*>>& mutation_count_ref,MAT::Node* added,std::unordered_set<std::string>& checked_nodes){
+static void check_change_with_full_fitch_sankoff(const state_change_hist_dbg& to_check,const std::vector<MAT::Node*>& node_stack, const MAT::Tree& new_tree, const std::vector<uint8_t>& boundary1_major_allele, const std::unordered_map<std::string, std::vector<MAT::Node*>>& mutation_counts_old,const std::vector<std::vector<MAT::Node*>>& mutation_count_ref,MAT::Node* added,std::unordered_set<std::string>& checked_nodes,int& total_difference,std::vector<std::pair<MAT::Node* ,int>>& reported_diffenence){
     const std::vector<nuc_one_hot>& major_alleles_to_check=to_check.major_allele;
     const std::vector<int>& mutation_count_difference_to_check=to_check.mutation_score_change;
     assert(!major_alleles_to_check.empty());
@@ -325,27 +330,20 @@ static void check_change_with_full_fitch_sankoff(const state_change_hist_dbg& to
     auto node_iter=node_stack.begin();
     auto end=node_stack.end();
     while (node_iter!=end) {
-        MAT::Node* node;
-        MAT::Node*volatile* node_ptr=&node;
-        *node_ptr=*node_iter;
+        MAT::Node* node=*node_iter;
         const std::string& node_identifier=node->identifier;
         MAT::Node* node_in_new_tree;
+        int mutation_count_old=0;
         if (added&&node_iter==node_stack.begin()) {
             node_in_new_tree=added;
         }else{
             node_in_new_tree=new_tree.get_node(node_identifier);
+            auto iter=mutation_counts_old.find(node_identifier);
+            mutation_count_old=iter==mutation_counts_old.end()?0:iter->second.size();
         }
         int node_idx_in_new_tree=node_in_new_tree->bfs_index;
         nuc_one_hot major_allele_ref=boundary1_major_allele[node_idx_in_new_tree]&0xf;
-        volatile int new_mutation_count;
-        volatile int* new_mutation_count_ptr=&new_mutation_count;
-        *new_mutation_count_ptr=mutation_count_ref[node_idx_in_new_tree].size();
-        volatile int mutation_count_old=0;
-        volatile int* mutation_count_old_ptr=&mutation_count_old;
-        auto count_iter=mutation_counts_old.find(node_identifier);
-        if (count_iter!=mutation_counts_old.end()) {
-            *mutation_count_old_ptr=count_iter->second.size();
-        }
+        int new_mutation_count=mutation_count_ref[node_idx_in_new_tree].size();
         int mutation_count_difference_ref=new_mutation_count-mutation_count_old;
         int mutation_count_difference_to_check=*count_diff_iter;
         if (mutation_count_difference_to_check!=mutation_count_difference_ref||*allele_iter!=major_allele_ref) {
@@ -372,7 +370,6 @@ static void check_change_with_full_fitch_sankoff(const state_change_hist_dbg& to
                 }
                 auto iter=child->mutations.find(to_check.position);
                 if (iter==child->mutations.end()) {
-                    ori_mutation_map.emplace_back(child,nullptr);
                 }else {
                     ori_mutation_map.emplace_back(child,&(*iter));
                 }
@@ -381,6 +378,8 @@ static void check_change_with_full_fitch_sankoff(const state_change_hist_dbg& to
         assert(allele_to_check==major_allele_ref);
         assert(mutation_count_difference_to_check==mutation_count_difference_ref);
         }
+        total_difference+=mutation_count_difference_to_check;
+        reported_diffenence.emplace_back(node_in_new_tree,mutation_count_difference_to_check);
         checked_nodes.emplace(node_in_new_tree->identifier);
         node_iter++;
         allele_iter++;
@@ -450,24 +449,44 @@ static void check_no_change_with_full_fitch_sankoff(
                   node_identifier);
     }
 }
-int get_parsimmony_score_dumb(MAT::Node* LCA,MAT::Node* src, MAT::Node* dst,const std::vector<state_change_hist_dbg>& debug_from_src,const std::vector<MAT::Node*> node_stack_from_src,const std::vector<state_change_hist_dbg>& debug_from_dst,const std::vector<MAT::Node*> node_stack_from_dst,const std::vector<state_change_hist_dbg>& debug_above_LCA,const std::vector<MAT::Node*> node_stack_above_LCA){
+int get_parsimmony_score_dumb(MAT::Node* ancestor,MAT::Node* LCA,MAT::Node* src, MAT::Node* dst,const std::vector<state_change_hist_dbg>& debug_from_src,const std::vector<MAT::Node*> node_stack_from_src,const std::vector<state_change_hist_dbg>& debug_from_dst,const std::vector<MAT::Node*> node_stack_from_dst,const std::vector<state_change_hist_dbg>& debug_above_LCA,const std::vector<MAT::Node*> node_stack_above_LCA){
             MAT::Tree new_tree;
-            MAT::Node *new_LCA = new Mutation_Annotated_Tree::Node(*LCA,nullptr,&new_tree,false);
-            new_tree.curr_internal_node=LCA->tree->curr_internal_node;
-            new_tree.root=new_LCA;
+            MAT::Node *new_ancestor = new Mutation_Annotated_Tree::Node(*ancestor,nullptr,&new_tree,false);
+            new_tree.curr_internal_node=ancestor->tree->curr_internal_node;
+            new_tree.root=new_ancestor;
             MAT::Node *new_src = new_tree.get_node(src->identifier);
-            //MAT::Node *new_LCA = new_tree.get_node(LCA->identifier);
+            MAT::Node *new_LCA = new_tree.get_node(LCA->identifier);
             MAT::Node *original_src_parent_in_new_tree = new_src->parent;
             MAT::Node *new_dst = new_tree.get_node(dst->identifier);
             remove_child(new_src);
-            MAT::Node *added = new_dst->add_child(new_src);
+            MAT::Node *added;
+            if (dst==LCA) {
+                added=new_tree.create_node(std::to_string(++new_tree.curr_internal_node),new_dst);
+                MAT::Node* new_src_branch_node=new_tree.get_node(node_stack_from_src.back()->identifier);
+                auto iter=std::find(new_LCA->children.begin(),new_LCA->children.end(),new_src_branch_node);
+                assert(iter!=new_LCA->children.end());
+                new_LCA->children.erase(iter);
+                added->children.push_back(new_src_branch_node);
+                new_src_branch_node->parent=added;
+                added->children.push_back(new_src);
+                new_src->parent=added;
+            }else {
+                MAT::Node* dst_parent=new_dst->parent;
+                added=new_tree.create_node(std::to_string(++new_tree.curr_internal_node),dst_parent);
+                auto iter=std::find(dst_parent->children.begin(),dst_parent->children.end(),new_dst);
+                dst_parent->children.erase(iter);
+                added->children.push_back(new_dst);
+                new_dst->parent=added;
+                added->children.push_back(new_src);
+                new_src->parent=added;
+            }
             std::vector<MAT::Node*> new_bfs_ordered_nodes=new_tree.breadth_first_expansion();
             std::vector<Mutation_Count> original_mutation_count;
             original_mutation_count.reserve(debug_above_LCA.size());
             for(const auto& mut:debug_above_LCA){
                 original_mutation_count.emplace_back(mut.position);
             }
-            count_mutations(LCA, original_mutation_count);
+            count_mutations(ancestor, original_mutation_count);
             int parsimony_score_change=0;
             auto from_src_iter=debug_from_src.begin();
             auto from_dst_iter=debug_from_dst.begin();
@@ -483,22 +502,24 @@ int get_parsimmony_score_dumb(MAT::Node* LCA,MAT::Node* src, MAT::Node* dst,cons
                     from_dst_iter++;
                 }
                 std::unordered_set<std::string>  checked_nodes;
-                nuc_one_hot LCA_parent_state=get_parent_state(LCA, position);
+                nuc_one_hot LCA_parent_state=get_parent_state(ancestor, position);
                 std::vector<uint8_t> boundary1_major_allele(new_bfs_ordered_nodes.size()+8);
                 std::vector<uint8_t> boundary2_allele(new_bfs_ordered_nodes.size()+8);
                 MAT::Mutation mut(position);
                 const auto non_ref_muts=mutated_positions[mut];
-                FS_backward_pass(new_bfs_ordered_nodes, boundary1_major_allele, boundary2_allele, *non_ref_muts, MAT::Mutation::refs[position]);
+                FS_backward_pass(new_bfs_ordered_nodes, boundary1_major_allele,  *non_ref_muts, MAT::Mutation::refs[position]);
+                int total_difference=0;
                 std::vector<uint8_t> states_out(new_bfs_ordered_nodes.size());
+                std::vector<std::pair<MAT::Node* ,int>> reported_diffenence;
                 std::vector<std::vector<MAT::Node*>> mutation_count(new_bfs_ordered_nodes.size());
                 int new_parsimony_score=FS_forward_assign_states_only(new_bfs_ordered_nodes, boundary1_major_allele, LCA_parent_state, states_out,mutation_count);
                 if (from_src_iter!=from_src_end&&from_src_iter->position==position) {
-                    check_change_with_full_fitch_sankoff(*from_src_iter, node_stack_from_src, new_tree, boundary1_major_allele,original_mutation_count[idx].mut_count ,mutation_count,0,checked_nodes);
+                    check_change_with_full_fitch_sankoff(*from_src_iter, node_stack_from_src, new_tree, boundary1_major_allele,original_mutation_count[idx].mut_count ,mutation_count,0,checked_nodes,total_difference,reported_diffenence);
                 }else {
                     check_no_change_with_full_fitch_sankoff(node_stack_from_src, new_tree, boundary1_major_allele, original_mutation_count[idx].mut_count ,mutation_count, position,0);
                 }
                 if (from_dst_iter!=from_dst_end&&from_dst_iter->position==position) {
-                    check_change_with_full_fitch_sankoff(*from_dst_iter, node_stack_from_dst, new_tree, boundary1_major_allele,original_mutation_count[idx].mut_count ,mutation_count,added,checked_nodes);
+                    check_change_with_full_fitch_sankoff(*from_dst_iter, node_stack_from_dst, new_tree, boundary1_major_allele,original_mutation_count[idx].mut_count ,mutation_count,added,checked_nodes,total_difference,reported_diffenence);
                 }else {
                     check_no_change_with_full_fitch_sankoff(node_stack_from_dst, new_tree, boundary1_major_allele, original_mutation_count[idx].mut_count ,mutation_count, position,added);
                 }
@@ -509,11 +530,18 @@ int get_parsimmony_score_dumb(MAT::Node* LCA,MAT::Node* src, MAT::Node* dst,cons
                         have_change.push_back(new_bfs_ordered_nodes[i]);
                     }
                 }*/
-                check_change_with_full_fitch_sankoff(debug_above_LCA[idx], node_stack_above_LCA, new_tree, boundary1_major_allele,original_mutation_count[idx].mut_count ,mutation_count,0,checked_nodes);
-                /*check_no_change_whole_tree(new_bfs_ordered_nodes, checked_nodes, boundary1_major_allele, original_mutation_count[idx].mut_count, mutation_count, position, dst->tree);
-                if(new_parsimony_score!=original_mutation_count[idx].count){
-                    fputc('a',stderr);
-                }*/
+                check_change_with_full_fitch_sankoff(debug_above_LCA[idx], node_stack_above_LCA, new_tree, boundary1_major_allele,original_mutation_count[idx].mut_count ,mutation_count,dst==LCA?added:nullptr,checked_nodes,total_difference,reported_diffenence);
+
+                int ref_difference=new_parsimony_score-original_mutation_count[idx].count;
+                if(ref_difference!=total_difference){
+                    check_no_change_whole_tree(new_bfs_ordered_nodes, checked_nodes, boundary1_major_allele, original_mutation_count[idx].mut_count, mutation_count, position, dst->tree);
+                    for (int i=0; i<new_bfs_ordered_nodes.size(); i++) {
+                            for(auto n:mutation_count[i]){
+                                fprintf(stderr,"Mutation at idx %zu, contibuted by %zu\n",new_bfs_ordered_nodes[i]->bfs_index,n->bfs_index);
+                            }
+                    }
+                    assert(false);
+                }
                 parsimony_score_change+=(new_parsimony_score-original_mutation_count[idx].count);
             }
             new_tree.delete_nodes();

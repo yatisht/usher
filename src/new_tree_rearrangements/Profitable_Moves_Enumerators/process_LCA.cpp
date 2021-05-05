@@ -46,7 +46,7 @@ static void LCA_no_match(
     nuc_one_hot major_allele=LCA_mutation_iter->get_all_major_allele();
     Mutation_Count_Change temp(*LCA_mutation_iter);
     temp.set_change(LCA_mutation_iter->get_mut_one_hot(),
-                    LCA_mutation_iter->get_mut_one_hot(),0);
+                    LCA_mutation_iter->get_mut_one_hot(),0,true);
     if (is_dst_terminal) {
         major_allele = increment_mutation_count(
             LCA_parent_mutation_count_change_out, *LCA_mutation_iter, temp,
@@ -91,7 +91,7 @@ static void LCA_dst_match(const MAT::Mutation* LCA_mutation_iter,
         } else if (is_src_terminal) {
             Mutation_Count_Change temp(*LCA_mutation_iter);
             temp.set_change(LCA_mutation_iter->get_mut_one_hot(),
-                            0,0);
+                            0,0,true);
             major_allele = dbl_inc_dec_mutations(
                 *dst_add_count_iter, temp, *LCA_mutation_iter,
                 parsimony_score_change, LCA_parent_mutation_count_change_out);
@@ -141,8 +141,8 @@ LCA_dst(MAT::Mutations_Collection::const_iterator &LCA_mutation_iter,
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
     int old_score = parsimony_score_change;
 #endif
-/*if (LCA_mutation_iter->get_position()==241) {
-    fputc('a',stderr);
+/*if (LCA_mutation_iter->get_position()==13270) {
+    fputc('ab',stderr);
 }*/
     if (LCA_mutation_iter != LCA_mutation_end &&
         dst_add_count_iter->get_position() ==
@@ -196,8 +196,8 @@ static void LCA_src_match(Mutation_Count_Change_Collection::const_iterator& dst_
         const MAT::Node *src_branch, const MAT::Node *dst_branch,int old_score
 #endif
 ) {
-    /*if(LCA_mutation.get_position()==28654){
-        fputc('a', stderr);
+    /*if(LCA_mutation.get_position()==13270){
+        fputc('ab', stderr);
     }*/
     nuc_one_hot dst_added=0;
     if (dst_add_count_iter != dst_add_count_end &&
@@ -291,8 +291,8 @@ void get_LCA_mutation(
             src_count_change.set_change(
                 src_mut.get_all_major_allele(), 0,0);
         }
-        /*if (src_count_change.get_position()==241) {
-            fputc('a', stderr);
+        /*if (src_count_change.get_position()==13270) {
+            fputc('ab', stderr);
         }*/
         while ((dst_add_count_iter != dst_add_count_end )&&
                dst_add_count_iter->get_position() < src_count_change.get_position()) {

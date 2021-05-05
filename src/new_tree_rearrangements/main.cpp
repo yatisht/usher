@@ -33,6 +33,17 @@ static void save_final_tree(MAT::Tree &t, Original_State_t origin_states,
     check_samples(t.root, origin_states, &t);
     Mutation_Annotated_Tree::save_mutation_annotated_tree(t, output_path);
 }
+MAT::Node* get_LCA(MAT::Node* src,MAT::Node* dst){
+    while (src!=dst) {
+        if (src->dfs_index>dst->dfs_index) {
+            src=src->parent;
+        }
+        else if (src->dfs_index<dst->dfs_index) {
+            dst=dst->parent;
+        }
+    }
+    return src;
+}
 
 static size_t
 optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
@@ -119,6 +130,12 @@ int main(int argc, char **argv) {
         node->tree=&t;
     }
     size_t inner_loop_score_before = score_before;
+
+    MAT::Node* src=t.get_node("Australia_NSW02_2020");
+    MAT::Node* dst=t.get_node("18");
+    MAT::Node* LCA=get_LCA(src, dst);
+    individual_move(src,dst,LCA);
+
     find_nodes_to_move(bfs_ordered_nodes, nodes_to_search);
     while (!nodes_to_search.empty()) {
         new_score =

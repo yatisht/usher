@@ -22,8 +22,18 @@ class Mutation_Count_Change {
   static const char VALID_MASK=1;
   static const char END_MASK=2;
   Mutation_Count_Change(){
-              decremented_allele=0;
-        incremented_allele=0;
+    decremented_allele=0;
+    incremented_allele=0;
+  }
+  Mutation_Count_Change(const Mutation_Count_Change& child_mut_count,nuc_one_hot new_major_allele){
+      position=child_mut_count.position;
+      chromIdx=child_mut_count.chromIdx;
+      ori_state=child_mut_count.par_state;
+      par_state=child_mut_count.par_state;
+      new_state=new_major_allele;
+      incremented_allele=new_major_allele&(~ori_state);
+      decremented_allele=ori_state&(~new_major_allele);
+      was_valid=child_mut_count.par_state!=child_mut_count.new_state;
   }
     Mutation_Count_Change(const MAT::Mutation &pos) {
         position = pos.get_position();
@@ -44,11 +54,14 @@ class Mutation_Count_Change {
     nuc_one_hot get_decremented() const { assert(decremented_allele!=0xff); return decremented_allele; }
     nuc_one_hot get_incremented() const { assert(incremented_allele!=0xff); return incremented_allele; }
     nuc_one_hot get_ori_state() const{return ori_state;}
-    void set_change(nuc_one_hot decremented, nuc_one_hot incremented,nuc_one_hot new_state) {
+    void set_change(nuc_one_hot decremented, nuc_one_hot incremented,nuc_one_hot new_state,bool nocheck=false) {
         decremented_allele = decremented;
         incremented_allele = incremented;
         this->new_state=new_state;
-        assert(new_state=(ori_state|incremented)&(~decremented));
+        assert(nocheck||new_state==((ori_state|incremented)&(~decremented)));
+    }
+    void set_ori_state(nuc_one_hot ori_state){
+        this->ori_state=ori_state;
     }
     nuc_one_hot get_new_state() const{
         return new_state;
@@ -150,7 +163,7 @@ void test_allele_count_out_LCA(
     std::vector<state_change_hist_dbg>& debug,
     std::vector<LCA_merged_states>::const_iterator& in,const std::vector<LCA_merged_states>::const_iterator& end);
 
-int get_parsimmony_score_dumb(MAT::Node* LCA,MAT::Node* src, MAT::Node* dst,const std::vector<state_change_hist_dbg>& debug_from_src,const std::vector<MAT::Node*> node_stack_from_src,const std::vector<state_change_hist_dbg>& debug_from_dst,const std::vector<MAT::Node*> node_stack_from_dst,const std::vector<state_change_hist_dbg>& debug_above_LCA,const std::vector<MAT::Node*> node_stack_above_LCA);
+int get_parsimmony_score_dumb(MAT::Node* ancestor,MAT::Node* LCA,MAT::Node* src, MAT::Node* dst,const std::vector<state_change_hist_dbg>& debug_from_src,const std::vector<MAT::Node*> node_stack_from_src,const std::vector<state_change_hist_dbg>& debug_from_dst,const std::vector<MAT::Node*> node_stack_from_dst,const std::vector<state_change_hist_dbg>& debug_above_LCA,const std::vector<MAT::Node*> node_stack_above_LCA);
 
 void prep_LCA_checker(
     const std::vector<state_change_hist_dbg> &from_src,

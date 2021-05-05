@@ -197,7 +197,7 @@ namespace Mutation_Annotated_Tree {
 
         void set_auxillary(nuc_one_hot all_major_allele,nuc_one_hot boundary1){
             assert(all_major_allele&get_mut_one_hot());
-            boundary1_all_major_allele=boundary1_all_major_allele|(boundary1<<4);
+            boundary1_all_major_allele=all_major_allele|(boundary1<<4);
         }
 
         void set_par_mut(nuc_one_hot new_par,nuc_one_hot new_mut){

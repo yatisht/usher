@@ -23,7 +23,7 @@ void consume_parent_mutations(
 bool get_parsimony_score_change_from_add(
     MAT::Node *parent_node,
     const Mutation_Count_Change_Collection &children_added_mutations,
-    Mutation_Count_Change_Collection &parent_added_mutations, bool is_terminal,
+    Mutation_Count_Change_Collection &parent_added_mutations,
     // New_Tie_Collection_t &decrease_if_match_parent_state_out,
     int &parsimony_score_change
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
