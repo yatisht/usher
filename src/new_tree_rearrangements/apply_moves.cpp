@@ -48,7 +48,7 @@ static void clean_up_internal_nodes(MAT::Node* this_node,MAT::Tree& tree,tbb::co
     std::vector<MAT::Node *> &parent_children = this_node->parent->children;
     std::vector<MAT::Node *> this_node_ori_children = this_node->children;
 
-    if (this_node->children.size()==1&&tree.condensed_nodes.count(this_node->identifier)==0) {
+    if (this_node->children.size()==1) {
         auto iter = std::find(parent_children.begin(), parent_children.end(),
                               this_node);
         assert(iter != parent_children.end());
@@ -58,7 +58,11 @@ static void clean_up_internal_nodes(MAT::Node* this_node,MAT::Tree& tree,tbb::co
             child->parent = this_node->parent;
             parent_children.push_back(child);
         }
-        
+        for (size_t node_idx=0; node_idx<to_filter.size(); node_idx++) {
+            if (to_filter[node_idx]==this_node) {
+                to_filter[node_idx]=this_node_ori_children[0];
+            }
+        }
         delete this_node;
     }
 
