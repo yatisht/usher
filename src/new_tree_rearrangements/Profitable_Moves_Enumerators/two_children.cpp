@@ -57,9 +57,9 @@ void get_two_child_intermediate_node_mutations(
     auto debug_end=debug.end();
     #endif
     for(const auto& this_mut:this_node_mutation_count_change){
-        if (this_mut.get_position()==21552) {
-            fputc('a',stderr);
-        }
+        /*if (this_mut.get_position()==21552) {
+            fputc('ab',stderr);
+        }*/
         consume_parent_mutations(
             mutation_iter, mutation_end, this_mut
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT

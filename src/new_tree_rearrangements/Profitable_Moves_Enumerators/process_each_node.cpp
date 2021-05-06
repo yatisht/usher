@@ -138,9 +138,9 @@ bool get_parsimony_score_change_from_add(
     auto parent_addable_iter = node->mutations.begin();
     auto parent_addable_end = node->mutations.end();
     for (const auto &added_child_mutation : children_added_mutations) {
-        if(added_child_mutation.get_position()==23635){
-            fputc('a', stderr);
-        }
+        /*if(added_child_mutation.get_position()==23635){
+            fputc('ab', stderr);
+        }*/
         while (parent_addable_end != parent_addable_iter &&
                parent_addable_iter->get_position() < added_child_mutation.get_position()) {
                 // Adding a children with parent state

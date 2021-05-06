@@ -34,6 +34,12 @@ static void remove_move(Cross_t &potential_crosses, const Profitable_Moves_ptr_t
 
 void Conflict_Resolver::register_single_move_no_conflict(
     Profitable_Moves_ptr_t& candidate_move)  {
+    if (candidate_move->src->bfs_index==5319&&candidate_move->dst_to_LCA[0]->bfs_index==1285) {
+        fputc('a',stderr);
+    }
+    if (candidate_move->src->bfs_index==19290&&candidate_move->dst_to_LCA[0]->bfs_index==9626) {
+        fputc('a',stderr);
+    }
     for (auto node : *candidate_move) {
         Conflict_Set& iter = potential_crosses[node->bfs_index];
         iter.parsimony_score_change.store(candidate_move->score_change,std::memory_order_release);
@@ -41,6 +47,7 @@ void Conflict_Resolver::register_single_move_no_conflict(
                 assert(other_move->score_change >=
                        candidate_move->score_change);
                 remove_move(potential_crosses, other_move, node);
+                assert(candidate_move!=other_move);
                 #ifndef NDEBUG
                 //nodes_inside--;
                 #endif

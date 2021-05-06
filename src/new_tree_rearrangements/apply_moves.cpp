@@ -4,6 +4,8 @@
 #include "tree_rearrangement_internal.hpp"
 #include "tbb/parallel_for_each.h"
 #include "tbb/parallel_for.h"
+#include <algorithm>
+#include <string>
 namespace MAT = Mutation_Annotated_Tree;
     int get_parsimmony_score_only(MAT::Node* src, MAT::Node* dst,MAT::Node* start_node);
 /*
@@ -78,8 +80,36 @@ void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t,
         }
     }*/
     for (auto m : all_moves) {
-        Mutation_Annotated_Tree::remove_child(m->get_src(),removed);
-        m->get_dst()->add_child(m->get_src());
+        MAT::Node* src=m->get_src();
+        MAT::Node* dst=m->get_dst();
+        MAT::Node* LCA=m->LCA;
+
+        Mutation_Annotated_Tree::remove_child(src,removed);
+
+        if (dst==LCA) {
+            assert(m->src_to_LCA.back()->parent==LCA);
+            MAT::Node* src_branch_node=m->src_to_LCA.back();
+            auto& LCA_children=LCA->children;
+            auto iter=std::find(LCA_children.begin(),LCA_children.end(),src_branch_node);
+            assert(iter!=LCA_children.end());
+            LCA_children.erase(iter);
+            MAT::Node* new_src_branch_node=t.create_node(std::to_string(++t.curr_internal_node),LCA);
+            new_src_branch_node->children.push_back(src_branch_node);
+            src_branch_node->parent=new_src_branch_node;
+            new_src_branch_node->children.push_back(src);
+            src->parent=new_src_branch_node;
+        }else {
+            MAT::Node* dst_parent=dst->parent;
+            MAT::Node* new_dst_branch=t.create_node(std::to_string(++t.curr_internal_node),dst_parent);
+            auto& dst_parent_children=dst_parent->children;
+            auto iter=std::find(dst_parent_children.begin(),dst_parent_children.end(),dst);
+            assert(iter!=dst_parent_children.end());
+            dst_parent_children.erase(iter);
+            new_dst_branch->children.push_back(dst);
+            dst->parent=new_dst_branch;
+            new_dst_branch->children.push_back(src);
+            src->parent=new_dst_branch;
+        }
         delete m;
     }
     if (!removed.empty()) {

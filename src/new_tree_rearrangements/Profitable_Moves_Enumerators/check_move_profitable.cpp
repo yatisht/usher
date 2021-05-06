@@ -1,5 +1,6 @@
 #include "src/new_tree_rearrangements/Profitable_Moves_Enumerators/Profitable_Moves_Enumerators.hpp"
 #include "process_each_node.hpp"
+#include <unordered_set>
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
 static void check_LCA(MAT::Node* src, MAT::Node* dst,MAT::Node* LCA_to_check){
     std::unordered_set<int> path;
@@ -18,9 +19,12 @@ static void check_LCA(MAT::Node* src, MAT::Node* dst,MAT::Node* LCA_to_check){
 bool dst_branch(const MAT::Node *LCA,
            const Mutation_Count_Change_Collection &mutations,
            int &parsimony_score_change,
-           std::vector<state_change_hist_dbg> &debug_from_dst,
            std::vector<MAT::Node *> &node_stack_from_dst, MAT::Node *this_node,
-           Mutation_Count_Change_Collection &parent_added);
+           Mutation_Count_Change_Collection &parent_added
+#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
+           ,std::vector<state_change_hist_dbg> &debug_from_dst
+#endif
+           );
 
 void output_result(MAT::Node *&src, MAT::Node *&dst, MAT::Node *&LCA,
                int &parsimony_score_change, output_t &output,
@@ -44,9 +48,23 @@ void output_result(MAT::Node *&src, MAT::Node *&dst, MAT::Node *&LCA,
         assert(dst == LCA || new_move->dst_to_LCA.back()->parent == LCA);
         assert(src->parent == LCA ||
                new_move->src_to_LCA.back()->parent == LCA);
+        MAT::Node* last_node=nullptr;
         for (const auto node : node_stack_above_LCA) {
-            new_move->dst_to_LCA.push_back(node);
+            if (node!=last_node) {
+                new_move->dst_to_LCA.push_back(node);
+                last_node=node;
+            }
         }
+        #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
+std::unordered_set<int> node_idx_set;
+node_idx_set.insert(src->bfs_index);
+for(auto node:new_move->src_to_LCA){
+    assert(node_idx_set.insert(node->bfs_index).second);
+}
+for(auto node:new_move->dst_to_LCA){
+    assert(node_idx_set.insert(node->bfs_index).second);
+}
+#endif
         output.moves.push_back(new_move);
     }
 }
@@ -90,8 +108,11 @@ int check_move_profitable(
     assert(dst);
     Mutation_Count_Change_Collection dst_added;
     if (LCA != dst) {
-        if(!dst_branch(LCA, mutations, parsimony_score_change, debug_from_dst,
+        if(!dst_branch(LCA, mutations, parsimony_score_change,
                   node_stack_from_dst, dst, dst_added
+#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
+, debug_from_dst
+#endif
                   )){
                       return 1;
         }
@@ -102,7 +123,11 @@ int check_move_profitable(
 #endif
     std::vector<MAT::Node *> node_stack_above_LCA;
 
-    MAT::Node* ancestor=check_move_profitable_LCA(src, dst, LCA, mutations, root_mutations_altered, parsimony_score_change, node_stack_from_dst, dst_added, node_stack_from_src, node_stack_above_LCA, debug_from_src, debug_from_dst, debug_above_LCA);
+    MAT::Node* ancestor=check_move_profitable_LCA(src, dst, LCA, mutations, root_mutations_altered, parsimony_score_change, node_stack_from_dst, dst_added, node_stack_from_src, node_stack_above_LCA
+#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
+    , debug_from_src, debug_from_dst, debug_above_LCA
+#endif
+    );
     if(!ancestor){
         return 1;
     }

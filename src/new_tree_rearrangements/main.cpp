@@ -131,11 +131,11 @@ int main(int argc, char **argv) {
     }
     size_t inner_loop_score_before = score_before;
 
-    MAT::Node* src=t.get_node("Australia_NSW02_2020");
-    MAT::Node* dst=t.get_node("18");
+    MAT::Node* src=t.get_node("6360");
+    MAT::Node* dst=t.get_node("6347");
     MAT::Node* LCA=get_LCA(src, dst);
     individual_move(src,dst,LCA);
-
+    while(stalled<=1){
     find_nodes_to_move(bfs_ordered_nodes, nodes_to_search);
     while (!nodes_to_search.empty()) {
         new_score =
@@ -148,9 +148,6 @@ int main(int argc, char **argv) {
             inner_loop_score_before = new_score;
             stalled = 0;
         }
-        if (stalled >= 10) {
-            break;
-        }
-    }
+    }}
     save_final_tree(t, origin_states, output_path);
 }

@@ -45,9 +45,9 @@ struct Mutation_Count{
 
 static void count_mutations(MAT::Node* start, std::vector<Mutation_Count>& mutations_count){
     size_t mut_idx=0;
-    if (start->identifier=="Wuhan_HBCDC-HB-04_2020") {
-    fputc('a', stderr);
-    }
+    /*if (start->identifier=="Wuhan_HBCDC-HB-04_2020") {
+    fputc('ab', stderr);
+    }*/
     for(const MAT::Mutation& m:start->mutations){
         while (mut_idx!=mutations_count.size()&&mutations_count[mut_idx].position<m.get_position()) {
             mut_idx++;
@@ -392,15 +392,16 @@ static void confirm_no_change(
         &mutation_counts_old,
     const std::vector<std::vector<MAT::Node *>> &mutation_count_ref,
     int position, MAT::Node *node, size_t &node_idx_in_new_tree,
-    const std::string &node_identifier) {
+    const std::string &node_identifier,bool is_added=false) {
     nuc_one_hot major_allele_ref =
         boundary1_major_allele[node_idx_in_new_tree] & 0xf;
     int new_mutation_count = mutation_count_ref[node_idx_in_new_tree].size();
     int mutation_count_old = 0;
+    if(!is_added){
     auto iter = mutation_counts_old.find(node_identifier);
     if (iter != mutation_counts_old.end()) {
         mutation_count_old = iter->second.size();
-    }
+    }}
 
     auto old_mut_iter = node->mutations.find(position);
     nuc_one_hot old_state;
@@ -446,7 +447,7 @@ static void check_no_change_with_full_fitch_sankoff(
         }
         confirm_no_change(boundary1_major_allele, mutation_counts_old,
                   mutation_count_ref, position, node, node_idx_in_new_tree,
-                  node_identifier);
+                  node_identifier,added&&node==node_stack[0]);
     }
 }
 int get_parsimmony_score_dumb(MAT::Node* ancestor,MAT::Node* LCA,MAT::Node* src, MAT::Node* dst,const std::vector<state_change_hist_dbg>& debug_from_src,const std::vector<MAT::Node*> node_stack_from_src,const std::vector<state_change_hist_dbg>& debug_from_dst,const std::vector<MAT::Node*> node_stack_from_dst,const std::vector<state_change_hist_dbg>& debug_above_LCA,const std::vector<MAT::Node*> node_stack_above_LCA){

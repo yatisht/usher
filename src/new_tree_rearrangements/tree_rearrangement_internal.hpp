@@ -22,6 +22,7 @@ struct Profitable_Moves{
     struct iterator{
         MAT::Node* src;
         std::vector<MAT::Node*>::const_iterator pos;
+        bool switched;
         std::vector<MAT::Node*>::const_iterator change;
         std::vector<MAT::Node*>::const_iterator change_to;
         void operator++(){
@@ -32,6 +33,7 @@ struct Profitable_Moves{
             pos++;
             if (pos==change) {
                 pos=change_to;
+                switched=true;
             }
         }
         MAT::Node* operator*(){
@@ -42,7 +44,7 @@ struct Profitable_Moves{
             return *pos;
         }
         bool operator!=(const iterator& other)const{
-            return pos!=other.pos;
+            return pos!=other.pos||src!=other.src||switched!=other.switched;
         }
     };
     MAT::Node* get_src()const{
@@ -53,12 +55,12 @@ struct Profitable_Moves{
     }
     iterator begin()const{
         if (src_to_LCA.empty()) {
-            return {src,dst_to_LCA.begin()};
+            return {src,dst_to_LCA.begin(),true};
         }
-        return {src,src_to_LCA.begin(),src_to_LCA.end(),dst_to_LCA.begin()};
+        return {src,src_to_LCA.begin(),false,src_to_LCA.end(),dst_to_LCA.begin()};
     }
     iterator end()const{
-        return {0,dst_to_LCA.end(),src_to_LCA.end(),dst_to_LCA.begin()};
+        return {0,dst_to_LCA.end(),true,src_to_LCA.end(),dst_to_LCA.begin()};
     }
 };
 typedef Profitable_Moves* Profitable_Moves_ptr_t;

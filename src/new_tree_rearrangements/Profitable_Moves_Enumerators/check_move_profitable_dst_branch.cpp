@@ -32,6 +32,7 @@ static void update_debug(MAT::Node *cur, const MAT::Node *LCA,
             }
         }
 #endif
+        assert(dst_stack.empty()||dst_stack.back()!=cur);
         dst_stack.push_back(cur);
         cur = cur->parent;
     }
@@ -41,9 +42,12 @@ static void update_debug(MAT::Node *cur, const MAT::Node *LCA,
 bool dst_branch(const MAT::Node *LCA,
            const Mutation_Count_Change_Collection &mutations,
            int &parsimony_score_change,
-           std::vector<state_change_hist_dbg> &debug_from_dst,
            std::vector<MAT::Node *> &node_stack_from_dst, MAT::Node *this_node,
-           Mutation_Count_Change_Collection &parent_added) {
+           Mutation_Count_Change_Collection &parent_added
+#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
+           ,std::vector<state_change_hist_dbg> &debug_from_dst
+#endif
+           ) {
 
     Mutation_Count_Change_Collection parent_of_parent_added;
     node_stack_from_dst.push_back(this_node);
@@ -75,6 +79,7 @@ bool dst_branch(const MAT::Node *LCA,
 #endif
             );
         }
+        assert(node_stack_from_dst.empty()||node_stack_from_dst.back()!=this_node);
         node_stack_from_dst.push_back(this_node);
         parent_added = std::move(parent_of_parent_added);
         if (parent_added.empty()) {

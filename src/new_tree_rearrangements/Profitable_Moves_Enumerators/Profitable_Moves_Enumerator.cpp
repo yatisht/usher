@@ -171,7 +171,7 @@ merge_mutation_src_to_LCA(const MAT::Node *root,
             iter++;
         } else {
             merged_mutations.emplace_back(m);
-            merged_mutations.back().set_change(0, m.get_mut_one_hot(), m.get_mut_one_hot());
+            merged_mutations.back().set_change(0, m.get_mut_one_hot(), m.get_mut_one_hot(),true);
         }
     }
     while (iter!=end) {
