@@ -656,6 +656,11 @@ int main(int argc, char** argv) {
                 size_t s = indexes[idx];
                 auto sample = missing_samples[s].name;
 
+                if (T->get_node(sample) != NULL) {
+                    fprintf(stderr, "WARNING: Sample %s already in the tree! Ignoring.\n\n", sample.c_str());
+                    continue;
+                }
+
                 if (print_parsimony_scores) {
                     auto parsimony_scores_filename = outdir + "/parsimony-scores.tsv";
                     if (s==0) {

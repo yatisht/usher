@@ -600,34 +600,62 @@ int main(int argc, char** argv) {
     }
 
     else {
+        fprintf(stderr, "\n");
+        std::unordered_map<int, std::vector<std::string>> pos_to_nid;
         for (auto n: bfs) {
-            if ((n == T.root) || (n->level < 4)) {
-                continue;
-            }
-            size_t count=0;
-            tbb::parallel_for(tbb::blocked_range<size_t>(0, bfs.size()),
-                    [&](const tbb::blocked_range<size_t> r) {
-                    for (size_t i=r.begin(); i<r.end(); ++i){
-                    auto n2 = bfs[i];
-                    if (n == n2) {
-                    continue;
-                    }
-                    for (auto m1: n->mutations) {
-                    for (auto m2: n2->mutations) {
-                    if  (m1.position == m2.position)  {
-                    if (get_node_distance(T, n, n2) <= radius) {
-                    __sync_fetch_and_add(&count, 1);
-                    }
-                    }
-                    }
-                    }
-                    }
-                    }, ap);
-
-            if (count > 0) {
-                nodes_to_prune.insert(n->identifier);
+            for (auto m: n->mutations) {
+                if (pos_to_nid.find(m.position) != pos_to_nid.end()) {
+                    pos_to_nid[m.position].emplace_back(n->identifier);
+                }
+                else {
+                    pos_to_nid[m.position] = std::vector<std::string>();
+                    pos_to_nid[m.position].emplace_back(n->identifier);
+                }
             }
         }
+
+        size_t curr=0;
+        tbb::mutex tbb_lock;
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, pos_to_nid.size()),
+                [&](tbb::blocked_range<size_t> r) {
+                for (size_t it = r.begin(); it < r.end(); it++) {
+                  auto at  = __sync_fetch_and_add(&curr, 1);
+                  if (at % 10 == 0) { 
+                     tbb_lock.lock();
+                     fprintf(stderr, "\rAt %zu of %zu", at, pos_to_nid.size());
+                     fflush(stderr);
+                     tbb_lock.unlock();
+                  }
+                  auto cn = pos_to_nid.begin();
+                  std::advance(cn, it);
+                  size_t num_elem = cn->second.size();
+                  for (size_t i=0; i<num_elem; i++) {
+                      tbb_lock.lock();
+                      if (nodes_to_prune.find(cn->second[i]) != nodes_to_prune.end()) {
+                          tbb_lock.unlock();
+                          continue;
+                      }
+                      tbb_lock.unlock();
+                      auto n = T.get_node(cn->second[i]);
+                      for (size_t j=i+1; j<num_elem; j++) {
+                          auto n2 = T.get_node(cn->second[j]);
+                          if ((n->level >= 4) && (get_node_distance(T, n, n2) <= radius)) {
+                              tbb_lock.lock();
+                              if (n->level >= 4) {
+                                  nodes_to_prune.insert(n->identifier);
+                              }
+                              if (n2->level >= 4) {
+                                  nodes_to_prune.insert(n2->identifier);
+                              }  
+                              tbb_lock.unlock();
+                              break;
+                          }
+                      }
+                  }
+                }
+            }, ap);
+        
+        fprintf(stderr, "\n");
     }
 
     fprintf(stderr, "%zu nodes found to prune.\n", nodes_to_prune.size());
@@ -637,7 +665,10 @@ int main(int argc, char** argv) {
     fprintf(stderr, "Starting tree optimization.\n\n"); 
 
     auto best_parsimony_score = T.get_parsimony_score();
+    size_t curr=0;
     for (auto nid_to_prune: nodes_to_prune) {
+        fprintf(stderr, "At %zu of %zu\n", ++curr, nodes_to_prune.size());
+        
         auto node_to_prune = T.get_node(nid_to_prune);
         if (node_to_prune == NULL) {
             continue;
@@ -685,19 +716,16 @@ int main(int argc, char** argv) {
             auto child = curr_parent->children[0];
             if (curr_parent->parent != NULL) {
                 child->parent = curr_parent->parent;
-                child->level = curr_parent->parent->level + 1;
-
-                std::vector<MAT::Mutation> tmp;
-                for (auto m: child->mutations) {
-                    tmp.emplace_back(m.copy());
+                // Adjust levels
+                for (auto n: T.breadth_first_expansion(child->identifier)) {
+                    if (n == T.root) {
+                        n->level = 1;
+                    }
+                    else {
+                        n->level = n->parent->level+1;
+                    }
                 }
-
-                //Clear and add back mutations in chrono order
-                child->clear_mutations();
                 for (auto m: curr_parent->mutations) {
-                    child->add_mutation(m.copy());
-                }
-                for (auto m: tmp) {
                     child->add_mutation(m.copy());
                 }
 
