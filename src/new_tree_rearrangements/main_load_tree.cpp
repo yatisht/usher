@@ -39,7 +39,7 @@ static void reassign_states(MAT::Tree& t, Original_State_t& origin_states){
             for (auto &sample : origin_states) {
                 auto iter = sample.second.find(pos.first);
                 if (iter != sample.second.end()) {
-                    mutated->emplace(sample.first, iter->get_mut_one_hot());
+                    mutated->emplace(sample.first, iter->get_all_major_allele());
                 }
             }
             Fitch_Sankoff_Whole_Tree(bfs_ordered_nodes, pos.first, *mutated,

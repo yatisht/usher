@@ -164,7 +164,7 @@ void VCF_input(const char * name,MAT::Tree& tree){
     std::vector<tbb::concurrent_vector<Mutation_Annotated_Tree::Mutation>> output(bfs_ordered_nodes.size());
     tbb::flow::function_node<Parsed_VCF_Line*> assign_state(input_graph,tbb::flow::unlimited,Assign_State{bfs_ordered_nodes,output});
     tbb::flow::make_edge(tbb::flow::output_port<0>(parser),assign_state);
-    for (int i=0; i<1; i++) {
+    for (int i=0; i<10; i++) {
         decompressor.try_put((char*)malloc(52*header_size));
     }
     input_graph.wait_for_all();

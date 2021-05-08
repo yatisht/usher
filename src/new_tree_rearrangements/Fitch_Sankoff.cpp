@@ -261,7 +261,7 @@ int FS_forward_assign_states_only(const std::vector<MAT::Node*>& bfs_ordered_nod
 }
 
 void Fitch_Sankoff_Whole_Tree(const std::vector<MAT::Node*> bfs_ordered_nodes,const MAT::Mutation & base,const std::unordered_map<std::string, nuc_one_hot>& mutated,std::vector<tbb::concurrent_vector<Mutation_Annotated_Tree::Mutation>>& output){
-    std::vector<uint8_t> minor_major_allele(bfs_ordered_nodes.size()+8);
+    std::vector<uint8_t> minor_major_allele(bfs_ordered_nodes.size()+16);
 
     FS_backward_pass(bfs_ordered_nodes,minor_major_allele,mutated,base.get_ref_one_hot());
     FS_forward_pass(bfs_ordered_nodes,minor_major_allele,base,output);

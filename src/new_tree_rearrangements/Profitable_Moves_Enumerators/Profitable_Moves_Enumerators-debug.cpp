@@ -504,8 +504,7 @@ int get_parsimmony_score_dumb(MAT::Node* ancestor,MAT::Node* LCA,MAT::Node* src,
                 }
                 std::unordered_set<std::string>  checked_nodes;
                 nuc_one_hot LCA_parent_state=get_parent_state(ancestor, position);
-                std::vector<uint8_t> boundary1_major_allele(new_bfs_ordered_nodes.size()+8);
-                std::vector<uint8_t> boundary2_allele(new_bfs_ordered_nodes.size()+8);
+                std::vector<uint8_t> boundary1_major_allele(new_bfs_ordered_nodes.size()+16);
                 MAT::Mutation mut(position);
                 const auto non_ref_muts=mutated_positions[mut];
                 FS_backward_pass(new_bfs_ordered_nodes, boundary1_major_allele,  *non_ref_muts, MAT::Mutation::refs[position]);

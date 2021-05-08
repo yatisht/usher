@@ -31,7 +31,7 @@ static void insert_samples_worker(Mutation_Annotated_Tree::Node *root,
                                   Mutation_Set parent_mutations,
                                   Original_State_t &samples) {
     for (Mutation_Annotated_Tree::Mutation &m : root->mutations) {
-        if(m.is_valid()){ins_mut(parent_mutations, m,root->is_leaf());}
+        if(m.is_valid()||root->is_leaf()){ins_mut(parent_mutations, m,root->is_leaf());}
     }
     if (root->is_leaf()) {
         samples.insert(std::make_pair(root->identifier, parent_mutations));
@@ -61,7 +61,7 @@ void check_samples_worker(Mutation_Annotated_Tree::Node *root,
                                  Mutation_Set parent_mutations,
                                  Original_State_t &samples,MAT::Tree* tree) {
     for (Mutation_Annotated_Tree::Mutation &m : root->mutations) {
-        if(m.is_valid()){ins_mut(parent_mutations, m,root->is_leaf());};
+        if(m.is_valid()||root->is_leaf()){ins_mut(parent_mutations, m,root->is_leaf());};
     }
 
     if (root->is_leaf()) {
