@@ -1036,7 +1036,8 @@ size_t Mutation_Annotated_Tree::Tree::get_parsimony_score() {
 
 void Mutation_Annotated_Tree::Tree::condense_leaves(std::vector<std::string> missing_samples) {
     if (condensed_nodes.size() > 0) {
-        fprintf(stderr, "WARNING: tree contains condensed nodes. It may be condensed already!\n");
+        fprintf(stderr, "WARNING: tree contains condensed nodes. Uncondensing fist.\n");
+        uncondense_leaves();
     }
 
     auto tree_leaves = get_leaves_ids();
