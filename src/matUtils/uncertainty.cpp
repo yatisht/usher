@@ -274,7 +274,7 @@ void findEPPs_wrapper (MAT::Tree Tobj, std::string sample_file, std::string fepp
         eppfile.open(fepps);
         //add column names
         //auspice doesn't care what's actually in column 1 name, but it does for column 2
-        eppfile << "sample\tepps\n";
+        eppfile << "sample\tequally_parsimonius_placements\n";
     }
     if (fneigh != ""){
         neighfile.open(fneigh);
