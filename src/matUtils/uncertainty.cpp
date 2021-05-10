@@ -274,7 +274,7 @@ void findEPPs_wrapper (MAT::Tree Tobj, std::string sample_file, std::string fepp
         eppfile.open(fepps);
         //add column names
         //auspice doesn't care what's actually in column 1 name, but it does for column 2
-        eppfile << "sample\tepps\n";
+        eppfile << "sample\tequally_parsimonius_placements\n";
     }
     if (fneigh != ""){
         neighfile.open(fneigh);
@@ -372,7 +372,7 @@ po::variables_map parse_uncertainty_command(po::parsed_options parsed) {
     std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
 
     po::variables_map vm;
-    po::options_description ann_desc("annotate options");
+    po::options_description ann_desc("uncertainty options");
     ann_desc.add_options()
         ("input-mat,i", po::value<std::string>()->required(),
          "Input mutation-annotated tree file [REQUIRED]")
