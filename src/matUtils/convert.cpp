@@ -399,13 +399,6 @@ void create_node_from_json(MAT::Tree* T, json nodeinfo, MAT::Node* parent = NULL
         } else {
             n = T->create_node(nid, 0.0, 1);
         }
-        std::cerr << nodeinfo.size() << '\n';
-        if (!nodeinfo.contains("branch_attrs")) {
-            std::cerr << nodeinfo.size() << '\n';
-            for (auto& e: nodeinfo) {
-                std::cerr << e << '\n';
-            }
-        }
         auto battrs = nodeinfo.at("branch_attrs");
         if (battrs["mutations"].contains("nuc")) {
             std::vector<std::string> mutations;
