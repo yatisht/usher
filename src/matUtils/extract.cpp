@@ -290,11 +290,60 @@ void extract_main (po::parsed_options parsed) {
             exit(1);
         }
     }
+    //retrive path information for samples, clades, everything before pruning occurs. Behavioral change
+    //to get the paths post-pruning, will need to save a new tree .pb and then repeat the extract command on that
+    if (sample_path_filename != dir_prefix || clade_path_filename != dir_prefix || all_path_filename != dir_prefix) {
+        timer.Start();
+        fprintf(stderr,"Retriving path information...\n");
+        if (sample_path_filename != dir_prefix) {
+            std::ofstream outfile (sample_path_filename);
+            auto mpaths = mutation_paths(T, samples);
+            for (auto mstr: mpaths) {
+                outfile << mstr << "\n";
+            }
+            outfile.close();
+        }
+        if (all_path_filename != dir_prefix) {
+            std::ofstream outfile (all_path_filename);
+            auto apaths = all_nodes_paths(T);
+            for (auto astr: apaths) {
+                outfile << astr << "\n";
+            }
+            outfile.close();
+        }
+        if (clade_path_filename != dir_prefix) {
+            //need to get the set of all clade annotations currently in the tree for the clade_paths function
+            //TODO: refactor summary so I can just import the clade counter function from there (disentangle from file printing)
+            //also this block of code just generally sucks.
+            std::vector<std::string> cladenames;
+            auto dfs = T.depth_first_expansion();
+            for (auto s: dfs) {
+                std::vector<std::string> canns = s->clade_annotations;
+                if (canns.size() > 0) {
+                    if (canns.size() > 1 || canns[0] != "") {
+                        for (auto c: canns) {
+                            if (c != "" && std::find(cladenames.begin(), cladenames.end(), c) == cladenames.end()) {
+                                cladenames.push_back(c);
+                            }
+                        }
+                    }
+                }
+            }
+            std::ofstream outfile (clade_path_filename);
+            //TODO: maybe better to update clade_paths to take an "all current clades" option.
+            //should be more computationally efficient at least.
+            auto cpaths = clade_paths(T, cladenames);
+            for (auto cstr: cpaths) {
+                outfile << cstr;
+            }
+            outfile.close(); 
+        }
+        fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+    }
     //if we have no samples at the end without throwing an error, 
     //probably because no selection arguments were set,
     //we want the samples to be all samples in the tree
     //and don't bother pruning.
-
     MAT::Tree subtree; 
     if (samples.size() == 0) {
         fprintf(stderr, "No sample selection arguments passed; using full input tree.\n");
@@ -345,54 +394,6 @@ void extract_main (po::parsed_options parsed) {
         for (auto s: samples) {
             outfile << s << "\n";
         }
-    }
-    if (sample_path_filename != dir_prefix || clade_path_filename != dir_prefix || all_path_filename != dir_prefix) {
-        timer.Start();
-        fprintf(stderr,"Retriving path information...\n");
-        if (sample_path_filename != dir_prefix) {
-            std::ofstream outfile (sample_path_filename);
-            auto mpaths = mutation_paths(subtree, samples);
-            for (auto mstr: mpaths) {
-                outfile << mstr << "\n";
-            }
-            outfile.close();
-        }
-        if (all_path_filename != dir_prefix) {
-            std::ofstream outfile (all_path_filename);
-            auto apaths = all_nodes_paths(subtree);
-            for (auto astr: apaths) {
-                outfile << astr << "\n";
-            }
-            outfile.close();
-        }
-        if (clade_path_filename != dir_prefix) {
-            //need to get the set of all clade annotations currently in the tree for the clade_paths function
-            //TODO: refactor summary so I can just import the clade counter function from there (disentangle from file printing)
-            //also this block of code just generally sucks.
-            std::vector<std::string> cladenames;
-            auto dfs = subtree.depth_first_expansion();
-            for (auto s: dfs) {
-                std::vector<std::string> canns = s->clade_annotations;
-                if (canns.size() > 0) {
-                    if (canns.size() > 1 || canns[0] != "") {
-                        for (auto c: canns) {
-                            if (c != "" && std::find(cladenames.begin(), cladenames.end(), c) == cladenames.end()) {
-                                cladenames.push_back(c);
-                            }
-                        }
-                    }
-                }
-            }
-            std::ofstream outfile (clade_path_filename);
-            //TODO: maybe better to update clade_paths to take an "all current clades" option.
-            //should be more computationally efficient at least.
-            auto cpaths = clade_paths(subtree, cladenames);
-            for (auto cstr: cpaths) {
-                outfile << cstr;
-            }
-            outfile.close(); 
-        }
-        fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
     //last step is to convert the subtree to other file formats
     if (vcf_filename != dir_prefix) {
