@@ -381,7 +381,7 @@ void make_json ( MAT::Tree T, std::string json_filename ){
 //the goal is to load a nextstrain JSON into a MAT structure
 //which is compatible with various downstream tools.
 
-void create_node_from_json(MAT::Tree* T, json nodeinfo, MAT::Node* parent = NULL, size_t counter = 0) {
+void create_node_from_json(MAT::Tree* T, json nodeinfo, MAT::Node* parent = NULL, size_t counter = 0, size_t* warning_counter = 0) {
     //this function is recursive.
     //generate and save a node from the parent first
     //then for each child, run this function on them, with this node as the parent.
@@ -410,10 +410,25 @@ void create_node_from_json(MAT::Tree* T, json nodeinfo, MAT::Node* parent = NULL
             for (auto m: mutations) {
                 MAT::Mutation mut;
                 mut.chrom = "NC_045512"; //hardcoded for sars-cov-2, in line with the jsons.
-                mut.par_nuc = MAT::get_nuc(m[0]); 
-                mut.ref_nuc = MAT::get_nuc(m[0]); //JSON does not track the original reference vs the parent. We're going to treat the parent as reference.
+                //the json encodes ambiguous bases as - sometimes, it seems.
+                int8_t nucid;
+                if (static_cast<char>(m[0]) == '-') {
+                    //the MAT .pb format does NOT support ambiguous parent bases.
+                    //skip these. 
+                    //record the number of entries skipped for warning printouts.
+                    (*warning_counter)++;
+                    continue;
+                } else {
+                    nucid = MAT::get_nuc_id(m[0]);
+                    mut.par_nuc = nucid; 
+                    mut.ref_nuc = nucid; //JSON does not track the original reference vs the parent. We're going to treat the parent as reference.
+                }
                 mut.position = std::stoi(m.substr(1, m.size()-1));
-                mut.mut_nuc = MAT::get_nuc(m[-1]);
+                if (m[m.size()-1] == '-') {
+                    mut.mut_nuc = 0;
+                } else {
+                    mut.mut_nuc = MAT::get_nuc_id(m[m.size()-1]);
+                }
                 n->add_mutation(mut);
             }
         }
@@ -424,7 +439,7 @@ void create_node_from_json(MAT::Tree* T, json nodeinfo, MAT::Node* parent = NULL
         }
         if (nodeinfo.contains("children")) {
             for (auto& cl: nodeinfo["children"].items()) {
-                create_node_from_json(T, cl.value(), n, counter);
+                create_node_from_json(T, cl.value(), n, counter, warning_counter);
             }
         }
     } else {
@@ -434,7 +449,7 @@ void create_node_from_json(MAT::Tree* T, json nodeinfo, MAT::Node* parent = NULL
         //treating the parent of this pseudo-node as their parent.
         if (nodeinfo.contains("children")) {
             for (auto& cl: nodeinfo["children"].items()) {
-                create_node_from_json(T, cl.value(), parent, counter);
+                create_node_from_json(T, cl.value(), parent, counter, warning_counter);
             }
         }
     }
@@ -445,7 +460,10 @@ MAT::Tree load_mat_from_json(std::string json_filename) {
     std::ifstream json_in(json_filename);
     json j;
     json_in >> j;
-    fprintf(stderr, "DEBUG: Read in JSON\n");
-    create_node_from_json(&T, j["tree"]);
+    size_t wc = 0;
+    create_node_from_json(&T, j["tree"], NULL, 0, &wc);
+    if (wc > 0) {
+        fprintf(stderr, "WARNING: %ld mutations are skipped for ambiguous parent identity\n", wc);
+    }
     return T;
 }
