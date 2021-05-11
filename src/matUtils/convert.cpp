@@ -385,6 +385,7 @@ void create_node_from_json(MAT::Tree* T, json nodeinfo, MAT::Node* parent = NULL
     //this function is recursive.
     //generate and save a node from the parent first
     //then for each child, run this function on them, with this node as the parent.
+    fprintf(stderr, "DEBUG: Attempting to parse node\n");
     std::string nid;
     if (nodeinfo.contains("name")) {
         nid = nodeinfo["name"];
@@ -392,23 +393,37 @@ void create_node_from_json(MAT::Tree* T, json nodeinfo, MAT::Node* parent = NULL
         nid = std::to_string(counter);
         counter++;
     }
-    std::vector<std::string> mutations = nodeinfo["branch_attrs"]["mutations"]["nuc"];
-    float blen = mutations.size();
-    auto n = T->create_node(nid, parent, blen);
-    for (auto m: mutations) {
-        MAT::Mutation mut;
-        mut.chrom = "NC_045512"; //hardcoded for sars-cov-2, in line with the jsons.
-        mut.par_nuc = MAT::get_nuc(m[0]); 
-        mut.ref_nuc = MAT::get_nuc(m[0]); //JSON does not track the original reference vs the parent. We're going to treat the parent as reference.
-        mut.position = std::stoi(m.substr(1, m.size()-1));
-        mut.mut_nuc = MAT::get_nuc(m[-1]);
-        n->add_mutation(mut);
+    fprintf(stderr, "DEBUG: Successfully assigns NID\n");
+    MAT::Node* n;
+    if (parent != NULL) {
+        n = T->create_node(nid, parent);    
+    } else {
+        n = T->create_node(nid, 0.0, 1);
     }
+    fprintf(stderr, "DEBUG: node generated\n");
+    if (nodeinfo["branch_attrs"]["mutations"].contains("nuc")) {
+        std::vector<std::string> mutations = nodeinfo["branch_attrs"]["mutations"]["nuc"];
+        float blen = mutations.size();
+        n->branch_length = blen;
+        for (auto m: mutations) {
+            MAT::Mutation mut;
+            mut.chrom = "NC_045512"; //hardcoded for sars-cov-2, in line with the jsons.
+            mut.par_nuc = MAT::get_nuc(m[0]); 
+            mut.ref_nuc = MAT::get_nuc(m[0]); //JSON does not track the original reference vs the parent. We're going to treat the parent as reference.
+            mut.position = std::stoi(m.substr(1, m.size()-1));
+            mut.mut_nuc = MAT::get_nuc(m[-1]);
+            n->add_mutation(mut);
+        }
+    } else {
+        fprintf(stderr, "DEBUG: No mutations detected, assigning none\n");
+    }
+    fprintf(stderr, "DEBUG: Successfully assigns nucleotides\n");
     if (nodeinfo["branch_attrs"].contains("labels")) {
         if (nodeinfo["branch_attrs"]["labels"].contains("clade")) {
             n->clade_annotations.push_back(nodeinfo["branch_attrs"]["labels"]["clade"]);
         }
     }
+    fprintf(stderr, "DEBUG: Sucessfully assigned clades.\n");
     if (nodeinfo.contains("children")) {
         for (auto& cl: nodeinfo["children"].items()) {
             create_node_from_json(T, cl.value(), n, counter);
@@ -421,6 +436,7 @@ MAT::Tree load_mat_from_json(std::string json_filename) {
     std::ifstream json_in(json_filename);
     json j;
     json_in >> j;
+    fprintf(stderr, "DEBUG: Read in JSON\n");
     for (auto& cl: j["tree"].items()) {
         create_node_from_json(&T, cl.value());
     }
