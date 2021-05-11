@@ -29,6 +29,8 @@ po::variables_map check_options(int argc, char** argv) {
          "Minimum range of the genomic coordinates of the mutations on the branch")
         ("outdir,d", po::value<std::string>()->default_value("."), 
          "Output directory to dump output files [DEFAULT uses current directory]")
+        ("samples-filename,s", po::value<std::string>()->default_value(""),
+         "Restrict the search to the samples specified in the input file")
     
         ("max-parsimony,p", po::value<int>()->default_value(0), \
          "Maximum parsimony score of the recombinant sequence when placing it back after pruning and masking.")
@@ -94,6 +96,7 @@ int main(int argc, char** argv) {
     po::variables_map vm = check_options(argc, argv);
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string outdir = vm["outdir"].as<std::string>();
+    std::string samples_filename = vm["samples-filename"].as<std::string>();
     uint32_t branch_len = vm["branch-length"].as<uint32_t>();
     int max_parsimony = vm["max-parsimony"].as<int>();
     int max_range = vm["max-coordinate-range"].as<int>();
@@ -121,7 +124,36 @@ int main(int argc, char** argv) {
     
     tbb::concurrent_unordered_set<std::string> nodes_to_consider;
 
-    tbb::parallel_for(tbb::blocked_range<size_t>(0, bfs.size()),
+    if (samples_filename != "") {
+        std::ifstream infile(samples_filename);
+        if (!infile) {
+            fprintf(stderr, "ERROR: Could not open the samples file: %s!\n", samples_filename.c_str());
+            exit(1);
+        }    
+        std::string line;
+
+        fprintf(stderr, "Reading samples from the file %s.\n", samples_filename.c_str()); 
+        timer.Start();
+        while (std::getline(infile, line)) {
+            std::vector<std::string> words;
+            MAT::string_split(line, words);
+            if (words.size() != 1) {
+                fprintf(stderr, "ERROR: Incorrect format for samples file: %s!\n", samples_filename.c_str());
+                exit(1);
+            }
+            auto n = T.get_node(words[0]);
+            if (n == NULL) {
+                fprintf(stderr, "ERROR: Node id %s not found!\n", words[0].c_str());
+                exit(1);
+            }
+            else {
+                nodes_to_consider.insert(words[0]);
+            }
+        }
+        infile.close();
+    }
+    else {
+      tbb::parallel_for(tbb::blocked_range<size_t>(0, bfs.size()),
             [&](const tbb::blocked_range<size_t> r) {
             for (size_t i=r.begin(); i<r.end(); ++i){
                auto n = bfs[i];
@@ -135,6 +167,7 @@ int main(int argc, char** argv) {
                }
             }
         }, ap);
+    }
     
     fprintf(stderr, "Found %zu long branches\n", nodes_to_consider.size());
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());

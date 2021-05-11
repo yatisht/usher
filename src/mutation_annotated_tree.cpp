@@ -342,7 +342,8 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::create_tree_from_newick_s
     std::vector<std::string> leaves;
     std::vector<size_t> num_open;
     std::vector<size_t> num_close;
-    std::stack<float> branch_len;
+    std::vector<std::queue<float>> branch_len (128);  // will be resized later if needed
+    size_t level = 0;
 
     std::vector<std::string> s1;
     string_split(newick_string, ',', s1);
@@ -365,12 +366,17 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::create_tree_from_newick_s
             }
             else if (c == '(') {
                 no++;
+                level++;
+                if (branch_len.size() <= level) {
+                  branch_len.resize(level*2);
+                }
             }
             else if (c == ')') {
                 stop = true;
                 nc++;
                 float len = (branch.size() > 0) ? std::stof(branch) : -1.0;
-                branch_len.push(len);
+                branch_len[level].push(len);
+                level--;
                 branch_start = false;
             }
             else if (!stop) {
@@ -387,10 +393,10 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::create_tree_from_newick_s
         num_open.push_back(no);
         num_close.push_back(nc);
         float len = (branch.size() > 0) ? std::stof(branch) : -1.0;
-        branch_len.push(len);
+        branch_len[level].push(len);
     }
 
-    if (num_open.size() != num_close.size()) {
+    if (level != 0) {
         fprintf(stderr, "ERROR: incorrect Newick format!\n");
         exit(1);
     }
@@ -406,19 +412,20 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::create_tree_from_newick_s
             std::string nid = std::to_string(++T.curr_internal_node);
             Node* new_node = NULL;
             if (parent_stack.size() == 0) {
-                new_node = T.create_node(nid, branch_len.top());
-                branch_len.pop();
+                new_node = T.create_node(nid, branch_len[level].front());
             }
             else {
-                new_node = T.create_node(nid, parent_stack.top(), branch_len.top());
-                branch_len.pop();
+                new_node = T.create_node(nid, parent_stack.top(), branch_len[level].front());
             }
+            branch_len[level].pop();
+            level++;
             parent_stack.push(new_node);
         }
-        T.create_node(leaf, parent_stack.top(), branch_len.top());
-        branch_len.pop();
+        T.create_node(leaf, parent_stack.top(), branch_len[level].front());
+        branch_len[level].pop();
         for (size_t j=0; j<nc; j++) {
             parent_stack.pop();
+            level--;
         }
     }
 
@@ -543,7 +550,7 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
 void Mutation_Annotated_Tree::save_mutation_annotated_tree (Mutation_Annotated_Tree::Tree tree, std::string filename) {
     TIMEIT();
     Parsimony::data data;
-    data.set_newick(get_newick_string(tree, false, true));
+    data.set_newick(get_newick_string(tree, false, true, true));
 
     auto dfs = tree.depth_first_expansion();
 
@@ -1029,7 +1036,8 @@ size_t Mutation_Annotated_Tree::Tree::get_parsimony_score() {
 
 void Mutation_Annotated_Tree::Tree::condense_leaves(std::vector<std::string> missing_samples) {
     if (condensed_nodes.size() > 0) {
-        fprintf(stderr, "WARNING: tree contains condensed nodes. It may be condensed already!\n");
+        fprintf(stderr, "WARNING: tree contains condensed nodes. Uncondensing fist.\n");
+        uncondense_leaves();
     }
 
     auto tree_leaves = get_leaves_ids();
@@ -1082,7 +1090,9 @@ void Mutation_Annotated_Tree::Tree::uncondense_leaves() {
                 auto cn = condensed_nodes.begin();
                 std::advance(cn, it);
 
+                tbb_lock.lock();
                 auto n = get_node(cn->first);
+                tbb_lock.unlock();
                 auto par = (n->parent != NULL) ? n->parent : n;
 
                 size_t num_samples = cn->second.size();
@@ -1098,7 +1108,7 @@ void Mutation_Annotated_Tree::Tree::uncondense_leaves() {
                     auto new_n = create_node(cn->second[s], par, n->branch_length);
                     tbb_lock.unlock();
                     for (auto m: n->mutations) {
-                        new_n->add_mutation(m.copy()); 
+                        new_n->add_mutation(m.copy());
                     }
                 }
             }
@@ -1106,6 +1116,7 @@ void Mutation_Annotated_Tree::Tree::uncondense_leaves() {
     condensed_nodes.clear();
     condensed_leaves.clear();
 }
+
 
 void Mutation_Annotated_Tree::Tree::collapse_tree() {
     auto bfs = breadth_first_expansion();
