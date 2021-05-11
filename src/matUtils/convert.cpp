@@ -1,4 +1,7 @@
 #include "convert.hpp"
+#include "nlohmann_json.hpp"
+
+using json = nlohmann::json;
 
 void write_vcf_header(std::ostream& vcf_file, std::vector<Mutation_Annotated_Tree::Node*> &dfs,
                       bool print_genotypes) {
@@ -372,4 +375,54 @@ void make_json ( MAT::Tree T, std::string json_filename ){
     json_file_ofstream.open( json_filename ) ;
     json_file_ofstream << json_str ;
     json_file_ofstream.close() ;
+}
+
+//the below is more formal JSON parsing code. 
+//the goal is to load a nextstrain JSON into a MAT structure
+//which is compatible with various downstream tools.
+
+void create_node_from_json(MAT::Tree* T, json nodeinfo, MAT::Node* parent = NULL, size_t counter = 0) {
+    //this function is recursive.
+    //generate and save a node from the parent first
+    //then for each child, run this function on them, with this node as the parent.
+    std::string nid;
+    if (nodeinfo.contains("name")) {
+        nid = nodeinfo["name"];
+    } else {
+        nid = std::to_string(counter);
+        counter++;
+    }
+    std::vector<std::string> mutations = nodeinfo["branch_attrs"]["mutations"]["nuc"];
+    float blen = mutations.size();
+    auto n = T->create_node(nid, parent, blen);
+    for (auto m: mutations) {
+        MAT::Mutation mut;
+        mut.chrom = "NC_045512"; //hardcoded for sars-cov-2, in line with the jsons.
+        mut.par_nuc = MAT::get_nuc(m[0]); 
+        mut.ref_nuc = MAT::get_nuc(m[0]); //JSON does not track the original reference vs the parent. We're going to treat the parent as reference.
+        mut.position = std::stoi(m.substr(1, m.size()-1));
+        mut.mut_nuc = MAT::get_nuc(m[-1]);
+        n->add_mutation(mut);
+    }
+    if (nodeinfo["branch_attrs"].contains("labels")) {
+        if (nodeinfo["branch_attrs"]["labels"].contains("clade")) {
+            n->clade_annotations.push_back(nodeinfo["branch_attrs"]["labels"]["clade"]);
+        }
+    }
+    if (nodeinfo.contains("children")) {
+        for (auto& cl: nodeinfo["children"].items()) {
+            create_node_from_json(T, cl.value(), n, counter);
+        }
+    }
+}
+
+MAT::Tree load_mat_from_json(std::string json_filename) {
+    MAT::Tree T;
+    std::ifstream json_in(json_filename);
+    json j;
+    json_in >> j;
+    for (auto& cl: j["tree"].items()) {
+        create_node_from_json(&T, cl.value());
+    }
+    return T;
 }
