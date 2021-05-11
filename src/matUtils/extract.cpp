@@ -129,8 +129,16 @@ void extract_main (po::parsed_options parsed) {
     timer.Start();
     fprintf(stderr, "Loading input MAT file %s.\n", input_mat_filename.c_str()); 
     // Load input MAT and uncondense tree
-    MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
-    T.uncondense_leaves();
+    MAT::Tree T;
+    if (input_mat_filename.find(".pb\0") != std::string::npos) {
+        T = MAT::load_mutation_annotated_tree(input_mat_filename);
+        T.uncondense_leaves();
+    } else if (input_mat_filename.find(".json\0") != std::string::npos) {
+        T = load_mat_from_json(input_mat_filename);
+    } else {
+        fprintf(stderr, "ERROR: Input file ending not recognized. Must be .json or .pb\n");
+        exit(1);
+    }
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     //first step is to select a set of samples to work with
     //if any sample selection arguments are set.
