@@ -1112,7 +1112,6 @@ void Mutation_Annotated_Tree::Tree::uncondense_leaves() {
                     }
                 }
             }
-        }
         }, ap);
     condensed_nodes.clear();
     condensed_leaves.clear();
