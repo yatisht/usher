@@ -480,18 +480,20 @@ json get_json_entry(MAT::Node* n) {
     for (auto m: n->mutations) {
         mutids.push_back(m.get_string());
     }
-    sj["branch_attrs"] = {"mutations", {"nuc", mutids}};
-    sj["branch_attrs"]["labels"] = {"clade", n->clade_annotations};
+    sj["branch_attrs"] = {{"mutations", {"nuc", mutids}}, {"clade", n->clade_annotations}};
+    fprintf(stderr, "DEBUG: mutations and clade written\n");
     sj["node_attrs"] = {"div", mutids.size()};
     if (n->is_leaf()) {
         sj["name"] = n->identifier;
     }
+    fprintf(stderr, "DEBUG: name and div written\n");
     std::vector<json> child_json;
     for (auto cn: n->children) {
         json cj = get_json_entry(cn);
         child_json.push_back(cj);
     }
     sj["children"] = child_json;
+    fprintf(stderr, "DEBUG: children written\n");
     return sj;
 }
 
@@ -510,6 +512,7 @@ void write_json_from_mat(MAT::Tree* T, std::string output_filename) {
             {"name","wrapper"},
         }}
     };
+    fprintf(stderr, "DEBUG: Header written\n");
     auto treestuff = get_json_entry(T->root);
     nj["tree"]["children"] = treestuff;
     std::ofstream out(output_filename);
