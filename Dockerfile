@@ -1,5 +1,6 @@
-FROM ubuntu:18.04
+FROM ubuntu:20.04
 ENV APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=DontWarn
+ENV DEBIAN_FRONTEND=noninteractive
 USER root
 WORKDIR HOME
 RUN apt-get update && apt-get install -yq --no-install-recommends \
