@@ -411,6 +411,7 @@ void extract_main (po::parsed_options parsed) {
     if (json_filename != dir_prefix) {
         fprintf(stderr, "Generating JSON of final tree\n");
         make_json(subtree, json_filename);
+        write_json_from_mat(&subtree, "test.json");
     }
     if (tree_filename != dir_prefix) {
         fprintf(stderr, "Generating Newick file of final tree\n");

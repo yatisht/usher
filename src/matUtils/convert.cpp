@@ -477,27 +477,41 @@ json get_json_entry(MAT::Node* n) {
     //children contains nested information about the child nodes.
     json sj;
     std::vector<std::string> mutids;
+    std::string muts;
     for (auto m: n->mutations) {
         mutids.push_back(m.get_string());
+        muts.append(m.get_string());
+        if (m.get_string() != n->mutations.back().get_string()) {
+            muts.append(",");
+        }
     }
-    std::map<std::string, std::vector<std::string>> nmap {{"nuc", mutids},};
+    std::map<std::string,std::vector<std::string>> nmap {{"nuc", mutids},};
     //mutation information is encoded twice in the output we're using. 
     //don't ask me why. 
-    sj["branch_attrs"] = {{"labels", {"nuc mutations", nmap}}, {"mutations",nmap}};
+    std::map<std::string,std::string> mutv {{"nuc mutations", muts}};
+    sj["branch_attrs"] = {{"labels",mutv}, {"mutations",nmap}};
     //note: the below is pretty much sars-cov-2 specific. but so is all json-related things.
     //need to declare maps to get nlohmann to interpret these as key pairs.
     std::map<std::string,std::string> c1a {{"value",n->clade_annotations[0]}};
     std::map<std::string,std::string> c2a {{"value",n->clade_annotations[1]}};
-    sj["node_attrs"] = { {"div", mutids.size()}, {"MAT_Clade_0", c1a}, {"MAT_Clade_1", c2a} };
-    //if (n->is_leaf()) {
+    std::string country = n->identifier.substr(0, n->identifier.find("/"));
+    std::string date = n->identifier.substr( n->identifier.find_last_of("|")+1, n->identifier.size() );
+    std::map<std::string,std::string> com {{"value",country}};
+    std::map<std::string,std::string> dam {{"value",date}};
+    if (n->is_leaf()) {
+        sj["node_attrs"] = { {"country",com}, {"date",dam} ,{"div", mutids.size()}, {"MAT_Clade_0", c1a}, {"MAT_Clade_1", c2a} };
+    } else {
+        sj["node_attrs"] = {{"div", mutids.size()}, {"MAT_Clade_0", c1a}, {"MAT_Clade_1", c2a} };
+    }
     sj["name"] = n->identifier;
-    //}
     std::vector<json> child_json;
     for (auto cn: n->children) {
         json cj = get_json_entry(cn);
         child_json.push_back(cj);
     }
-    sj["children"] = child_json;
+    if (!n->is_leaf()) {
+        sj["children"] = child_json;
+    }
     return sj;
 }
 
