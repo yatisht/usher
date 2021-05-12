@@ -12,5 +12,10 @@ WORKDIR usher
 ## Checkout latest release
 #RUN git checkout $(git describe --tags `git rev-list --tags --max-count=1`)
 RUN ./installUbuntu.sh 
+# faSomeRecords and faSize are needed for the UShER WDL workflow 
+WORKDIR /HOME/kentsource
+RUN wget http://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64/faSomeRecords
+RUN wget http://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64/faSize
+RUN chmod 775 *
 ## set the path
-ENV PATH="/HOME/usher/build/:${PATH}"
+ENV PATH="/HOME/usher/build:/HOME/kentsource:${PATH}"

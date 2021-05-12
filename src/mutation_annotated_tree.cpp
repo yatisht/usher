@@ -1117,7 +1117,6 @@ void Mutation_Annotated_Tree::Tree::uncondense_leaves() {
     condensed_leaves.clear();
 }
 
-
 void Mutation_Annotated_Tree::Tree::collapse_tree() {
     auto bfs = breadth_first_expansion();
 
