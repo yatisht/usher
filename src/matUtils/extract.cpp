@@ -136,7 +136,7 @@ void extract_main (po::parsed_options parsed) {
     std::map<std::string,std::map<std::string,std::string>> catmeta;
     if (meta_filename != "") {
         catmeta = read_metafile(meta_filename);
-        fprintf(stderr, "DEBUG: meta size %ld\n", catmeta.size());
+        // fprintf(stderr, "DEBUG: meta size %ld\n", catmeta.size());
     }
     if (input_mat_filename.find(".pb\0") != std::string::npos) {
         T = MAT::load_mutation_annotated_tree(input_mat_filename);
@@ -164,13 +164,14 @@ void extract_main (po::parsed_options parsed) {
     if (input_samples_file != "") {
         samples = read_sample_names(input_samples_file);
     } 
+    std::string sample_id;
     if (nearest_k != "") {
         auto split_point = nearest_k.find(":");
         if (split_point == std::string::npos) {
             fprintf(stderr, "ERROR: Invalid formatting of -k argument. Requires input in the form of 'sample_id:k' to get k nearest samples to sample_id\n");
             exit(1);
         }
-        std::string sample_id = nearest_k.substr(0, split_point);
+        sample_id = nearest_k.substr(0, split_point);
         std::string nkstr = nearest_k.substr(split_point+1, nearest_k.size() - split_point); 
         int nk = std::stoi(nkstr);
         if (nk <= 0) {
@@ -410,6 +411,18 @@ void extract_main (po::parsed_options parsed) {
         for (auto s: samples) {
             outfile << s << "\n";
         }
+    }
+    //if json output AND sample context is requested, add an additional metadata column which simply indicates the focal sample versus context
+    if ((json_filename != "") && (nearest_k != "")) {
+        std::map<std::string,std::string> conmap;
+        for (auto s: samples) {
+            if (s == sample_id) {
+                conmap[s] = "focal";
+            } else {
+                conmap[s] = "context";
+            }
+        }
+        catmeta["focal_view"] = conmap;
     }
     //last step is to convert the subtree to other file formats
     if (vcf_filename != dir_prefix) {
