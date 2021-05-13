@@ -8,3 +8,4 @@ std::vector<std::string> get_clade_representatives(MAT::Tree T);
 std::vector<std::string> sample_intersect (std::vector<std::string> samples, std::vector<std::string> nsamples);
 std::vector<std::string> get_nearby (MAT::Tree T, std::string sample_id, int number_to_get);
 std::vector<std::string> get_short_steppers(MAT::Tree T, std::vector<std::string> samples_to_check, int max_mutations);
+std::map<std::string,std::map<std::string,std::string>> read_metafile(std::string metainf);

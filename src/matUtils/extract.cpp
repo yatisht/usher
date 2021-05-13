@@ -11,6 +11,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
          "Input mutation-annotated tree file [REQUIRED]")
         ("samples,s", po::value<std::string>()->default_value(""),
         "Select samples by explicitly naming them. One per line")
+        ("metadata,M", po::value<std::string>()->default_value(""),
+        "Path to a metadata tsv/csv containing categorical metadata values for a json output. Used with -j only")
         ("clade,c", po::value<std::string>()->default_value(""),
         "Select samples by membership in at least one of the indicated clade(s), comma delimited.")
         ("mutation,m", po::value<std::string>()->default_value(""),
@@ -113,6 +115,7 @@ void extract_main (po::parsed_options parsed) {
     std::string vcf_filename = dir_prefix + vm["write-vcf"].as<std::string>();
     std::string output_mat_filename = dir_prefix + vm["write-mat"].as<std::string>();
     std::string json_filename = dir_prefix + vm["write-json"].as<std::string>();
+    std::string meta_filename = dir_prefix + vm["metadata"].as<std::string>();
     bool collapse_tree = vm["collapse-tree"].as<bool>();
     bool no_genotypes = vm["no-genotypes"].as<bool>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
@@ -130,6 +133,11 @@ void extract_main (po::parsed_options parsed) {
     fprintf(stderr, "Loading input MAT file %s.\n", input_mat_filename.c_str()); 
     // Load input MAT and uncondense tree
     MAT::Tree T;
+    std::map<std::string,std::map<std::string,std::string>> catmeta;
+    if (meta_filename != "") {
+        catmeta = read_metafile(meta_filename);
+        fprintf(stderr, "DEBUG: meta size %ld\n", catmeta.size());
+    }
     if (input_mat_filename.find(".pb\0") != std::string::npos) {
         T = MAT::load_mutation_annotated_tree(input_mat_filename);
         T.uncondense_leaves();
@@ -410,8 +418,8 @@ void extract_main (po::parsed_options parsed) {
     }
     if (json_filename != dir_prefix) {
         fprintf(stderr, "Generating JSON of final tree\n");
-        make_json(subtree, json_filename);
-        write_json_from_mat(&subtree, "test.json");
+        //make_json(subtree, json_filename);
+        write_json_from_mat(&subtree, json_filename, catmeta);
     }
     if (tree_filename != dir_prefix) {
         fprintf(stderr, "Generating Newick file of final tree\n");
