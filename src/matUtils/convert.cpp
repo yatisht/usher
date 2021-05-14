@@ -405,7 +405,7 @@ json get_json_entry(MAT::Node* n, std::map<std::string,std::map<std::string,std:
         if (cmi.second.find(n->identifier) != cmi.second.end()) {
             //store the metadata on both the branch and the tip for now. 
             sj["branch_attrs"]["labels"][cmi.first] = cmi.second.at(n->identifier);
-            sj["node_attrs"][cmi.first] = cmi.second.at(n->identifier);
+            sj["node_attrs"][cmi.first]["value"] = cmi.second.at(n->identifier);
         }
     }
     sj["name"] = n->identifier;
@@ -428,7 +428,7 @@ void write_json_from_mat(MAT::Tree* T, std::string output_filename, std::map<std
             {"title","mutation_annotated_tree"},
             {"filters",json::array({"country"})},
             {"panels",json::array({"tree"})},
-            {"colorings",{ {{"key","MAT_Clade_0"}, {"title","MAT_Clade_1"}, {"type","categorical"}}, {{"key","MAT_Clade_1"}, {"title","MAT_Clade_2"}, {"type","categorical"}} }},
+            {"colorings",{ {{"key","MAT_Clade_0"}, {"title","MAT_Clade_1"}, {"type","categorical"}}, {{"key","MAT_Clade_1"}, {"title","MAT_Clade_2"}, {"type","categorical"}}, {{"key","country"},{"title","Country"},{"type","categorical"}} }},
             {"display_defaults",lm},
             {"description",desc}
         }},
