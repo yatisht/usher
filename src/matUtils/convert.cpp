@@ -319,8 +319,10 @@ void create_node_from_json(MAT::Tree* T, json nodeinfo, MAT::Node* parent = NULL
                     mut.ref_nuc = nucid; //JSON does not track the original reference vs the parent. We're going to treat the parent as reference.
                 }
                 mut.position = std::stoi(m.substr(1, m.size()-1));
-                if (m[m.size()-1] == '-') {
-                    mut.mut_nuc = 0;
+                if (static_cast<char>(m[m.size()-1]) == '-') {
+                    //skip these as well. causes issues with usher to have ambiguous bases on internal nodes.
+                    (*warning_counter)++;
+                    continue;
                 } else {
                     mut.mut_nuc = MAT::get_nuc_id(m[m.size()-1]);
                 }
@@ -358,7 +360,7 @@ MAT::Tree load_mat_from_json(std::string json_filename) {
     size_t wc = 0;
     create_node_from_json(&T, j["tree"], NULL, 0, &wc);
     if (wc > 0) {
-        fprintf(stderr, "WARNING: %ld mutations are skipped for ambiguous parent identity\n", wc);
+        fprintf(stderr, "WARNING: %ld mutations are removed for ambiguity\n", wc);
     }
     return T;
 }
