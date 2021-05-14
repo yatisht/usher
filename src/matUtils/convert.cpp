@@ -446,6 +446,6 @@ void write_json_from_mat(MAT::Tree* T, std::string output_filename, std::map<std
     auto treestuff = get_json_entry(T->root, catmeta);
     nj["tree"]["children"] = json::array({treestuff});
     std::ofstream out(output_filename);
-    out << std::setw(4) << nj << std::endl;
+    // out << std::setw(4) << nj << std::endl;
     out.close();
 }
