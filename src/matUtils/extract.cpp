@@ -418,9 +418,7 @@ void extract_main (po::parsed_options parsed) {
         for (auto s: samples) {
             if (s == sample_id) {
                 conmap[s] = "focal";
-            } else {
-                conmap[s] = "context";
-            }
+            } 
         }
         catmeta["focal_view"] = conmap;
     }
