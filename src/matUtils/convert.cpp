@@ -403,7 +403,9 @@ json get_json_entry(MAT::Node* n, std::map<std::string,std::map<std::string,std:
     }
     for (const auto& cmi: catmeta) {
         if (cmi.second.find(n->identifier) != cmi.second.end()) {
+            //store the metadata on both the branch and the tip for now. 
             sj["branch_attrs"]["labels"][cmi.first] = cmi.second.at(n->identifier);
+            sj["node_attrs"][cmi.first] = cmi.second.at(n->identifier);
         }
     }
     sj["name"] = n->identifier;
