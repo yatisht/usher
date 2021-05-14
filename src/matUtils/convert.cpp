@@ -1,4 +1,7 @@
 #include "convert.hpp"
+#include "nlohmann_json.hpp"
+
+using json = nlohmann::json;
 
 void write_vcf_header(std::ostream& vcf_file, std::vector<Mutation_Annotated_Tree::Node*> &dfs,
                       bool print_genotypes) {
@@ -269,107 +272,180 @@ std::string write_mutations(MAT::Node *N) { // writes muts as a list, e.g. "A234
     return muts ;
 }
 
-std::string write_individual_mutations(MAT::Node *N) { // writes muts for "nuc" subfield of "mutations", e.g. "A23403G","G1440A","G23403A","G2891A"
-    std::string muts = " [ " ;
-    for (unsigned int m = 0 ; m < N->mutations.size() ; m ++ ){
-        auto mut_string = N->mutations[m].get_string();
-        muts += "\"" + mut_string + "\"" ;
-        if ( m < (N->mutations.size()-1) ){
-            muts +=  "," ; // if not last, add comma
-        }        
-    }
-    muts +=  " ]" ;
-    return muts ;
-}
+//the below is more formal JSON parsing code. 
+//the goal is to load a nextstrain JSON into a MAT structure
+//which is compatible with various downstream tools.
 
-
-std::string leaf_to_json( MAT::Node *N, int div ) { /// for leafs, which are children of internal nodes. this function should only be called by node_to_json.
-    std::string datestr = N->identifier.substr( N->identifier.find_last_of("|")+1, N->identifier.size() ) ;
-    std::string countrystr = N->identifier.substr( 0, N->identifier.find("/") ) ;
-    std::string jsonstr = "{\n\"name\": \""  ; 
-    jsonstr += N->identifier + "\",\n\"branch_attrs\": {\n \"labels\": { \"nuc mutations\"" + write_mutations( N ) ;
-    jsonstr += "\" },\n\"mutations\": { \"nuc\" : " + write_individual_mutations( N ) + " }\n },\n" ; // close branch_attrs
-    jsonstr += "\"node_attrs\": { \"div\": " + std::to_string(div + N->mutations.size()) + ", \"date\": {\"value\": \"" + datestr + "\"}, \"country\": {\"value\": \"" + countrystr + "\"}" ;
-    if ( N->clade_annotations.size() > 0 ){
-        jsonstr += ", " ;
-        for ( unsigned int ca = 0 ; ca < N->clade_annotations.size() ; ca ++  ){
-            jsonstr += "\"MAT_Clade_" + std::to_string(ca) + "\": {\"value\": \"" + N->clade_annotations[ca] + "\"}" ;
-            if ( ca < N->clade_annotations.size() - 1 ){
-                jsonstr += ", " ;
+void create_node_from_json(MAT::Tree* T, json nodeinfo, MAT::Node* parent = NULL, size_t counter = 0, size_t* warning_counter = 0) {
+    //this function is recursive.
+    //generate and save a node from the parent first
+    //then for each child, run this function on them, with this node as the parent.
+    if (nodeinfo.contains("branch_attrs")) {    
+        std::string nid;
+        if (nodeinfo.contains("name")) {
+            nid = nodeinfo["name"];
+        } else {
+            nid = std::to_string(counter);
+            counter++;
+        }
+        MAT::Node* n;
+        if (parent != NULL) {
+            n = T->create_node(nid, parent);    
+        } else {
+            n = T->create_node(nid, 0.0, 1);
+        }
+        auto battrs = nodeinfo.at("branch_attrs");
+        if (battrs["mutations"].contains("nuc")) {
+            std::vector<std::string> mutations;
+            for (auto n: battrs["mutations"]["nuc"]) {
+                mutations.push_back(n);
+            }
+            float blen = mutations.size();
+            n->branch_length = blen;
+            for (auto m: mutations) {
+                MAT::Mutation mut;
+                mut.chrom = "NC_045512"; //hardcoded for sars-cov-2, in line with the jsons.
+                //the json encodes ambiguous bases as - sometimes, it seems.
+                int8_t nucid;
+                if (static_cast<char>(m[0]) == '-') {
+                    //the MAT .pb format does NOT support ambiguous parent bases.
+                    //skip these. 
+                    //record the number of entries skipped for warning printouts.
+                    (*warning_counter)++;
+                    continue;
+                } else {
+                    nucid = MAT::get_nuc_id(m[0]);
+                    mut.par_nuc = nucid; 
+                    mut.ref_nuc = nucid; //JSON does not track the original reference vs the parent. We're going to treat the parent as reference.
+                }
+                mut.position = std::stoi(m.substr(1, m.size()-1));
+                if (static_cast<char>(m[m.size()-1]) == '-') {
+                    //skip these as well. causes issues with usher to have ambiguous bases on internal nodes.
+                    (*warning_counter)++;
+                    continue;
+                } else {
+                    mut.mut_nuc = MAT::get_nuc_id(m[m.size()-1]);
+                }
+                n->add_mutation(mut);
+            }
+        }
+        if (battrs.contains("labels")) {
+            if (battrs["labels"].contains("clade")) {
+                n->clade_annotations.push_back(nodeinfo["branch_attrs"]["labels"]["clade"]);
+            }
+        }
+        if (nodeinfo.contains("children")) {
+            for (auto& cl: nodeinfo["children"].items()) {
+                create_node_from_json(T, cl.value(), n, counter, warning_counter);
+            }
+        }
+    } else {
+        //there are sometimes "nodes" in the json
+        //which do not represent actual samples, or anything, and do not have 
+        //branch_attrs. in these cases, we want to continue with their children
+        //treating the parent of this pseudo-node as their parent.
+        if (nodeinfo.contains("children")) {
+            for (auto& cl: nodeinfo["children"].items()) {
+                create_node_from_json(T, cl.value(), parent, counter, warning_counter);
             }
         }
     }
-    jsonstr += "}\n}\n" ; // close node_attrs dict and node dict
-    return jsonstr ;
 }
 
-
-
-std::string node_to_json( MAT::Node *N, int div ) {  //this function converts a single INTERNAL node into json string.
-    std::string jsonstr = "{\n\"name\": \"" ;
-    jsonstr += N->identifier ; 
-    jsonstr += "\",\n\"branch_attrs\": {\n \"labels\": { \"nuc mutations\"" + write_mutations( N ) + "\" },\n" ;
-    jsonstr += "\"mutations\": { \"nuc\" : " + write_individual_mutations( N ) + " }\n },\n" ; //close branch_attrs
-    jsonstr += "\"node_attrs\": {\n \"div\":" + std::to_string(div + N->mutations.size()) ; // node attributes here are div, clade info
-    if ( N->clade_annotations.size() > 0 ){
-        jsonstr += ", " ;
-        for ( unsigned int ca = 0 ; ca < N->clade_annotations.size() ; ca ++ ){
-            jsonstr += "\"MAT_Clade_" + std::to_string(ca) + "\": {\"value\": \"" + N->clade_annotations[ca] + "\"}" ;
-            if ( ca < N->clade_annotations.size() - 1 ){
-                jsonstr += ", " ;
-            }
-        }
+MAT::Tree load_mat_from_json(std::string json_filename) {
+    MAT::Tree T;
+    std::ifstream json_in(json_filename);
+    json j;
+    json_in >> j;
+    size_t wc = 0;
+    create_node_from_json(&T, j["tree"], NULL, 0, &wc);
+    if (wc > 0) {
+        fprintf(stderr, "WARNING: %ld mutations are removed for ambiguity\n", wc);
     }
-    jsonstr += "},\n" ; // close node_attrs
-    if ( N->children.size() > 0 ){ // i figure it must, but good to check?
-        jsonstr += "\"children\":[ " ;
-        for ( unsigned int c = 0 ; c < N->children.size() ; c ++ ){
-            if ( N->children[c]->is_leaf() ){
-                jsonstr += leaf_to_json( N->children[c], div + N->mutations.size() ) ;
-                if ( c < N->children.size()-1 ){
-                    jsonstr += ",\n" ; // open & close brackets within leaf_to_json 
-                } 
-            }
-            else {
-                jsonstr += node_to_json( N->children[c], div + N->mutations.size() ) ;
-                if ( c < N->children.size()-1 ){
-                    jsonstr += ",\n" ; // open & close brackets within node_to_json 
-                } 
-            }
-        }
-        jsonstr += "] \n" ; // close children
-    }
-    jsonstr += "}\n" ; // close node dict
-    return jsonstr ;
+    return T;
 }
 
-
-std::string MAT_to_json(MAT::Tree T ) { /// write version and meta dicts first:
-    std::string tree_json = "{\n\"version\":\"v2\",\n\"meta\":{\n\"title\":\"mutation_annotated_tree\",\n\"filters\": [\"country\"],\n" ; // placeholder title
-    tree_json += "\"panels\": [\"tree\"],\n\"colorings\": [ " ;
-    if ( T.get_num_annotations() > 0 ) {// if MAT has clade information:
-        for ( unsigned int a = 0 ; a < T.get_num_annotations() ; a ++ ){
-            tree_json += "{\"key\":\"MAT_Clade_" + std::to_string(a) ; 
-            tree_json += "\",\"title\":\"MAT_Clade\",\"type\":\"categorical\"}" ; // if clade sets can have "titles", sub in here. i don't think they do...
-            if ( a < T.get_num_annotations()-1 ) {
-                tree_json += ", \n" ;
-            }
+json get_json_entry(MAT::Node* n, std::map<std::string,std::map<std::string,std::string>> catmeta, size_t div = 0) {
+    //each node has 3 constituent attributes
+    //node_attrs, branch_attrs, and children. If its a leaf,
+    //it also has a simple name attribute.
+    //branch_attrs contains mutation information.
+    //node_attrs contains clade information.
+    //children contains nested information about the child nodes.
+    json sj;
+    std::vector<std::string> mutids;
+    std::string muts;
+    for (auto m: n->mutations) {
+        mutids.push_back(m.get_string());
+        muts.append(m.get_string());
+        if (m.get_string() != n->mutations.back().get_string()) {
+            muts.append(",");
         }
     }
-    tree_json += " ],\n" ;
-    tree_json += "\"display_defaults\":{\"branch_label\":\"nuc mutations\"},\"description\":\"JSON generated by matUtils. If you have " ;
-    tree_json += "metadata you wish to display, you can now drag on a CSV/TSV file and it will be added into this view, [see here](https://" ;
-    tree_json += "docs.nextstrain.org/projects/auspice/en/latest/advanced-functionality/drag-drop-csv-tsv.html) for more info.\"},\n" ; // end meta dict
-    tree_json += "\"tree\":{ \"name\":\"wrapper\",\n\"children\":[ " ; /// now write tree dict:
-    tree_json +=  node_to_json( T.root , 0 ) ;
-    tree_json += "]\n}\n}\n" ; // end list of children, end tree dict, end dict containing entire string
-    return tree_json ;
+    std::map<std::string,std::vector<std::string>> nmap {{"nuc", mutids},};
+    //mutation information is encoded twice in the output we're using. 
+    //don't ask me why. 
+    std::map<std::string,std::string> mutv {{"nuc mutations", muts}};
+    sj["branch_attrs"] = {{"labels",mutv}, {"mutations",nmap}};
+    //note: the below is pretty much sars-cov-2 specific. but so is all json-related things.
+    //need to declare maps to get nlohmann to interpret these as key pairs.
+    div += mutids.size();
+    std::map<std::string,std::string> c1a {{"value",n->clade_annotations[0]}};
+    std::map<std::string,std::string> c2a {{"value",n->clade_annotations[1]}};
+    std::string country = n->identifier.substr(0, n->identifier.find("/"));
+    std::string date = n->identifier.substr( n->identifier.find_last_of("|")+1, n->identifier.size() );
+    std::map<std::string,std::string> com {{"value",country}};
+    std::map<std::string,std::string> dam {{"value",date}};
+    if (n->is_leaf()) {
+        sj["node_attrs"] = { {"country",com}, {"date",dam} ,{"div", div}, {"MAT_Clade_0", c1a}, {"MAT_Clade_1", c2a} };
+    } else {
+        sj["node_attrs"] = {{"div", div}, {"MAT_Clade_0", c1a}, {"MAT_Clade_1", c2a} };
+    }
+    for (const auto& cmi: catmeta) {
+        if (cmi.second.find(n->identifier) != cmi.second.end()) {
+            //store the metadata on both the branch and the tip for now. 
+            sj["branch_attrs"]["labels"][cmi.first] = cmi.second.at(n->identifier);
+            sj["node_attrs"][cmi.first]["value"] = cmi.second.at(n->identifier);
+        }
+    }
+    sj["name"] = n->identifier;
+    std::vector<json> child_json;
+    for (auto cn: n->children) {
+        json cj = get_json_entry(cn, catmeta, div);
+        child_json.push_back(cj);
+        sj["children"] = child_json;
+    }
+    return sj;
 }
 
-void make_json ( MAT::Tree T, std::string json_filename ){
-    std::string json_str = MAT_to_json( T ) ;
-    std::ofstream json_file_ofstream ;
-    json_file_ofstream.open( json_filename ) ;
-    json_file_ofstream << json_str ;
-    json_file_ofstream.close() ;
+void write_json_from_mat(MAT::Tree* T, std::string output_filename, std::map<std::string,std::map<std::string,std::string>> catmeta) {
+    json nj;
+    std::string desc = "JSON generated by matUtils. If you have metadata you wish to display, you can now drag on a CSV/TSV file and it will be added into this view, [see here](https://docs.nextstrain.org/projects/auspice/en/latest/advanced-functionality/drag-drop-csv-tsv.html) for more info.";
+    std::map<std::string,std::string> lm = {{"branch_label", "none"}};
+    nj = {
+        {"version","v2"},
+        {"meta", {
+            {"title","mutation_annotated_tree"},
+            {"filters",json::array({"country"})},
+            {"panels",json::array({"tree"})},
+            {"colorings",{ {{"key","MAT_Clade_0"}, {"title","MAT_Clade_1"}, {"type","categorical"}}, {{"key","MAT_Clade_1"}, {"title","MAT_Clade_2"}, {"type","categorical"}}, {{"key","country"},{"title","Country"},{"type","categorical"}} }},
+            {"display_defaults",lm},
+            {"description",desc}
+        }},
+        {"tree",{
+            {"name","wrapper"},
+        }}
+    };
+    //add metadata to the header colorings if any exist
+    if (catmeta.size()>0) {
+        for (const auto& cmi: catmeta) {
+            std::map<std::string,std::string> mmap {{"key",cmi.first},{"title",cmi.first},{"type","categorical"}};
+            nj["meta"]["colorings"].push_back(mmap);
+        }
+    }
+    auto treestuff = get_json_entry(T->root, catmeta);
+    nj["tree"]["children"] = json::array({treestuff});
+    std::ofstream out(output_filename);
+    out << std::setw(4) << nj << std::endl;
+    out.close();
 }

@@ -11,6 +11,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
          "Input mutation-annotated tree file [REQUIRED]")
         ("samples,s", po::value<std::string>()->default_value(""),
         "Select samples by explicitly naming them. One per line")
+        ("metadata,M", po::value<std::string>()->default_value(""),
+        "Path to a metadata tsv/csv containing categorical metadata values for a json output. Used with -j only")
         ("clade,c", po::value<std::string>()->default_value(""),
         "Select samples by membership in at least one of the indicated clade(s), comma delimited.")
         ("mutation,m", po::value<std::string>()->default_value(""),
@@ -23,6 +25,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
         "Remove samples which have branches of greater than the indicated length in their ancestry.")
         ("nearest-k,k", po::value<std::string>()->default_value(""),
         "Select a sample ID and the nearest k samples to it, formatted as sample:k. E.g. -k sample_1:50 gets sample 1 and the nearest 50 samples to it as a subtree.")
+        ("nearest-k-batch,K", po::value<std::string>()->default_value(""),
+        "Pass a text file of sample IDs and a number of the number of context samples, formatted as sample_file.txt:k.")
         ("get-representative,r", po::bool_switch(),
         "Automatically select two representative samples per clade in the tree after other selection steps and prune all other samples.")
         ("prune,p", po::bool_switch(),
@@ -86,6 +90,7 @@ void extract_main (po::parsed_options parsed) {
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string input_samples_file = vm["samples"].as<std::string>();
     std::string nearest_k = vm["nearest-k"].as<std::string>();
+    std::string nearest_k_batch_file = vm["nearest-k-batch"].as<std::string>();
     std::string clade_choice = vm["clade"].as<std::string>();
     std::string mutation_choice = vm["mutation"].as<std::string>();
     int max_parsimony = vm["max-parsimony"].as<int>();
@@ -113,12 +118,13 @@ void extract_main (po::parsed_options parsed) {
     std::string vcf_filename = dir_prefix + vm["write-vcf"].as<std::string>();
     std::string output_mat_filename = dir_prefix + vm["write-mat"].as<std::string>();
     std::string json_filename = dir_prefix + vm["write-json"].as<std::string>();
+    std::string meta_filename = dir_prefix + vm["metadata"].as<std::string>();
     bool collapse_tree = vm["collapse-tree"].as<bool>();
     bool no_genotypes = vm["no-genotypes"].as<bool>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
     //check that at least one of the output filenames (things which take dir_prefix)
     //are set before proceeding. 
-    std::vector<std::string> outs = {sample_path_filename, clade_path_filename, all_path_filename, tree_filename, vcf_filename, output_mat_filename, json_filename, used_sample_filename};
+    std::vector<std::string> outs = {sample_path_filename, clade_path_filename, all_path_filename, tree_filename, vcf_filename, output_mat_filename, json_filename, used_sample_filename, nearest_k_batch_file};
     if (!std::any_of(outs.begin(), outs.end(), [=](std::string f){return f != dir_prefix;})) {
         fprintf(stderr, "ERROR: No output files requested!\n");
         exit(1);
@@ -129,8 +135,16 @@ void extract_main (po::parsed_options parsed) {
     timer.Start();
     fprintf(stderr, "Loading input MAT file %s.\n", input_mat_filename.c_str()); 
     // Load input MAT and uncondense tree
-    MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
-    T.uncondense_leaves();
+    MAT::Tree T;
+    if (input_mat_filename.find(".pb\0") != std::string::npos) {
+        T = MAT::load_mutation_annotated_tree(input_mat_filename);
+        T.uncondense_leaves();
+    } else if (input_mat_filename.find(".json\0") != std::string::npos) {
+        T = load_mat_from_json(input_mat_filename);
+    } else {
+        fprintf(stderr, "ERROR: Input file ending not recognized. Must be .json or .pb\n");
+        exit(1);
+    }
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     //first step is to select a set of samples to work with
     //if any sample selection arguments are set.
@@ -148,13 +162,14 @@ void extract_main (po::parsed_options parsed) {
     if (input_samples_file != "") {
         samples = read_sample_names(input_samples_file);
     } 
+    std::string sample_id;
     if (nearest_k != "") {
         auto split_point = nearest_k.find(":");
         if (split_point == std::string::npos) {
             fprintf(stderr, "ERROR: Invalid formatting of -k argument. Requires input in the form of 'sample_id:k' to get k nearest samples to sample_id\n");
             exit(1);
         }
-        std::string sample_id = nearest_k.substr(0, split_point);
+        sample_id = nearest_k.substr(0, split_point);
         std::string nkstr = nearest_k.substr(split_point+1, nearest_k.size() - split_point); 
         int nk = std::stoi(nkstr);
         if (nk <= 0) {
@@ -290,6 +305,47 @@ void extract_main (po::parsed_options parsed) {
             exit(1);
         }
     }
+    std::map<std::string,std::map<std::string,std::string>> catmeta;
+    if (meta_filename != "") {
+        std::set<std::string> samples_included(samples.begin(), samples.end());
+        catmeta = read_metafile(meta_filename, samples_included);
+        // fprintf(stderr, "DEBUG: meta size %ld\n", catmeta.size());
+    }
+    if (nearest_k_batch_file != "") {
+        fprintf(stderr, "Batch sample context writing requested.");
+        auto split_point = nearest_k_batch_file.find(":");
+        if (split_point == std::string::npos) {
+            fprintf(stderr, "ERROR: Invalid formatting of -K argument. Requires input in the form of 'sample_file.txt:k' to generate json context files\n");
+            exit(1);
+        }
+        std::string sample_file = nearest_k_batch_file.substr(0, split_point);
+        std::string nkstr = nearest_k_batch_file.substr(split_point+1, nearest_k_batch_file.size() - split_point); 
+        int nk = std::stoi(nkstr);
+        if (nk <= 0) {
+            fprintf(stderr, "ERROR: Invalid neighborhood size. Please choose a positive nonzero integer.\n");
+            exit(1);
+        }
+        auto batch_samples = read_sample_names(sample_file);
+        timer.Start();
+        // size_t counter = 0;
+        for (auto s: batch_samples) {
+            std::map<std::string,std::string> conmap;
+            conmap[s] = "focal";
+            catmeta["focal_view"] = conmap;
+            auto cs = get_nearby(T, s, nk);
+            MAT::Tree subt = filter_master(T, cs, false);
+            //remove forward slashes from the string, replacing them with underscores.
+            size_t pos = 0;
+            while ((pos = s.find("/")) != std::string::npos) {
+                s.replace(pos, 1, "_");
+            }
+            //fprintf(stderr, "DEBUG: writing file %s\n", (std::to_string(counter) + "_context.json").c_str());
+            write_json_from_mat(&subt, s + "_context.json", catmeta);
+            // counter++;
+        }
+        fprintf(stderr, "%ld batch sample jsons written in %ld msec\n", batch_samples.size(), timer.Stop());
+
+    }
     //retrive path information for samples, clades, everything before pruning occurs. Behavioral change
     //to get the paths post-pruning, will need to save a new tree .pb and then repeat the extract command on that
     if (sample_path_filename != dir_prefix || clade_path_filename != dir_prefix || all_path_filename != dir_prefix) {
@@ -395,6 +451,16 @@ void extract_main (po::parsed_options parsed) {
             outfile << s << "\n";
         }
     }
+    //if json output AND sample context is requested, add an additional metadata column which simply indicates the focal sample versus context
+    if ((json_filename != "") && (nearest_k != "")) {
+        std::map<std::string,std::string> conmap;
+        for (auto s: samples) {
+            if (s == sample_id) {
+                conmap[s] = "focal";
+            } 
+        }
+        catmeta["focal_view"] = conmap;
+    }
     //last step is to convert the subtree to other file formats
     if (vcf_filename != dir_prefix) {
         fprintf(stderr, "Generating VCF of final tree\n");
@@ -402,7 +468,8 @@ void extract_main (po::parsed_options parsed) {
     }
     if (json_filename != dir_prefix) {
         fprintf(stderr, "Generating JSON of final tree\n");
-        make_json(subtree, json_filename);
+        //make_json(subtree, json_filename);
+        write_json_from_mat(&subtree, json_filename, catmeta);
     }
     if (tree_filename != dir_prefix) {
         fprintf(stderr, "Generating Newick file of final tree\n");
