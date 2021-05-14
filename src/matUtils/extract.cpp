@@ -133,11 +133,6 @@ void extract_main (po::parsed_options parsed) {
     fprintf(stderr, "Loading input MAT file %s.\n", input_mat_filename.c_str()); 
     // Load input MAT and uncondense tree
     MAT::Tree T;
-    std::map<std::string,std::map<std::string,std::string>> catmeta;
-    if (meta_filename != "") {
-        catmeta = read_metafile(meta_filename);
-        // fprintf(stderr, "DEBUG: meta size %ld\n", catmeta.size());
-    }
     if (input_mat_filename.find(".pb\0") != std::string::npos) {
         T = MAT::load_mutation_annotated_tree(input_mat_filename);
         T.uncondense_leaves();
@@ -306,6 +301,12 @@ void extract_main (po::parsed_options parsed) {
             fprintf(stderr, "ERROR: No samples fulfill selected criteria (tree is left empty). Change arguments and try again\n");
             exit(1);
         }
+    }
+    std::map<std::string,std::map<std::string,std::string>> catmeta;
+    if (meta_filename != "") {
+        std::set<std::string> samples_included(samples.begin(), samples.end());
+        catmeta = read_metafile(meta_filename, samples_included);
+        // fprintf(stderr, "DEBUG: meta size %ld\n", catmeta.size());
     }
     //retrive path information for samples, clades, everything before pruning occurs. Behavioral change
     //to get the paths post-pruning, will need to save a new tree .pb and then repeat the extract command on that

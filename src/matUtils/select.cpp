@@ -250,7 +250,7 @@ std::vector<std::string> get_short_steppers(MAT::Tree T, std::vector<std::string
     return good_samples;
 }
 
-std::map<std::string,std::map<std::string,std::string>> read_metafile(std::string metainf) {
+std::map<std::string,std::map<std::string,std::string>> read_metafile(std::string metainf, std::set<std::string> samples_to_use) {
     std::ifstream infile(metainf);
     if (!infile) {
         fprintf(stderr, "ERROR: Could not open the file: %s!\n", metainf.c_str());
@@ -266,7 +266,7 @@ std::map<std::string,std::map<std::string,std::string>> read_metafile(std::strin
     std::vector<std::string> keys;
 
     while (std::getline(infile, line)) {
-        std::cerr << "reading\n";
+        //std::cerr << "reading\n";
         std::vector<std::string> words;
         if (line[line.size()-1] == '\r') {
             line = line.substr(0, line.size()-1);
@@ -277,11 +277,13 @@ std::map<std::string,std::map<std::string,std::string>> read_metafile(std::strin
                 keys.push_back(w);
             }
             first = false;
-            std::cerr << keys[0].c_str() << ',' << keys[1].c_str() << "\n";
+            //std::cerr << keys[0].c_str() << ',' << keys[1].c_str() << "\n";
         } else {
             for (size_t i=1; i < words.size(); i++) {
-                std::cerr << words[i];
-                metamap[keys[i]][words[0]] = words[i];
+                //std::cerr << words[i];
+                if (samples_to_use.find(words[0]) != samples_to_use.end()) {
+                    metamap[keys[i]][words[0]] = words[i];
+                }
             }
         }
     }
