@@ -25,6 +25,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
         "Remove samples which have branches of greater than the indicated length in their ancestry.")
         ("nearest-k,k", po::value<std::string>()->default_value(""),
         "Select a sample ID and the nearest k samples to it, formatted as sample:k. E.g. -k sample_1:50 gets sample 1 and the nearest 50 samples to it as a subtree.")
+        ("nearest-k-batch,K", po::value<std::string>()->default_value(""),
+        "Pass a text file of sample IDs and a number of the number of context samples, formatted as sample_file.txt:k.")
         ("get-representative,r", po::bool_switch(),
         "Automatically select two representative samples per clade in the tree after other selection steps and prune all other samples.")
         ("prune,p", po::bool_switch(),
@@ -88,6 +90,7 @@ void extract_main (po::parsed_options parsed) {
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string input_samples_file = vm["samples"].as<std::string>();
     std::string nearest_k = vm["nearest-k"].as<std::string>();
+    std::string nearest_k_batch_file = vm["nearest-k-batch"].as<std::string>();
     std::string clade_choice = vm["clade"].as<std::string>();
     std::string mutation_choice = vm["mutation"].as<std::string>();
     int max_parsimony = vm["max-parsimony"].as<int>();
@@ -121,7 +124,7 @@ void extract_main (po::parsed_options parsed) {
     uint32_t num_threads = vm["threads"].as<uint32_t>();
     //check that at least one of the output filenames (things which take dir_prefix)
     //are set before proceeding. 
-    std::vector<std::string> outs = {sample_path_filename, clade_path_filename, all_path_filename, tree_filename, vcf_filename, output_mat_filename, json_filename, used_sample_filename};
+    std::vector<std::string> outs = {sample_path_filename, clade_path_filename, all_path_filename, tree_filename, vcf_filename, output_mat_filename, json_filename, used_sample_filename, nearest_k_batch_file};
     if (!std::any_of(outs.begin(), outs.end(), [=](std::string f){return f != dir_prefix;})) {
         fprintf(stderr, "ERROR: No output files requested!\n");
         exit(1);
@@ -307,6 +310,41 @@ void extract_main (po::parsed_options parsed) {
         std::set<std::string> samples_included(samples.begin(), samples.end());
         catmeta = read_metafile(meta_filename, samples_included);
         // fprintf(stderr, "DEBUG: meta size %ld\n", catmeta.size());
+    }
+    if (nearest_k_batch_file != "") {
+        fprintf(stderr, "Batch sample context writing requested.");
+        auto split_point = nearest_k_batch_file.find(":");
+        if (split_point == std::string::npos) {
+            fprintf(stderr, "ERROR: Invalid formatting of -K argument. Requires input in the form of 'sample_file.txt:k' to generate json context files\n");
+            exit(1);
+        }
+        std::string sample_file = nearest_k_batch_file.substr(0, split_point);
+        std::string nkstr = nearest_k_batch_file.substr(split_point+1, nearest_k_batch_file.size() - split_point); 
+        int nk = std::stoi(nkstr);
+        if (nk <= 0) {
+            fprintf(stderr, "ERROR: Invalid neighborhood size. Please choose a positive nonzero integer.\n");
+            exit(1);
+        }
+        auto batch_samples = read_sample_names(sample_file);
+        timer.Start();
+        // size_t counter = 0;
+        for (auto s: batch_samples) {
+            std::map<std::string,std::string> conmap;
+            conmap[s] = "focal";
+            catmeta["focal_view"] = conmap;
+            auto cs = get_nearby(T, s, nk);
+            MAT::Tree subt = filter_master(T, cs, false);
+            //remove forward slashes from the string, replacing them with underscores.
+            size_t pos = 0;
+            while ((pos = s.find("/")) != std::string::npos) {
+                s.replace(pos, 1, "_");
+            }
+            //fprintf(stderr, "DEBUG: writing file %s\n", (std::to_string(counter) + "_context.json").c_str());
+            write_json_from_mat(&subt, s + "_context.json", catmeta);
+            // counter++;
+        }
+        fprintf(stderr, "%ld batch sample jsons written in %ld msec\n", batch_samples.size(), timer.Stop());
+
     }
     //retrive path information for samples, clades, everything before pruning occurs. Behavioral change
     //to get the paths post-pruning, will need to save a new tree .pb and then repeat the extract command on that
