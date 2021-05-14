@@ -365,7 +365,7 @@ MAT::Tree load_mat_from_json(std::string json_filename) {
     return T;
 }
 
-json get_json_entry(MAT::Node* n, std::map<std::string,std::map<std::string,std::string>> catmeta) {
+json get_json_entry(MAT::Node* n, std::map<std::string,std::map<std::string,std::string>> catmeta, size_t div = 0) {
     //each node has 3 constituent attributes
     //node_attrs, branch_attrs, and children. If its a leaf,
     //it also has a simple name attribute.
@@ -389,6 +389,7 @@ json get_json_entry(MAT::Node* n, std::map<std::string,std::map<std::string,std:
     sj["branch_attrs"] = {{"labels",mutv}, {"mutations",nmap}};
     //note: the below is pretty much sars-cov-2 specific. but so is all json-related things.
     //need to declare maps to get nlohmann to interpret these as key pairs.
+    div += mutids.size();
     std::map<std::string,std::string> c1a {{"value",n->clade_annotations[0]}};
     std::map<std::string,std::string> c2a {{"value",n->clade_annotations[1]}};
     std::string country = n->identifier.substr(0, n->identifier.find("/"));
@@ -396,9 +397,9 @@ json get_json_entry(MAT::Node* n, std::map<std::string,std::map<std::string,std:
     std::map<std::string,std::string> com {{"value",country}};
     std::map<std::string,std::string> dam {{"value",date}};
     if (n->is_leaf()) {
-        sj["node_attrs"] = { {"country",com}, {"date",dam} ,{"div", mutids.size()}, {"MAT_Clade_0", c1a}, {"MAT_Clade_1", c2a} };
+        sj["node_attrs"] = { {"country",com}, {"date",dam} ,{"div", div}, {"MAT_Clade_0", c1a}, {"MAT_Clade_1", c2a} };
     } else {
-        sj["node_attrs"] = {{"div", mutids.size()}, {"MAT_Clade_0", c1a}, {"MAT_Clade_1", c2a} };
+        sj["node_attrs"] = {{"div", div}, {"MAT_Clade_0", c1a}, {"MAT_Clade_1", c2a} };
     }
     for (const auto& cmi: catmeta) {
         if (cmi.second.find(n->identifier) != cmi.second.end()) {
@@ -408,10 +409,8 @@ json get_json_entry(MAT::Node* n, std::map<std::string,std::map<std::string,std:
     sj["name"] = n->identifier;
     std::vector<json> child_json;
     for (auto cn: n->children) {
-        json cj = get_json_entry(cn, catmeta);
+        json cj = get_json_entry(cn, catmeta, div);
         child_json.push_back(cj);
-    }
-    if (!n->is_leaf()) {
         sj["children"] = child_json;
     }
     return sj;
@@ -427,7 +426,7 @@ void write_json_from_mat(MAT::Tree* T, std::string output_filename, std::map<std
             {"title","mutation_annotated_tree"},
             {"filters",json::array({"country"})},
             {"panels",json::array({"tree"})},
-            {"colorings",{ {{"key","MAT_Clade_0"}, {"title","MAT_Clade"}, {"type","categorical"}}, {{"key","MAT_Clade_1"}, {"title","MAT_Clade"}, {"type","categorical"}} }},
+            {"colorings",{ {{"key","MAT_Clade_0"}, {"title","MAT_Clade_1"}, {"type","categorical"}}, {{"key","MAT_Clade_1"}, {"title","MAT_Clade_2"}, {"type","categorical"}} }},
             {"display_defaults",lm},
             {"description",desc}
         }},
