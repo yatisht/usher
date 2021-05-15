@@ -390,8 +390,20 @@ json get_json_entry(MAT::Node* n, std::map<std::string,std::map<std::string,std:
     //note: the below is pretty much sars-cov-2 specific. but so is all json-related things.
     //need to declare maps to get nlohmann to interpret these as key pairs.
     div += mutids.size();
-    std::map<std::string,std::string> c1a {{"value",n->clade_annotations[0]}};
-    std::map<std::string,std::string> c2a {{"value",n->clade_annotations[1]}};
+    std::string c1av = "";
+    std::string c2av = "";
+    if (n->clade_annotations.size() == 1) {
+        c1av = n->clade_annotations[0];
+    }
+    if (n->clade_annotations.size() >= 2) {
+        //json output supports two simultaneous clade annotations
+        //being nextstrain and pangolin, since this is very specific
+        //to sars-cov-2 phylogenomics. Additional fields are ignored
+        //at this point.
+        c1av = n->clade_annotations[1];
+    }
+    std::map<std::string,std::string> c1a {{"value",c1av}};
+    std::map<std::string,std::string> c2a {{"value",c2av}};
     std::string country = n->identifier.substr(0, n->identifier.find("/"));
     std::string date = n->identifier.substr( n->identifier.find_last_of("|")+1, n->identifier.size() );
     std::map<std::string,std::string> com {{"value",country}};
