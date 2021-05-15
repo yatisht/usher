@@ -32,8 +32,8 @@ po::variables_map check_options(int argc, char** argv) {
         ("samples-filename,s", po::value<std::string>()->default_value(""),
          "Restrict the search to the samples specified in the input file")
     
-        ("max-parsimony,p", po::value<int>()->default_value(0), \
-         "Maximum parsimony score of the recombinant sequence when placing it back after pruning and masking.")
+        ("parsimony-improvement,p", po::value<int>()->default_value(3), \
+         "Minimum improvement in parsimony score of the recombinant sequence during the partial placement.")
         ("num-descendants,n", po::value<uint32_t>()->default_value(10), \
          "Minimum number of leaves that node should have to be considered for recombination.")
         ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
@@ -98,7 +98,7 @@ int main(int argc, char** argv) {
     std::string outdir = vm["outdir"].as<std::string>();
     std::string samples_filename = vm["samples-filename"].as<std::string>();
     uint32_t branch_len = vm["branch-length"].as<uint32_t>();
-    int max_parsimony = vm["max-parsimony"].as<int>();
+    int parsimony_improvement = vm["parsimony-improvement"].as<int>();
     int max_range = vm["max-coordinate-range"].as<int>();
     int min_range = vm["min-coordinate-range"].as<int>();
     uint32_t num_descendants = vm["num-descendants"].as<uint32_t>();
@@ -201,6 +201,8 @@ int main(int argc, char** argv) {
     size_t num_done = 0;
     for (auto nid_to_consider: nodes_to_consider) {
         fprintf(stderr, "At node id: %s\n", nid_to_consider.c_str());
+
+        int orig_parsimony = (int) T.get_node(nid_to_consider)->mutations.size(); 
 
         Pruned_Sample pruned_sample(nid_to_consider);
         // Find mutations on the node to prune
@@ -333,7 +335,7 @@ int main(int argc, char** argv) {
                                        }
                                    }
 
-                                   if (l2_mut.size() <= max_parsimony) {
+                                   if (l2_mut.size() <= (size_t) orig_parsimony) {
                                        tbb_lock.lock();
                                        acceptor_nodes.emplace_back(Recomb_Node(bfs[k]->identifier, l2_mut.size()));
                                        tbb_lock.unlock();
@@ -363,7 +365,7 @@ int main(int argc, char** argv) {
                                        }
                                    }
 
-                                   if (node_mut.size() <= max_parsimony) {
+                                   if (node_mut.size() <= (size_t) orig_parsimony) {
                                        tbb_lock.lock();
                                        acceptor_nodes.emplace_back(Recomb_Node(bfs[k]->identifier, node_mut.size()));
                                        tbb_lock.unlock();
@@ -461,7 +463,7 @@ int main(int argc, char** argv) {
                                        }
                                    }
 
-                                   if (l2_mut.size() <= max_parsimony) {
+                                   if (l2_mut.size() <= (size_t) orig_parsimony) {
                                        tbb_lock.lock();
                                        donor_nodes.emplace_back(Recomb_Node(bfs[k]->identifier, l2_mut.size()));
                                        tbb_lock.unlock();
@@ -491,7 +493,7 @@ int main(int argc, char** argv) {
                                        }
                                    }
 
-                                   if (node_mut.size() <= max_parsimony) {
+                                   if (node_mut.size() <= (size_t) orig_parsimony) {
                                        tbb_lock.lock();
                                        donor_nodes.emplace_back(Recomb_Node(bfs[k]->identifier, node_mut.size()));
                                        tbb_lock.unlock();
@@ -511,7 +513,7 @@ int main(int argc, char** argv) {
                         // node total parsimony is less than the maximum allowed
                         if ((d.name!=a.name) && (d.name!=nid_to_consider) && (a.name!=nid_to_consider) && 
                                 (!T.is_ancestor(nid_to_consider,d.name)) && (!T.is_ancestor(nid_to_consider,a.name)) 
-                                && (d.parsimony+a.parsimony <= max_parsimony)) {
+                                && ((orig_parsimony-(d.parsimony+a.parsimony)) >= parsimony_improvement)) {
                             std::string end_range_high_str = (end_range_high == 1e9) ? "GENOME_SIZE" : std::to_string(end_range_high);
                             fprintf(recomb_file, "%s\t(%i,%i)\t(%i,%s)\t%s\t%s\t%i\n", nid_to_consider.c_str(), start_range_low, start_range_high,
                                     end_range_low, end_range_high_str.c_str(), d.name.c_str(), a.name.c_str(), d.parsimony+a.parsimony);
