@@ -307,9 +307,11 @@ void extract_main (po::parsed_options parsed) {
     }
     std::map<std::string,std::map<std::string,std::string>> catmeta;
     if (meta_filename != "") {
+        if (nearest_k_batch_file != "") {
+            samples = T.get_leaves_ids();
+        }
         std::set<std::string> samples_included(samples.begin(), samples.end());
         catmeta = read_metafile(meta_filename, samples_included);
-        // fprintf(stderr, "DEBUG: meta size %ld\n", catmeta.size());
     }
     if (nearest_k_batch_file != "") {
         fprintf(stderr, "Batch sample context writing requested.\n");
@@ -343,7 +345,7 @@ void extract_main (po::parsed_options parsed) {
             write_json_from_mat(&subt, s + "_context.json", catmeta);
             // counter++;
         }
-        fprintf(stderr, "%ld batch sample jsons written in %ld msec\n", batch_samples.size(), timer.Stop());
+        fprintf(stderr, "%ld batch sample jsons written in %ld msec.\n", batch_samples.size(), timer.Stop());
 
     }
     //retrive path information for samples, clades, everything before pruning occurs. Behavioral change
