@@ -1,4 +1,4 @@
-sudo -E apt update 
+sudo -E apt update
 sudo -E apt-get --yes install build-essential \
  wget cmake  libboost-all-dev \
  libprotoc-dev libprotoc-dev protobuf-compiler \
