@@ -392,7 +392,7 @@ json get_json_entry(MAT::Node* n, std::map<std::string,std::map<std::string,std:
     div += mutids.size();
     std::string c1av = "";
     std::string c2av = "";
-    if (n->clade_annotations.size() == 1) {
+    if (n->clade_annotations.size() >= 1) {
         c1av = n->clade_annotations[0];
     }
     if (n->clade_annotations.size() >= 2) {
