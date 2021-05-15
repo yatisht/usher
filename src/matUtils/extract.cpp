@@ -307,7 +307,7 @@ void extract_main (po::parsed_options parsed) {
     }
     std::map<std::string,std::map<std::string,std::string>> catmeta;
     if (meta_filename != "") {
-        if (nearest_k_batch_file != "") {
+        if ((nearest_k_batch_file != "") && (samples.size() == 0)){
             samples = T.get_leaves_ids();
         }
         std::set<std::string> samples_included(samples.begin(), samples.end());
