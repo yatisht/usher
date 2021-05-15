@@ -189,7 +189,7 @@ int main(int argc, char** argv) {
                 acceptor.sample_mutations.clear();
 
                 for (size_t k=0; k<num_mutations; k++) {
-                    if ((k>=i) && (k<=j)) {
+                    if ((k>=i) && (k<j)) {
                         donor.add_mutation(pruned_sample.sample_mutations[k]);
                     }
                     else {
