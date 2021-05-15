@@ -312,7 +312,7 @@ void extract_main (po::parsed_options parsed) {
         // fprintf(stderr, "DEBUG: meta size %ld\n", catmeta.size());
     }
     if (nearest_k_batch_file != "") {
-        fprintf(stderr, "Batch sample context writing requested.");
+        fprintf(stderr, "Batch sample context writing requested.\n");
         auto split_point = nearest_k_batch_file.find(":");
         if (split_point == std::string::npos) {
             fprintf(stderr, "ERROR: Invalid formatting of -K argument. Requires input in the form of 'sample_file.txt:k' to generate json context files\n");
