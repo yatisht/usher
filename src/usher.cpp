@@ -539,8 +539,8 @@ int main(int argc, char** argv) {
                     //Sort the missing sample mutations by position
                     std::sort(missing_samples[s].mutations.begin(), missing_samples[s].mutations.end());
 
-                    auto dfs = T->depth_first_expansion();
-                    size_t total_nodes = dfs.size();
+                    auto bfs = T->breadth_first_expansion();
+                    size_t total_nodes = bfs.size();
 
                     // Stores the excess mutations to place the sample at each
                     // node of the tree in DFS order. When placement is as a
@@ -591,7 +591,7 @@ int main(int argc, char** argv) {
                             for (size_t k=r.begin(); k<r.end(); ++k){
                                 mapper2_input inp;
                                 inp.T = T;
-                                inp.node = dfs[k];
+                                inp.node = bfs[k];
                                 inp.missing_sample_mutations = &missing_samples[s].mutations;
                                 inp.excess_mutations = &node_excess_mutations[k];
                                 inp.imputed_mutations = &node_imputed_mutations[k];
@@ -664,7 +664,7 @@ int main(int argc, char** argv) {
                 if (print_parsimony_scores) {
                     auto parsimony_scores_filename = outdir + "/parsimony-scores.tsv";
                     if (s==0) {
-                        fprintf(stderr, "\nNow computing branch parsimony scores for adding the missing samples at each of the %zu nodes in the existing tree without modifying the tree.\n", T->depth_first_expansion().size()); 
+                        fprintf(stderr, "\nNow computing branch parsimony scores for adding the missing samples at each of the %zu nodes in the existing tree without modifying the tree.\n", T->breadth_first_expansion().size()); 
                         fprintf(stderr, "The branch parsimony scores will be written to file %s\n\n", parsimony_scores_filename.c_str());
 
                         parsimony_scores_file = fopen(parsimony_scores_filename.c_str(), "w");
@@ -672,8 +672,8 @@ int main(int argc, char** argv) {
                     }
                 }
 
-                auto dfs = T->depth_first_expansion();
-                size_t total_nodes = dfs.size();
+                auto bfs = T->breadth_first_expansion();
+                size_t total_nodes = bfs.size();
 
                 // Stores the excess mutations to place the sample at each
                 // node of the tree in DFS order. When placement is as a
@@ -724,7 +724,7 @@ int main(int argc, char** argv) {
                         for (size_t k=r.begin(); k<r.end(); ++k){
                         mapper2_input inp;
                         inp.T = T;
-                        inp.node = dfs[k];
+                        inp.node = bfs[k];
                         inp.missing_sample_mutations = &missing_samples[s].mutations;
                         inp.excess_mutations = &node_excess_mutations[k];
                         inp.imputed_mutations = &node_imputed_mutations[k];
@@ -790,7 +790,7 @@ int main(int argc, char** argv) {
                 //best_node_vec.emplace_back(best_node);
                 if ((num_best > 0) && (num_best <= max_uncertainty)) {
                     for (auto j: best_j_vec) {
-                        auto node = dfs[j];
+                        auto node = bfs[j];
 
                         std::vector<std::string> muts;
 
@@ -855,7 +855,7 @@ int main(int argc, char** argv) {
                 if (print_parsimony_scores) {
                     for (size_t k = 0; k < total_nodes; k++) {
                         char is_optimal = (node_set_difference[k] == best_set_difference) ? 'y' : 'n';
-                        fprintf (parsimony_scores_file, "%s\t%s\t%d\t\t%c\t", sample.c_str(), dfs[k]->identifier.c_str(), node_set_difference[k], is_optimal); 
+                        fprintf (parsimony_scores_file, "%s\t%s\t%d\t\t%c\t", sample.c_str(), bfs[k]->identifier.c_str(), node_set_difference[k], is_optimal); 
                         if (node_set_difference[k] == best_set_difference) {
                             if (node_set_difference[k] == 0) {
                                 fprintf(parsimony_scores_file, "*");
@@ -880,7 +880,7 @@ int main(int argc, char** argv) {
                 else if (num_best <= max_uncertainty) {
                     if (num_best > 1) {
                         if (max_trees > 1) {
-                            // Sorting by dfs order ensures reproducible results
+                            // Sorting by bfs order ensures reproducible results
                             // during multiple placements
                             std::sort(best_j_vec.begin(), best_j_vec.end());
                         }
@@ -916,12 +916,12 @@ int main(int argc, char** argv) {
                                 auto tmp_T = MAT::get_tree_copy(curr_tree);
                                 optimal_trees.emplace_back(std::move(tmp_T));
                                 T = &optimal_trees[optimal_trees.size()-1];
-                                dfs = T->depth_first_expansion();
+                                bfs = T->breadth_first_expansion();
                             }
 
                             best_j = best_j_vec[k];                                                                                                                                                             
                             best_node_has_unique = node_has_unique[k];
-                            best_node = dfs[best_j];
+                            best_node = bfs[best_j];
                         }
                         
                         // Ensure sample not already in the tree
