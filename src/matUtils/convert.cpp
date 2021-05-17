@@ -365,7 +365,7 @@ MAT::Tree load_mat_from_json(std::string json_filename) {
     return T;
 }
 
-json get_json_entry(MAT::Node* n, std::map<std::string,std::map<std::string,std::string>>* catmeta, size_t div = 0) {
+json get_json_entry(MAT::Node* n, std::map<std::string,std::map<std::string,std::string>>* catmeta, size_t div = 0, bool use_clade_zero = false, bool use_clade_one = false) {
     //each node has 3 constituent attributes
     //node_attrs, branch_attrs, and children. If its a leaf,
     //it also has a simple name attribute.
@@ -411,7 +411,13 @@ json get_json_entry(MAT::Node* n, std::map<std::string,std::map<std::string,std:
     if ((n->is_leaf()) && (country.length() != n->identifier.size()) && (date.length() != n->identifier.size()) ) {
         sj["node_attrs"] = { {"country",com}, {"date",dam} ,{"div", div}, {"MAT_Clade_0", c1a}, {"MAT_Clade_1", c2a} };
     } else {
-        sj["node_attrs"] = {{"div", div}, {"MAT_Clade_0", c1a}, {"MAT_Clade_1", c2a} };
+        sj["node_attrs"]["div"] = div;
+        if (use_clade_zero) {
+            sj["node_attrs"]["MAT_Clade_0"] = c1a;
+        }
+        if (use_clade_one) {
+            sj["node_attrs"]["MAT_Clade_1"] = c2a;
+        }
     }
     for (const auto& cmi: *catmeta) {
         if (cmi.second.find(n->identifier) != cmi.second.end()) {
@@ -423,7 +429,7 @@ json get_json_entry(MAT::Node* n, std::map<std::string,std::map<std::string,std:
     sj["name"] = n->identifier;
     std::vector<json> child_json;
     for (auto cn: n->children) {
-        json cj = get_json_entry(cn, catmeta, div);
+        json cj = get_json_entry(cn, catmeta, div, use_clade_zero, use_clade_one);
         child_json.push_back(cj);
         sj["children"] = child_json;
     }
@@ -440,7 +446,7 @@ void write_json_from_mat(MAT::Tree* T, std::string output_filename, std::map<std
             {"title","mutation_annotated_tree"},
             {"filters",json::array({"country"})},
             {"panels",json::array({"tree"})},
-            {"colorings",{ {{"key","MAT_Clade_0"}, {"title","MAT_Clade_1"}, {"type","categorical"}}, {{"key","MAT_Clade_1"}, {"title","MAT_Clade_2"}, {"type","categorical"}}, {{"key","country"},{"title","Country"},{"type","categorical"}} }},
+            {"colorings",{ {{"key","country"},{"title","Country"},{"type","categorical"}} }},
             {"display_defaults",lm},
             {"description",desc}
         }},
@@ -455,7 +461,33 @@ void write_json_from_mat(MAT::Tree* T, std::string output_filename, std::map<std
             nj["meta"]["colorings"].push_back(mmap);
         }
     }
-    auto treestuff = get_json_entry(T->root, catmeta);
+    //check whether each of the mat clade annotation fields are used by any sample. 
+    bool uses_clade_0 = false;
+    bool uses_clade_1 = false;
+    for (auto n: T->depth_first_expansion()) {
+        if (n->clade_annotations.size() >= 1) {
+            if (n->clade_annotations[0] != "") {
+                uses_clade_0 = true;
+            }
+            if (n->clade_annotations.size() >= 2) {
+                if (n->clade_annotations[1] != "") {
+                    uses_clade_1 = true;
+                }
+            }
+        }
+        if ((uses_clade_0) && (uses_clade_1)) {
+            break;
+        }
+    }
+    if (uses_clade_0) {
+        std::map<std::string,std::string> c1map {{"key","MAT_Clade_0"},{"title","MAT_Clade_1"},{"type","categorical"}};
+        nj["meta"]["colorings"].push_back(c1map);
+    }
+    if (uses_clade_1) {
+        std::map<std::string,std::string> c2map {{"key","MAT_Clade_1"},{"title","MAT_Clade_2"},{"type","categorical"}};
+        nj["meta"]["colorings"].push_back(c2map);
+    }
+    auto treestuff = get_json_entry(T->root, catmeta, 0, uses_clade_0, uses_clade_1);
     nj["tree"]["children"] = json::array({treestuff});
     std::ofstream out(output_filename);
     // out << std::setw(4) << nj << std::endl;
