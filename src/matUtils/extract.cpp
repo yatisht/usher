@@ -305,49 +305,6 @@ void extract_main (po::parsed_options parsed) {
             exit(1);
         }
     }
-    std::map<std::string,std::map<std::string,std::string>> catmeta;
-    if (meta_filename != "") {
-        if ((nearest_k_batch_file != "") && (samples.size() == 0)){
-            samples = T.get_leaves_ids();
-        }
-        std::set<std::string> samples_included(samples.begin(), samples.end());
-        catmeta = read_metafile(meta_filename, samples_included);
-    }
-    if (nearest_k_batch_file != "") {
-        fprintf(stderr, "Batch sample context writing requested.\n");
-        auto split_point = nearest_k_batch_file.find(":");
-        if (split_point == std::string::npos) {
-            fprintf(stderr, "ERROR: Invalid formatting of -K argument. Requires input in the form of 'sample_file.txt:k' to generate json context files\n");
-            exit(1);
-        }
-        std::string sample_file = nearest_k_batch_file.substr(0, split_point);
-        std::string nkstr = nearest_k_batch_file.substr(split_point+1, nearest_k_batch_file.size() - split_point); 
-        int nk = std::stoi(nkstr);
-        if (nk <= 0) {
-            fprintf(stderr, "ERROR: Invalid neighborhood size. Please choose a positive nonzero integer.\n");
-            exit(1);
-        }
-        auto batch_samples = read_sample_names(sample_file);
-        timer.Start();
-        // size_t counter = 0;
-        for (auto s: batch_samples) {
-            std::map<std::string,std::string> conmap;
-            conmap[s] = "focal";
-            catmeta["focal_view"] = conmap;
-            auto cs = get_nearby(T, s, nk);
-            MAT::Tree subt = filter_master(T, cs, false);
-            //remove forward slashes from the string, replacing them with underscores.
-            size_t pos = 0;
-            while ((pos = s.find("/")) != std::string::npos) {
-                s.replace(pos, 1, "_");
-            }
-            //fprintf(stderr, "DEBUG: writing file %s\n", (std::to_string(counter) + "_context.json").c_str());
-            write_json_from_mat(&subt, s + "_context.json", catmeta);
-            // counter++;
-        }
-        fprintf(stderr, "%ld batch sample jsons written in %ld msec.\n", batch_samples.size(), timer.Stop());
-
-    }
     //retrive path information for samples, clades, everything before pruning occurs. Behavioral change
     //to get the paths post-pruning, will need to save a new tree .pb and then repeat the extract command on that
     if (sample_path_filename != dir_prefix || clade_path_filename != dir_prefix || all_path_filename != dir_prefix) {
@@ -404,7 +361,7 @@ void extract_main (po::parsed_options parsed) {
     //and don't bother pruning.
     MAT::Tree subtree; 
     if (samples.size() == 0) {
-        fprintf(stderr, "No sample selection arguments passed; using full input tree.\n");
+        fprintf(stderr, "No sample selection arguments passed; using full input tree for further output.\n");
         samples = T.get_leaves_ids();
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
         //if no selection was set, then there's no need to filter.
@@ -453,6 +410,48 @@ void extract_main (po::parsed_options parsed) {
             outfile << s << "\n";
         }
     }
+    std::map<std::string,std::map<std::string,std::string>> catmeta;
+    if (meta_filename != "") {
+        // if ((nearest_k_batch_file != "") && (samples.size() == 0)){
+        //     samples = T.get_leaves_ids();
+        // }
+        std::set<std::string> samples_included(samples.begin(), samples.end());
+        catmeta = read_metafile(meta_filename, samples_included);
+    }
+    if (nearest_k_batch_file != "") {
+        fprintf(stderr, "Batch sample context writing requested.\n");
+        auto split_point = nearest_k_batch_file.find(":");
+        if (split_point == std::string::npos) {
+            fprintf(stderr, "ERROR: Invalid formatting of -K argument. Requires input in the form of 'sample_file.txt:k' to generate json context files\n");
+            exit(1);
+        }
+        std::string sample_file = nearest_k_batch_file.substr(0, split_point);
+        std::string nkstr = nearest_k_batch_file.substr(split_point+1, nearest_k_batch_file.size() - split_point); 
+        int nk = std::stoi(nkstr);
+        if (nk <= 0) {
+            fprintf(stderr, "ERROR: Invalid neighborhood size. Please choose a positive nonzero integer.\n");
+            exit(1);
+        }
+        auto batch_samples = read_sample_names(sample_file);
+        timer.Start();
+        // size_t counter = 0;
+        for (auto s: batch_samples) {
+            std::map<std::string,std::string> conmap;
+            conmap[s] = "focal";
+            catmeta["focal_view"] = conmap;
+            auto cs = get_nearby(T, s, nk);
+            MAT::Tree subt = filter_master(T, cs, false);
+            //remove forward slashes from the string, replacing them with underscores.
+            size_t pos = 0;
+            while ((pos = s.find("/")) != std::string::npos) {
+                s.replace(pos, 1, "_");
+            }
+            //fprintf(stderr, "DEBUG: writing file %s\n", (std::to_string(counter) + "_context.json").c_str());
+            write_json_from_mat(&subt, s + "_context.json", &catmeta);
+            // counter++;
+        }
+        fprintf(stderr, "%ld batch sample jsons written in %ld msec.\n\n", batch_samples.size(), timer.Stop());
+    }    
     //if json output AND sample context is requested, add an additional metadata column which simply indicates the focal sample versus context
     if ((json_filename != "") && (nearest_k != "")) {
         std::map<std::string,std::string> conmap;
@@ -470,8 +469,7 @@ void extract_main (po::parsed_options parsed) {
     }
     if (json_filename != dir_prefix) {
         fprintf(stderr, "Generating JSON of final tree\n");
-        //make_json(subtree, json_filename);
-        write_json_from_mat(&subtree, json_filename, catmeta);
+        write_json_from_mat(&subtree, json_filename, &catmeta);
     }
     if (tree_filename != dir_prefix) {
         fprintf(stderr, "Generating Newick file of final tree\n");
