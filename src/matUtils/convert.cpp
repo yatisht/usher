@@ -411,6 +411,10 @@ json get_json_entry(MAT::Node* n, std::map<std::string,std::map<std::string,std:
     if ((n->is_leaf()) && (country.length() != n->identifier.size()) && (date.length() != n->identifier.size()) ) {
         sj["node_attrs"] = { {"country",com}, {"date",dam} ,{"div", div}, {"MAT_Clade_0", c1a}, {"MAT_Clade_1", c2a} };
     } else {
+<<<<<<< HEAD
+=======
+        // sj["node_attrs"] = {{"div", div}, {"MAT_Clade_0", c1a}, {"MAT_Clade_1", c2a} };
+>>>>>>> upstream/master
         sj["node_attrs"]["div"] = div;
         if (use_clade_zero) {
             sj["node_attrs"]["MAT_Clade_0"] = c1a;
