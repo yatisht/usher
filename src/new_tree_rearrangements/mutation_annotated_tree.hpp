@@ -1,5 +1,6 @@
 #ifndef MUTATION_ANNOTATED_TREE
 #define MUTATION_ANNOTATED_TREE
+#include <algorithm>
 #include <bits/stdint-uintn.h>
 #include <cstddef>
 #include <mutex>
@@ -111,6 +112,9 @@ namespace Mutation_Annotated_Tree {
         Mutation(const std::string& chromosome,int position,nuc_one_hot mut,nuc_one_hot par,nuc_one_hot tie,nuc_one_hot boundary1,nuc_one_hot ref=0);
 
         Mutation(int pos):position(pos),chrom_idx(0),par_mut_nuc(0),boundary1_all_major_allele(0),boundary2_flag(0){}
+
+        Mutation(uint8_t chrom_idx,int pos,uint8_t par_nuc,uint8_t mut_nuc):position(pos),chrom_idx(chrom_idx),par_mut_nuc((par_nuc<<4)|mut_nuc),boundary1_all_major_allele(mut_nuc),boundary2_flag(mut_nuc|(mut_nuc<<4)){}
+
         bool same_chrom(const Mutation& other) const{
             return chrom_idx==other.chrom_idx;
         }
@@ -222,9 +226,6 @@ namespace Mutation_Annotated_Tree {
             if(other.par_mut_nuc!=par_mut_nuc) return false;
             if(other.position!=position) return false;
             if (other.boundary1_all_major_allele!=boundary1_all_major_allele) {
-                return false;
-            }
-            if (other.boundary2_flag!=boundary2_flag) {
                 return false;
             }
             assert(other.chrom_idx==chrom_idx);
@@ -348,6 +349,11 @@ namespace Mutation_Annotated_Tree {
             mutations.swap(new_set.mutations);
         }
         void remove_invalid();
+        void remove_boundary_only(){
+            mutations.erase(std::remove_if(mutations.begin(), mutations.end(), [](const Mutation& mut){
+                return mut.get_par_one_hot()==mut.get_all_major_allele();
+            }),mutations.end());
+        }
         void set_difference(const Mutations_Collection &other,
                             Mutations_Collection &this_unique,
                             Mutations_Collection &other_unique,
@@ -380,6 +386,7 @@ namespace Mutation_Annotated_Tree {
             Mutations_Collection mutations;
             //Mutations_Collection boundary_mutations;
             size_t dfs_index; //index in dfs pre-order
+            size_t dfs_end_index; //index in dfs pre-order
             size_t bfs_index; //index in bfs
             bool is_leaf() const;
             bool is_root();

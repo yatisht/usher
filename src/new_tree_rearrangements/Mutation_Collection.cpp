@@ -21,6 +21,9 @@ void Mutations_Collection::merge_out(const Mutations_Collection &other,
     out.mutations.reserve(other.mutations.size() + mutations.size());
     auto other_iter = other.mutations.begin();
     for (auto this_mutation : mutations) {
+        while (other_iter!=other.mutations.end()&&(!other_iter->is_valid())) {
+            other_iter++;
+        }
         while (other_iter != other.mutations.end() &&
                other_iter->get_position() < this_mutation.get_position()) {
             mutation_vector_check_order(other_iter->get_position());
@@ -30,6 +33,8 @@ void Mutations_Collection::merge_out(const Mutations_Collection &other,
                 out.mutations.back().set_mut_one_hot(out.mutations.back().get_par_one_hot());
                 out.mutations.back().set_par_one_hot(temp);
             }
+            auto nuc=out.mutations.back().get_mut_one_hot();
+            out.mutations.back().set_children(0, nuc,nuc ,nuc );
             other_iter++;
         }
         if (other_iter == other.mutations.end() ||
@@ -47,7 +52,11 @@ void Mutations_Collection::merge_out(const Mutations_Collection &other,
                 out.mutations.push_back(*other_iter);
                 break;
             case KEEP_SELF:
-                out.mutations.push_back(this_mutation);
+                assert(other_iter->get_mut_one_hot()==this_mutation.get_par_one_hot());
+                if (other_iter->get_par_one_hot()!=this_mutation.get_all_major_allele()||this_mutation.get_boundary1_one_hot()) {
+                    out.mutations.push_back(this_mutation);
+                    out.mutations.back().set_par_one_hot(other_iter->get_par_one_hot());
+                }
                 break;
             case MERGE:
                 assert(other_iter->get_par_one_hot() == this_mutation.get_mut_one_hot());
@@ -58,10 +67,10 @@ void Mutations_Collection::merge_out(const Mutations_Collection &other,
                 break;
             default:
                 assert(keep_self == INVERT_MERGE);
-                assert(other_iter->get_mut_one_hot() == this_mutation.get_mut_one_hot());
-                if (other_iter->get_par_one_hot() != this_mutation.get_ref_one_hot()) {
+                assert(other_iter->get_par_one_hot() == this_mutation.get_par_one_hot());
+                if (other_iter->get_mut_one_hot() != this_mutation.get_all_major_allele()||this_mutation.get_boundary1_one_hot()) {
                     out.mutations.push_back(this_mutation);
-                    out.mutations.back().get_mut_one_hot() = other_iter->get_par_one_hot();
+                    out.mutations.back().set_par_one_hot(other_iter->get_mut_one_hot());
                 }
                 break;
             }
@@ -69,8 +78,22 @@ void Mutations_Collection::merge_out(const Mutations_Collection &other,
         }
     }
     while (other_iter < other.mutations.end()) {
+        while (other_iter!=other.mutations.end()&&(!other_iter->is_valid())) {
+            other_iter++;
+        }
+        if (other_iter==other.mutations.end()) {
+            break;
+        }
         mutation_vector_check_order(other_iter->get_position());
         out.mutations.push_back(*other_iter);
+        if (keep_self == INVERT_MERGE) {
+            auto temp = out.mutations.back().get_mut_one_hot();
+            out.mutations.back().set_mut_one_hot(out.mutations.back().get_par_one_hot());
+            out.mutations.back().set_par_one_hot(temp);
+        }
+        auto nuc=out.mutations.back().get_mut_one_hot();
+        out.mutations.back().set_children(0, nuc,nuc ,nuc );
+
         other_iter++;
     }
 }

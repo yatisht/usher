@@ -27,7 +27,7 @@ static void set_state_2(uint8_t child1,uint8_t child2,uint8_t& boundary1_major_a
 static uint8_t movemask(int in){
     return (1&in)|(2&(in>>3))|(4&(in>>6))|(8&(in>>9));
 }
-static void set_state_from_cnt(const std::array<int,4>& data, uint8_t& boundary1_major_allele_out){
+void set_state_from_cnt(const std::array<int,4>& data, uint8_t& boundary1_major_allele_out){
     __m128i ori=_mm_loadu_si128((__m128i*)data.data());
     __m128i suf=_mm_shuffle_epi32(ori, 0x4e);
     __m128i max1=_mm_max_epi32(ori, suf);
@@ -177,7 +177,7 @@ static nuc_one_hot set_state(MAT::Node* this_node,uint8_t boundary1_major_allele
     }else {
         this_state=boundary1_major_allele&0xf;
         this_state=this_state.choose_first();
-        assert(this_node->parent->children.size()>1);
+        //assert(this_node->parent->children.size()>1);
         need_add=true;
     }
 
@@ -219,17 +219,41 @@ static nuc_one_hot set_binary_node_state(MAT::Node* node,uint8_t this_boundary1_
     return this_state;
 }
 
-static void FS_forward_pass(const std::vector<MAT::Node*> bfs_ordered_nodes,const std::vector<uint8_t>& boundary1_major_allele,const MAT::Mutation & base,std::vector<tbb::concurrent_vector<Mutation_Annotated_Tree::Mutation>>& output){
+void forward_per_node(
+    const std::vector<MAT::Node *> &bfs_ordered_nodes,
+    const std::vector<uint8_t> &boundary1_major_allele,
+    const MAT::Mutation &base,
+    std::vector<tbb::concurrent_vector<Mutation_Annotated_Tree::Mutation>>
+        &output,
+    std::vector<nuc_one_hot> &states, size_t node_idx,
+    nuc_one_hot parent_state) {
+    MAT::Node *this_node = bfs_ordered_nodes[node_idx];
+    if (this_node->children.size() == 2) {
+        auto this_children = this_node->children;
+        states[node_idx] = set_binary_node_state(
+            this_node, boundary1_major_allele[node_idx], parent_state,
+            boundary1_major_allele[this_children[0]->bfs_index] & 0xf,
+            boundary1_major_allele[this_children[1]->bfs_index] & 0xf, base,
+            output[node_idx]);
+    } else {
+        states[node_idx] =
+            set_state(this_node, boundary1_major_allele[node_idx], parent_state,
+                      base, output[node_idx]);
+    }
+}
+static void FS_forward_pass(
+    const std::vector<MAT::Node *> bfs_ordered_nodes,
+    const std::vector<uint8_t> &boundary1_major_allele,
+    const MAT::Mutation &base,
+    std::vector<tbb::concurrent_vector<Mutation_Annotated_Tree::Mutation>>
+        &output) {
     std::vector<nuc_one_hot> states(bfs_ordered_nodes.size());
-    states[0]=set_state(bfs_ordered_nodes[0], boundary1_major_allele[0], base.get_ref_one_hot(), base,output[0]);
+    forward_per_node(bfs_ordered_nodes, boundary1_major_allele, base, output,
+                  states, 0,base.get_ref_one_hot());
     for (size_t node_idx=1; node_idx<bfs_ordered_nodes.size(); node_idx++) {
-        MAT::Node* this_node=bfs_ordered_nodes[node_idx];
-        if (this_node->children.size()==2) {
-            auto this_children=this_node->children;
-            states[node_idx]=set_binary_node_state(this_node, boundary1_major_allele[node_idx], states[this_node->parent->bfs_index], boundary1_major_allele[this_children[0]->bfs_index]&0xf, boundary1_major_allele[this_children[1]->bfs_index]&0xf, base,output[node_idx]);
-        }else {
-            states[node_idx]=set_state(bfs_ordered_nodes[node_idx], boundary1_major_allele[node_idx], states[bfs_ordered_nodes[node_idx]->parent->bfs_index], base,output[node_idx]);
-        }
+        nuc_one_hot parent_state= states[bfs_ordered_nodes[node_idx]->parent->bfs_index];
+        forward_per_node(bfs_ordered_nodes, boundary1_major_allele, base, output,
+                  states, node_idx, parent_state);
     }
 }
 

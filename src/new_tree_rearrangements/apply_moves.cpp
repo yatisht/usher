@@ -43,7 +43,7 @@ bool get_children_alleles_count(const MAT::Node *this_node,
     count[one_hot_to_two_bit(this_allele)] += par_allele_count;
 }*/
 
-static void clean_up_internal_nodes(MAT::Node* this_node,MAT::Tree& tree,tbb::concurrent_vector<MAT::Node*>& to_filter){
+void clean_up_internal_nodes(MAT::Node* this_node,MAT::Tree& tree,tbb::concurrent_vector<MAT::Node*>& to_filter){
 
     std::vector<MAT::Node *> &parent_children = this_node->parent->children;
     std::vector<MAT::Node *> this_node_ori_children = this_node->children;

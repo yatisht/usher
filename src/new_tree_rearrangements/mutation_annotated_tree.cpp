@@ -141,6 +141,7 @@ static void depth_first_expansion_helper(Mutation_Annotated_Tree::Node* node, st
     for (auto c: node->children) {
         depth_first_expansion_helper(c, vec,index);
     }
+    node->dfs_end_index=index;
 }
 
 std::vector<Mutation_Annotated_Tree::Node*> Mutation_Annotated_Tree::Tree::depth_first_expansion(Mutation_Annotated_Tree::Node* node) const {

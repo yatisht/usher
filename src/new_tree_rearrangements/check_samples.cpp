@@ -23,6 +23,7 @@ void ins_mut(Mutation_Set &parent_mutations,const Mutation_Annotated_Tree::Mutat
         }
     }else {
         assert(m.get_mut_one_hot() != m.get_ref_one_hot());
+        assert(m.get_par_one_hot() == m.get_ref_one_hot());
         assert(m.get_mut_one_hot() != m.get_par_one_hot()||!m.is_valid());
     }
 }
@@ -108,7 +109,7 @@ void check_samples_worker(Mutation_Annotated_Tree::Node *root,
 
     for (auto child : root->children) {
         assert((!tree)||tree->get_node(child->identifier)==child);
-        assert(child->parent=root);
+        assert(child->parent==root);
         check_samples_worker(child, parent_mutations, samples);
     }
 }

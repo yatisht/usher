@@ -48,13 +48,7 @@ void output_result(MAT::Node *&src, MAT::Node *&dst, MAT::Node *&LCA,
         assert(dst == LCA || new_move->dst_to_LCA.back()->parent == LCA);
         assert(src->parent == LCA ||
                new_move->src_to_LCA.back()->parent == LCA);
-        MAT::Node* last_node=nullptr;
-        for (const auto node : node_stack_above_LCA) {
-            if (node!=last_node) {
-                new_move->dst_to_LCA.push_back(node);
-                last_node=node;
-            }
-        }
+        new_move->dst_to_LCA.push_back(LCA);
         #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
 std::unordered_set<int> node_idx_set;
 node_idx_set.insert(src->bfs_index);

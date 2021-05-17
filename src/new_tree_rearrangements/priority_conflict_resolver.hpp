@@ -22,8 +22,7 @@ struct Conflict_Resolver{
     //int& nodes_inside;
     std::mutex register_lock;
     Conflict_Resolver(size_t node_count):potential_crosses(node_count){}
-    bool check_single_move_no_conflict(Profitable_Moves_ptr_t& candidate_move)const;
-    void register_single_move_no_conflict(Profitable_Moves_ptr_t& candidate_move);
+    bool register_single_move_no_conflict(Profitable_Moves_ptr_t& candidate_move);
     char operator()(std::vector<Profitable_Moves_ptr_t>& candidate_move);
     void schedule_moves(std::vector<Profitable_Moves_ptr_t>& out);
 };
