@@ -140,7 +140,7 @@ float get_association_index(MAT::Tree* T, std::map<std::string, float> assignmen
                 if (c->is_leaf()) {
                     if (permute) {
                         int random = rand()%leaf_count;
-                        if (random <= sample_count) {
+                        if (random <= static_cast<float>(sample_count)) {
                             in_c++;
                             permuted_inc++;
                         } else {
@@ -452,7 +452,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
             //total_processed++;
             //everything in this vector is going to be 1 (IN) this region
             std::string last_encountered = s;
-            MAT::Node* last_node;
+            MAT::Node* last_node = NULL;
             float last_anc_state = 1;
             size_t traversed = 0;
             for (auto a: T->rsearch(s,true)) {
