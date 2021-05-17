@@ -408,7 +408,7 @@ json get_json_entry(MAT::Node* n, std::map<std::string,std::map<std::string,std:
     std::string date = n->identifier.substr( n->identifier.find_last_of("|")+1, n->identifier.size() );
     std::map<std::string,std::string> com {{"value",country}};
     std::map<std::string,std::string> dam {{"value",date}};
-    if (n->is_leaf()) {
+    if (n->is_leaf() && country.length() != n->identifier.size() && date.length() != n->identifier.size() ) {
         sj["node_attrs"] = { {"country",com}, {"date",dam} ,{"div", div}, {"MAT_Clade_0", c1a}, {"MAT_Clade_1", c2a} };
     } else {
         sj["node_attrs"] = {{"div", div}, {"MAT_Clade_0", c1a}, {"MAT_Clade_1", c2a} };
