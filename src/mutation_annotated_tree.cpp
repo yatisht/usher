@@ -1588,14 +1588,7 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (Mutation_Annotated_Tre
     }
 }
 
-void Mutation_Annotated_Tree::get_sample_mutation_paths (Mutation_Annotated_Tree::Tree* T, std::vector<std::string> samples, std::string outdir, size_t t_idx, bool use_tree_idx) {
-    auto mutation_paths_filename = outdir + "/mutation-paths.txt";
-    if (use_tree_idx) {
-        mutation_paths_filename = outdir + "/mutation-paths-" + std::to_string(t_idx+1) + ".txt";
-        fprintf(stderr, "Writing mutation paths for tree %zu to file %s \n", t_idx+1, mutation_paths_filename.c_str());
-    } else {
-        fprintf(stderr, "Writing mutation paths to file %s \n", mutation_paths_filename.c_str());
-    }
+void Mutation_Annotated_Tree::get_sample_mutation_paths (Mutation_Annotated_Tree::Tree* T, std::vector<std::string> samples, std::string mutation_paths_filename, size_t t_idx, bool use_tree_idx) {
     FILE* mutation_paths_file = fopen(mutation_paths_filename.c_str(), "w");
 
     for (size_t s=0; s<samples.size(); s++) {

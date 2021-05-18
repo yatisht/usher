@@ -1179,84 +1179,16 @@ int main(int argc, char** argv) {
             for (auto s: missing_samples) {
                 targets.emplace_back(s.name);
             }
-            MAT::get_sample_mutation_paths(T, targets, outdir, t_idx, use_tree_idx);
+            auto mutation_paths_filename = outdir + "/mutation-paths.txt";
+            if (use_tree_idx) {
+                mutation_paths_filename = outdir + "/mutation-paths-" + std::to_string(t_idx+1) + ".txt";
+                fprintf(stderr, "Writing mutation paths for tree %zu to file %s \n", t_idx+1, mutation_paths_filename.c_str());
+            } else {
+                fprintf(stderr, "Writing mutation paths to file %s \n", mutation_paths_filename.c_str());
+            }
+            MAT::get_sample_mutation_paths(T, targets, mutation_paths_filename, t_idx, use_tree_idx);
             fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
         }
-        //     auto mutation_paths_filename = outdir + "/mutation-paths.txt";
-        //     if (num_trees > 1) {
-        //         mutation_paths_filename = outdir + "/mutation-paths-" + std::to_string(t_idx+1) + ".txt";
-        //         fprintf(stderr, "Writing mutation paths for tree %zu to file %s \n", t_idx+1, mutation_paths_filename.c_str());
-        //     }
-        //     else {
-        //         fprintf(stderr, "Writing mutation paths to file %s \n", mutation_paths_filename.c_str());
-        //     }
-
-        //     FILE* mutation_paths_file = fopen(mutation_paths_filename.c_str(), "w");
-
-        //     for (size_t s=0; s<missing_samples.size(); s++) {
-        //         auto sample = missing_samples[s].name;
-        //         auto sample_node = T->get_node(sample);
-                
-        //         // If the missing sample is not found in the tree, it was not placed
-        //         // because of max_uncertainty.  
-        //         if (T->get_node(sample) == NULL) {
-        //             continue; 
-        //         }
-
-        //         // Stack for last-in first-out ordering
-        //         std::stack<std::string> mutation_stack;
-        //         std::string curr_node_mutation_string;
-
-        //         // Mutations on the added sample
-        //         auto curr_node_mutations = sample_node->mutations;
-        //         if (curr_node_mutations.size() > 0) {
-        //             curr_node_mutation_string = sample + ":";
-        //             size_t num_mutations = curr_node_mutations.size();
-        //             for (size_t k = 0; k < num_mutations; k++) {
-        //                 curr_node_mutation_string += curr_node_mutations[k].get_string();
-        //                 if (k < num_mutations-1) {
-        //                     curr_node_mutation_string += ',';
-        //                 }
-        //                 else {
-        //                     curr_node_mutation_string += ' ';    
-        //                 }
-        //             }
-        //             mutation_stack.push(curr_node_mutation_string);
-        //         }
-
-        //         // Mutations on the ancestors of added sample
-        //         for (auto anc_node: T->rsearch(sample)) {
-        //             curr_node_mutations = anc_node->mutations;
-        //             if (curr_node_mutations.size() > 0) {
-        //                 curr_node_mutation_string = anc_node->identifier + ":";
-        //                 size_t num_mutations = curr_node_mutations.size();
-        //                 for (size_t k = 0; k < num_mutations; k++) {
-        //                     curr_node_mutation_string += curr_node_mutations[k].get_string(); 
-        //                     if (k < num_mutations-1) {
-        //                         curr_node_mutation_string += ',';
-        //                     }
-        //                     else {
-        //                         curr_node_mutation_string += ' ';    
-        //                     }
-        //                 }
-        //                 mutation_stack.push(curr_node_mutation_string);
-        //             }
-        //         }
-
-        //         fprintf(mutation_paths_file, "%s\t", sample.c_str()); 
-        //         while (mutation_stack.size()) {
-        //             fprintf(mutation_paths_file, "%s", mutation_stack.top().c_str()); 
-        //             mutation_stack.pop();
-        //         }
-        //         fprintf(mutation_paths_file, "\n"); 
-        //     }
-
-        //     fclose(mutation_paths_file);
-
-        //     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
-            
-        // }
-
         // For each final tree write the annotations for each sample
         for (size_t t_idx = 0; t_idx < num_trees; t_idx++) {
             T = &optimal_trees[t_idx];

@@ -78,7 +78,7 @@ std::vector<std::string> all_nodes_paths(MAT::Tree T) {
     std::vector<std::string> dfs_strings;
     auto dfs = T.depth_first_expansion();
     for (auto n: dfs) {
-        std::string node_path = n->identifier + "\t";
+        std::string node_path = n->identifier + ": ";
         for (size_t i=0; i<n->mutations.size(); i++) {
             node_path += n->mutations[i].get_string();
             if (i+1 < n->mutations.size()) {

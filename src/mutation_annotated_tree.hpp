@@ -153,7 +153,7 @@ namespace Mutation_Annotated_Tree {
     Tree get_subtree (const Tree& tree, const std::vector<std::string>& samples);
     void get_random_single_subtree (Mutation_Annotated_Tree::Tree* T, std::vector<std::string> samples, std::string outdir, size_t subtree_size, size_t tree_idx = 0, bool use_tree_idx = false, bool retain_original_branch_len = false);
     void get_random_sample_subtrees (Mutation_Annotated_Tree::Tree* T, std::vector<std::string> samples, std::string outdir, size_t subtree_size, size_t tree_idx = 0, bool use_tree_idx = false, bool retain_original_branch_len = false);
-    void get_sample_mutation_paths (Mutation_Annotated_Tree::Tree* T, std::vector<std::string> samples, std::string outdir, size_t t_idx = 0, bool use_tree_idx = false);
+    void get_sample_mutation_paths (Mutation_Annotated_Tree::Tree* T, std::vector<std::string> samples, std::string mutation_paths_filename, size_t t_idx = 0, bool use_tree_idx = false);
     void clear_tree(Tree& tree);
 }
 
