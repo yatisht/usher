@@ -415,6 +415,20 @@ void extract_main (po::parsed_options parsed) {
         std::set<std::string> samples_included(samples.begin(), samples.end());
         catmeta = read_metafile(meta_filename, samples_included);
     }
+    //if json output AND mutation context is requested, add an additional metadata column indicating whether each branch contains 
+    //the mutation of interest. the metadata map is not limited to leaf nodes.
+    if ((json_filename != "") && (mutation_choice != "")) {
+        std::map<std::string,std::string> mutmap;
+        for (auto n: subtree.depth_first_expansion()) {
+            for (auto m: n->mutations) {
+                if (m.get_string() == mutation_choice) {
+                    mutmap[n->identifier] = mutation_choice;
+                    break;
+                }
+            }
+        }
+        catmeta["mutation_of_interest"] = mutmap;
+    }
     if (nearest_k_batch_file != "") {
         fprintf(stderr, "Batch sample context writing requested.\n");
         auto split_point = nearest_k_batch_file.find(":");
@@ -459,21 +473,6 @@ void extract_main (po::parsed_options parsed) {
         }
         catmeta["focal_view"] = conmap;
     }
-    //if json output AND mutation context is requested, add an additional metadata column indicating whether each branch contains 
-    //the mutation of interest. the metadata map is not limited to leaf nodes.
-    if ((json_filename != "") && (mutation_choice != "")) {
-        std::map<std::string,std::string> mutmap;
-        for (auto n: subtree.depth_first_expansion()) {
-            for (auto m: n->mutations) {
-                if (m.get_string() == mutation_choice) {
-                    mutmap[n->identifier] = mutation_choice;
-                    break;
-                }
-            }
-        }
-        catmeta["mutation_of_interest"] = mutmap;
-    }
-
     //last step is to convert the subtree to other file formats
     if (vcf_filename != dir_prefix) {
         fprintf(stderr, "Generating VCF of final tree\n");
