@@ -151,7 +151,8 @@ namespace Mutation_Annotated_Tree {
 
     Node* LCA (const Tree& tree, const std::string& node_id1, const std::string& node_id2);
     Tree get_subtree (const Tree& tree, const std::vector<std::string>& samples);
-
+    void get_random_single_subtree (Mutation_Annotated_Tree::Tree* T, std::vector<std::string> samples, std::string outdir, size_t subtree_size, size_t tree_idx = 0, bool use_tree_idx = false, bool retain_original_branch_len = false);
+    void get_random_sample_subtrees (Mutation_Annotated_Tree::Tree* T, std::vector<std::string> samples, std::string outdir, size_t subtree_size, size_t tree_idx = 0, bool use_tree_idx = false, bool retain_original_branch_len = false);
     void clear_tree(Tree& tree);
 }
 

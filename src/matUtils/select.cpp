@@ -240,12 +240,12 @@ std::vector<std::string> get_short_steppers(MAT::Tree T, std::vector<std::string
         for (auto an: anc_nodes) {
             if (an->mutations.size() > static_cast<size_t>(max_mutations)) {
                 badanc = true;
-                continue;
+                break;
             }
         }
         if (!badanc) {
             good_samples.push_back(s);
-        }
+        } 
     }
     return good_samples;
 }

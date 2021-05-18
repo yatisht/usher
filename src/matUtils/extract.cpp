@@ -57,6 +57,10 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
          "Use to write a newick tree to the indicated file.")
         ("retain-branch-length,E", po::bool_switch(),
         "Use to not recalculate branch lengths when saving newick output. Used only with -t")
+        ("single_subtree_size,X", po::value<size_t>()->default_value(0),
+        "(EXPERIMENTAL) Use to produce a single sample subtree of the indicated size with all selected samples plus random samples to fill. Produces .nh and .txt files.")
+        ("minimum_subtrees_size,x", po::value<size_t>()->default_value(0),
+        "(EXPERIMENTAL) Use to produce the minimum set of subtrees of the indicated size which include all of the selected samples. Produces .nh and .txt files.")
         ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
         ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
@@ -101,6 +105,8 @@ void extract_main (po::parsed_options parsed) {
     bool resolve_polytomies = vm["resolve-polytomies"].as<bool>();
     bool retain_branch = vm["retain-branch-length"].as<bool>();
     std::string dir_prefix = vm["output-directory"].as<std::string>();
+    size_t single_subtree_size = vm["single_subtree_size"].as<size_t>();
+    size_t minimum_subtrees_size = vm["minimum_subtrees_size"].as<size_t>();
 
     boost::filesystem::path path(dir_prefix);
     if (!boost::filesystem::exists(path)) {
@@ -355,6 +361,22 @@ void extract_main (po::parsed_options parsed) {
         }
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
+    //before proceeding to actually applying sample selection, 
+    //if usher-style subtree output is requested, 
+    //produce that. 
+    if (minimum_subtrees_size > 0) {
+        timer.Start();
+        fprintf(stderr, "Random minimum sample subtrees of size %ld requested.\n", minimum_subtrees_size);
+        MAT::get_random_sample_subtrees(&T, samples, dir_prefix, minimum_subtrees_size, 0, false, retain_branch);
+        fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+    }
+    if (single_subtree_size > 0) {
+        timer.Start();
+        fprintf(stderr, "Random single encompassing subtree of size %ld requested.\n", single_subtree_size);
+        MAT::get_random_single_subtree(&T, samples, dir_prefix, single_subtree_size, 0, false, retain_branch);
+        fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+    }
+
     //if we have no samples at the end without throwing an error, 
     //probably because no selection arguments were set,
     //we want the samples to be all samples in the tree
