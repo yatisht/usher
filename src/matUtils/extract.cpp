@@ -331,16 +331,27 @@ void extract_main (po::parsed_options parsed) {
     //before proceeding to actually applying sample selection, 
     //if usher-style subtree output is requested, 
     //produce that. 
+
     if (minimum_subtrees_size > 0) {
         timer.Start();
         fprintf(stderr, "Random minimum sample subtrees of size %ld requested.\n", minimum_subtrees_size);
-        MAT::get_random_sample_subtrees(&T, samples, dir_prefix, minimum_subtrees_size, 0, false, retain_branch);
+        if (samples.size() > 0) {
+            MAT::get_random_sample_subtrees(&T, samples, dir_prefix, minimum_subtrees_size, 0, false, retain_branch);
+        } else {
+            fprintf(stderr, "ERROR: Minimum sample subtree output requested with no valid samples! Check selection parameters\n");
+            exit(1);
+        }
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
     if (single_subtree_size > 0) {
         timer.Start();
         fprintf(stderr, "Random single encompassing subtree of size %ld requested.\n", single_subtree_size);
-        MAT::get_random_single_subtree(&T, samples, dir_prefix, single_subtree_size, 0, false, retain_branch);
+        if (samples.size() > 0) {
+            MAT::get_random_single_subtree(&T, samples, dir_prefix, single_subtree_size, 0, false, retain_branch);
+        } else {
+            fprintf(stderr, "ERROR: Encompassing subtree output requested with no valid samples! Check selection parameters\n");
+            exit(1);
+        }
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
 
