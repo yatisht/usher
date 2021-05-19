@@ -182,7 +182,7 @@ void extract_main (po::parsed_options parsed) {
             fprintf(stderr, "ERROR: Invalid neighborhood size. Please choose a positive nonzero integer.\n");
             exit(1);
         }
-        auto nk_samples = get_nearby(T, sample_id, nk);
+        auto nk_samples = get_nearby(&T, sample_id, nk);
         if (samples.size() == 0) {
             samples = nk_samples;
         } else {
@@ -481,7 +481,7 @@ void extract_main (po::parsed_options parsed) {
             std::map<std::string,std::string> conmap;
             conmap[s] = "focal";
             catmeta["focal_view"] = conmap;
-            auto cs = get_nearby(T, s, nk);
+            auto cs = get_nearby(&T, s, nk);
             MAT::Tree subt = filter_master(T, cs, false);
             //remove forward slashes from the string, replacing them with underscores.
             size_t pos = 0;
