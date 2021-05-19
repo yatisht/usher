@@ -318,7 +318,7 @@ void extract_main (po::parsed_options parsed) {
         // fprintf(stderr,"Retriving path information...\n"); 
         if (sample_path_filename != dir_prefix) {
             std::cerr << "Sample mutation path information requested; writing pre-pruning paths to " << sample_path_filename << " with usher-style output.\n";
-            MAT::get_sample_mutation_paths(&T, samples, sample_path_filename, 0, false);
+            MAT::get_sample_mutation_paths(&T, samples, sample_path_filename);
             // std::ofstream outfile (sample_path_filename);
             // auto mpaths = mutation_paths(T, samples);
             // for (auto mstr: mpaths) {

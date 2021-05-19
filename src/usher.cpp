@@ -1186,7 +1186,7 @@ int main(int argc, char** argv) {
             } else {
                 fprintf(stderr, "Writing mutation paths to file %s \n", mutation_paths_filename.c_str());
             }
-            MAT::get_sample_mutation_paths(T, targets, mutation_paths_filename, t_idx, use_tree_idx);
+            MAT::get_sample_mutation_paths(T, targets, mutation_paths_filename);
             fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
         }
         // For each final tree write the annotations for each sample
