@@ -31,7 +31,7 @@ INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIRS})
 
 file(GLOB MATUTIL_SRCS "src/matUtils/*.cpp" "src/matUtils/*.hpp")
 file(GLOB MATOPTIMIZE_SRCS "src/matOptimize/*.cpp" "src/matOptimize/*.hpp")
-
+find_package(ZLIB)
 if(DEFINED Protobuf_PATH)
     add_executable(usher
         src/mutation_annotated_tree.cpp
@@ -109,7 +109,7 @@ else(SAVE_PROFILE)
     endif(DEBUG)
 endif(SAVE_PROFILE)
 
-TARGET_LINK_LIBRARIES(usher PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
+TARGET_LINK_LIBRARIES(usher PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 
 TARGET_COMPILE_OPTIONS(matUtils PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
 TARGET_LINK_LIBRARIES(matUtils PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
