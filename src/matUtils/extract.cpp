@@ -450,12 +450,27 @@ void extract_main (po::parsed_options parsed) {
     //the mutation of interest. the metadata map is not limited to leaf nodes.
     if ((json_filename != "") && (mutation_choice != "")) {
         std::map<std::string,std::string> mutmap;
+        std::vector<std::string> mutations;
+        std::stringstream mns(mutation_choice);
+        std::string m;
+        while (std::getline(mns,m,',')) {
+            mutations.push_back(m);
+        }
+        assert (mutations.size() > 0);
         for (auto n: subtree.depth_first_expansion()) {
             for (auto m: n->mutations) {
-                if (m.get_string() == mutation_choice) {
-                    mutmap[n->identifier] = mutation_choice;
-                    break;
+                std::string metastr = "";
+                for (auto mstr: mutations ) {
+                    if (m.get_string() == mstr) {
+                        if (metastr == "") {
+                            metastr = mstr;
+                        } else {
+                            metastr = metastr + ',' + mstr;
+                        }
+                    }
                 }
+                mutmap[n->identifier] = metastr;
+                break;
             }
         }
         catmeta["mutation_of_interest"] = mutmap;
