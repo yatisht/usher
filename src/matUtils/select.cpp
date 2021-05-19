@@ -182,42 +182,85 @@ std::vector<std::string> sample_intersect (std::vector<std::string> samples, std
     return inter_samples;
 }
 
-std::vector<std::string> get_nearby (MAT::Tree T, std::string sample_id, int number_to_get) {
+std::vector<std::string> get_nearby (MAT::Tree* T, std::string sample_id, int number_to_get) {
     //get the nearest X neighbors to sample_id and return them as a vector
-    //by far the simplest way to do this is to get_leaves_ids and subset out a distance around the index
-    //increment the number to get by 1.
-    number_to_get++;
-    //trying the set of leaves in breadth-first search order
-    std::vector<std::string> all_leaves;
-    for (auto n: T.depth_first_expansion()) {
-        if (n->is_leaf()) {
-            all_leaves.push_back(n->identifier);
+    //the simple indexing method is not guaranteed to get the very closest neighbors when the query sample is out near the edge of a large clade
+    //unfortunately. so we have to brute force it.
+    MAT::Node* last_anc = T->get_node(sample_id);
+    if (last_anc == NULL) {
+        fprintf(stderr, "ERROR: Indicated sample does not exist in the tree!\n");
+    }
+    std::vector<std::string> leaves_to_keep;
+    for (auto anc: T->rsearch(sample_id, true)) {
+        size_t num_leaves = T->get_num_leaves(anc);
+        if (num_leaves <= number_to_get) {
+            last_anc = anc;
+            continue;
+        }
+
+        if (num_leaves > number_to_get) {
+            for (auto l: T->get_leaves(last_anc->identifier)) {
+                leaves_to_keep.emplace_back(l->identifier);
+            }
+
+            std::vector<Mutation_Annotated_Tree::Node*> siblings;
+            for (auto child: anc->children) {
+                if (child->identifier != last_anc->identifier) {
+                    siblings.emplace_back(child);
+                }
+            }
+
+            for (size_t k=0; k<siblings.size(); k++) {
+                for (auto l: T->get_leaves(siblings[k]->identifier)) {
+                    leaves_to_keep.emplace_back(l->identifier);
+                }
+            }
+            leaves_to_keep.resize(number_to_get);
+        } else {
+            for (auto l: T->get_leaves(anc->identifier)) {
+                leaves_to_keep.emplace_back(l->identifier);
+            }
+        }
+        if (leaves_to_keep.size() >= number_to_get) {
+            break;
         }
     }
-    //auto all_leaves = T.get_leaves_ids();
-    auto target = std::find(all_leaves.begin(), all_leaves.end(), sample_id);
-    if (target == all_leaves.cend()) {
-        fprintf(stderr, "ERROR: Indicated sample does not exist in the tree!\n");
-        exit(1);
-    } else if (all_leaves.size() < static_cast<size_t>(number_to_get)) {
-        fprintf(stderr, "ERROR: Not enough samples in tree to get neighborhood subtree of requested size!\n");
-        exit(1);
-    }
-    int tindex = std::distance(all_leaves.begin(), target);
-    int subset_start = tindex - (number_to_get/2);
-    int subset_end = tindex + (number_to_get/2);
-    if (subset_start < 0) {
-        subset_start = 0;
-        subset_end = number_to_get;
-    } else if (static_cast<size_t>(subset_end) >= all_leaves.size()) {
-        subset_start = all_leaves.size() - number_to_get - 1;
-        subset_end = all_leaves.size() - 1;
-    }
-    //fprintf(stderr, "Start index is %d\n", subset_start);
-    //fprintf(stderr, "Stop index is %d\n", subset_end);
-    std::vector<std::string> neighborhood_leaves(all_leaves.begin() + subset_start, all_leaves.begin() + subset_end);
-    return neighborhood_leaves;
+    assert (leaves_to_keep.size() == static_cast<size_t>(number_to_get));
+    return leaves_to_keep;
 }
+    //by far the simplest way to do this is to get_leaves_ids and subset out a distance around the index
+    //increment the number to get by 1.
+    // number_to_get++;
+    // //trying the set of leaves in breadth-first search order
+    // std::vector<std::string> all_leaves;
+    // for (auto n: T.depth_first_expansion()) {
+    //     if (n->is_leaf()) {
+    //         all_leaves.push_back(n->identifier);
+    //     }
+    // }
+    // auto target = std::find(all_leaves.begin(), all_leaves.end(), sample_id);
+    // if (target == all_leaves.cend()) {
+    //     fprintf(stderr, "ERROR: Indicated sample does not exist in the tree!\n");
+    //     exit(1);
+    // } else if (all_leaves.size() < static_cast<size_t>(number_to_get)) {
+    //     fprintf(stderr, "ERROR: Not enough samples in tree to get neighborhood subtree of requested size!\n");
+    //     exit(1);
+    // }
+    // // int tindex = std::distance(all_leaves.begin(), target);
+    // int subset_start = tindex - (number_to_get/2);
+    // int subset_end = tindex + (number_to_get/2);
+    // if (subset_start < 0) {
+    //     subset_start = 0;
+    //     subset_end = number_to_get;
+    // } else if (static_cast<size_t>(subset_end) >= all_leaves.size()) {
+    //     subset_start = all_leaves.size() - number_to_get - 1;
+    //     subset_end = all_leaves.size() - 1;
+    // }
+    // //fprintf(stderr, "Start index is %d\n", subset_start);
+    // //fprintf(stderr, "Stop index is %d\n", subset_end);
+    // std::vector<std::string> neighborhood_leaves(all_leaves.begin() + subset_start, all_leaves.begin() + subset_end);
+    // return neighborhood_leaves;
+// }
 
 std::vector<std::string> get_short_steppers(MAT::Tree T, std::vector<std::string> samples_to_check, int max_mutations) {
     //for each sample in samples_to_check, this function rsearches along that samples history in the tree
@@ -240,12 +283,12 @@ std::vector<std::string> get_short_steppers(MAT::Tree T, std::vector<std::string
         for (auto an: anc_nodes) {
             if (an->mutations.size() > static_cast<size_t>(max_mutations)) {
                 badanc = true;
-                continue;
+                break;
             }
         }
         if (!badanc) {
             good_samples.push_back(s);
-        }
+        } 
     }
     return good_samples;
 }

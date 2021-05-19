@@ -1329,3 +1329,324 @@ void Mutation_Annotated_Tree::clear_tree(Mutation_Annotated_Tree::Tree& T) {
         delete(n);
     }
 }
+
+void Mutation_Annotated_Tree::get_random_single_subtree (Mutation_Annotated_Tree::Tree* T, std::vector<std::string> samples, std::string outdir, size_t subtree_size, size_t tree_idx, bool use_tree_idx, bool retain_original_branch_len) {
+    //timer.Start();
+    std::string preid = "/";
+    if (use_tree_idx) {
+        preid = "/tree-" + std::to_string(tree_idx) + "-";
+    }
+    std::set<Mutation_Annotated_Tree::Node*> leaves_to_keep_set;
+    for (auto s: samples) {
+        leaves_to_keep_set.insert(T->get_node(s));
+    }
+
+    auto all_leaves = T->get_leaves();
+    for (size_t i=0; i< all_leaves.size(); i++) {
+        auto l = all_leaves.begin();
+        std::advance(l, std::rand() % all_leaves.size());
+        leaves_to_keep_set.insert(*l);
+        if (leaves_to_keep_set.size() >= subtree_size + samples.size()) {
+            break;
+        }
+    }
+
+    std::vector<std::string> leaves_to_keep;
+    for (auto l: leaves_to_keep_set) {
+        leaves_to_keep.emplace_back(l->identifier);
+    }
+
+    auto new_T = Mutation_Annotated_Tree::get_subtree(*T, leaves_to_keep);
+
+    // Write subtree to file
+    auto subtree_filename = outdir + preid + "single-subtree.nh";
+    fprintf(stderr, "Writing single subtree with %zu randomly added leaves to file %s.\n", subtree_size, subtree_filename.c_str());
+
+    std::ofstream subtree_file(subtree_filename.c_str(), std::ofstream::out);
+    std::stringstream newick_ss;
+    write_newick_string(newick_ss, new_T, new_T.root, true, true, retain_original_branch_len);
+    subtree_file << newick_ss.rdbuf(); 
+    subtree_file.close();
+
+
+    // Write list of mutations on the subtree to file
+    auto subtree_mutations_filename = outdir + preid + "single-subtree-mutations.txt";
+    fprintf(stderr, "Writing list of mutations at the nodes of the single subtree to file %s\n", subtree_mutations_filename.c_str());
+    FILE* subtree_mutations_file = fopen(subtree_mutations_filename.c_str(), "w");
+
+    for (auto n: new_T.depth_first_expansion()) {
+        size_t tot_mutations = n->mutations.size();
+        fprintf(subtree_mutations_file, "%s: ", n->identifier.c_str());
+        for (size_t idx = 0; idx < tot_mutations; idx++) {
+            auto m = n->mutations[idx];
+            fprintf(subtree_mutations_file, "%s", m.get_string().c_str());
+            if (idx+1 <tot_mutations) {
+                fprintf(subtree_mutations_file, ",");
+            }
+        }
+        fprintf(subtree_mutations_file, "\n");
+    }
+
+    fclose(subtree_mutations_file);
+
+    // Expand internal nodes that are condensed
+    bool has_condensed = false;
+    FILE* subtree_expanded_file = NULL;
+    for (auto l: new_T.get_leaves()) {
+        if (T->condensed_nodes.find(l->identifier) != T->condensed_nodes.end()) {
+            if (!has_condensed) {
+
+                auto subtree_expanded_filename = outdir + preid + "single-subtree-expanded.txt";
+                fprintf(stderr, "Subtree has condensed nodes.\nExpanding the condensed nodes for the single subtree in file %s\n", subtree_expanded_filename.c_str());
+                subtree_expanded_file = fopen(subtree_expanded_filename.c_str(), "w");
+                has_condensed = true;
+            }
+            fprintf(subtree_expanded_file, "%s: ", l->identifier.c_str());
+            for (auto n: T->condensed_nodes[l->identifier]) {
+                fprintf(subtree_expanded_file, "%s ", n.c_str());
+            }
+            fprintf(subtree_expanded_file, "\n");
+        }
+    }
+    if (has_condensed) {
+        fclose(subtree_expanded_file);
+    }
+}
+
+void Mutation_Annotated_Tree::get_random_sample_subtrees (Mutation_Annotated_Tree::Tree* T, std::vector<std::string> samples, std::string outdir, size_t subtree_size, size_t tree_idx, bool use_tree_idx, bool retain_original_branch_len) {
+    fprintf(stderr, "Computing subtrees for %ld samples. \n\n", samples.size());
+    std::string preid = "/";
+    if (use_tree_idx) {
+        preid = "/tree-" + std::to_string(tree_idx) + "-";
+    }
+    // For each final tree, write a subtree of user-specified size around
+    // each requested sample in newick format
+    // We split the subtree size into two: one half for nearest sequences to
+    // the samples and the other half randomly sampled
+    //size_t random_subtree_size = print_subtrees_size/2;
+    //size_t nearest_subtree_size = print_subtrees_size - random_subtree_size;
+        
+    size_t random_subtree_size = 0;
+    size_t nearest_subtree_size = subtree_size - random_subtree_size;
+
+    //Set a constant random seed
+    std::srand(0);
+
+    // Randomly shuffle the leaves for selecting the random subtree
+    auto all_leaves = T->get_leaves();
+    std::set<Mutation_Annotated_Tree::Node*> random_ordered_leaves;
+    for (size_t i=0; i< all_leaves.size(); i++) {
+        auto l = all_leaves.begin();
+        std::advance(l, std::rand() % all_leaves.size());
+        random_ordered_leaves.insert(*l);
+        if (random_ordered_leaves.size() >= subtree_size) {
+            break;
+        }
+    }
+
+    // Bool vector to mark which newly placed samples have already been
+    // displayed in a subtree (initialized to false)
+    std::vector<bool> displayed_samples (samples.size(), false);
+
+    // If the missing sample is not found in the tree, it was not placed
+    // because of max_uncertainty. Mark those samples as already
+    // displayed. 
+    for (size_t ms_idx = 0; ms_idx < samples.size(); ms_idx++) {
+        if (T->get_node(samples[ms_idx]) == NULL) {
+            displayed_samples[ms_idx] = true;
+        }
+    }
+
+    int num_subtrees = 0;
+    for (size_t i = 0; i < samples.size(); i++) {
+        
+        if (displayed_samples[i]) {
+            continue;
+        }
+
+        Mutation_Annotated_Tree::Node* last_anc = T->get_node(samples[i]);
+        std::vector<std::string> leaves_to_keep;
+
+        // Keep moving up the tree till a subtree of required size is
+        // found
+        for (auto anc: T->rsearch(samples[i], true)) {
+            size_t num_leaves = T->get_num_leaves(anc);
+            if (num_leaves <= nearest_subtree_size) {
+                last_anc = anc;
+                continue;
+            }
+
+            if (num_leaves > nearest_subtree_size) {
+                for (auto l: T->get_leaves(last_anc->identifier)) {
+                    leaves_to_keep.emplace_back(l->identifier);
+                }
+
+                std::vector<Mutation_Annotated_Tree::Node*> siblings;
+                for (auto child: anc->children) {
+                    if (child->identifier != last_anc->identifier) {
+                        siblings.emplace_back(child);
+                    }
+                }
+
+                for (size_t k=0; k<siblings.size(); k++) {
+                    for (auto l: T->get_leaves(siblings[k]->identifier)) {
+                        leaves_to_keep.emplace_back(l->identifier);
+                    }
+                }
+                leaves_to_keep.resize(nearest_subtree_size);
+            } else {
+                for (auto l: T->get_leaves(anc->identifier)) {
+                    leaves_to_keep.emplace_back(l->identifier);
+                }
+            }
+
+            // Add non-overlapping random subtree samples
+            for (auto l: random_ordered_leaves) {
+                if (leaves_to_keep.size() < subtree_size) {
+                    if (std::find(leaves_to_keep.begin(), leaves_to_keep.end(), l->identifier) == leaves_to_keep.end()) {
+                        leaves_to_keep.emplace_back(l->identifier);
+                    }
+                }
+
+                if (leaves_to_keep.size() >= subtree_size) {
+                    break;
+                }
+            }
+                    
+            auto new_T = Mutation_Annotated_Tree::get_subtree(*T, leaves_to_keep);
+
+            tbb::parallel_for (tbb::blocked_range<size_t>(i+1, samples.size(), 100),
+                    [&](tbb::blocked_range<size_t> r) {
+                    for (size_t j=r.begin(); j<r.end(); ++j){
+                        for (size_t j = i+1; j < samples.size(); j++) {
+                            if (!displayed_samples[j]) {
+                                if (new_T.get_node(samples[j]) != NULL) {
+                                    displayed_samples[j] = true;
+                                }
+                            }
+                        }
+                    }
+                    });
+
+            // Write subtree to file
+            ++num_subtrees;
+            auto subtree_filename = outdir + preid + "subtree-" + std::to_string(num_subtrees) + ".nh";
+            fprintf(stderr, "Writing subtree %d to file %s.\n", num_subtrees, subtree_filename.c_str());
+            //FILE* subtree_file = fopen(subtree_filename.c_str(), "w");
+            //fprintf(subtree_file, "%s\n", newick.c_str());
+            //fclose(subtree_file);
+            std::ofstream subtree_file(subtree_filename.c_str(), std::ofstream::out);
+            std::stringstream newick_ss;
+            write_newick_string(newick_ss, new_T, new_T.root, true, true, retain_original_branch_len);
+            subtree_file << newick_ss.rdbuf(); 
+            subtree_file.close();
+
+
+            // Write list of mutations on the subtree to file
+            auto subtree_mutations_filename = outdir + preid + "subtree-" + std::to_string(num_subtrees) + "-mutations.txt";
+
+            fprintf(stderr, "Writing list of mutations at the nodes of subtree %d to file %s\n", num_subtrees, subtree_mutations_filename.c_str());
+            FILE* subtree_mutations_file = fopen(subtree_mutations_filename.c_str(), "w");
+
+            for (auto n: new_T.depth_first_expansion()) {
+                size_t tot_mutations = n->mutations.size();
+                fprintf(subtree_mutations_file, "%s: ", n->identifier.c_str());
+                for (size_t idx = 0; idx < tot_mutations; idx++) {
+                    auto m = n->mutations[idx];
+                    fprintf(subtree_mutations_file, "%s", m.get_string().c_str());
+                    if (idx+1 <tot_mutations) {
+                        fprintf(subtree_mutations_file, ",");
+                    }
+                }
+                fprintf(subtree_mutations_file, "\n");
+            }
+            fclose(subtree_mutations_file);
+
+            // Expand internal nodes that are condensed
+            bool has_condensed = false;
+            FILE* subtree_expanded_file = NULL;
+            for (auto l: new_T.get_leaves()) {
+                if (T->condensed_nodes.find(l->identifier) != T->condensed_nodes.end()) {
+                    if (!has_condensed) {
+                        auto subtree_expanded_filename = outdir + preid +  "subtree-" + std::to_string(num_subtrees) + "-expanded.txt";
+                        fprintf(stderr, "Subtree %d has condensed nodes.\nExpanding the condensed nodes for subtree %d in file %s\n", num_subtrees, num_subtrees, subtree_expanded_filename.c_str());
+                        subtree_expanded_file = fopen(subtree_expanded_filename.c_str(), "w");
+                        has_condensed = true;
+                    }
+                    fprintf(subtree_expanded_file, "%s: ", l->identifier.c_str());
+                    for (auto n: T->condensed_nodes[l->identifier]) {
+                        fprintf(subtree_expanded_file, "%s ", n.c_str());
+                    }
+                    fprintf(subtree_expanded_file, "\n");
+                }
+            }
+            if (has_condensed) {
+                fclose(subtree_expanded_file);
+            }
+            break;
+        }
+    }
+}
+
+void Mutation_Annotated_Tree::get_sample_mutation_paths (Mutation_Annotated_Tree::Tree* T, std::vector<std::string> samples, std::string mutation_paths_filename) {
+    FILE* mutation_paths_file = fopen(mutation_paths_filename.c_str(), "w");
+
+    for (size_t s=0; s<samples.size(); s++) {
+        auto sample = samples[s];
+        auto sample_node = T->get_node(sample);
+        
+        // If the missing sample is not found in the tree, it was not placed
+        // because of max_uncertainty.  
+        if (T->get_node(sample) == NULL) {
+            continue; 
+        }
+
+        // Stack for last-in first-out ordering
+        std::stack<std::string> mutation_stack;
+        std::string curr_node_mutation_string;
+
+        // Mutations on the added sample
+        auto curr_node_mutations = sample_node->mutations;
+        if (curr_node_mutations.size() > 0) {
+            curr_node_mutation_string = sample + ":";
+            size_t num_mutations = curr_node_mutations.size();
+            for (size_t k = 0; k < num_mutations; k++) {
+                curr_node_mutation_string += curr_node_mutations[k].get_string();
+                if (k < num_mutations-1) {
+                    curr_node_mutation_string += ',';
+                }
+                else {
+                    curr_node_mutation_string += ' ';    
+                }
+            }
+            mutation_stack.push(curr_node_mutation_string);
+        }
+
+        // Mutations on the ancestors of added sample
+        for (auto anc_node: T->rsearch(sample)) {
+            curr_node_mutations = anc_node->mutations;
+            if (curr_node_mutations.size() > 0) {
+                curr_node_mutation_string = anc_node->identifier + ":";
+                size_t num_mutations = curr_node_mutations.size();
+                for (size_t k = 0; k < num_mutations; k++) {
+                    curr_node_mutation_string += curr_node_mutations[k].get_string(); 
+                    if (k < num_mutations-1) {
+                        curr_node_mutation_string += ',';
+                    }
+                    else {
+                        curr_node_mutation_string += ' ';    
+                    }
+                }
+                mutation_stack.push(curr_node_mutation_string);
+            }
+        }
+
+        fprintf(mutation_paths_file, "%s\t", sample.c_str()); 
+        while (mutation_stack.size()) {
+            fprintf(mutation_paths_file, "%s", mutation_stack.top().c_str()); 
+            mutation_stack.pop();
+        }
+        fprintf(mutation_paths_file, "\n"); 
+    }
+    fclose(mutation_paths_file);    
+}

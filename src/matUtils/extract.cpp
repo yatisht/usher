@@ -57,6 +57,10 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
          "Use to write a newick tree to the indicated file.")
         ("retain-branch-length,E", po::bool_switch(),
         "Use to not recalculate branch lengths when saving newick output. Used only with -t")
+        ("single_subtree_size,X", po::value<size_t>()->default_value(0),
+        "(EXPERIMENTAL) Use to produce a single sample subtree of the indicated size with all selected samples plus random samples to fill. Produces .nh and .txt files.")
+        ("minimum_subtrees_size,x", po::value<size_t>()->default_value(0),
+        "(EXPERIMENTAL) Use to produce the minimum set of subtrees of the indicated size which include all of the selected samples. Produces .nh and .txt files.")
         ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
         ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
@@ -101,6 +105,8 @@ void extract_main (po::parsed_options parsed) {
     bool resolve_polytomies = vm["resolve-polytomies"].as<bool>();
     bool retain_branch = vm["retain-branch-length"].as<bool>();
     std::string dir_prefix = vm["output-directory"].as<std::string>();
+    size_t single_subtree_size = vm["single_subtree_size"].as<size_t>();
+    size_t minimum_subtrees_size = vm["minimum_subtrees_size"].as<size_t>();
 
     boost::filesystem::path path(dir_prefix);
     if (!boost::filesystem::exists(path)) {
@@ -176,7 +182,7 @@ void extract_main (po::parsed_options parsed) {
             fprintf(stderr, "ERROR: Invalid neighborhood size. Please choose a positive nonzero integer.\n");
             exit(1);
         }
-        auto nk_samples = get_nearby(T, sample_id, nk);
+        auto nk_samples = get_nearby(&T, sample_id, nk);
         if (samples.size() == 0) {
             samples = nk_samples;
         } else {
@@ -307,54 +313,48 @@ void extract_main (po::parsed_options parsed) {
     }
     //retrive path information for samples, clades, everything before pruning occurs. Behavioral change
     //to get the paths post-pruning, will need to save a new tree .pb and then repeat the extract command on that
-    if (sample_path_filename != dir_prefix || clade_path_filename != dir_prefix || all_path_filename != dir_prefix) {
+    if (sample_path_filename != dir_prefix) {
         timer.Start();
-        fprintf(stderr,"Retriving path information...\n");
+        // fprintf(stderr,"Retriving path information...\n"); 
         if (sample_path_filename != dir_prefix) {
-            std::ofstream outfile (sample_path_filename);
-            auto mpaths = mutation_paths(T, samples);
-            for (auto mstr: mpaths) {
-                outfile << mstr << "\n";
-            }
-            outfile.close();
-        }
-        if (all_path_filename != dir_prefix) {
-            std::ofstream outfile (all_path_filename);
-            auto apaths = all_nodes_paths(T);
-            for (auto astr: apaths) {
-                outfile << astr << "\n";
-            }
-            outfile.close();
-        }
-        if (clade_path_filename != dir_prefix) {
-            //need to get the set of all clade annotations currently in the tree for the clade_paths function
-            //TODO: refactor summary so I can just import the clade counter function from there (disentangle from file printing)
-            //also this block of code just generally sucks.
-            std::vector<std::string> cladenames;
-            auto dfs = T.depth_first_expansion();
-            for (auto s: dfs) {
-                std::vector<std::string> canns = s->clade_annotations;
-                if (canns.size() > 0) {
-                    if (canns.size() > 1 || canns[0] != "") {
-                        for (auto c: canns) {
-                            if (c != "" && std::find(cladenames.begin(), cladenames.end(), c) == cladenames.end()) {
-                                cladenames.push_back(c);
-                            }
-                        }
-                    }
-                }
-            }
-            std::ofstream outfile (clade_path_filename);
-            //TODO: maybe better to update clade_paths to take an "all current clades" option.
-            //should be more computationally efficient at least.
-            auto cpaths = clade_paths(T, cladenames);
-            for (auto cstr: cpaths) {
-                outfile << cstr;
-            }
-            outfile.close(); 
+            std::cerr << "Sample mutation path information requested; writing pre-pruning paths to " << sample_path_filename << " with usher-style output.\n";
+            MAT::get_sample_mutation_paths(&T, samples, sample_path_filename);
+            // std::ofstream outfile (sample_path_filename);
+            // auto mpaths = mutation_paths(T, samples);
+            // for (auto mstr: mpaths) {
+            //     outfile << mstr << "\n";
+            // }
+            // outfile.close();
         }
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
+    //before proceeding to actually applying sample selection, 
+    //if usher-style subtree output is requested, 
+    //produce that. 
+
+    if (minimum_subtrees_size > 0) {
+        timer.Start();
+        fprintf(stderr, "Random minimum sample subtrees of size %ld requested.\n", minimum_subtrees_size);
+        if (samples.size() > 0) {
+            MAT::get_random_sample_subtrees(&T, samples, dir_prefix, minimum_subtrees_size, 0, false, retain_branch);
+        } else {
+            fprintf(stderr, "ERROR: Minimum sample subtree output requested with no valid samples! Check selection parameters\n");
+            exit(1);
+        }
+        fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+    }
+    if (single_subtree_size > 0) {
+        timer.Start();
+        fprintf(stderr, "Random single encompassing subtree of size %ld requested.\n", single_subtree_size);
+        if (samples.size() > 0) {
+            MAT::get_random_single_subtree(&T, samples, dir_prefix, single_subtree_size, 0, false, retain_branch);
+        } else {
+            fprintf(stderr, "ERROR: Encompassing subtree output requested with no valid samples! Check selection parameters\n");
+            exit(1);
+        }
+        fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+    }
+
     //if we have no samples at the end without throwing an error, 
     //probably because no selection arguments were set,
     //we want the samples to be all samples in the tree
@@ -410,6 +410,48 @@ void extract_main (po::parsed_options parsed) {
             outfile << s << "\n";
         }
     }
+    if (all_path_filename != dir_prefix) {
+        //print all node mutations *for this subtree*
+        timer.Start();
+        fprintf(stderr, "Writing full node mutation information...\n");
+        std::ofstream outfile (all_path_filename);
+        auto apaths = all_nodes_paths(T);
+        for (auto astr: apaths) {
+            outfile << astr << "\n";
+        }
+        outfile.close();
+        fprintf(stderr, "Completed in %ld msec\n\n", timer.Stop());
+    }
+    if (clade_path_filename != dir_prefix) {
+        //need to get the set of all clade annotations currently in the tree for the clade_paths function
+        //TODO: refactor summary so I can just import the clade counter function from there (disentangle from file printing)
+        //also this block of code just generally sucks.
+        fprintf(stderr, "Writing clade root path strings...\n");
+        timer.Start();
+        std::vector<std::string> cladenames;
+        auto dfs = T.depth_first_expansion();
+        for (auto s: dfs) {
+            std::vector<std::string> canns = s->clade_annotations;
+            if (canns.size() > 0) {
+                if (canns.size() > 1 || canns[0] != "") {
+                    for (auto c: canns) {
+                        if (c != "" && std::find(cladenames.begin(), cladenames.end(), c) == cladenames.end()) {
+                            cladenames.push_back(c);
+                        }
+                    }
+                }
+            }
+        }
+        std::ofstream outfile (clade_path_filename);
+        //TODO: maybe better to update clade_paths to take an "all current clades" option.
+        //should be more computationally efficient at least.
+        auto cpaths = clade_paths(T, cladenames);
+        for (auto cstr: cpaths) {
+            outfile << cstr;
+        }
+        outfile.close(); 
+        fprintf(stderr, "Completed in %ld msec\n\n", timer.Stop());
+    }
     std::map<std::string,std::map<std::string,std::string>> catmeta;
     if (meta_filename != "") {
         std::set<std::string> samples_included(samples.begin(), samples.end());
@@ -419,12 +461,27 @@ void extract_main (po::parsed_options parsed) {
     //the mutation of interest. the metadata map is not limited to leaf nodes.
     if ((json_filename != "") && (mutation_choice != "")) {
         std::map<std::string,std::string> mutmap;
+        std::vector<std::string> mutations;
+        std::stringstream mns(mutation_choice);
+        std::string m;
+        while (std::getline(mns,m,',')) {
+            mutations.push_back(m);
+        }
+        assert (mutations.size() > 0);
         for (auto n: subtree.depth_first_expansion()) {
             for (auto m: n->mutations) {
-                if (m.get_string() == mutation_choice) {
-                    mutmap[n->identifier] = mutation_choice;
-                    break;
+                std::string metastr = "";
+                for (auto mstr: mutations ) {
+                    if (m.get_string() == mstr) {
+                        if (metastr == "") {
+                            metastr = mstr;
+                        } else {
+                            metastr = metastr + ',' + mstr;
+                        }
+                    }
                 }
+                mutmap[n->identifier] = metastr;
+                break;
             }
         }
         catmeta["mutation_of_interest"] = mutmap;
@@ -450,7 +507,7 @@ void extract_main (po::parsed_options parsed) {
             std::map<std::string,std::string> conmap;
             conmap[s] = "focal";
             catmeta["focal_view"] = conmap;
-            auto cs = get_nearby(T, s, nk);
+            auto cs = get_nearby(&T, s, nk);
             MAT::Tree subt = filter_master(T, cs, false);
             //remove forward slashes from the string, replacing them with underscores.
             size_t pos = 0;
