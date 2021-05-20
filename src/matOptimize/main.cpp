@@ -586,7 +586,25 @@ int main(int argc, char** argv) {
             }
         }
 
-        std::set<std::string> nodes_to_prune;
+        struct Profitable_Node {
+            std::string nid;
+            int profit;
+
+            Profitable_Node (std::string id, int p) {
+                nid = id;
+                profit = p;
+            }
+
+            inline bool operator<(const Profitable_Node& n) {
+                  return (*this).nid < n.nid;
+            }
+            
+            inline bool operator==(const Profitable_Node& n) {
+                  return (*this).nid == n.nid;
+            }
+        };
+        
+        std::vector<Profitable_Node> profitable_nodes;
 
         if (sample_name_filename != "") {
             std::ifstream infile(sample_name_filename);
@@ -612,8 +630,8 @@ int main(int argc, char** argv) {
                 }
                 else {
                     for (auto anc: T.rsearch(words[0], true)) {
-                        if (anc->level >= 4) { 
-                            nodes_to_prune.insert(anc->identifier);
+                        if (anc->level >= 2) { 
+                            profitable_nodes.emplace_back(Profitable_Node(anc->identifier, 0));
                         }
                     }
                 }
@@ -635,6 +653,11 @@ int main(int argc, char** argv) {
                 }
             }
 
+            size_t at = 0;
+            size_t total = 0;
+            for (auto d: pos_to_nid) {
+                total+=d.second.size();
+            }
             tbb::mutex tbb_lock;
             tbb::parallel_for(tbb::blocked_range<size_t>(0, pos_to_nid.size()),
                     [&](tbb::blocked_range<size_t> r) {
@@ -643,34 +666,127 @@ int main(int argc, char** argv) {
                     std::advance(cn, it);
                     size_t num_elem = cn->second.size();
                     for (size_t i=0; i<num_elem; i++) {
+                    __sync_fetch_and_add(&at, 1);
                     tbb_lock.lock();
-                    if (nodes_to_prune.find(cn->second[i]) != nodes_to_prune.end()) {
-                    tbb_lock.unlock();
-                    continue;
-                    }
+                    fprintf(stderr, "\r%zu/%zu", at, total); 
+//                    if (std::find(profitable_nodes.begin(), profitable_nodes.end(), 
+//                                Profitable_Node(cn->second[i],0)) != profitable_nodes.end()) {
+//                            tbb_lock.unlock();
+//                            continue;
+//                    }
                     tbb_lock.unlock();
                     auto n = T.get_node(cn->second[i]);
-                    for (size_t j=i+1; j<num_elem; j++) {
-                        auto n2 = T.get_node(cn->second[j]);
-                        if ((n->level >= 4) && (nid_has_changed[n->identifier] || nid_has_changed[n2->identifier]) && 
-                                (get_node_distance(T, n, n2) <= radius)) {
+                    if (n->level < 2) {
+                        continue;
+                    }
+
+                    for (auto m: n->mutations) {
+                        if (nid_has_changed[n->identifier] && (m.ref_nuc == m.mut_nuc)) {
                             tbb_lock.lock();
-                            if (n->level >= 4) {
-                                nodes_to_prune.insert(n->identifier);
-                            }
-                            if (n2->level >= 4) {
-                                nodes_to_prune.insert(n2->identifier);
-                            }  
+                            profitable_nodes.emplace_back(Profitable_Node(n->identifier, 0));
                             tbb_lock.unlock();
-                            break;
                         }
+                    }
+
+                    int max_profit = 0;
+
+                    //bool has_inserted = false;
+                    for (size_t j=0; j<num_elem; j++) {
+                        auto n2 = T.get_node(cn->second[j]);
+                        if (n == n2) {
+                            continue;
+                        }
+                        if ((nid_has_changed[n2->identifier] || nid_has_changed[n->identifier]) && 
+                               //(!T.is_ancestor(n->identifier, n2->identifier)) && 
+                               (get_node_distance(T, n, n2) <= radius)) {
+                            
+                           // Find mutations on the node to prune
+                           Pruned_Sample pruned_sample(n->identifier);
+
+                           auto node_to_root = T.rsearch(n->identifier, true); 
+                           for (auto curr: node_to_root) {
+                               for (auto m: curr->mutations) {
+                                   pruned_sample.add_mutation(m);
+                               }
+                           }
+
+                           std::vector<MAT::Mutation> node_excess_mutations;
+                           std::vector<MAT::Mutation> imputed_mutations;
+
+                           size_t best_node_num_leaves = 0;
+                           int best_set_difference = 1e9;
+
+                           std::vector<bool> node_has_unique(1);
+                           size_t best_j = 0;
+                           bool best_node_has_unique = false;
+
+                           size_t best_distance = 1e9;
+
+                           std::vector<size_t> best_j_vec;
+
+                           size_t num_best = 1;
+                           MAT::Node* best_node = NULL;
+                           best_j_vec.emplace_back(0);
+
+                           size_t node_distance=0;
+
+                           mapper2_input inp;
+                           inp.T = &T;
+                           inp.node = n2;
+                           inp.missing_sample_mutations = &pruned_sample.sample_mutations;
+                           inp.excess_mutations = &node_excess_mutations;
+                           inp.imputed_mutations = &imputed_mutations;
+                           inp.best_node_num_leaves = &best_node_num_leaves;
+                           inp.best_set_difference = &best_set_difference;
+                           inp.best_node = &best_node;
+                           inp.best_j =  &best_j;
+                           inp.num_best = &num_best;
+                           inp.j = 0;
+                           inp.has_unique = &best_node_has_unique;
+
+                           inp.distance = node_distance;
+                           inp.best_distance = &best_distance;
+
+                           inp.best_j_vec = &best_j_vec;
+                           inp.node_has_unique = &(node_has_unique);
+
+                           mapper2_body(inp, false);
+                           
+                           int profit = n->mutations.size() - best_set_difference;
+                           if (profit > max_profit) {
+                               max_profit = profit;
+                           }
+
+                        }
+                    }
+                    
+                    if (max_profit > 0) {
+                        tbb_lock.lock();
+                        profitable_nodes.emplace_back(Profitable_Node(n->identifier, max_profit));
+                        //profitable_nodes.emplace_back(Profitable_Node(n2->identifier, max_profit));
+                        tbb_lock.unlock();
                     }
                     }
                     }
                     }, ap);
+            fprintf(stderr, "\n"); 
 
         }
 
+        tbb::parallel_sort(profitable_nodes.begin(), profitable_nodes.end(), 
+                [](const Profitable_Node& n1, const Profitable_Node& n2) {return n1.profit > n2.profit;}); 
+
+
+        std::vector<Profitable_Node> unique_profitable_nodes;
+        std::set<std::string> nodes_to_prune;
+
+        for (auto pn: profitable_nodes) {
+            if (nodes_to_prune.find(pn.nid) == nodes_to_prune.end()) {
+                unique_profitable_nodes.emplace_back(pn);
+                nodes_to_prune.insert(pn.nid);
+            }
+        }
+        
         fprintf(stderr, "%zu subtrees found to prune.\n", nodes_to_prune.size());
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 
@@ -680,7 +796,9 @@ int main(int argc, char** argv) {
         auto best_parsimony_score = T.get_parsimony_score();
 
         size_t curr=0;
-        for (auto nid_to_prune: nodes_to_prune) {
+        for (auto elem: unique_profitable_nodes) {
+            auto nid_to_prune = elem.nid;
+
             fprintf(stderr, "At %zu of %zu\n", ++curr, nodes_to_prune.size());
 
             auto node_to_prune = T.get_node(nid_to_prune);
@@ -757,8 +875,6 @@ int main(int argc, char** argv) {
 
             std::vector<std::vector<MAT::Mutation>> node_excess_mutations(total_nodes);
             std::vector<std::vector<MAT::Mutation>> imputed_mutations(total_nodes);
-
-            std::vector<int> node_set_difference;
 
             size_t best_node_num_leaves = 0;
             int best_set_difference = 1e9;
@@ -941,6 +1057,7 @@ int main(int argc, char** argv) {
                 best_parsimony_score = new_parsimony_score; 
                 fprintf(stderr, "Placement lowered parsimony score to %zu!\n", best_parsimony_score);
                 nid_has_changed[node_to_prune->identifier] = true;
+                nid_has_changed[source->identifier] = true;
             }
 
             float elapsed_sec = static_cast<float>(timer.Stop())/1000;
@@ -992,7 +1109,7 @@ int main(int argc, char** argv) {
         // Quit if parsimony score not improving by minimum threshold
         float new_parsimony = (float) T.get_parsimony_score();
         last_improvement = (curr_parsimony - new_parsimony)/curr_parsimony;
-        if (last_improvement < min_improvement) {
+        if (last_improvement <= min_improvement) {
             fprintf(stderr, "\nLast iteration improvement (%f) smaller than minimum required improvement (%f). Quitting.\n\n", last_improvement, min_improvement);
             break;
         }
