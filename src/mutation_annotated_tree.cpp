@@ -1278,16 +1278,16 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_subtree (const Mutati
             // Add as root of the subtree
             if (subtree_parent == NULL) {
                 // for root node, need to size the annotations vector
-                Node* new_node = subtree.create_node(n->identifier, -1.0, num_annotations);
-                // need to assign any clade annotations which would belong to that root as well
-                for (size_t k = 0; k < num_annotations; k++) {
-                    if (n->clade_annotations[k] != "") {
-                        new_node->clade_annotations[k] = n->clade_annotations[k];
-                    }
-                }
+                Node* new_node = subtree.create_node(n->identifier, -1.0);
+//                // need to assign any clade annotations which would belong to that root as well
+//                for (size_t k = 0; k < num_annotations; k++) {
+//                    if (n->clade_annotations[k] != "") {
+//                        new_node->clade_annotations[k] = n->clade_annotations[k];
+//                    }
+//                }
                 std::vector<Node*> root_to_node = tree.rsearch(n->identifier, true); 
                 std::reverse(root_to_node.begin(), root_to_node.end());
-                root_to_node.emplace_back(n);
+                //root_to_node.emplace_back(n);
 
                 for (auto curr: root_to_node) {
                     for (auto m: curr->mutations) {
@@ -1305,11 +1305,11 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_subtree (const Mutati
 
 
                 for (auto curr: par_to_node) {
-                    for (size_t k = 0; k < num_annotations; k++) {
-                        if (curr->clade_annotations[k] != "") {
-                            new_node->clade_annotations[k] = curr->clade_annotations[k];
-                        }
-                    }
+//                    for (size_t k = 0; k < num_annotations; k++) {
+//                        if (curr->clade_annotations[k] != "") {
+//                            new_node->clade_annotations[k] = curr->clade_annotations[k];
+//                        }
+//                    }
                     for (auto m: curr->mutations) {
                         new_node->add_mutation(m);
                     }
