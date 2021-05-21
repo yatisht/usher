@@ -548,11 +548,11 @@ void extract_main (po::parsed_options parsed) {
     if (output_mat_filename != dir_prefix) {
         fprintf(stderr, "Saving output MAT file %s.\n", output_mat_filename.c_str()); 
         //only recondense the tree if polytomies weren't resolved.
-        if (!resolve_polytomies) {
-            subtree.condense_leaves();
-        }
         if (collapse_tree) {
             subtree.collapse_tree();
+        }
+        if (!resolve_polytomies) {
+            subtree.condense_leaves();
         }
         MAT::save_mutation_annotated_tree(subtree, output_mat_filename);
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
