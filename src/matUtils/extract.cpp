@@ -315,16 +315,14 @@ void extract_main (po::parsed_options parsed) {
     //to get the paths post-pruning, will need to save a new tree .pb and then repeat the extract command on that
     if (sample_path_filename != dir_prefix) {
         timer.Start();
-        // fprintf(stderr,"Retriving path information...\n"); 
         if (sample_path_filename != dir_prefix) {
             std::cerr << "Sample mutation path information requested; writing pre-pruning paths to " << sample_path_filename << " with usher-style output.\n";
-            MAT::get_sample_mutation_paths(&T, samples, sample_path_filename);
-            // std::ofstream outfile (sample_path_filename);
-            // auto mpaths = mutation_paths(T, samples);
-            // for (auto mstr: mpaths) {
-            //     outfile << mstr << "\n";
-            // }
-            // outfile.close();
+            if (samples.size() > 0) {
+                MAT::get_sample_mutation_paths(&T, samples, sample_path_filename);
+            } else {
+                fprintf(stderr, "No samples selected; writing paths for all samples...\n");
+                MAT::get_sample_mutation_paths(&T, T.get_leaves_ids(), sample_path_filename);
+            }
         }
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
