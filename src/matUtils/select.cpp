@@ -345,3 +345,40 @@ std::vector<std::string> get_sample_match(MAT::Tree* T, std::string substring) {
     }
     return matchsamples;
 }
+
+std::vector<std::string> fill_random_samples(MAT::Tree* T, std::vector<std::string> current_samples, size_t target_size) {
+    //expand the current sample selection with random samples until it is the indicated size. 
+    //alternatively, prune random samples from the selection until it is the indicated size, as necessary.
+    std::set<std::string> choices;
+    fprintf(stderr, "Selected sample set is %ld samples with %ld requested subtree size; ", current_samples.size(), target_size);
+    if (current_samples.size() > target_size) {
+        fprintf(stderr, "removing random samples\n");
+        for (size_t i = 0; i < current_samples.size(); i++) {
+            //technically, what this implementation is doing is selecting random samples to keep from among the current set.
+            auto l = current_samples.begin();
+            std::advance(l, std::rand() % current_samples.size());
+            choices.insert(*l);
+            if (choices.size() >= target_size) {
+                break;
+            }
+        }
+    } else if (current_samples.size() < target_size) {
+        fprintf(stderr, "filling in with random samples\n");
+        auto all_leaves_ids = T->get_leaves_ids();
+        choices.insert(current_samples.begin(), current_samples.end());
+        for (size_t i = 0; i < all_leaves_ids.size(); i++) {
+            auto l = all_leaves_ids.begin();
+            std::advance(l, std::rand() % all_leaves_ids.size());
+            choices.insert(*l);
+            if (choices.size() >= target_size) {
+                break;
+            }
+        }
+    } else {
+        fprintf(stderr, "continuing\n");
+        choices.insert(current_samples.begin(), current_samples.end());
+    }
+    std::vector<std::string> filled_samples (choices.begin(), choices.end());
+    assert (filled_samples.size() == target_size);
+    return filled_samples;
+}  

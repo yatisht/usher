@@ -18,7 +18,7 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
         ("mutation,m", po::value<std::string>()->default_value(""),
         "Select samples by whether they contain any of the indicated mutation(s), comma delimited.")
         ("match,H", po::value<std::string>()->default_value(""),
-        "Select samples by whether their identifier matches the indicated regex pattern.")
+        "Select samples by whether their identifier contains the indicated substring.")
         ("max-epps,e", po::value<size_t>()->default_value(0),
         "Select samples by whether they have less than the maximum indicated number of equally parsimonious placements. Note: calculation adds significantly to runtime.")
         ("max-parsimony,a", po::value<int>()->default_value(-1),
@@ -29,6 +29,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
         "Select a sample ID and the nearest k samples to it, formatted as sample:k. E.g. -k sample_1:50 gets sample 1 and the nearest 50 samples to it as a subtree.")
         ("nearest-k-batch,K", po::value<std::string>()->default_value(""),
         "Pass a text file of sample IDs and a number of the number of context samples, formatted as sample_file.txt:k.")
+        ("set-size,z", po::value<size_t>()->default_value(0),
+        "Automatically add or remove samples at random from the selected sample set until it is the indicated size.")
         ("get-representative,r", po::bool_switch(),
         "Automatically select two representative samples per clade in the tree after other selection steps and prune all other samples.")
         ("prune,p", po::bool_switch(),
@@ -110,6 +112,7 @@ void extract_main (po::parsed_options parsed) {
     std::string dir_prefix = vm["output-directory"].as<std::string>();
     size_t single_subtree_size = vm["single_subtree_size"].as<size_t>();
     size_t minimum_subtrees_size = vm["minimum_subtrees_size"].as<size_t>();
+    size_t setsize = vm["set-size"].as<size_t>();
 
     boost::filesystem::path path(dir_prefix);
     if (!boost::filesystem::exists(path)) {
@@ -308,6 +311,9 @@ void extract_main (po::parsed_options parsed) {
             fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
             exit(1);
         }
+    }
+    if (setsize > 0) {
+        samples = fill_random_samples(&T, samples, setsize);
     }
     //the final step of selection is to invert the set if prune is set
     //this is done by getting all sample names which are not in the samples vector.
