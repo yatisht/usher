@@ -17,6 +17,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
         "Select samples by membership in at least one of the indicated clade(s), comma delimited.")
         ("mutation,m", po::value<std::string>()->default_value(""),
         "Select samples by whether they contain any of the indicated mutation(s), comma delimited.")
+        ("match,H", po::value<std::string>()->default_value(""),
+        "Select samples by whether their identifier contains the indicated substring.")
         ("max-epps,e", po::value<size_t>()->default_value(0),
         "Select samples by whether they have less than the maximum indicated number of equally parsimonious placements. Note: calculation adds significantly to runtime.")
         ("max-parsimony,a", po::value<int>()->default_value(-1),
@@ -27,6 +29,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
         "Select a sample ID and the nearest k samples to it, formatted as sample:k. E.g. -k sample_1:50 gets sample 1 and the nearest 50 samples to it as a subtree.")
         ("nearest-k-batch,K", po::value<std::string>()->default_value(""),
         "Pass a text file of sample IDs and a number of the number of context samples, formatted as sample_file.txt:k.")
+        ("set-size,z", po::value<size_t>()->default_value(0),
+        "Automatically add or remove samples at random from the selected sample set until it is the indicated size.")
         ("get-representative,r", po::bool_switch(),
         "Automatically select two representative samples per clade in the tree after other selection steps and prune all other samples.")
         ("prune,p", po::bool_switch(),
@@ -97,6 +101,7 @@ void extract_main (po::parsed_options parsed) {
     std::string nearest_k_batch_file = vm["nearest-k-batch"].as<std::string>();
     std::string clade_choice = vm["clade"].as<std::string>();
     std::string mutation_choice = vm["mutation"].as<std::string>();
+    std::string match_choice = vm["match"].as<std::string>();
     int max_parsimony = vm["max-parsimony"].as<int>();
     int max_branch = vm["max-branch-length"].as<int>();
     size_t max_epps = vm["max-epps"].as<size_t>();
@@ -107,6 +112,7 @@ void extract_main (po::parsed_options parsed) {
     std::string dir_prefix = vm["output-directory"].as<std::string>();
     size_t single_subtree_size = vm["single_subtree_size"].as<size_t>();
     size_t minimum_subtrees_size = vm["minimum_subtrees_size"].as<size_t>();
+    size_t setsize = vm["set-size"].as<size_t>();
 
     boost::filesystem::path path(dir_prefix);
     if (!boost::filesystem::exists(path)) {
@@ -130,10 +136,12 @@ void extract_main (po::parsed_options parsed) {
     uint32_t num_threads = vm["threads"].as<uint32_t>();
     //check that at least one of the output filenames (things which take dir_prefix)
     //are set before proceeding. 
-    std::vector<std::string> outs = {sample_path_filename, clade_path_filename, all_path_filename, tree_filename, vcf_filename, output_mat_filename, json_filename, used_sample_filename, nearest_k_batch_file};
+    std::vector<std::string> outs = {sample_path_filename, clade_path_filename, all_path_filename, tree_filename, vcf_filename, output_mat_filename, json_filename, used_sample_filename};
     if (!std::any_of(outs.begin(), outs.end(), [=](std::string f){return f != dir_prefix;})) {
-        fprintf(stderr, "ERROR: No output files requested!\n");
-        exit(1);
+        if (nearest_k_batch_file == "") {
+            fprintf(stderr, "ERROR: No output files requested!\n");
+            exit(1);
+        }
     }
 
     tbb::task_scheduler_init init(num_threads);
@@ -204,7 +212,7 @@ void extract_main (po::parsed_options parsed) {
         std::vector<std::string> samples_in_clade;
         for (auto cname: clades) {
             fprintf(stderr, "Getting member samples of clade %s\n", cname.c_str());
-            auto csamples = get_clade_samples(T, cname);
+            auto csamples = get_clade_samples(&T, cname);
             if (csamples.size() == 0) {
                 //warning because they may want the other clade they indicated and it can proceed with that
                 //itll error down the line if this was the only one they passed in and it leaves them with no samples
@@ -240,7 +248,7 @@ void extract_main (po::parsed_options parsed) {
         std::vector<std::string> samples_with_mutation;
         for (auto mname: mutations) {
             fprintf(stderr, "Getting samples with mutation %s\n", mname.c_str());
-            auto msamples = get_mutation_samples(T, mname);
+            auto msamples = get_mutation_samples(&T, mname);
             if (msamples.size() == 0) {
                 fprintf(stderr, "WARNING: No samples with mutation %s found in tree!\n", mname.c_str());
             }
@@ -260,11 +268,23 @@ void extract_main (po::parsed_options parsed) {
             exit(1);
         }
     }
+    if (match_choice != "") {
+        if (samples.size() == 0) {
+            samples = get_sample_match(&T, match_choice);
+        } else {
+            auto rsamples = get_sample_match(&T, match_choice);
+            samples = sample_intersect(samples, rsamples);
+        }
+        if (samples.size() == 0) {
+            fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
+            exit(1);
+        }
+    }
     if (max_parsimony >= 0) {
         if (samples.size() == 0) {
-            samples = get_parsimony_samples(T, max_parsimony);
+            samples = get_parsimony_samples(&T, max_parsimony);
         } else {
-            auto psamples =  get_parsimony_samples(T, max_parsimony);
+            auto psamples =  get_parsimony_samples(&T, max_parsimony);
             samples = sample_intersect(samples, psamples);
             //check to make sure we haven't emptied our sample set; if we have, throw an error
             if (samples.size() == 0) {
@@ -275,7 +295,7 @@ void extract_main (po::parsed_options parsed) {
     } 
     if (max_branch >= 0) {
         //intersection is built into this one because its a significant runtime gain to not rsearch samples I won't use anyways
-        samples = get_short_steppers(T, samples, max_branch);
+        samples = get_short_steppers(&T, samples, max_branch);
         if (samples.size() == 0) {
             fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
             exit(1);
@@ -286,10 +306,14 @@ void extract_main (po::parsed_options parsed) {
         //so it doesn't need any intersection code
         //if no samples are indicated, you get it for the whole tree. This can take several hours.
         //check to make sure we haven't emptied our sample set; if we have, throw an error
+        samples = get_samples_epps(&T, max_epps, samples);
         if (samples.size() == 0) {
             fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
             exit(1);
         }
+    }
+    if (setsize > 0) {
+        samples = fill_random_samples(&T, samples, setsize);
     }
     //the final step of selection is to invert the set if prune is set
     //this is done by getting all sample names which are not in the samples vector.
@@ -391,7 +415,7 @@ void extract_main (po::parsed_options parsed) {
     //add a valid samples vector argument to the clade representatives function and check membership before selection, maybe
     if (get_representative) {
         //fprintf(stderr, "Filtering again to a clade representative tree...\n");
-        auto rep_samples = get_clade_representatives(subtree);
+        auto rep_samples = get_clade_representatives(&subtree);
         //run filter master again
         subtree = filter_master(subtree, rep_samples, false);
         //overwrite samples with new subset
