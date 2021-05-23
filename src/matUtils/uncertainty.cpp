@@ -329,7 +329,7 @@ void findEPPs_wrapper (MAT::Tree Tobj, std::string sample_file, std::string fepp
             eppfile << node->identifier << "\t" << num_best << "\t" << neighborhood_size << "\n";
         }
         if (flocs != "") {
-            locfile << node->identifier << "\t" << "original" << "\n";
+            locfile << node->identifier << "\t" << node->identifier << "\n";
             for (auto pn: best_placements) {
                 locfile << pn->identifier << "\t" << node->identifier << "\n";
             }
