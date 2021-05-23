@@ -1,5 +1,4 @@
 #include "select.hpp"
-#include <regex>
 /*
 Functions in this module take a variety of arguments, usually including a MAT
 and return a set of samples as a std::vector<std::string>

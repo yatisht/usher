@@ -267,15 +267,12 @@ void findEPPs_wrapper (MAT::Tree Tobj, std::string sample_file, std::string fepp
     */
     timer.Start();
     std::ofstream eppfile;
-    // std::ofstream neighfile;
     eppfile.open(fepps);
     //add column names
-    //auspice doesn't care what's actually in column 1 name, but it does for column 2
     eppfile << "sample\tequally_parsimonius_placements\tneighborhood_size\n";
     //mapper code wants a pointer.
     MAT::Tree* T = &Tobj; 
 
-    //std::vector<MAT::Node*> fdfs;
     std::vector<std::string> samples;
     //read in the samples files and get the nodes corresponding to each sample.
     if (sample_file != "") { 
@@ -391,9 +388,7 @@ void uncertainty_main(po::parsed_options parsed) {
     po::variables_map vm = parse_uncertainty_command(parsed);
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string sample_file = vm["samples"].as<std::string>();
-    // bool get_parsimony = vm["get-parsimony"].as<bool>();
     std::string fepps = vm["find-epps"].as<std::string>();
-    // std::string fneigh = vm["find-neighborhood"].as<std::string>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
 
     tbb::task_scheduler_init init(num_threads);
