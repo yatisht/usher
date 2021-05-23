@@ -128,7 +128,7 @@ size_t get_neighborhood_size(std::vector<MAT::Node*> nodes, MAT::Tree* T) {
     return best_size;
 }
 
-void findEPPs (MAT::Tree* T, MAT::Node* node, size_t* nbest, size_t* nsize) {
+std::vector<MAT::Node*> findEPPs (MAT::Tree* T, MAT::Node* node, size_t* nbest, size_t* nsize) {
     //calculating neighborhood size is optional.
 
     //retrieve the full set of mutations associated with this Node object from root to it
@@ -142,6 +142,7 @@ void findEPPs (MAT::Tree* T, MAT::Node* node, size_t* nbest, size_t* nsize) {
     //tracking positions is required to account for backmutation/overwriting along the path
     std::vector<int> anc_positions;
     std::vector<MAT::Mutation> ancestral_mutations;
+    std::vector<MAT::Node*> best_placements;
     //first load in the current mutations
     for (auto m: node->mutations){ 
         if (m.is_masked() || (std::find(anc_positions.begin(), anc_positions.end(), m.position) == anc_positions.end())) {
@@ -167,8 +168,7 @@ void findEPPs (MAT::Tree* T, MAT::Node* node, size_t* nbest, size_t* nsize) {
         //this is where code copied from usher_main.cpp begins
         //comments included.
         auto dfs = T->depth_first_expansion();
-        size_t total_nodes = dfs.size();
-
+        size_t total_nodes = dfs.size();        
         // Stores the excess mutations to place the sample at each
         // node of the tree in DFS order. When placement is as a
         // child, it only contains parsimony-increasing mutations in
@@ -236,7 +236,6 @@ void findEPPs (MAT::Tree* T, MAT::Node* node, size_t* nbest, size_t* nsize) {
         *nbest = num_best;
         //if the num_best is big enough and if the bool is set, get the neighborhood size value and assign it
         if (num_best > 1) { 
-            std::vector<MAT::Node*> best_placements;
             //for every index in best_j_vec, find the corresponding node from dfs
             for (size_t z=0; z<best_j_vec.size(); z++) {
                 auto nobj = dfs[best_j_vec[z]];
@@ -247,11 +246,14 @@ void findEPPs (MAT::Tree* T, MAT::Node* node, size_t* nbest, size_t* nsize) {
         } else {
             //one best placement, total distance is 0
             *nsize = 0;
+            //record the original parent of this node as the single best placement.
+            best_placements.emplace_back(node->parent);
         }
     }
+    return best_placements;
 }
 
-void findEPPs_wrapper (MAT::Tree Tobj, std::string sample_file, std::string fepps) {
+void findEPPs_wrapper (MAT::Tree Tobj, std::string sample_file, std::string fepps, std::string flocs) {
     /*
     The number of equally parsimonious placements (EPPs) is a placement uncertainty metric that 
     indicates when a sample is ambiguous and could have been produced by more than one path
@@ -267,9 +269,16 @@ void findEPPs_wrapper (MAT::Tree Tobj, std::string sample_file, std::string fepp
     */
     timer.Start();
     std::ofstream eppfile;
-    eppfile.open(fepps);
-    //add column names
-    eppfile << "sample\tequally_parsimonious_placements\tneighborhood_size\n";
+    if (fepps != "") {
+        eppfile.open(fepps);
+        eppfile << "sample\tequally_parsimonious_placements\tneighborhood_size\n";
+    }
+    std::ofstream locfile;
+    if (flocs != "") {
+        locfile.open(flocs);
+        locfile << "placement\tsample\n";
+    }
+
     //mapper code wants a pointer.
     MAT::Tree* T = &Tobj; 
 
@@ -315,10 +324,24 @@ void findEPPs_wrapper (MAT::Tree Tobj, std::string sample_file, std::string fepp
         auto node = T->get_node(samples[s]);
         size_t num_best;
         size_t neighborhood_size;
-        findEPPs(&Tobj, node, &num_best, &neighborhood_size);
-        eppfile << node->identifier << "\t" << num_best << "\t" << neighborhood_size << "\n";
+        auto best_placements = findEPPs(&Tobj, node, &num_best, &neighborhood_size);
+        if (fepps != "") {
+            eppfile << node->identifier << "\t" << num_best << "\t" << neighborhood_size << "\n";
+        }
+        if (flocs != "") {
+            locfile << node->identifier << "\t" << "original" << "\n";
+            for (auto pn: best_placements) {
+                locfile << pn->identifier << "\t" << node->identifier << "\n";
+            }
+        }
     }
-    eppfile.close();
+    if (fepps != "") {
+        eppfile.close();
+    }
+    if (flocs != "") {
+        locfile.close();
+    }
+
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 }
 
@@ -334,7 +357,7 @@ std::vector<std::string> get_samples_epps (MAT::Tree* T, size_t max_epps, std::v
         if (to_check.size() == 0 || std::find(to_check.begin(), to_check.end(), n->identifier) != to_check.end()) {
             size_t nb;
             size_t ns;
-            findEPPs(T, n, &nb, &ns);
+            auto placements = findEPPs(T, n, &nb, &ns);
             if (nb <= max_epps) {
                 good_samples.push_back(n->identifier);
             }
@@ -355,8 +378,10 @@ po::variables_map parse_uncertainty_command(po::parsed_options parsed) {
          "Input mutation-annotated tree file [REQUIRED]")
         ("samples,s", po::value<std::string>()->default_value(""),
         "Path to a simple text file of sample names to calculate uncertainty for.")
-        ("find-epps,e", po::value<std::string>()->required(),
-        "Name for an Auspice-compatible tsv file output of equally parsimonious placements and neighborhood sizes for input samples (REQUIRED).")
+        ("find-epps,e", po::value<std::string>()->default_value(""),
+        "Name for an Auspice-compatible tsv file output of equally parsimonious placements and neighborhood sizes for input samples.")
+        ("record-placements,o", po::value<std::string>()->default_value(""),
+        "Name for an Auspice-compatible two-column tsv which records potential parents for each sample in the query set.")
         ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
         ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
@@ -389,6 +414,7 @@ void uncertainty_main(po::parsed_options parsed) {
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string sample_file = vm["samples"].as<std::string>();
     std::string fepps = vm["find-epps"].as<std::string>();
+    std::string flocs = vm["record-placements"].as<std::string>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
 
     tbb::task_scheduler_init init(num_threads);
@@ -400,5 +426,5 @@ void uncertainty_main(po::parsed_options parsed) {
       T.uncondense_leaves();
     }
     fprintf(stderr, "Calculating placement uncertainty\n");
-    findEPPs_wrapper(T, sample_file, fepps);
+    findEPPs_wrapper(T, sample_file, fepps, flocs);
 }
