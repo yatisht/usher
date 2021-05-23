@@ -269,7 +269,7 @@ void findEPPs_wrapper (MAT::Tree Tobj, std::string sample_file, std::string fepp
     std::ofstream eppfile;
     eppfile.open(fepps);
     //add column names
-    eppfile << "sample\tequally_parsimonius_placements\tneighborhood_size\n";
+    eppfile << "sample\tequally_parsimonious_placements\tneighborhood_size\n";
     //mapper code wants a pointer.
     MAT::Tree* T = &Tobj; 
 
