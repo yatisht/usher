@@ -2,6 +2,7 @@
 #include "src/new_tree_rearrangements/tree_rearrangement_internal.hpp"
 #include "src/new_tree_rearrangements/priority_conflict_resolver.hpp"
 #include <cstddef>
+#include <cstdio>
 #include <random>
 #include <chrono>
 #include <vector>
@@ -35,21 +36,44 @@ void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t,
                  tbb::concurrent_vector<MAT::Node *> &to_filter
 #ifdef CHECK_PRIMARY_MOVE
                  ,
-                 Original_State_t original_state
+                 const Original_State_t& original_state
 #endif
 ) ;
 int main(int argc, char** argv){
     Original_State_t origin_states;
     Mutation_Annotated_Tree::Tree t=load_tree(argv[1], origin_states);
-    Profitable_Moves_ptr_t move=make_move(t.get_node("node_56_condensed_2_leaves"), t.get_node("117"));
-    std::vector<Profitable_Moves_ptr_t> all_moves{move};
+    std::vector<Profitable_Moves_ptr_t> all_moves{};
     std::vector<MAT::Node*> bfs_ordered_nodes=t.breadth_first_expansion();
+    /*Mutation_Annotated_Tree::Tree t=Mutation_Annotated_Tree::load_mutation_annotated_tree(argv[1]);
+    Conflict_Resolver resolver(bfs_ordered_nodes.size());
+    Profitable_Moves_ptr_t move=make_move(t.get_node("2085"), t.get_node("2273"));
+    move->score_change=-1;
+    std::vector<Profitable_Moves_ptr_t>temp{move};
+    resolver(temp);
+    move=make_move(t.get_node("2273"), t.get_node("2086"));
+    move->score_change=-2;
+   temp[0]=move;
+    resolver(temp);
+    resolver.schedule_moves(all_moves);*/
+
+
     tbb::concurrent_vector<MAT::Node *> deferred_nodes;
-    apply_moves(all_moves, t, bfs_ordered_nodes, deferred_nodes,origin_states);
+    if (argc==3) {
+        FILE* moves=fopen(argv[2], "r");
+        char src[BUFSIZ];
+        char dst[BUFSIZ];
+        while (fscanf(moves, "%s\tto\t%s\n",src,dst)!=EOF) {
+            Profitable_Moves_ptr_t move=make_move(t.get_node(src), t.get_node(dst));
+            all_moves.push_back(move);
+        }
+        apply_moves(all_moves, t, bfs_ordered_nodes, deferred_nodes,origin_states);
+        return 0;
+    }
+
 
     //From https://www.cplusplus.com/reference/random/mersenne_twister_engine/mersenne_twister_engine/
     //unsigned seed1 = std::chrono::system_clock::now().time_since_epoch().count();
-    unsigned seed1 = 50;
+    unsigned seed1 = 234;
     std::mt19937 g1 (seed1);
     while(true){
     all_moves.clear();
@@ -76,5 +100,6 @@ int main(int argc, char** argv){
         resolver(temp);
     }
     resolver.schedule_moves(all_moves);
-    apply_moves(all_moves, t, bfs_ordered_nodes, deferred_nodes,origin_states);}
+    apply_moves(all_moves, t, bfs_ordered_nodes, deferred_nodes,origin_states);
+    Mutation_Annotated_Tree::save_mutation_annotated_tree(t, "last_tree.pb");}
 }

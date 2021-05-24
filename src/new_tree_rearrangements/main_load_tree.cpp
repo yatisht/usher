@@ -15,7 +15,7 @@ void clean_up_internal_nodes(MAT::Node* this_node,MAT::Tree& tree,tbb::concurren
     std::vector<MAT::Node *> &parent_children = this_node->parent->children;
     std::vector<MAT::Node *> this_node_ori_children = this_node->children;
 
-    if (this_node->children.size()==1) {
+    if (this_node->children.size()==1&&this_node->parent) {
         auto iter = std::find(parent_children.begin(), parent_children.end(),
                               this_node);
         assert(iter != parent_children.end());

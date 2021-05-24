@@ -22,22 +22,22 @@ class Backward_Pass_Heap {
     std::vector<Altered_Node_t> altered_nodes;
     std::vector<Altered_Node_t> &processed_altered_nodes;
     void increment() {
-        if (altered_nodes.size() == 1) {
+        if (altered_nodes.size() <= 1) {
             return;
         }
         std::pop_heap(altered_nodes.begin(), altered_nodes.end(),
                       State_Assign_Comparator());
         while (altered_nodes.front().altered_node ==
                altered_nodes.back().altered_node) {
-            if (altered_nodes.size() == 1) {
-                return;
-            }
             std::pop_heap(altered_nodes.begin(), altered_nodes.end() - 1,
                           State_Assign_Comparator());
             size_t last_idx = altered_nodes.size() - 1;
             assert(altered_nodes[last_idx].altered_node ==
                    altered_nodes[last_idx - 1].altered_node);
             altered_nodes.pop_back();
+            if (altered_nodes.size() <= 1) {
+                return;
+            }
         }
     }
 
@@ -59,10 +59,10 @@ class Backward_Pass_Heap {
 
     bool next(bool major_allele_changed) {
         auto &changed = altered_nodes.back();
+        if (!changed.changed_states.empty()) {
+            processed_altered_nodes.push_back(changed);
+        }
         if (major_allele_changed) {
-            if (!changed.changed_states.empty()) {
-                processed_altered_nodes.push_back(changed);
-            }
             MAT::Node *parent_node = changed.altered_node->parent;
             if (parent_node) {
                 changed.altered_node = parent_node;
@@ -73,7 +73,6 @@ class Backward_Pass_Heap {
                 altered_nodes.pop_back();
             }
         } else {
-            assert(changed.changed_states.empty());
             altered_nodes.pop_back();
         }
         if (altered_nodes.empty()) {
@@ -86,7 +85,7 @@ class Backward_Pass_Heap {
 static void check_changed(const MAT::Mutations_Collection &ori,
                           const MAT::Mutations_Collection &changed_mut,
                           bool changed,
-                          const State_Change_Collection &state_changed) {
+                          const State_Change_Collection &state_changed,bool no_check) {
     auto state_change_iter = state_changed.begin();
     auto iter = ori.begin();
     auto end = ori.end();
@@ -94,7 +93,7 @@ static void check_changed(const MAT::Mutations_Collection &ori,
     for (const auto &mut : changed_mut) {
         while (iter != end && iter->get_position() < mut.get_position()) {
             if (iter->get_all_major_allele() != iter->get_par_one_hot()) {
-                assert(changed);
+                assert(changed||no_check);
                 checked = true;
                 return;
             }
@@ -108,7 +107,7 @@ static void check_changed(const MAT::Mutations_Collection &ori,
         }
         if (iter != end && iter->get_position() == mut.get_position()) {
             if (iter->get_all_major_allele() != mut.get_all_major_allele()) {
-                assert(changed);
+                assert(changed||no_check);
                 checked = true;
                 return;
             }
@@ -121,7 +120,7 @@ static void check_changed(const MAT::Mutations_Collection &ori,
             iter++;
         } else {
             if (mut.get_all_major_allele() != mut.get_par_one_hot()) {
-                assert(changed);
+                assert(changed||no_check);
                 checked = true;
                 return;
             }
@@ -135,7 +134,7 @@ static void check_changed(const MAT::Mutations_Collection &ori,
     }
     while (iter != end) {
         if (iter->get_all_major_allele() != iter->get_par_one_hot()) {
-            assert(changed);
+            assert(changed||no_check);
             checked = true;
             return;
         }
@@ -147,7 +146,7 @@ static void check_changed(const MAT::Mutations_Collection &ori,
         }
         iter++;
     }
-    assert(!changed || checked);
+    assert(!changed || checked||no_check);
     assert(state_change_iter == state_changed.end());
 }
 void check_major_state(MAT::Node *node, const MAT::Tree &new_tree) {
@@ -159,10 +158,10 @@ void check_major_state(MAT::Node *node, const MAT::Tree &new_tree) {
                ref_mut_iter->get_position() < mut.get_position()) {
             assert(ref_mut_iter->get_mut_one_hot() ==
                        ref_mut_iter->get_all_major_allele() &&
-                   (!ref_mut_iter->get_boundary1_one_hot()));
+                   (!ref_mut_iter->get_boundary1_one_hot()||node->children.size()<=1));
             assert(
                 ref_mut_iter->get_mut_one_hot() ==
-                get_parent_state(node->parent, ref_mut_iter->get_position()));
+                get_parent_state(node, ref_mut_iter->get_position()));
             ref_mut_iter++;
         }
         if (ref_mut_iter != ref_mut_end &&
@@ -191,14 +190,13 @@ void check_major_state(MAT::Node *node, const MAT::Tree &new_tree) {
                    ref_mut_iter->get_all_major_allele() &&
                (!ref_mut_iter->get_boundary1_one_hot()));
         assert(ref_mut_iter->get_mut_one_hot() ==
-               get_parent_state(node->parent, ref_mut_iter->get_position()));
+               get_parent_state(node, ref_mut_iter->get_position()));
         ref_mut_iter++;
     }
 }
-static bool adjust_single_child_node(MAT::Node *node) {
-    MAT::Mutations_Collection new_mut;
+static bool adjust_single_child_node(MAT::Node *node,MAT::Mutations_Collection& new_mut,State_Change_Collection& state_changes) {
     bool changed = false;
-    MAT::Mutations_Collection &child_mut = node->children[0]->mutations;
+    const MAT::Mutations_Collection &child_mut = node->children[0]->mutations;
     auto child_mut_iter = child_mut.begin();
     auto child_mut_end = child_mut.end();
     for (const auto &ori_mut : node->mutations) {
@@ -210,8 +208,9 @@ static bool adjust_single_child_node(MAT::Node *node) {
                 new_mut.push_back(*child_mut_iter);
                 new_mut.back().set_boundary_one_hot(
                     0xf & (~child_mut_iter->get_all_major_allele()));
-                child_mut_iter->set_par_one_hot(
-                    child_mut_iter->get_mut_one_hot());
+                if (child_mut_iter->is_valid()) {
+                    state_changes.emplace_back(new_mut.back(),child_mut_iter->get_par_one_hot());
+                }
             }
             child_mut_iter++;
         }
@@ -221,14 +220,22 @@ static bool adjust_single_child_node(MAT::Node *node) {
             (child_mut_iter->get_position() == ori_mut.get_position())) {
             new_mut.push_back(ori_mut);
             changed = true;
-            new_mut.back().set_mut_one_hot(child_mut_iter->get_mut_one_hot());
+            nuc_one_hot new_state=child_mut_iter->get_mut_one_hot();
+            if (ori_mut.get_par_one_hot()&child_mut_iter->get_all_major_allele()) {
+                new_state=ori_mut.get_par_one_hot()&child_mut_iter->get_all_major_allele();
+            }
+            new_mut.back().set_mut_one_hot(new_state);
             new_mut.back().set_auxillary(
                 child_mut_iter->get_all_major_allele(),
                 0xf & (~child_mut_iter->get_all_major_allele()));
-            child_mut_iter->set_par_one_hot(child_mut_iter->get_mut_one_hot());
-        } else {
+                if (ori_mut.get_mut_one_hot()!=new_mut.back().get_mut_one_hot()) {
+                    state_changes.emplace_back(new_mut.back(),ori_mut.get_mut_one_hot());
+                }
+            } else {
             if (ori_mut.is_valid()) {
                 new_mut.push_back(ori_mut);
+            }else {
+                changed=true;
             }
         }
         if ((child_mut_iter != child_mut_end) &&
@@ -243,19 +250,12 @@ static bool adjust_single_child_node(MAT::Node *node) {
             new_mut.push_back(*child_mut_iter);
             new_mut.back().set_boundary_one_hot(
                 0xf & (~child_mut_iter->get_all_major_allele()));
-            child_mut_iter->set_par_one_hot(child_mut_iter->get_mut_one_hot());
+            if (child_mut_iter->is_valid()) {
+                state_changes.emplace_back(new_mut.back(),child_mut_iter->get_par_one_hot());
+            }
         }
         child_mut_iter++;
     }
-    node->mutations.swap(new_mut);
-    child_mut.mutations.erase(
-        std::remove_if(child_mut.begin(), child_mut.end(),
-                       [](const MAT::Mutation &mut) {
-                           return (mut.get_par_one_hot() ==
-                                   mut.get_all_major_allele()) &&
-                                  (!mut.get_boundary1_one_hot());
-                       }),
-        child_mut.end());
     return changed;
 }
 static bool adjust_node(MAT::Node *node,
@@ -265,7 +265,7 @@ static bool adjust_node(MAT::Node *node,
                         MAT::Tree &new_tree
 #endif
 ) {
-    if (node->identifier == "38") {
+    if (node->identifier == "6918") {
         fputc('a', stderr);
     }
     MAT::Mutations_Collection new_major_alleles;
@@ -274,17 +274,13 @@ static bool adjust_node(MAT::Node *node,
         changed =
             get_major_allele_binary(node, new_major_alleles, changed_mutation);
     } else if (node->children.size() == 1) {
-        changed = adjust_single_child_node(node);
-#ifdef CHECK_STATE_REASSIGN
-        check_major_state(node, new_tree);
-#endif
-        return changed;
+        changed = adjust_single_child_node(node,new_major_alleles, changed_mutation);
     } else {
         changed = get_major_allele_polytomy(node, new_major_alleles,
                                             changed_mutation);
     }
     check_changed(node->mutations, new_major_alleles, changed,
-                  changed_mutation);
+                  changed_mutation,node->is_root());
     node->mutations.swap(new_major_alleles);
 #ifdef CHECK_STATE_REASSIGN
     check_major_state(node, new_tree);

@@ -27,4 +27,5 @@ message data {
     repeated mutation_list node_mutations = 2;
     repeated condensed_node condensed_nodes = 3; 
     repeated node_metadata metadata = 4; 
+    uint64 internal_node_size = 5;
 }

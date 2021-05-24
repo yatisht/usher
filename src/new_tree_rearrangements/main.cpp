@@ -71,7 +71,11 @@ optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
                       });
     std::vector<Profitable_Moves_ptr_t> all_moves;
     resolver.schedule_moves(all_moves);
-    apply_moves(all_moves, t, bfs_ordered_nodes, deferred_nodes);
+    apply_moves(all_moves, t, bfs_ordered_nodes, deferred_nodes
+#ifdef CHECK_STATE_REASSIGN
+    ,origin_states
+#endif
+    );
     check_samples(t.root, origin_states, &t);
     nodes_to_search = std::move(deferred_nodes);
     return t.get_parsimony_score();
@@ -131,11 +135,12 @@ int main(int argc, char **argv) {
     }
     size_t inner_loop_score_before = score_before;
 
-    MAT::Node* src=t.get_node("6360");
-    MAT::Node* dst=t.get_node("6347");
-    MAT::Node* LCA=get_LCA(src, dst);
-    individual_move(src,dst,LCA);
+    //MAT::Node* src=t.get_node("6360");
+    //MAT::Node* dst=t.get_node("6347");
+    //MAT::Node* LCA=get_LCA(src, dst);
+    //individual_move(src,dst,LCA);
     while(stalled<=1){
+    bfs_ordered_nodes = t.breadth_first_expansion();
     find_nodes_to_move(bfs_ordered_nodes, nodes_to_search);
     while (!nodes_to_search.empty()) {
         new_score =

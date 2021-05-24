@@ -74,7 +74,13 @@ int individual_move(Mutation_Annotated_Tree::Node* src,Mutation_Annotated_Tree::
 Mutation_Annotated_Tree::Tree load_tree(const std::string& path,Original_State_t& origin_states);
 Mutation_Annotated_Tree::Tree load_vcf_nh_directly(const std::string& nh_path,const std::string& vcf_path,Original_State_t& origin_states);
 void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t,
-                 std::vector<MAT::Node *> &bfs_ordered_nodes,tbb::concurrent_vector<MAT::Node*>& to_filter);
+                 std::vector<MAT::Node *> &bfs_ordered_nodes,
+                 tbb::concurrent_vector<MAT::Node *> &to_filter
+#ifdef CHECK_STATE_REASSIGN
+                 ,
+                 const Original_State_t& original_state
+#endif
+);
 void fix_condensed_nodes(MAT::Tree *tree) ;
 void find_nodes_to_move(const std::vector<MAT::Node *> &bfs_ordered_nodes,
                    tbb::concurrent_vector<MAT::Node*> &output) ;

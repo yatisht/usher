@@ -8,7 +8,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer -march=native -s
 set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O3")
 set(CMAKE_INCLUDE_CURRENT_DIR ON) 
 #  -O0     DDETAIL_DEBUG_MUTATION_SORTED -DDEBUG_PARSIMONY_SCORE_CHANGE_CORRECT 
-set(CMAKE_CXX_FLAGS_DEBUG " -O0 -fsanitize=leak -fsanitize=address -fsanitize=undefined -DCONFLICT_RESOLVER_DEBUG -DCHECK_STATE_REASSIGN -DCHECK_PRIMARY_MOVE")
+set(CMAKE_CXX_FLAGS_DEBUG " -O0 -fsanitize=leak -fsanitize=address -fsanitize=undefined -DCONFLICT_RESOLVER_DEBUG -DCHECK_STATE_REASSIGN ")
 #
 find_package(ZLIB)
 if(DEFINED Protobuf_PATH) 
@@ -123,12 +123,13 @@ else()
     src/new_tree_rearrangements/import_vcf_fast.cpp
     src/new_tree_rearrangements/main_load_tree.cpp
     src/new_tree_rearrangements/Get_parsimony_Score_FS.cpp
-    src/new_tree_rearrangements/apply_moves.cpp
     src/new_tree_rearrangements/main_helper.cpp
     src/new_tree_rearrangements/Mutation_Collection.cpp
     src/new_tree_rearrangements/Fitch_Sankoff.cpp
     src/new_tree_rearrangements/check_samples.cpp
-    src/new_tree_rearrangements/priority_conflict_resolver.cpp
+    src/new_tree_rearrangements/priority_conflict_resolver_cross_only.cpp
+    #src/new_tree_rearrangements/priority_conflict_resolver.cpp
+    ${patch_tree}
     ${New_Profitable_Moves_Enumerators}
     ${PROTO_SRCS}
     ${PROTO_HDRS}

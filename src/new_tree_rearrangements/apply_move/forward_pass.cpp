@@ -17,6 +17,9 @@ State_Change_Collection merge(const State_Change_Collection &in1,
         assert(in2.begin()->position == NEW_MARK);
     }
     for (const auto &in2_change : in2) {
+        if (in2_change.position==NEW_MARK) {
+            continue;
+        }
         while (in1_iter != in1_end &&
                in1_iter->position < in2_change.position) {
             out.push_back(*in1_iter);
@@ -32,6 +35,7 @@ State_Change_Collection merge(const State_Change_Collection &in1,
             if (out.back().new_state == out.back().old_state) {
                 out.pop_back();
             }
+            in1_iter++;
         }
     }
     while (in1_iter != in1_end) {
@@ -66,7 +70,7 @@ class Forward_Pass_Heap {
                 merge(altered_nodes[last_idx - 1].changed_states,
                       altered_nodes[last_idx].changed_states);
             altered_nodes.pop_back();
-            if (altered_nodes.back().changed_states.size() <= 1) {
+            if (altered_nodes.back().changed_states.empty()) {
                 altered_nodes.pop_back();
             }
             if (altered_nodes.size() <= 1) {
@@ -101,6 +105,37 @@ class Forward_Pass_Heap {
     }
 };
 
+void unmatched_parent_state_change(
+    MAT::Node *&node,
+    MAT::Mutations_Collection &new_mut,
+    const state_change &change,
+    MAT::Mutations_Collection::const_iterator
+        &ref_iter,
+    MAT::Mutations_Collection::const_iterator
+        &ref_end) {
+    MAT::Mutation mut(change.chr_idx, change.position, change.new_state,
+                      change.old_state);
+    if (node->children.size() <= 1) {
+        mut.set_boundary_one_hot(0xf & (~mut.get_mut_one_hot()));
+        if (mut.get_all_major_allele() !=
+            mut.get_par_one_hot()) {
+            new_mut.push_back(mut);
+#ifdef CHECK_STATE_REASSIGN
+            assert(ref_iter != ref_end);
+            assert(*ref_iter == new_mut.back());
+            ref_iter++;
+#endif
+        }
+    } else if (mut.get_all_major_allele() != mut.get_par_one_hot() ||
+               (mut.get_boundary1_one_hot())) {
+        new_mut.push_back(mut);
+#ifdef CHECK_STATE_REASSIGN
+        assert(ref_iter != ref_end);
+        assert(*ref_iter == new_mut.back());
+        ref_iter++;
+#endif
+    }
+}
 void set_state_from_parent(MAT::Node *node,
                            const State_Change_Collection &parent_altered,
                            State_Change_Collection &this_state_altered_out
@@ -117,25 +152,15 @@ void set_state_from_parent(MAT::Node *node,
     }
 #ifdef CHECK_STATE_REASSIGN
     auto ref_node = new_tree.get_node(node->identifier);
-    auto ref_iter = ref_node->mutations.begin();
-    auto ref_end = ref_node->mutations.end();
+    MAT::Mutations_Collection::const_iterator ref_iter = ref_node->mutations.begin();
+    MAT::Mutations_Collection::const_iterator ref_end = ref_node->mutations.end();
 #endif
     if (node->identifier == "176") {
         fputc('a', stderr);
     }
     for (auto &node_mut : node->mutations) {
         while (iter != end && iter->position < node_mut.get_position()) {
-            new_mut.push_back(MAT::Mutation(iter->chr_idx, iter->position,
-                                            iter->new_state, iter->old_state));
-            if (node->children.size() <= 1) {
-                new_mut.back().set_boundary_one_hot(
-                    0xf & (~new_mut.back().get_mut_one_hot()));
-            }
-#ifdef CHECK_STATE_REASSIGN
-            assert(ref_iter != ref_end);
-            assert(*ref_iter == new_mut.back());
-            ref_iter++;
-#endif
+            unmatched_parent_state_change(node, new_mut, *iter, ref_iter, ref_end);
             iter++;
         }
         if (iter != end && iter->position == node_mut.get_position()) {
@@ -170,17 +195,7 @@ void set_state_from_parent(MAT::Node *node,
         }
     }
     while (iter != end) {
-        new_mut.push_back(MAT::Mutation(iter->chr_idx, iter->position,
-                                        iter->new_state, iter->old_state));
-        if (node->children.size() <= 1) {
-            new_mut.back().set_boundary_one_hot(
-                0xf & (~new_mut.back().get_mut_one_hot()));
-        }
-#ifdef CHECK_STATE_REASSIGN
-        assert(ref_iter != ref_end);
-        assert(*ref_iter == new_mut.back());
-        ref_iter++;
-#endif
+        unmatched_parent_state_change(node, new_mut, *iter, ref_iter, ref_end);
         iter++;
     }
     assert(ref_iter == ref_end);

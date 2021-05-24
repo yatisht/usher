@@ -77,7 +77,7 @@ merge_mutation_single_child(MAT::Node *node,
 }
 static MAT::Node *
 clean_up_after_remove(MAT::Node *node, std::unordered_set<size_t> &deleted,
-                      std::vector<MAT::Node *> &nodes_to_clean) {
+                      std::vector<MAT::Node *> &nodes_to_clean,MAT::Tree& tree) {
     MAT::Node *parent_node = node->parent;
     if (!parent_node) {
         return node;
@@ -88,8 +88,9 @@ clean_up_after_remove(MAT::Node *node, std::unordered_set<size_t> &deleted,
             std::find(parent_children.begin(), parent_children.end(), node);
         parent_children.erase(iter);
         deleted.insert((size_t)node);
+        tree.all_nodes.erase(node->identifier);
         delete node;
-        return clean_up_after_remove(parent_node, deleted, nodes_to_clean);
+        return clean_up_after_remove(parent_node, deleted, nodes_to_clean,tree);
     } else if (node->children.size() == 1) {
         auto &parent_children = parent_node->children;
         auto iter =
@@ -118,6 +119,7 @@ clean_up_after_remove(MAT::Node *node, std::unordered_set<size_t> &deleted,
             moved_mut.merge(node->mutations,
                         MAT::Mutations_Collection::KEEP_SELF);
         }*/
+        tree.all_nodes.erase(node->identifier);
         delete node;
         return parent_node;
     }
@@ -341,8 +343,8 @@ void move_node(MAT::Node *src, MAT::Node *dst,
                std::unordered_set<size_t> &deleted,
                std::vector<MAT::Node *> &nodes_to_clean
 #ifdef CHECK_PRIMARY_MOVE
-               ,
-               Original_State_t original_state
+               //,
+               //Original_State_t original_state
 #endif
 ) {
     MAT::Mutations_Collection mutations;
@@ -379,22 +381,21 @@ void move_node(MAT::Node *src, MAT::Node *dst,
     auto iter =
         std::find(src_parent_children.begin(), src_parent_children.end(), src);
     src_parent_children.erase(iter);
-    altered_node.push_back(
-        clean_up_after_remove(src_parent, deleted, nodes_to_clean));
     nodes_to_clean.push_back(src);
     MAT::Node *dst_altered = dst;
-    if (altered_node.back() == dst) {
+    /*if (altered_node.back() == dst) {
         assert(dst_to_root_path.empty());
         src->mutations.swap(mutations);
         src->parent = dst;
         dst->children.push_back(src);
-    } else if (dst_to_root_path.empty()) {
+    } else*/ if (dst_to_root_path.empty()) {
         dst_altered = place_node_LCA(src, dst, tree, mutations,
                                      src_to_root_path.back(), nodes_to_clean);
     } else {
         dst_altered = place_node(src, dst, tree, mutations, nodes_to_clean);
     }
-
+    altered_node.push_back(
+        clean_up_after_remove(src_parent, deleted, nodes_to_clean,tree));
     altered_node.push_back(dst_altered);
 #ifdef CHECK_PRIMARY_MOVE
     MAT::Mutations_Collection after_move;
@@ -406,6 +407,6 @@ void move_node(MAT::Node *src, MAT::Node *dst,
         assert(before_move[idx].get_mut_one_hot() ==
                after_move[idx].get_mut_one_hot());
     }
-    check_samples(tree.root, original_state, &tree);
+    //check_samples(tree.root, original_state, &tree);
 #endif
 }

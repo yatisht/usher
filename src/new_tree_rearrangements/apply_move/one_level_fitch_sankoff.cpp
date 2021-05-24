@@ -101,8 +101,7 @@ static void get_mut_count(const node_iter begin, const node_iter end,
 static void
 rewind_ori_mut_ploytomy(MAT::Mutations_Collection &new_major_alleles_out,
                         const mut_iter &iter, bool &changed) {
-    if (iter->get_all_major_allele() != iter->get_mut_one_hot() ||
-        iter->get_boundary1_one_hot()) {
+    if (iter->get_all_major_allele() != iter->get_mut_one_hot()) {
         changed = true;
     }
     if (iter->is_valid()) {

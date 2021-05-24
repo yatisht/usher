@@ -1,4 +1,5 @@
 #include "apply_move.hpp"
+#include "src/new_tree_rearrangements/check_samples.hpp"
 #include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
 #include <algorithm>
 #include <cstdio>
@@ -8,13 +9,13 @@ void move_node(MAT::Node *src, MAT::Node *dst,
                std::vector<MAT::Node *> &altered_node, MAT::Tree &tree,
                std::unordered_set<size_t> &deleted,
                std::vector<MAT::Node *> &nodes_to_clean
-#ifdef CHECK_PRIMARY_MOVE
-               ,
-               Original_State_t original_state
+#ifdef CHECK_STATE_REASSIGN
+               //,
+               //Original_State_t original_state
 #endif
 );
 
-#ifdef CHECK_PRIMARY_MOVE
+#ifdef CHECK_STATE_REASSIGN
 MAT::Tree reassign_state_full(MAT::Tree &tree_in);
 #endif
 
@@ -79,9 +80,9 @@ void check_major_state(MAT::Node *node, const MAT::Tree &new_tree);
 void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t,
                  std::vector<MAT::Node *> &bfs_ordered_nodes,
                  tbb::concurrent_vector<MAT::Node *> &to_filter
-#ifdef CHECK_PRIMARY_MOVE
+#ifdef CHECK_STATE_REASSIGN
                  ,
-                 Original_State_t original_state
+                 const Original_State_t& original_state
 #endif
 ) {
     std::vector<MAT::Node *> altered_node;
@@ -89,45 +90,67 @@ void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t,
     std::unordered_set<size_t> deleted_node_ptrs;
     std::vector<MAT::Node *> nodes_to_clean;
     for (const auto &move : all_moves) {
-        if (move->src->identifier == "node_32_condensed_2_leaves" &&
-            move->get_dst()->identifier == "338") {
+        /*if (move->src->identifier=="MT971787.1|AUS/VIC6534/2020|20-07-24"&&move->get_dst()->identifier=="4487") {
             fputc('a', stderr);
+        }*/
+        auto src_node=move->src;
+        auto dst_node=move->get_dst();
+        while (dst_node) {
+            assert(dst_node!=src_node);
+            dst_node=dst_node->parent;
         }
+        fprintf(stderr, "%s\tto\t%s\n",move->src->identifier.c_str(),move->get_dst()->identifier.c_str());
         if (deleted_node_ptrs.count((size_t)move->src) ||
             deleted_node_ptrs.count((size_t)move->get_dst())) {
             continue;
         }
         move_node(move->src, move->get_dst(), altered_node, t,
-                  deleted_node_ptrs, nodes_to_clean, original_state);
+                  deleted_node_ptrs, nodes_to_clean);
         t.depth_first_expansion();
+        //Original_State_t checker(original_state);
+        //check_samples(t.root, checker, &t);
     }
     auto end = std::remove_if(altered_node.begin(), altered_node.end(),
                               [&deleted_node_ptrs](MAT::Node *node) {
                                   return deleted_node_ptrs.count((size_t)node);
                               });
     altered_node.erase(end, altered_node.end());
-#ifdef CHECK_PRIMARY_MOVE
+    nodes_to_clean.erase(std::remove_if(nodes_to_clean.begin(), nodes_to_clean.end(), 
+    [&deleted_node_ptrs](MAT::Node *node) {
+                                  return deleted_node_ptrs.count((size_t)node);
+                              }),nodes_to_clean.end());
+#ifdef CHECK_STATE_REASSIGN
+
     std::vector<MAT::Node *> old_nodes = t.breadth_first_expansion();
     for (auto node : old_nodes) {
         assert(node->is_root() || node->is_leaf() || node->children.size() > 1);
+        /*if (node->parent){for(const auto mut:node->mutations){
+            auto& par_mutations=node->parent->mutations;
+            auto iter=par_mutations.find(mut.get_position());
+            if(iter!=par_mutations.end()){
+                assert(iter->get_par_one_hot()!=mut.get_mut_one_hot()||(!mut.is_valid()));
+            }
+        }}*/
         // assert(node->is_root()||node->mutations.size()>0);
     }
     MAT::Tree new_tree = reassign_state_full(t);
 #endif
+    if (!altered_node.empty()) {
     reassign_backward_pass(altered_node, forward_pass_altered_nodes
 #ifdef CHECK_STATE_REASSIGN
                            ,
                            new_tree
 #endif
     );
+    }
 #ifdef CHECK_STATE_REASSIGN
-    for (const auto move : all_moves) {
+    /*for (const auto move : all_moves) {
         check_major_state(move->src, new_tree);
         auto p = move->src->parent;
         if (p != move->get_dst()) {
             check_major_state(p, new_tree);
         }
-    }
+    }*/
 #endif
     for (const auto node : nodes_to_clean) {
         clean_up_src_states(node, forward_pass_altered_nodes);
@@ -147,4 +170,12 @@ void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t,
     }
     new_tree.delete_nodes();
 #endif
+    tbb::concurrent_vector<MAT::Node*> filtered;
+    filtered.reserve(to_filter.size());
+    for(const auto node:to_filter){
+        if (!deleted_node_ptrs.count((size_t)node)) {
+            filtered.push_back(node);
+        }
+    }
+    to_filter.swap(filtered);
 }

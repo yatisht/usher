@@ -7,7 +7,7 @@
 MAT::Tree reassign_state_full(MAT::Tree &tree_in) {
     MAT::Tree new_tree;
     MAT::Node *new_ancestor = new Mutation_Annotated_Tree::Node(
-        *tree_in.root, nullptr, &new_tree, false);
+        *tree_in.root, nullptr, &new_tree, true);
     new_tree.curr_internal_node = tree_in.curr_internal_node;
     new_tree.root = new_ancestor;
     std::vector<MAT::Node *> bfs_ordered_nodes =
@@ -22,7 +22,7 @@ MAT::Tree reassign_state_full(MAT::Tree &tree_in) {
                 &pos) {
             std::unordered_map<std::string, nuc_one_hot> *mutated = pos.second;
             Fitch_Sankoff_Whole_Tree(bfs_ordered_nodes, pos.first, *mutated,
-                                     output);
+                                     output,true);
         });
     tbb::affinity_partitioner ap;
     tbb::parallel_for(

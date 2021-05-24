@@ -11,7 +11,23 @@
 #include <vector>
 #include <emmintrin.h>
 namespace MAT = Mutation_Annotated_Tree;
-
+nuc_one_hot get_this_state(MAT::Node* ancestor,int position){
+            auto iter = ancestor->mutations.find(position);
+    if (iter == ancestor->mutations.end()) {
+                ancestor = ancestor->parent;
+            } else {
+                return iter->get_mut_one_hot();
+            }
+    while (ancestor) {
+            auto iter = ancestor->mutations.find(position);
+            if (iter == ancestor->mutations.end()) {
+                ancestor = ancestor->parent;
+            } else {
+                return iter->get_mut_one_hot();
+            }
+        }
+    return MAT::Mutation::refs[position];
+}
 static void set_state_2(uint8_t child1,uint8_t child2,uint8_t& boundary1_major_allele){
     uint8_t major_abs=child1&child2&0xf;
     uint8_t nuc_present=(child1|child2)&0xf;
@@ -169,14 +185,24 @@ void FS_backward_pass(const std::vector<MAT::Node*> bfs_ordered_nodes, std::vect
     }
 }
 
-static nuc_one_hot set_state(MAT::Node* this_node,uint8_t boundary1_major_allele,nuc_one_hot par_state,const MAT::Mutation& base,tbb::concurrent_vector<Mutation_Annotated_Tree::Mutation>& output){
+static nuc_one_hot set_state(MAT::Node* this_node,uint8_t boundary1_major_allele,nuc_one_hot par_state,const MAT::Mutation& base,tbb::concurrent_vector<Mutation_Annotated_Tree::Mutation>& output,bool try_similar){
     nuc_one_hot this_state;
     bool need_add=false;
     if(boundary1_major_allele&par_state){
         this_state=par_state;
     }else {
         this_state=boundary1_major_allele&0xf;
+#ifdef CHECK_STATE_REASSIGN
+        nuc_one_hot ori_state=get_this_state(this_node, base.get_position());
+        if (ori_state&this_state) {
+            this_state=ori_state;
+        }
+        else{
+#endif
         this_state=this_state.choose_first();
+#ifdef CHECK_STATE_REASSIGN
+        }
+#endif
         //assert(this_node->parent->children.size()>1);
         need_add=true;
     }
@@ -200,7 +226,7 @@ static nuc_one_hot set_state(MAT::Node* this_node,uint8_t boundary1_major_allele
     return this_state;
 }
 
-static nuc_one_hot set_binary_node_state(MAT::Node* node,uint8_t this_boundary1_major_allele, nuc_one_hot par_state, nuc_one_hot left_child_major_allele,nuc_one_hot right_child_major_allele,const MAT::Mutation& base,tbb::concurrent_vector<Mutation_Annotated_Tree::Mutation>& output){
+static nuc_one_hot set_binary_node_state(MAT::Node* node,uint8_t this_boundary1_major_allele, nuc_one_hot par_state, nuc_one_hot left_child_major_allele,nuc_one_hot right_child_major_allele,const MAT::Mutation& base,tbb::concurrent_vector<Mutation_Annotated_Tree::Mutation>& output,bool try_similar){
     nuc_one_hot this_major_allele=this_boundary1_major_allele&0xf;
     if (this_major_allele&par_state) {
         if (this_major_allele!=par_state||(this_boundary1_major_allele>>4)) {
@@ -212,6 +238,12 @@ static nuc_one_hot set_binary_node_state(MAT::Node* node,uint8_t this_boundary1_
         return par_state;
     }
     nuc_one_hot this_state=this_major_allele.choose_first();
+#ifdef CHECK_STATE_REASSIGN
+    nuc_one_hot ori_state=get_this_state(node, base.get_position());
+    if (ori_state&this_major_allele) {
+        this_state=ori_state;
+    }
+#endif
     MAT::Mutation to_add(base);
     to_add.set_par_mut(par_state, this_state);
     to_add.set_children(this_boundary1_major_allele>>4,this_major_allele, left_child_major_allele, right_child_major_allele);
@@ -226,7 +258,7 @@ void forward_per_node(
     std::vector<tbb::concurrent_vector<Mutation_Annotated_Tree::Mutation>>
         &output,
     std::vector<nuc_one_hot> &states, size_t node_idx,
-    nuc_one_hot parent_state) {
+    nuc_one_hot parent_state,bool try_similar) {
     MAT::Node *this_node = bfs_ordered_nodes[node_idx];
     if (this_node->children.size() == 2) {
         auto this_children = this_node->children;
@@ -234,11 +266,11 @@ void forward_per_node(
             this_node, boundary1_major_allele[node_idx], parent_state,
             boundary1_major_allele[this_children[0]->bfs_index] & 0xf,
             boundary1_major_allele[this_children[1]->bfs_index] & 0xf, base,
-            output[node_idx]);
+            output[node_idx],try_similar);
     } else {
         states[node_idx] =
             set_state(this_node, boundary1_major_allele[node_idx], parent_state,
-                      base, output[node_idx]);
+                      base, output[node_idx],try_similar);
     }
 }
 static void FS_forward_pass(
@@ -246,14 +278,14 @@ static void FS_forward_pass(
     const std::vector<uint8_t> &boundary1_major_allele,
     const MAT::Mutation &base,
     std::vector<tbb::concurrent_vector<Mutation_Annotated_Tree::Mutation>>
-        &output) {
+        &output,bool try_similar) {
     std::vector<nuc_one_hot> states(bfs_ordered_nodes.size());
     forward_per_node(bfs_ordered_nodes, boundary1_major_allele, base, output,
-                  states, 0,base.get_ref_one_hot());
+                  states, 0,base.get_ref_one_hot(),try_similar);
     for (size_t node_idx=1; node_idx<bfs_ordered_nodes.size(); node_idx++) {
         nuc_one_hot parent_state= states[bfs_ordered_nodes[node_idx]->parent->bfs_index];
         forward_per_node(bfs_ordered_nodes, boundary1_major_allele, base, output,
-                  states, node_idx, parent_state);
+                  states, node_idx, parent_state,try_similar);
     }
 }
 
@@ -284,10 +316,10 @@ int FS_forward_assign_states_only(const std::vector<MAT::Node*>& bfs_ordered_nod
     return mutation_count;
 }
 
-void Fitch_Sankoff_Whole_Tree(const std::vector<MAT::Node*> bfs_ordered_nodes,const MAT::Mutation & base,const std::unordered_map<std::string, nuc_one_hot>& mutated,std::vector<tbb::concurrent_vector<Mutation_Annotated_Tree::Mutation>>& output){
+void Fitch_Sankoff_Whole_Tree(const std::vector<MAT::Node*> bfs_ordered_nodes,const MAT::Mutation & base,const std::unordered_map<std::string, nuc_one_hot>& mutated,std::vector<tbb::concurrent_vector<Mutation_Annotated_Tree::Mutation>>& output,bool try_similar){
     std::vector<uint8_t> minor_major_allele(bfs_ordered_nodes.size()+16);
 
     FS_backward_pass(bfs_ordered_nodes,minor_major_allele,mutated,base.get_ref_one_hot());
-    FS_forward_pass(bfs_ordered_nodes,minor_major_allele,base,output);
+    FS_forward_pass(bfs_ordered_nodes,minor_major_allele,base,output,try_similar);
 }
 

@@ -26,12 +26,12 @@ bool Conflict_Resolver::register_single_move_no_conflict(
 
         for (std::vector<Profitable_Moves_ptr_t>::iterator iter = temp.begin();
              iter < temp.end(); iter++) {
-            auto &move = *iter;
-            if (move->LCA == candidate_move->LCA) {
-                const auto &other_dst_to_LCA = move->dst_to_LCA;
+            auto &other_move = *iter;
+            if (other_move->LCA == candidate_move->LCA) {
+                const auto &other_dst_to_LCA = other_move->dst_to_LCA;
                 if (std::find(other_dst_to_LCA.begin(), other_dst_to_LCA.end(),
-                              move->src) != other_dst_to_LCA.end()) {
-                    best_score = std::min(best_score, move->score_change);
+                              candidate_move->src) != other_dst_to_LCA.end()) {
+                    best_score = std::min(best_score, other_move->score_change);
                     if (conflicting_moves.empty() ||
                         conflicting_moves.back().bfs_idx != node->bfs_index) {
                         conflicting_moves.emplace_back(node, iter);
@@ -69,6 +69,7 @@ char Conflict_Resolver::operator()(
 #ifndef SINGLE_THREAD_TEST
         std::lock_guard<std::mutex> lk(register_lock);
 #endif
+        fprintf(stderr, "Trying %s to %s\n",move->src->identifier.c_str(),move->get_dst()->identifier.c_str());
         register_single_move_no_conflict(move);
         ret = 1;
         selected_move = move;

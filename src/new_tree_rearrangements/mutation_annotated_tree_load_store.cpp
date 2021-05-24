@@ -10,6 +10,7 @@
 #include <sstream>
 #include "tbb/parallel_for.h"
 #include <queue>
+#include <string>
 std::vector<int8_t> Mutation_Annotated_Tree::get_nuc_vec_from_id (int8_t nuc_id) {
     return get_nuc_vec(get_nuc(nuc_id));
 }
@@ -162,7 +163,51 @@ this_node->branch_length=loaded;
     in=endptr-1;
     
 }
+static void populate_node(Mutation_Annotated_Tree::Node* to_populate,const char*& start,Mutation_Annotated_Tree::Tree* tree){
+    const char* name=start;
+    while (*start!=':') {
+        start++;
+    }
+    start++;
+    to_populate->identifier=std::string(name,start-1);
+    char* end;
+    to_populate->branch_length=strtod(start,&end);
+    start=end;
+    tree->all_nodes.emplace(to_populate->identifier,to_populate);
+}
+static void load_with_internal_label(const char* start,const char* end,Mutation_Annotated_Tree::Tree* tree){
+    assert(*start=='(');
+    Mutation_Annotated_Tree::Node* curr_node=new Mutation_Annotated_Tree::Node();
+    tree->root=curr_node;
+    start++;
+    while (start!=end) {
+        if (*start=='(') {
+            Mutation_Annotated_Tree::Node* par_node=curr_node;
+            curr_node=new Mutation_Annotated_Tree::Node();
+            curr_node->parent=par_node;
+            par_node->children.push_back(curr_node);
+            start++;
+        }else if (*start==',') {
+            start++;
+        }else if (*start==';') {
+            start++;
+        }
+        else if (*start==')') {
+            start++;
+            populate_node(curr_node,start,tree);
+            curr_node=curr_node->parent;
+        }else  {
+            Mutation_Annotated_Tree::Node* new_node=new Mutation_Annotated_Tree::Node();
+            new_node->parent=curr_node;
+            curr_node->children.push_back(new_node);
+            populate_node(new_node,start,tree);
+        }
+    }
+}
 void Mutation_Annotated_Tree::Tree::load_from_newick(const std::string& newick_string,bool use_internal_node_label){
+    if (use_internal_node_label) {
+        return load_with_internal_label(newick_string.data(),newick_string.data()+newick_string.size(),this);
+    }
     std::vector<std::string> leaves;
     std::vector<size_t> num_open;
     std::vector<size_t> num_close;
@@ -296,7 +341,11 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
     if (!hasmeta) {
         fprintf(stderr, "WARNING: This pb does not include any metadata. Filling in default values\n");
     }
-    tree = create_tree_from_newick_string(data.newick());
+    size_t old_internal_node_size=data.internal_node_size();
+    tree.load_from_newick(data.newick(),old_internal_node_size);
+    if (old_internal_node_size) {
+        tree.curr_internal_node=old_internal_node_size;
+    }
     auto dfs = tree.depth_first_expansion();
     static tbb::affinity_partitioner ap;
     tbb::parallel_for( tbb::blocked_range<size_t>(0, dfs.size()),
@@ -351,7 +400,8 @@ void Mutation_Annotated_Tree::save_mutation_annotated_tree (const Mutation_Annot
     auto dfs = tree.depth_first_expansion();
 
 
-    data.set_newick(get_newick_string(tree, false, true));
+    data.set_newick(get_newick_string(tree, true, true));
+    data.set_internal_node_size(tree.curr_internal_node);
 
 
     for (size_t idx = 0; idx < dfs.size(); idx++) {
