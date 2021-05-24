@@ -75,8 +75,6 @@ void mask_main(po::parsed_options parsed) {
     if (simplify) {
         fprintf(stderr, "Removing identifying information...\n");
         simplify_tree(&T);
-        fprintf(stderr, "Recondensing leaves..\n");
-        T.condense_leaves();
     }
 
     // If a rename file was provided, perform renaming procedure
@@ -109,6 +107,30 @@ void simplify_tree(MAT::Tree* T) {
         nname << "l" << rid;
         T->rename_node(l->identifier, nname.str());
         rid++;
+    }
+    auto tree_leaves = T->get_leaves_ids();
+    for (auto l1_id: tree_leaves) {
+        std::vector<MAT::Node*> polytomy_nodes;
+        // Use the same method as T.condense_leaves to find sets of leaves that are identical
+        // to their parent nodes.
+        auto l1 = T->get_node(l1_id);
+        if (l1 == NULL) {
+            continue;
+        }
+        if (l1->mutations.size() > 0) {
+            continue;
+        }
+        for (auto l2: l1->parent->children) {
+            if (l2->is_leaf() && (T->get_node(l2->identifier) != NULL) && (l2->mutations.size() == 0)) {
+                polytomy_nodes.push_back(l2);
+            }
+        }
+        if (polytomy_nodes.size() > 1) {
+            // Leave the first node in the set in the tree, but remove all other identical nodes.
+            for (size_t it = 1; it < polytomy_nodes.size(); it++) {
+                T->remove_node(polytomy_nodes[it]->identifier, false);
+            }
+        }
     }
 }
 
