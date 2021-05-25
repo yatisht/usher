@@ -1,4 +1,5 @@
 #include "select.hpp"
+#include <regex>
 /*
 Functions in this module take a variety of arguments, usually including a MAT
 and return a set of samples as a std::vector<std::string>
@@ -336,9 +337,10 @@ std::map<std::string,std::map<std::string,std::string>> read_metafile(std::strin
 std::vector<std::string> get_sample_match(MAT::Tree* T, std::string substring) {
     //get the set of samples which match the regular expression pattern and return them.
     //simple enough.
+    std::regex pat (substring);
     std::vector<std::string> matchsamples;
     for (auto l: T->get_leaves_ids()) {
-        if (l.find(substring) != std::string::npos) {
+        if (std::regex_match(l, pat)) {
             matchsamples.emplace_back(l);
         }
     }
