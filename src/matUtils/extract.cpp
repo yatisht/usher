@@ -11,10 +11,14 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
          "Input mutation-annotated tree file [REQUIRED]")
         ("samples,s", po::value<std::string>()->default_value(""),
         "Select samples by explicitly naming them. One per line")
+        ("metadata,M", po::value<std::string>()->default_value(""),
+        "Path to a metadata tsv/csv containing categorical metadata values for a json output. Used with -j only")
         ("clade,c", po::value<std::string>()->default_value(""),
         "Select samples by membership in at least one of the indicated clade(s), comma delimited.")
         ("mutation,m", po::value<std::string>()->default_value(""),
         "Select samples by whether they contain any of the indicated mutation(s), comma delimited.")
+        ("match,H", po::value<std::string>()->default_value(""),
+        "Select samples by whether their identifier matches the indicated regex pattern.")
         ("max-epps,e", po::value<size_t>()->default_value(0),
         "Select samples by whether they have less than the maximum indicated number of equally parsimonious placements. Note: calculation adds significantly to runtime.")
         ("max-parsimony,a", po::value<int>()->default_value(-1),
@@ -23,6 +27,10 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
         "Remove samples which have branches of greater than the indicated length in their ancestry.")
         ("nearest-k,k", po::value<std::string>()->default_value(""),
         "Select a sample ID and the nearest k samples to it, formatted as sample:k. E.g. -k sample_1:50 gets sample 1 and the nearest 50 samples to it as a subtree.")
+        ("nearest-k-batch,K", po::value<std::string>()->default_value(""),
+        "Pass a text file of sample IDs and a number of the number of context samples, formatted as sample_file.txt:k.")
+        ("set-size,z", po::value<size_t>()->default_value(0),
+        "Automatically add or remove samples at random from the selected sample set until it is the indicated size.")
         ("get-representative,r", po::bool_switch(),
         "Automatically select two representative samples per clade in the tree after other selection steps and prune all other samples.")
         ("prune,p", po::bool_switch(),
@@ -53,6 +61,10 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
          "Use to write a newick tree to the indicated file.")
         ("retain-branch-length,E", po::bool_switch(),
         "Use to not recalculate branch lengths when saving newick output. Used only with -t")
+        ("single_subtree_size,X", po::value<size_t>()->default_value(0),
+        "(EXPERIMENTAL) Use to produce a single sample subtree of the indicated size with all selected samples plus random samples to fill. Produces .nh and .txt files.")
+        ("minimum_subtrees_size,x", po::value<size_t>()->default_value(0),
+        "(EXPERIMENTAL) Use to produce the minimum set of subtrees of the indicated size which include all of the selected samples. Produces .nh and .txt files.")
         ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
         ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
@@ -86,8 +98,10 @@ void extract_main (po::parsed_options parsed) {
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string input_samples_file = vm["samples"].as<std::string>();
     std::string nearest_k = vm["nearest-k"].as<std::string>();
+    std::string nearest_k_batch_file = vm["nearest-k-batch"].as<std::string>();
     std::string clade_choice = vm["clade"].as<std::string>();
     std::string mutation_choice = vm["mutation"].as<std::string>();
+    std::string match_choice = vm["match"].as<std::string>();
     int max_parsimony = vm["max-parsimony"].as<int>();
     int max_branch = vm["max-branch-length"].as<int>();
     size_t max_epps = vm["max-epps"].as<size_t>();
@@ -96,6 +110,9 @@ void extract_main (po::parsed_options parsed) {
     bool resolve_polytomies = vm["resolve-polytomies"].as<bool>();
     bool retain_branch = vm["retain-branch-length"].as<bool>();
     std::string dir_prefix = vm["output-directory"].as<std::string>();
+    size_t single_subtree_size = vm["single_subtree_size"].as<size_t>();
+    size_t minimum_subtrees_size = vm["minimum_subtrees_size"].as<size_t>();
+    size_t setsize = vm["set-size"].as<size_t>();
 
     boost::filesystem::path path(dir_prefix);
     if (!boost::filesystem::exists(path)) {
@@ -113,6 +130,7 @@ void extract_main (po::parsed_options parsed) {
     std::string vcf_filename = dir_prefix + vm["write-vcf"].as<std::string>();
     std::string output_mat_filename = dir_prefix + vm["write-mat"].as<std::string>();
     std::string json_filename = dir_prefix + vm["write-json"].as<std::string>();
+    std::string meta_filename = dir_prefix + vm["metadata"].as<std::string>();
     bool collapse_tree = vm["collapse-tree"].as<bool>();
     bool no_genotypes = vm["no-genotypes"].as<bool>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
@@ -120,8 +138,10 @@ void extract_main (po::parsed_options parsed) {
     //are set before proceeding. 
     std::vector<std::string> outs = {sample_path_filename, clade_path_filename, all_path_filename, tree_filename, vcf_filename, output_mat_filename, json_filename, used_sample_filename};
     if (!std::any_of(outs.begin(), outs.end(), [=](std::string f){return f != dir_prefix;})) {
-        fprintf(stderr, "ERROR: No output files requested!\n");
-        exit(1);
+        if (nearest_k_batch_file == "") {
+            fprintf(stderr, "ERROR: No output files requested!\n");
+            exit(1);
+        }
     }
 
     tbb::task_scheduler_init init(num_threads);
@@ -129,8 +149,16 @@ void extract_main (po::parsed_options parsed) {
     timer.Start();
     fprintf(stderr, "Loading input MAT file %s.\n", input_mat_filename.c_str()); 
     // Load input MAT and uncondense tree
-    MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
-    T.uncondense_leaves();
+    MAT::Tree T;
+    if (input_mat_filename.find(".pb\0") != std::string::npos) {
+        T = MAT::load_mutation_annotated_tree(input_mat_filename);
+        T.uncondense_leaves();
+    } else if (input_mat_filename.find(".json\0") != std::string::npos) {
+        T = load_mat_from_json(input_mat_filename);
+    } else {
+        fprintf(stderr, "ERROR: Input file ending not recognized. Must be .json or .pb\n");
+        exit(1);
+    }
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     //first step is to select a set of samples to work with
     //if any sample selection arguments are set.
@@ -148,20 +176,21 @@ void extract_main (po::parsed_options parsed) {
     if (input_samples_file != "") {
         samples = read_sample_names(input_samples_file);
     } 
+    std::string sample_id;
     if (nearest_k != "") {
         auto split_point = nearest_k.find(":");
         if (split_point == std::string::npos) {
             fprintf(stderr, "ERROR: Invalid formatting of -k argument. Requires input in the form of 'sample_id:k' to get k nearest samples to sample_id\n");
             exit(1);
         }
-        std::string sample_id = nearest_k.substr(0, split_point);
+        sample_id = nearest_k.substr(0, split_point);
         std::string nkstr = nearest_k.substr(split_point+1, nearest_k.size() - split_point); 
         int nk = std::stoi(nkstr);
         if (nk <= 0) {
             fprintf(stderr, "ERROR: Invalid neighborhood size. Please choose a positive nonzero integer.\n");
             exit(1);
         }
-        auto nk_samples = get_nearby(T, sample_id, nk);
+        auto nk_samples = get_nearby(&T, sample_id, nk);
         if (samples.size() == 0) {
             samples = nk_samples;
         } else {
@@ -183,7 +212,7 @@ void extract_main (po::parsed_options parsed) {
         std::vector<std::string> samples_in_clade;
         for (auto cname: clades) {
             fprintf(stderr, "Getting member samples of clade %s\n", cname.c_str());
-            auto csamples = get_clade_samples(T, cname);
+            auto csamples = get_clade_samples(&T, cname);
             if (csamples.size() == 0) {
                 //warning because they may want the other clade they indicated and it can proceed with that
                 //itll error down the line if this was the only one they passed in and it leaves them with no samples
@@ -219,7 +248,7 @@ void extract_main (po::parsed_options parsed) {
         std::vector<std::string> samples_with_mutation;
         for (auto mname: mutations) {
             fprintf(stderr, "Getting samples with mutation %s\n", mname.c_str());
-            auto msamples = get_mutation_samples(T, mname);
+            auto msamples = get_mutation_samples(&T, mname);
             if (msamples.size() == 0) {
                 fprintf(stderr, "WARNING: No samples with mutation %s found in tree!\n", mname.c_str());
             }
@@ -239,11 +268,23 @@ void extract_main (po::parsed_options parsed) {
             exit(1);
         }
     }
+    if (match_choice != "") {
+        if (samples.size() == 0) {
+            samples = get_sample_match(&T, match_choice);
+        } else {
+            auto rsamples = get_sample_match(&T, match_choice);
+            samples = sample_intersect(samples, rsamples);
+        }
+        if (samples.size() == 0) {
+            fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
+            exit(1);
+        }
+    }
     if (max_parsimony >= 0) {
         if (samples.size() == 0) {
-            samples = get_parsimony_samples(T, max_parsimony);
+            samples = get_parsimony_samples(&T, max_parsimony);
         } else {
-            auto psamples =  get_parsimony_samples(T, max_parsimony);
+            auto psamples =  get_parsimony_samples(&T, max_parsimony);
             samples = sample_intersect(samples, psamples);
             //check to make sure we haven't emptied our sample set; if we have, throw an error
             if (samples.size() == 0) {
@@ -254,7 +295,7 @@ void extract_main (po::parsed_options parsed) {
     } 
     if (max_branch >= 0) {
         //intersection is built into this one because its a significant runtime gain to not rsearch samples I won't use anyways
-        samples = get_short_steppers(T, samples, max_branch);
+        samples = get_short_steppers(&T, samples, max_branch);
         if (samples.size() == 0) {
             fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
             exit(1);
@@ -265,10 +306,14 @@ void extract_main (po::parsed_options parsed) {
         //so it doesn't need any intersection code
         //if no samples are indicated, you get it for the whole tree. This can take several hours.
         //check to make sure we haven't emptied our sample set; if we have, throw an error
+        samples = get_samples_epps(&T, max_epps, samples);
         if (samples.size() == 0) {
             fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
             exit(1);
         }
+    }
+    if (setsize > 0) {
+        samples = fill_random_samples(&T, samples, setsize);
     }
     //the final step of selection is to invert the set if prune is set
     //this is done by getting all sample names which are not in the samples vector.
@@ -292,61 +337,53 @@ void extract_main (po::parsed_options parsed) {
     }
     //retrive path information for samples, clades, everything before pruning occurs. Behavioral change
     //to get the paths post-pruning, will need to save a new tree .pb and then repeat the extract command on that
-    if (sample_path_filename != dir_prefix || clade_path_filename != dir_prefix || all_path_filename != dir_prefix) {
+    if (sample_path_filename != dir_prefix) {
         timer.Start();
-        fprintf(stderr,"Retriving path information...\n");
         if (sample_path_filename != dir_prefix) {
-            std::ofstream outfile (sample_path_filename);
-            auto mpaths = mutation_paths(T, samples);
-            for (auto mstr: mpaths) {
-                outfile << mstr << "\n";
+            std::cerr << "Sample mutation path information requested; writing pre-pruning paths to " << sample_path_filename << " with usher-style output.\n";
+            if (samples.size() > 0) {
+                MAT::get_sample_mutation_paths(&T, samples, sample_path_filename);
+            } else {
+                fprintf(stderr, "No samples selected; writing paths for all samples...\n");
+                MAT::get_sample_mutation_paths(&T, T.get_leaves_ids(), sample_path_filename);
             }
-            outfile.close();
-        }
-        if (all_path_filename != dir_prefix) {
-            std::ofstream outfile (all_path_filename);
-            auto apaths = all_nodes_paths(T);
-            for (auto astr: apaths) {
-                outfile << astr << "\n";
-            }
-            outfile.close();
-        }
-        if (clade_path_filename != dir_prefix) {
-            //need to get the set of all clade annotations currently in the tree for the clade_paths function
-            //TODO: refactor summary so I can just import the clade counter function from there (disentangle from file printing)
-            //also this block of code just generally sucks.
-            std::vector<std::string> cladenames;
-            auto dfs = T.depth_first_expansion();
-            for (auto s: dfs) {
-                std::vector<std::string> canns = s->clade_annotations;
-                if (canns.size() > 0) {
-                    if (canns.size() > 1 || canns[0] != "") {
-                        for (auto c: canns) {
-                            if (c != "" && std::find(cladenames.begin(), cladenames.end(), c) == cladenames.end()) {
-                                cladenames.push_back(c);
-                            }
-                        }
-                    }
-                }
-            }
-            std::ofstream outfile (clade_path_filename);
-            //TODO: maybe better to update clade_paths to take an "all current clades" option.
-            //should be more computationally efficient at least.
-            auto cpaths = clade_paths(T, cladenames);
-            for (auto cstr: cpaths) {
-                outfile << cstr;
-            }
-            outfile.close(); 
         }
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
+    //before proceeding to actually applying sample selection, 
+    //if usher-style subtree output is requested, 
+    //produce that. 
+
+    if (minimum_subtrees_size > 0) {
+        timer.Start();
+        fprintf(stderr, "Random minimum sample subtrees of size %ld requested.\n", minimum_subtrees_size);
+        if (samples.size() > 0) {
+            MAT::get_random_sample_subtrees(&T, samples, dir_prefix, minimum_subtrees_size, 0, false, retain_branch);
+        } else {
+            fprintf(stderr, "ERROR: Minimum sample subtree output requested with no valid samples! Check selection parameters\n");
+            exit(1);
+        }
+        fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+    }
+    if (single_subtree_size > 0) {
+        timer.Start();
+        fprintf(stderr, "Random single encompassing subtree of size %ld requested.\n", single_subtree_size);
+        if (samples.size() > 0) {
+            MAT::get_random_single_subtree(&T, samples, dir_prefix, single_subtree_size, 0, false, retain_branch);
+        } else {
+            fprintf(stderr, "ERROR: Encompassing subtree output requested with no valid samples! Check selection parameters\n");
+            exit(1);
+        }
+        fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+    }
+
     //if we have no samples at the end without throwing an error, 
     //probably because no selection arguments were set,
     //we want the samples to be all samples in the tree
     //and don't bother pruning.
     MAT::Tree subtree; 
     if (samples.size() == 0) {
-        fprintf(stderr, "No sample selection arguments passed; using full input tree.\n");
+        fprintf(stderr, "No sample selection arguments passed; using full input tree for further output.\n");
         samples = T.get_leaves_ids();
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
         //if no selection was set, then there's no need to filter.
@@ -378,7 +415,7 @@ void extract_main (po::parsed_options parsed) {
     //add a valid samples vector argument to the clade representatives function and check membership before selection, maybe
     if (get_representative) {
         //fprintf(stderr, "Filtering again to a clade representative tree...\n");
-        auto rep_samples = get_clade_representatives(subtree);
+        auto rep_samples = get_clade_representatives(&subtree);
         //run filter master again
         subtree = filter_master(subtree, rep_samples, false);
         //overwrite samples with new subset
@@ -395,6 +432,126 @@ void extract_main (po::parsed_options parsed) {
             outfile << s << "\n";
         }
     }
+    if (all_path_filename != dir_prefix) {
+        //print all node mutations *for this subtree*
+        timer.Start();
+        fprintf(stderr, "Writing full node mutation information...\n");
+        std::ofstream outfile (all_path_filename);
+        auto apaths = all_nodes_paths(T);
+        for (auto astr: apaths) {
+            outfile << astr << "\n";
+        }
+        outfile.close();
+        fprintf(stderr, "Completed in %ld msec\n\n", timer.Stop());
+    }
+    if (clade_path_filename != dir_prefix) {
+        //need to get the set of all clade annotations currently in the tree for the clade_paths function
+        //TODO: refactor summary so I can just import the clade counter function from there (disentangle from file printing)
+        //also this block of code just generally sucks.
+        fprintf(stderr, "Writing clade root path strings...\n");
+        timer.Start();
+        std::vector<std::string> cladenames;
+        auto dfs = T.depth_first_expansion();
+        for (auto s: dfs) {
+            std::vector<std::string> canns = s->clade_annotations;
+            if (canns.size() > 0) {
+                if (canns.size() > 1 || canns[0] != "") {
+                    for (auto c: canns) {
+                        if (c != "" && std::find(cladenames.begin(), cladenames.end(), c) == cladenames.end()) {
+                            cladenames.push_back(c);
+                        }
+                    }
+                }
+            }
+        }
+        std::ofstream outfile (clade_path_filename);
+        //TODO: maybe better to update clade_paths to take an "all current clades" option.
+        //should be more computationally efficient at least.
+        auto cpaths = clade_paths(T, cladenames);
+        for (auto cstr: cpaths) {
+            outfile << cstr;
+        }
+        outfile.close(); 
+        fprintf(stderr, "Completed in %ld msec\n\n", timer.Stop());
+    }
+    std::map<std::string,std::map<std::string,std::string>> catmeta;
+    if (meta_filename != "") {
+        std::set<std::string> samples_included(samples.begin(), samples.end());
+        catmeta = read_metafile(meta_filename, samples_included);
+    }
+    //if json output AND mutation context is requested, add an additional metadata column indicating whether each branch contains 
+    //the mutation of interest. the metadata map is not limited to leaf nodes.
+    if ((json_filename != "") && (mutation_choice != "")) {
+        std::map<std::string,std::string> mutmap;
+        std::vector<std::string> mutations;
+        std::stringstream mns(mutation_choice);
+        std::string m;
+        while (std::getline(mns,m,',')) {
+            mutations.push_back(m);
+        }
+        assert (mutations.size() > 0);
+        for (auto n: subtree.depth_first_expansion()) {
+            for (auto m: n->mutations) {
+                std::string metastr = "";
+                for (auto mstr: mutations ) {
+                    if (m.get_string() == mstr) {
+                        if (metastr == "") {
+                            metastr = mstr;
+                        } else {
+                            metastr = metastr + ',' + mstr;
+                        }
+                    }
+                }
+                mutmap[n->identifier] = metastr;
+                break;
+            }
+        }
+        catmeta["mutation_of_interest"] = mutmap;
+    }
+    if (nearest_k_batch_file != "") {
+        fprintf(stderr, "Batch sample context writing requested.\n");
+        auto split_point = nearest_k_batch_file.find(":");
+        if (split_point == std::string::npos) {
+            fprintf(stderr, "ERROR: Invalid formatting of -K argument. Requires input in the form of 'sample_file.txt:k' to generate json context files\n");
+            exit(1);
+        }
+        std::string sample_file = nearest_k_batch_file.substr(0, split_point);
+        std::string nkstr = nearest_k_batch_file.substr(split_point+1, nearest_k_batch_file.size() - split_point); 
+        int nk = std::stoi(nkstr);
+        if (nk <= 0) {
+            fprintf(stderr, "ERROR: Invalid neighborhood size. Please choose a positive nonzero integer.\n");
+            exit(1);
+        }
+        auto batch_samples = read_sample_names(sample_file);
+        timer.Start();
+        // size_t counter = 0;
+        for (auto s: batch_samples) {
+            std::map<std::string,std::string> conmap;
+            conmap[s] = "focal";
+            catmeta["focal_view"] = conmap;
+            auto cs = get_nearby(&T, s, nk);
+            MAT::Tree subt = filter_master(T, cs, false);
+            //remove forward slashes from the string, replacing them with underscores.
+            size_t pos = 0;
+            while ((pos = s.find("/")) != std::string::npos) {
+                s.replace(pos, 1, "_");
+            }
+            //fprintf(stderr, "DEBUG: writing file %s\n", (std::to_string(counter) + "_context.json").c_str());
+            write_json_from_mat(&subt, s + "_context.json", &catmeta);
+            // counter++;
+        }
+        fprintf(stderr, "%ld batch sample jsons written in %ld msec.\n\n", batch_samples.size(), timer.Stop());
+    }    
+    //if json output AND sample context is requested, add an additional metadata column which simply indicates the focal sample versus context
+    if ((json_filename != "") && (nearest_k != "")) {
+        std::map<std::string,std::string> conmap;
+        for (auto s: samples) {
+            if (s == sample_id) {
+                conmap[s] = "focal";
+            } 
+        }
+        catmeta["focal_view"] = conmap;
+    }
     //last step is to convert the subtree to other file formats
     if (vcf_filename != dir_prefix) {
         fprintf(stderr, "Generating VCF of final tree\n");
@@ -402,7 +559,7 @@ void extract_main (po::parsed_options parsed) {
     }
     if (json_filename != dir_prefix) {
         fprintf(stderr, "Generating JSON of final tree\n");
-        make_json(subtree, json_filename);
+        write_json_from_mat(&subtree, json_filename, &catmeta);
     }
     if (tree_filename != dir_prefix) {
         fprintf(stderr, "Generating Newick file of final tree\n");
@@ -415,11 +572,11 @@ void extract_main (po::parsed_options parsed) {
     if (output_mat_filename != dir_prefix) {
         fprintf(stderr, "Saving output MAT file %s.\n", output_mat_filename.c_str()); 
         //only recondense the tree if polytomies weren't resolved.
-        if (!resolve_polytomies) {
-            subtree.condense_leaves();
-        }
         if (collapse_tree) {
             subtree.collapse_tree();
+        }
+        if (!resolve_polytomies) {
+            subtree.condense_leaves();
         }
         MAT::save_mutation_annotated_tree(subtree, output_mat_filename);
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
