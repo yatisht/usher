@@ -18,7 +18,7 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
         ("mutation,m", po::value<std::string>()->default_value(""),
         "Select samples by whether they contain any of the indicated mutation(s), comma delimited.")
         ("match,H", po::value<std::string>()->default_value(""),
-        "Select samples by whether their identifier contains the indicated substring.")
+        "Select samples by whether their identifier matches the indicated regex pattern.")
         ("max-epps,e", po::value<size_t>()->default_value(0),
         "Select samples by whether they have less than the maximum indicated number of equally parsimonious placements. Note: calculation adds significantly to runtime.")
         ("max-parsimony,a", po::value<int>()->default_value(-1),
