@@ -185,7 +185,7 @@ static bool add_mut(const MAT::Mutation &to_add, nuc_one_hot par_nuc,
 #define SIBLING_INCONSISTENT_SHAMT 2
 #define NEW_NODE_INCONSISTENT_SHAMT 3
 // sibling node left, new node right
-static char merge_new_node_mutations(
+char merge_new_node_mutations(
     const MAT::Mutations_Collection &new_node_mutations,
     const MAT::Mutations_Collection &sibling_node_mutations,
     MAT::Mutations_Collection &shared_node_mutations_out,

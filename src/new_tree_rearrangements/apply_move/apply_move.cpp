@@ -124,13 +124,13 @@ void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t,
     std::vector<MAT::Node *> old_nodes = t.breadth_first_expansion();
     for (auto node : old_nodes) {
         assert(node->is_root() || node->is_leaf() || node->children.size() > 1);
-        /*if (node->parent){for(const auto mut:node->mutations){
+        if (node->parent){for(const auto mut:node->mutations){
             auto& par_mutations=node->parent->mutations;
             auto iter=par_mutations.find(mut.get_position());
             if(iter!=par_mutations.end()){
                 assert(iter->get_par_one_hot()!=mut.get_mut_one_hot()||(!mut.is_valid()));
             }
-        }}*/
+        }}
         // assert(node->is_root()||node->mutations.size()>0);
     }
     MAT::Tree new_tree = reassign_state_full(t);
