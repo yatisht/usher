@@ -257,7 +257,7 @@ void write_vcf_rows(std::ostream& vcf_file, MAT::Tree T, std::vector<MAT::Node*>
         std::string chrom = itr->first;
         std::vector<int8_t *> pos_genotypes = itr->second;
         uint pos=0;
-        tbb::parallel_pipeline(80,tbb::make_filter<void,uint>(tbb::filter::serial_in_order,Pos_Finder{pos,pos_genotypes})&
+        tbb::parallel_pipeline(tbb::task_scheduler_init::default_num_threads()*2,tbb::make_filter<void,uint>(tbb::filter::serial_in_order,Pos_Finder{pos,pos_genotypes})&
             tbb::make_filter<uint,std::string*>(tbb::filter::parallel,VCF_Line_Writer{pos_genotypes,chrom_pos_ref[chrom],leaf_count,print_genotypes,chrom})
             &tbb::make_filter<std::string*,void>(tbb::filter::serial_in_order,[&vcf_file](std::string* to_write){
                 if (to_write) {
