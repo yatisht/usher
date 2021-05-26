@@ -62,10 +62,19 @@ int main(int argc, char** argv){
         FILE* moves=fopen(argv[2], "r");
         char src[BUFSIZ];
         char dst[BUFSIZ];
-        while (fscanf(moves, "%s\tto\t%s\n",src,dst)!=EOF) {
-            Profitable_Moves_ptr_t move=make_move(t.get_node(src), t.get_node(dst));
-            all_moves.push_back(move);
+        Conflict_Resolver resolver(bfs_ordered_nodes.size());
+        while (fscanf(moves, "Trying %s to %s\n",src,dst)!=EOF) {
+            MAT::Node* src_node=t.get_node(src);
+            MAT::Node* dst_node=t.get_node(dst);
+            if(!(src_node&&dst_node)){
+                continue;
+            }
+            Profitable_Moves_ptr_t move=make_move(src_node,dst_node);
+            move->score_change=-1;
+            std::vector<Profitable_Moves_ptr_t>temp{move};
+            resolver(temp);
         }
+        resolver.schedule_moves(all_moves);
         apply_moves(all_moves, t, bfs_ordered_nodes, deferred_nodes,origin_states);
         return 0;
     }

@@ -10,12 +10,12 @@
 #include "tree_rearrangement_internal.hpp"
 
 namespace MAT=Mutation_Annotated_Tree;
-void clean_up_internal_nodes(MAT::Node* this_node,MAT::Tree& tree,tbb::concurrent_vector<MAT::Node*>& to_filter){
+static void clean_up_internal_nodes(MAT::Node* this_node,MAT::Tree& tree){
 
     std::vector<MAT::Node *> &parent_children = this_node->parent->children;
     std::vector<MAT::Node *> this_node_ori_children = this_node->children;
 
-    if (this_node->children.size()==1&&this_node->parent) {
+    if ((this_node->children.size()==1||(this_node->mutations.empty()&&(!this_node->is_leaf())))&&this_node->parent) {
         auto iter = std::find(parent_children.begin(), parent_children.end(),
                               this_node);
         assert(iter != parent_children.end());
@@ -25,18 +25,15 @@ void clean_up_internal_nodes(MAT::Node* this_node,MAT::Tree& tree,tbb::concurren
             child->parent = this_node->parent;
             parent_children.push_back(child);
         }
-        for (size_t node_idx=0; node_idx<to_filter.size(); node_idx++) {
-            if (to_filter[node_idx]==this_node) {
-                to_filter[node_idx]=this_node_ori_children[0];
-            }
-        }
+
         delete this_node;
     }
 
     for (MAT::Node *child : this_node_ori_children) {
-        clean_up_internal_nodes(child, tree,to_filter);
+        clean_up_internal_nodes(child, tree);
     }
 }
+
 static void reassign_states(MAT::Tree& t, Original_State_t& origin_states){
     auto bfs_ordered_nodes = t.breadth_first_expansion();
 
@@ -49,8 +46,7 @@ static void reassign_states(MAT::Tree& t, Original_State_t& origin_states){
     }
 
     check_samples(t.root, origin_states, &t);
-    tbb::concurrent_vector<MAT::Node*> ignored;
-    clean_up_internal_nodes(t.root,t,ignored);
+    clean_up_internal_nodes(t.root,t);
     if (t.root->children.size()>1) {
         add_root(&t);
     }

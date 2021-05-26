@@ -1,6 +1,7 @@
 #include "src/new_tree_rearrangements/check_samples.hpp"
 #include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
 #include "src/new_tree_rearrangements/tree_rearrangement_internal.hpp"
+#include "apply_move.hpp"
 #include <utility>
 #include <vector>
 static void get_mutation_set_from_root(MAT::Node *node,
@@ -89,7 +90,7 @@ clean_up_after_remove(MAT::Node *node, std::unordered_set<size_t> &deleted,
         parent_children.erase(iter);
         deleted.insert((size_t)node);
         tree.all_nodes.erase(node->identifier);
-        delete node;
+        //delete node;
         return clean_up_after_remove(parent_node, deleted, nodes_to_clean,tree);
     } else if (node->children.size() == 1) {
         auto &parent_children = parent_node->children;
@@ -120,12 +121,12 @@ clean_up_after_remove(MAT::Node *node, std::unordered_set<size_t> &deleted,
                         MAT::Mutations_Collection::KEEP_SELF);
         }*/
         tree.all_nodes.erase(node->identifier);
-        delete node;
+        //delete node;
         return parent_node;
     }
     return node;
 }
-static MAT::Node *replace_with_internal_node(MAT::Node *to_replace,
+MAT::Node *replace_with_internal_node(MAT::Node *to_replace,
                                              MAT::Tree &tree) {
     MAT::Node *new_node = new MAT::Node();
     new_node->identifier = std::to_string(++tree.curr_internal_node);
@@ -176,14 +177,11 @@ static bool add_mut(const MAT::Mutation &to_add, nuc_one_hot par_nuc,
         to_add.get_boundary1_one_hot()) {
         out.push_back(to_add);
         out.back().set_par_one_hot(par_nuc);
-        return out.back().is_valid() ^ to_add.is_valid();
+        return out.back().is_valid() &&(par_nuc&out.back().get_all_major_allele());
     }
     return false;
 }
-#define SIBLING_UNIQUE_SHAMT 0
-#define HAVE_SHARED_SHAMT 1
-#define SIBLING_INCONSISTENT_SHAMT 2
-#define NEW_NODE_INCONSISTENT_SHAMT 3
+
 // sibling node left, new node right
 char merge_new_node_mutations(
     const MAT::Mutations_Collection &new_node_mutations,
@@ -382,6 +380,7 @@ void move_node(MAT::Node *src, MAT::Node *dst,
         std::find(src_parent_children.begin(), src_parent_children.end(), src);
     src_parent_children.erase(iter);
     nodes_to_clean.push_back(src);
+    nodes_to_clean.push_back(dst);
     MAT::Node *dst_altered = dst;
     /*if (altered_node.back() == dst) {
         assert(dst_to_root_path.empty());
