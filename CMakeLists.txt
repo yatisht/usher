@@ -42,7 +42,7 @@ file(GLOB MATUTIL_SRCS "src/matUtils/*.cpp" "src/matUtils/*.hpp")
 file(GLOB MATOPTIMIZE_SRCS "src/matOptimize/*.cpp" "src/matOptimize/*.hpp")
 
 
-set_source_files_properties(src/new_tree_rearrangements/import_vcf_fast.cpp PROPERTIES COMPILE_FLAGS -O0)
+set_source_files_properties(src/new_tree_rearrangements/Fitch_Sankoff.cpp PROPERTIES COMPILE_FLAGS -O3)
 #set_source_files_properties(src/new_tree_rearrangements/check_samples.cpp PROPERTIES COMPILE_FLAGS -O0)
 #set_source_files_properties(src/new_tree_rearrangements/main_load_tree.cpp PROPERTIES COMPILE_FLAGS -O0)
 if(DEFINED Protobuf_PATH)
@@ -170,6 +170,24 @@ else()
     ${PROTO_HDRS}
     )
 
+    add_executable(load_store_test
+    src/new_tree_rearrangements/mutation_annotated_tree.cpp
+    src/new_tree_rearrangements/mutation_annotated_tree_node.cpp
+    src/new_tree_rearrangements/mutation_annotated_tree_load_store.cpp
+    src/new_tree_rearrangements/detailed_mutations_load_store.cpp
+    src/new_tree_rearrangements/mutation_annotated_tree_nuc_util.cpp
+    src/new_tree_rearrangements/main_load_tree.cpp
+    src/new_tree_rearrangements/load_store_test.cpp
+    src/new_tree_rearrangements/main_helper.cpp
+    src/new_tree_rearrangements/import_vcf_fast.cpp
+    src/new_tree_rearrangements/Mutation_Collection.cpp
+    src/new_tree_rearrangements/Fitch_Sankoff.cpp
+    src/new_tree_rearrangements/check_samples.cpp
+    ${PROTO_SRCS}
+    ${PROTO_HDRS}
+    ${DETAILED_MUTATIONS_PROTO_SRCS}
+    ${DETAILED_MUTATIONS_PROTO_HDRS}
+    )
     add_executable(single_move_test
     src/new_tree_rearrangements/mutation_annotated_tree.cpp
     src/new_tree_rearrangements/mutation_annotated_tree_node.cpp
@@ -213,6 +231,7 @@ TARGET_LINK_LIBRARIES(tree_rearrange_new PRIVATE stdc++  ${Boost_LIBRARIES} ${TB
 TARGET_LINK_LIBRARIES(tree_stat PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(single_move_test PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(patch_tree_test PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
+TARGET_LINK_LIBRARIES(load_store_test PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 
 TARGET_COMPILE_OPTIONS(matUtils PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
 TARGET_LINK_LIBRARIES(matUtils PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
