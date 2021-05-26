@@ -1262,7 +1262,7 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_subtree (const Mutati
     }, ap);
     
     auto dfs = tree.depth_first_expansion();
-    size_t num_annotations = tree.get_num_annotations();
+    //size_t num_annotations = tree.get_num_annotations();
 
     std::stack<Node*> last_subtree_node;
     for (auto n: dfs) {
