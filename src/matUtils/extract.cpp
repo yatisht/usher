@@ -12,7 +12,7 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
         ("samples,s", po::value<std::string>()->default_value(""),
         "Select samples by explicitly naming them. One per line")
         ("metadata,M", po::value<std::string>()->default_value(""),
-        "Path to a metadata tsv/csv containing categorical metadata values for a json output. Used with -j only")
+        "Comma-delineated paths to metadata tsv/csvs containing categorical metadata values for a json output. Used with -j only")
         ("clade,c", po::value<std::string>()->default_value(""),
         "Select samples by membership in at least one of the indicated clade(s), comma delimited.")
         ("mutation,m", po::value<std::string>()->default_value(""),
@@ -61,10 +61,12 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
          "Use to write a newick tree to the indicated file.")
         ("retain-branch-length,E", po::bool_switch(),
         "Use to not recalculate branch lengths when saving newick output. Used only with -t")
-        ("single_subtree_size,X", po::value<size_t>()->default_value(0),
-        "(EXPERIMENTAL) Use to produce a single sample subtree of the indicated size with all selected samples plus random samples to fill. Produces .nh and .txt files.")
-        ("minimum_subtrees_size,x", po::value<size_t>()->default_value(0),
-        "(EXPERIMENTAL) Use to produce the minimum set of subtrees of the indicated size which include all of the selected samples. Produces .nh and .txt files.")
+        ("minimum_subtrees_size,N", po::value<size_t>()->default_value(0),
+        "Use to generate a series of JSON or Newick format files representing subtrees of the indicated size which cover all queried samples. Uses and overrides -j and -t output arguments.")
+        ("usher_single_subtree_size,X", po::value<size_t>()->default_value(0),
+        "Use to produce an usher-style single sample subtree of the indicated size with all selected samples plus random samples to fill. Produces .nh and .txt files.")
+        ("usher_minimum_subtrees_size,x", po::value<size_t>()->default_value(0),
+        "Use to produce an usher-style minimum set of subtrees of the indicated size which include all of the selected samples. Produces .nh and .txt files.")
         ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
         ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
@@ -110,9 +112,10 @@ void extract_main (po::parsed_options parsed) {
     bool resolve_polytomies = vm["resolve-polytomies"].as<bool>();
     bool retain_branch = vm["retain-branch-length"].as<bool>();
     std::string dir_prefix = vm["output-directory"].as<std::string>();
-    size_t single_subtree_size = vm["single_subtree_size"].as<size_t>();
-    size_t minimum_subtrees_size = vm["minimum_subtrees_size"].as<size_t>();
+    size_t usher_single_subtree_size = vm["usher_single_subtree_size"].as<size_t>();
+    size_t usher_minimum_subtrees_size = vm["usher_minimum_subtrees_size"].as<size_t>();
     size_t setsize = vm["set-size"].as<size_t>();
+    size_t minimum_subtrees_size = vm["minimum_subtrees_size"].as<size_t>();
 
     boost::filesystem::path path(dir_prefix);
     if (!boost::filesystem::exists(path)) {
@@ -354,22 +357,22 @@ void extract_main (po::parsed_options parsed) {
     //if usher-style subtree output is requested, 
     //produce that. 
 
-    if (minimum_subtrees_size > 0) {
+    if (usher_minimum_subtrees_size > 0) {
         timer.Start();
-        fprintf(stderr, "Random minimum sample subtrees of size %ld requested.\n", minimum_subtrees_size);
+        fprintf(stderr, "Random minimum sample subtrees of size %ld requested.\n", usher_minimum_subtrees_size);
         if (samples.size() > 0) {
-            MAT::get_random_sample_subtrees(&T, samples, dir_prefix, minimum_subtrees_size, 0, false, retain_branch);
+            MAT::get_random_sample_subtrees(&T, samples, dir_prefix, usher_minimum_subtrees_size, 0, false, retain_branch);
         } else {
             fprintf(stderr, "ERROR: Minimum sample subtree output requested with no valid samples! Check selection parameters\n");
             exit(1);
         }
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
-    if (single_subtree_size > 0) {
+    if (usher_single_subtree_size > 0) {
         timer.Start();
-        fprintf(stderr, "Random single encompassing subtree of size %ld requested.\n", single_subtree_size);
+        fprintf(stderr, "Random single encompassing subtree of size %ld requested.\n", usher_single_subtree_size);
         if (samples.size() > 0) {
-            MAT::get_random_single_subtree(&T, samples, dir_prefix, single_subtree_size, 0, false, retain_branch);
+            MAT::get_random_single_subtree(&T, samples, dir_prefix, usher_single_subtree_size, 0, false, retain_branch);
         } else {
             fprintf(stderr, "ERROR: Encompassing subtree output requested with no valid samples! Check selection parameters\n");
             exit(1);
@@ -474,10 +477,20 @@ void extract_main (po::parsed_options parsed) {
         outfile.close(); 
         fprintf(stderr, "Completed in %ld msec\n\n", timer.Stop());
     }
-    std::map<std::string,std::map<std::string,std::string>> catmeta;
+    std::vector<std::map<std::string,std::map<std::string,std::string>>> catmeta;
     if (meta_filename != "") {
+        std::vector<std::string> metav;
+        std::stringstream mns(meta_filename);
+        std::string m;
+        while (std::getline(mns,m,',')) {
+            metav.push_back(m);
+        }
+        assert (metav.size() > 0);
         std::set<std::string> samples_included(samples.begin(), samples.end());
-        catmeta = read_metafile(meta_filename, samples_included);
+        for (auto mv: metav) {
+            auto scm = read_metafile(mv, samples_included);
+            catmeta.emplace_back(scm);
+        }
     }
     //if json output AND mutation context is requested, add an additional metadata column indicating whether each branch contains 
     //the mutation of interest. the metadata map is not limited to leaf nodes.
@@ -506,7 +519,17 @@ void extract_main (po::parsed_options parsed) {
                 break;
             }
         }
-        catmeta["mutation_of_interest"] = mutmap;
+        std::map<std::string,std::map<std::string,std::string>> submet;
+        submet["mutation_of_interest"]=mutmap; 
+        catmeta.push_back(submet);
+    }
+    if (minimum_subtrees_size > 0) {
+        fprintf(stderr, "Finding minimum covering sample subtrees.\n");
+        timer.Start();
+        //references the original tree for getting nearest background.
+        get_minimum_subtrees(&T, samples, minimum_subtrees_size, dir_prefix, &catmeta, json_filename, tree_filename, retain_branch);
+        fprintf(stderr, "Minimum subtree files written in %ld msec; exiting\n", timer.Stop());
+        exit(0); //end of the line here.
     }
     if (nearest_k_batch_file != "") {
         fprintf(stderr, "Batch sample context writing requested.\n");
@@ -528,10 +551,12 @@ void extract_main (po::parsed_options parsed) {
         for (auto s: batch_samples) {
             std::map<std::string,std::string> conmap;
             conmap[s] = "focal";
-            catmeta["focal_view"] = conmap;
+            std::map<std::string,std::map<std::string,std::string>> submet; 
+            submet["focal_view"] = conmap;
+            catmeta.emplace_back(submet);
             auto cs = get_nearby(&T, s, nk);
             MAT::Tree subt = filter_master(T, cs, false);
-            //remove forward slashes from the string, replacing them with underscores.
+            // remove forward slashes from the string, replacing them with underscores.
             size_t pos = 0;
             while ((pos = s.find("/")) != std::string::npos) {
                 s.replace(pos, 1, "_");
@@ -550,7 +575,9 @@ void extract_main (po::parsed_options parsed) {
                 conmap[s] = "focal";
             } 
         }
-        catmeta["focal_view"] = conmap;
+        std::map<std::string,std::map<std::string,std::string>> submet; 
+        submet["focal_view"] = conmap;
+        catmeta.emplace_back(submet);    
     }
     //last step is to convert the subtree to other file formats
     if (vcf_filename != dir_prefix) {
