@@ -297,12 +297,13 @@ static MAT::Node *place_node_LCA(MAT::Node *&src, MAT::Node *parent,
                                           other_unique, this_unique,
                                           to_merge_if_children);
     bool have_shared = flags & (1 << HAVE_SHARED_SHAMT);
-    update_src_mutation(src, this_unique);
     if (!have_shared) {
+        update_src_mutation(src, mutations);
         parent->children.push_back(src);
         src->parent = parent;
         return parent;
     } else {
+        update_src_mutation(src, this_unique);
         MAT::Node *new_node = add_as_sibling(src, sibling, other_unique, common,
                                              tree, flags, nodes_to_clean);
         return new_node->parent;
