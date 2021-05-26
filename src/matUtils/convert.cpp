@@ -510,6 +510,7 @@ void get_minimum_subtrees(MAT::Tree* T, std::vector<std::string> samples, size_t
     int num_subtrees = 1;
     for (size_t i = 0; i < samples.size(); i++) {
         if (displayed_samples[i] != 0) {
+            fprintf(stderr, "%s is displayed in %ld, skipping\n", samples[i].c_str(), displayed_samples[i]);
             continue;
         }
         Mutation_Annotated_Tree::Node* last_anc = T->get_node(samples[i]);
@@ -559,7 +560,6 @@ void get_minimum_subtrees(MAT::Tree* T, std::vector<std::string> samples, size_t
                     }
                     });
             //from here, this function diverges from the similar function in the MAT definition.
-            ++num_subtrees;
             if (json_n != output_dir) {
                 std::string outf = json_n + "-subtree-" + std::to_string(num_subtrees) + ".json";
                 write_json_from_mat(&new_T, outf, catmeta);
@@ -572,25 +572,27 @@ void get_minimum_subtrees(MAT::Tree* T, std::vector<std::string> samples, size_t
                 subtree_file << newick_ss.rdbuf(); 
                 subtree_file.close();
             }
+            ++num_subtrees;
+            break;
         }
     }
     std::ofstream tracker (output_dir + "subtree-assignments.tsv");
     tracker << "samples";
-    if (json_n != "") {
+    if (json_n != output_dir) {
         tracker << "\t" << "json_file";
     }
-    if (newick_n != "") {
+    if (newick_n != output_dir) {
         tracker << "\t" << "newick_file";
     }
     tracker << "\n";
     for (size_t i = 0; i < samples.size(); i++) {
         tracker << samples[i];
-        if (json_n != "") {
-            std::string outf = output_dir + json_n + "-subtree-" + std::to_string(displayed_samples[i]) + ".json";
+        if (json_n != output_dir) {
+            std::string outf = json_n + "-subtree-" + std::to_string(displayed_samples[i]) + ".json";
             tracker << "\t" << outf;            
         }
-        if (newick_n != "") {
-            std::string outf = output_dir + newick_n + "-subtree-" + std::to_string(num_subtrees) + ".nw";
+        if (newick_n != output_dir) {
+            std::string outf = newick_n + "-subtree-" + std::to_string(displayed_samples[i]) + ".nw";
             tracker << "\t" << outf;
         }
         tracker << "\n";
