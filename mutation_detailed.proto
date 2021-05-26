@@ -3,10 +3,7 @@ package Mutation_Detailed;
 
 message detailed_mutation {
     int32 position = 1;
-    int32 chrom_idx = 2;
-    int32 par_mut_nuc = 3;
-    int32 boundary1_tie = 4;
-    int32 boundary2_flag = 5;
+    int32 other_fields = 2;
 }
 
 message mutation_list {
@@ -14,10 +11,17 @@ message mutation_list {
 }
 
 
-message data {
-    repeated mutation_list node_mutations = 1;
-    repeated string chromosomes = 2; 
-    repeated int32 ref_nuc=3;
-    string newick=4;
-    int64 internal_nodes_count=5;
+message node {
+    mutation_list node_mutations = 1;
+    string identifier = 2; 
+    repeated int64 children_offsets =3;
+    repeated int32 children_lengths =4;
+}
+
+message meta {
+    repeated int32 ref_nuc=1;
+    int64 internal_nodes_count=2;
+    repeated string chromosomes=3;
+    int64 root_offset=4;
+    int64 root_length=5;
 }
