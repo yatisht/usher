@@ -545,10 +545,10 @@ void extract_main (po::parsed_options parsed) {
                 //fprintf(stderr, "DEBUG: writing file %s\n", (std::to_string(counter) + "_context.json").c_str());
                 write_json_from_mat(&subt, batch_samples[s] + "_context.json", &catmeta);
                 // counter++;
-            }
-            fprintf(stderr, "%ld batch sample jsons written in %ld msec.\n\n", batch_samples.size(), timer.Stop());
+            }    
+        }, ap) ; 
+        fprintf(stderr, "%ld batch sample jsons written in %ld msec.\n\n", batch_samples.size(), timer.Stop());
 
-        }) ; 
     }    
     //if json output AND sample context is requested, add an additional metadata column which simply indicates the focal sample versus context
     if ((json_filename != "") && (nearest_k != "")) {
