@@ -260,8 +260,10 @@ void write_vcf_rows(std::ostream& vcf_file, MAT::Tree T, std::vector<MAT::Node*>
         tbb::parallel_pipeline(80,tbb::make_filter<void,uint>(tbb::filter::serial_in_order,Pos_Finder{pos,pos_genotypes})&
             tbb::make_filter<uint,std::string*>(tbb::filter::parallel,VCF_Line_Writer{pos_genotypes,chrom_pos_ref[chrom],leaf_count,print_genotypes,chrom})
             &tbb::make_filter<std::string*,void>(tbb::filter::serial_in_order,[&vcf_file](std::string* to_write){
+                if (to_write) {
                 vcf_file<<*to_write;
                 delete to_write;
+                }
             }));
     }
 }
