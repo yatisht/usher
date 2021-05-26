@@ -430,7 +430,7 @@ void Mutation_Annotated_Tree::save_mutation_annotated_tree (const Mutation_Annot
                 mut->set_par_nuc(j);
 
                 mut->clear_mut_nuc();
-                for (auto nuc: get_nuc_vec_from_id(m.get_mut_one_hot())) {
+                for (auto nuc: get_nuc_vec_from_id(dfs[idx]->is_leaf()?m.get_all_major_allele():m.get_mut_one_hot())) {
                     mut->add_mut_nuc(nuc);
                 }
             }
