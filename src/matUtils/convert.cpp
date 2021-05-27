@@ -419,7 +419,7 @@ json get_json_entry(MAT::Node* n, std::vector<std::map<std::string,std::map<std:
             sj["node_attrs"]["MAT_Clade_1"] = c2a;
         }
     }
-    for (auto cmet: *catmeta) {
+    for (const auto& cmet: *catmeta) {
         for (const auto& cmi: cmet) {
             if (cmi.second.find(n->identifier) != cmi.second.end()) {
                 //store the metadata on both the branch and the tip for now. 
@@ -557,9 +557,9 @@ void get_minimum_subtrees(MAT::Tree* T, std::vector<std::string> samples, size_t
             auto new_T = Mutation_Annotated_Tree::get_subtree(*T, leaves_to_keep);
             size_t count_displayed = 1;
             displayed_samples[i] = num_subtrees;
-            tbb::parallel_for (tbb::blocked_range<size_t>(i+1, samples.size(), 100),
-                    [&](tbb::blocked_range<size_t> r) {
-                    for (size_t j=r.begin(); j<r.end(); ++j){
+//            tbb::parallel_for (tbb::blocked_range<size_t>(i+1, samples.size(), 100),
+//                    [&](tbb::blocked_range<size_t> r) {
+//                    for (size_t j=r.begin(); j<r.end(); ++j){
                         for (size_t j = i+1; j < samples.size(); j++) {
                             if (displayed_samples[j] == 0) {
                                 if (new_T.get_node(samples[j]) != NULL) {
@@ -568,8 +568,8 @@ void get_minimum_subtrees(MAT::Tree* T, std::vector<std::string> samples, size_t
                                 }
                             }
                         }
-                    }
-                    });
+//                    }
+//                    });
             //from here, this function diverges from the similar function in the MAT definition.
             if (json_n != output_dir) {
                 std::string outf = json_n + "-subtree-" + std::to_string(num_subtrees) + ".json";
