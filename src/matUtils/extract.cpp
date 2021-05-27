@@ -130,7 +130,7 @@ void extract_main (po::parsed_options parsed) {
     std::string vcf_filename = dir_prefix + vm["write-vcf"].as<std::string>();
     std::string output_mat_filename = dir_prefix + vm["write-mat"].as<std::string>();
     std::string json_filename = dir_prefix + vm["write-json"].as<std::string>();
-    std::string meta_filename = dir_prefix + vm["metadata"].as<std::string>();
+    std::string meta_filename = vm["metadata"].as<std::string>();
     bool collapse_tree = vm["collapse-tree"].as<bool>();
     bool no_genotypes = vm["no-genotypes"].as<bool>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
@@ -525,22 +525,29 @@ void extract_main (po::parsed_options parsed) {
         auto batch_samples = read_sample_names(sample_file);
         timer.Start();
         // size_t counter = 0;
-        for (auto s: batch_samples) {
-            std::map<std::string,std::string> conmap;
-            conmap[s] = "focal";
-            catmeta["focal_view"] = conmap;
-            auto cs = get_nearby(&T, s, nk);
-            MAT::Tree subt = filter_master(T, cs, false);
-            //remove forward slashes from the string, replacing them with underscores.
-            size_t pos = 0;
-            while ((pos = s.find("/")) != std::string::npos) {
-                s.replace(pos, 1, "_");
-            }
-            //fprintf(stderr, "DEBUG: writing file %s\n", (std::to_string(counter) + "_context.json").c_str());
-            write_json_from_mat(&subt, s + "_context.json", &catmeta);
-            // counter++;
-        }
+        static tbb::affinity_partitioner ap;
+
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, batch_samples.size() ),
+                      [&](const tbb::blocked_range<size_t> r) {
+
+           for (int s = r.begin() ; s < r.end() ; ++s ) {
+                std::map<std::string,std::string> conmap;
+                conmap[batch_samples[s]] = "focal";
+                catmeta["focal_view"] = conmap;
+                auto cs = get_nearby(&T, batch_samples[s], nk);
+                MAT::Tree subt = filter_master(T, cs, false);
+                //remove forward slashes from the string, replacing them with underscores.
+                size_t pos = 0;
+                while ((pos = batch_samples[s].find("/")) != std::string::npos) {
+                    batch_samples[s].replace(pos, 1, "_");
+                }
+                //fprintf(stderr, "DEBUG: writing file %s\n", (std::to_string(counter) + "_context.json").c_str());
+                write_json_from_mat(&subt, batch_samples[s] + "_context.json", &catmeta);
+                // counter++;
+            }    
+        }, ap) ; 
         fprintf(stderr, "%ld batch sample jsons written in %ld msec.\n\n", batch_samples.size(), timer.Stop());
+
     }    
     //if json output AND sample context is requested, add an additional metadata column which simply indicates the focal sample versus context
     if ((json_filename != "") && (nearest_k != "")) {

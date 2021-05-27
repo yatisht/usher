@@ -1252,6 +1252,7 @@ int main(int argc, char** argv) {
             use_tree_idx = true;
         }
         for (size_t t_idx = 0; t_idx < num_trees; t_idx++) {
+            optimal_trees[t_idx].uncondense_leaves();
             MAT::get_random_single_subtree(&optimal_trees[t_idx], targets, outdir, print_subtrees_single, t_idx, use_tree_idx, retain_original_branch_len);
         }
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
@@ -1272,6 +1273,7 @@ int main(int argc, char** argv) {
             use_tree_idx = true;
         }
         for (size_t t_idx = 0; t_idx < num_trees; t_idx++) {
+            optimal_trees[t_idx].uncondense_leaves();
             MAT::get_random_sample_subtrees(&optimal_trees[t_idx], targets, outdir, print_subtrees_size, t_idx, use_tree_idx, retain_original_branch_len);
         }
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
