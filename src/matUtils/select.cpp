@@ -338,7 +338,6 @@ std::vector<std::string> get_sample_match(MAT::Tree* T, std::string substring) {
     //simple enough.
     std::regex pat (substring);
     std::vector<std::string> matchsamples;
-    std::regex pat (substring);
     for (auto l: T->get_leaves_ids()) {
         if (std::regex_match(l, pat)) {
             matchsamples.emplace_back(l);
