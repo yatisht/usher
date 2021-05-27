@@ -20,6 +20,8 @@ po::variables_map parse_introduce_command(po::parsed_options parsed) {
         "Name of the file to save the introduction information to.")
         ("origin-confidence,C", po::value<float>()->default_value(0.5),
         "Set the threshold for recording of putative origins of introductions. Default is 0.5")
+        ("evaluate-metadata,E", po::bool_switch(),
+        "Set to assign each leaf a confidence value based on ancestor distance and confidence.")
         // ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
         ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
@@ -247,7 +249,7 @@ void record_clade_regions(MAT::Tree* T, std::map<std::string, std::map<std::stri
     }
 }
 
-std::map<std::string, float> get_assignments(MAT::Tree* T, std::unordered_set<std::string> sample_set) {
+std::map<std::string, float> get_assignments(MAT::Tree* T, std::unordered_set<std::string> sample_set, bool eval_uncertainty) {
     /*
     This function applies a heuristic series of steps to label internal nodes as in or out of a geographic area
     based on their relationship to the samples in the input list. The rules are:
@@ -364,10 +366,25 @@ std::map<std::string, float> get_assignments(MAT::Tree* T, std::unordered_set<st
             }
         }
     }
+    if (eval_uncertainty) {
+        //update the assignments for specific leaves against the rest of the dataset
+        for (auto l: T->get_leaves_ids()) {
+            float total_conf = 0;
+            size_t traversed = 0;
+            size_t anc_count = 0;
+            for (auto anc: T->rsearch(l, false)) {
+                traversed += anc->mutations.size();
+                float acv = assignments.find(anc->identifier)->second;
+                total_conf += acv / traversed;
+                anc_count++;
+            }
+            assignments[l] = total_conf / anc_count;
+        }
+    }
     return assignments;
 }
 
-std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, std::vector<std::string>> sample_regions, bool add_info, std::string clade_output, float min_origin_confidence) {
+std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, std::vector<std::string>> sample_regions, bool add_info, std::string clade_output, float min_origin_confidence, bool eval_uncertainty) {
     //for every region, independently assign IN/OUT states
     //and save these assignments into a map of maps
     //so we can check membership of introduction points in each of the other groups
@@ -380,7 +397,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
         std::vector<std::string> samples = ms.second;
         fprintf(stderr, "Processing region %s with %ld total samples\n", region.c_str(), samples.size());
         std::unordered_set<std::string> sample_set(samples.begin(), samples.end());
-        auto assignments = get_assignments(T, sample_set);
+        auto assignments = get_assignments(T, sample_set, eval_uncertainty);
         if (add_info) {
             size_t global_mc = get_monophyletic_cladesize(T, assignments);
             float global_ai = get_association_index(T, assignments);
@@ -596,6 +613,7 @@ void introduce_main(po::parsed_options parsed) {
     bool add_info = vm["additional-info"].as<bool>();
     std::string output_file = vm["output"].as<std::string>();
     float moconf = vm["origin-confidence"].as<float>();
+    bool leafconf = vm["evaluate-metadata"].as<bool>();
     // int32_t num_threads = vm["threads"].as<uint32_t>();
 
     // Load input MAT and uncondense tree
@@ -605,7 +623,7 @@ void introduce_main(po::parsed_options parsed) {
       T.uncondense_leaves();
     }
     auto region_map = read_two_column(samples_filename);
-    auto outstrings = find_introductions(&T, region_map, add_info, clade_regions, moconf);
+    auto outstrings = find_introductions(&T, region_map, add_info, clade_regions, moconf, leafconf);
 
     std::ofstream of;
     of.open(output_file);
