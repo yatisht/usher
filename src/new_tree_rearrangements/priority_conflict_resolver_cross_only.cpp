@@ -69,7 +69,7 @@ char Conflict_Resolver::operator()(
 #ifndef SINGLE_THREAD_TEST
         std::lock_guard<std::mutex> lk(register_lock);
 #endif
-        fprintf(stderr, "Trying %s to %s\n",move->src->identifier.c_str(),move->get_dst()->identifier.c_str());
+        fprintf(log, "Trying %s to %s\n",move->src->identifier.c_str(),move->get_dst()->identifier.c_str());
         register_single_move_no_conflict(move);
         ret = 1;
         selected_move = move;
@@ -95,6 +95,10 @@ char Conflict_Resolver::operator()(
 
 void Conflict_Resolver::schedule_moves(
     std::vector<Profitable_Moves_ptr_t> &out) {
+#ifdef CONFLICT_RESOLVER_DEBUG
+    fputc('\n', log);
+    fflush(log);
+#endif
     for (const auto &node : potential_crosses) {
         out.insert(out.end(), node.moves.begin(), node.moves.end());
     }

@@ -86,3 +86,12 @@ void find_nodes_to_move(const std::vector<MAT::Node *> &bfs_ordered_nodes,
                    tbb::concurrent_vector<MAT::Node*> &output) ;
                    void add_root(MAT::Tree *tree) ;
 void VCF_input(const char * name,MAT::Tree& tree);
+size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
+              tbb::concurrent_vector<MAT::Node *> &nodes_to_search,
+              MAT::Tree &t, Original_State_t origin_states,int radius
+              #ifdef CONFLICT_RESOLVER_DEBUG
+              ,FILE* log
+            #endif
+              );
+void save_final_tree(MAT::Tree &t, Original_State_t origin_states,
+                            const std::string &output_path);

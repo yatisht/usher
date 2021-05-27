@@ -111,11 +111,14 @@ class Forward_Pass_Heap {
 void unmatched_parent_state_change(
     MAT::Node *&node,
     MAT::Mutations_Collection &new_mut,
-    const state_change &change,
-    MAT::Mutations_Collection::const_iterator
+    const state_change &change
+#ifdef CHECK_STATE_REASSIGN
+    ,MAT::Mutations_Collection::const_iterator
         &ref_iter,
     MAT::Mutations_Collection::const_iterator
-        &ref_end) {
+        &ref_end
+#endif
+        ) {
     MAT::Mutation mut(change.chr_idx, change.position, change.new_state,
                       change.old_state);
     if (node->children.size() <= 1) {
@@ -160,7 +163,11 @@ void set_state_from_parent(MAT::Node *node,
 #endif
     for (auto &node_mut : node->mutations) {
         while (iter != end && iter->position < node_mut.get_position()) {
-            unmatched_parent_state_change(node, new_mut, *iter, ref_iter, ref_end);
+            unmatched_parent_state_change(node, new_mut, *iter
+#ifdef CHECK_STATE_REASSIGN
+            , ref_iter, ref_end
+#endif
+            );
             iter++;
         }
         if (iter != end && iter->position == node_mut.get_position()) {
@@ -195,10 +202,16 @@ void set_state_from_parent(MAT::Node *node,
         }
     }
     while (iter != end) {
-        unmatched_parent_state_change(node, new_mut, *iter, ref_iter, ref_end);
+        unmatched_parent_state_change(node, new_mut, *iter
+#ifdef CHECK_STATE_REASSIGN
+        , ref_iter, ref_end
+#endif
+);
         iter++;
     }
+#ifdef CHECK_STATE_REASSIGN
     assert(ref_iter == ref_end);
+#endif
     node->mutations.swap(new_mut);
 }
 
@@ -218,12 +231,6 @@ void forward_pass(std::vector<Altered_Node_t> &in
         assert(last_dfs_idx<altered.altered_node->dfs_index);
         last_dfs_idx=altered.altered_node->dfs_index;
 #endif
-            if ( altered.altered_node->identifier == "54106") {
-        fputc('a', stderr);
-    }
-    if ( altered.altered_node->identifier == "54108") {
-        fputc('a', stderr);
-    }
         heap.pop_back();
         for (auto child : altered.altered_node->children) {
             Altered_Node_t out(child);

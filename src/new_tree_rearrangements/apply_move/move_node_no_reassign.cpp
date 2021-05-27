@@ -2,6 +2,8 @@
 #include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
 #include "src/new_tree_rearrangements/tree_rearrangement_internal.hpp"
 #include "apply_move.hpp"
+#include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 static void get_mutation_set_from_root(MAT::Node *node,
@@ -20,10 +22,46 @@ static void get_mutation_set_from_root(MAT::Node *node,
 
 bool get_new_mut_binary(MAT::Mutation &base, nuc_one_hot left_branch,
                         nuc_one_hot right_branch);
-
-static void find_path(std::vector<MAT::Node *> &dst_to_root_path,
+static bool find_path_no_dfs(std::vector<MAT::Node *> &dst_to_root_path,
                       std::vector<MAT::Node *> &src_to_root_path,
                       MAT::Node *src_ancestor, MAT::Node *dst_ancestor) {
+    std::unordered_map<size_t, int> dst_to_root_idx_map;
+    int idx=0;
+    while (dst_ancestor) {
+        if (dst_ancestor==src_ancestor) {
+            return false;
+        }
+        dst_to_root_path.push_back(dst_ancestor);
+        dst_to_root_idx_map.emplace((size_t)dst_ancestor,idx);
+        idx++;
+        dst_ancestor=dst_ancestor->parent;
+    }
+    while (src_ancestor) {
+        auto iter=dst_to_root_idx_map.find((size_t)src_ancestor);
+        if (iter!=dst_to_root_idx_map.end()) {
+            dst_to_root_path.erase(dst_to_root_path.begin()+iter->second,dst_to_root_path.end());
+            return true;
+        }
+        src_to_root_path.push_back(src_ancestor);
+        src_ancestor=src_ancestor->parent;
+    }
+    assert(false);
+    return false;
+}
+/*
+static bool find_path(std::vector<MAT::Node *> &dst_to_root_path,
+                      std::vector<MAT::Node *> &src_to_root_path,
+                      MAT::Node *src_ancestor, MAT::Node *dst_ancestor) {
+        std::vector<MAT::Node *> dst_to_root_path_test;
+    std::vector<MAT::Node *> src_to_root_path_test;
+    find_path_no_dfs(dst_to_root_path_test, src_to_root_path_test, src_ancestor, dst_ancestor);
+    auto temp=dst_ancestor;
+    while (temp) {
+        if (temp==src_ancestor) {
+            return false;
+        }
+        temp=temp->parent;
+    }
     while (src_ancestor->dfs_index != dst_ancestor->dfs_index) {
         if (src_ancestor->dfs_index < dst_ancestor->dfs_index) {
             dst_to_root_path.push_back(dst_ancestor);
@@ -34,7 +72,16 @@ static void find_path(std::vector<MAT::Node *> &dst_to_root_path,
             src_ancestor = src_ancestor->parent;
         }
     }
-}
+    for (int i=0; i<src_to_root_path.size(); i++) {
+        assert(src_to_root_path[i]==src_to_root_path_test[i]);
+    }
+    assert(src_to_root_path.size()==src_to_root_path_test.size());
+    for (int i=0; i<dst_to_root_path.size(); i++) {
+        assert(dst_to_root_path[i]==dst_to_root_path_test[i]);
+    }
+    assert(dst_to_root_path.size()==dst_to_root_path_test.size());
+    return true;
+}*/
 static bool
 merge_mutation_single_child(MAT::Node *node,
                             const MAT::Mutations_Collection &merge_with) {
@@ -103,7 +150,7 @@ clean_up_after_remove(MAT::Node *node, std::unordered_set<size_t> &deleted,
         if (child->children.size() <= 1) {
             auto &child_mut = child->mutations;
             for (auto &mut : child_mut) {
-                mut.set_boundary_one_hot(0xf & (~mut.get_mut_one_hot()));
+                mut.set_boundary_one_hot(0xf & (~mut.get_all_major_allele()));
             }
             child_mut.mutations.erase(
                 std::remove_if(child_mut.begin(), child_mut.end(),
@@ -255,7 +302,7 @@ void update_src_mutation(MAT::Node *src,
                          MAT::Mutations_Collection &this_unique) {
     if (src->children.size() <= 1) {
         for (auto &mut : this_unique) {
-            mut.set_boundary_one_hot(0xf & (~mut.get_mut_one_hot()));
+            mut.set_boundary_one_hot(0xf & (~mut.get_all_major_allele()));
         }
         this_unique.remove_boundary_only();
     }
@@ -349,7 +396,7 @@ void move_node(MAT::Node *src, MAT::Node *dst,
     MAT::Mutations_Collection mutations;
     std::vector<MAT::Node *> dst_to_root_path;
     std::vector<MAT::Node *> src_to_root_path;
-    find_path(dst_to_root_path, src_to_root_path, src, dst);
+    if(!find_path_no_dfs(dst_to_root_path, src_to_root_path, src, dst)){return;}
     for (const auto &mut : src->mutations) {
         if (mut.get_par_one_hot() != mut.get_all_major_allele() ||
             mut.get_boundary1_one_hot()) {

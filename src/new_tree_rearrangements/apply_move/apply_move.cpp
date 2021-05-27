@@ -11,10 +11,6 @@ void move_node(MAT::Node *src, MAT::Node *dst,
                std::vector<MAT::Node *> &altered_node, MAT::Tree &tree,
                std::unordered_set<size_t> &deleted,
                std::vector<MAT::Node *> &nodes_to_clean
-#ifdef CHECK_STATE_REASSIGN
-               //,
-               //Original_State_t original_state
-#endif
 );
 
 #ifdef CHECK_STATE_REASSIGN
@@ -102,32 +98,36 @@ void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t,
     std::unordered_set<size_t> deleted_node_ptrs;
     std::vector<MAT::Node *> nodes_to_clean;
     std::unordered_set<std::string> samples;
-    for(const auto& s:original_state){
+#ifdef CHECK_STATE_REASSIGN
+    /*for(const auto& s:original_state){
         samples.insert(s.first);
-    }
+    }*/
+#ifndef SINGLE_THREAD_TEST
+    FILE* log=fopen("moves", "w");
+#endif
+#endif
     for (const auto &move : all_moves) {
         if (deleted_node_ptrs.count((size_t)move->src) ||
             deleted_node_ptrs.count((size_t)move->get_dst())||move->src->parent==move->get_dst()) {
             continue;
         }
+#ifdef CHECK_STATE_REASSIGN
+#ifdef SINGLE_THREAD_TEST
         fprintf(stderr, "%s\tto\t%s\n",move->src->identifier.c_str(),move->get_dst()->identifier.c_str());
-#ifdef CONFLICT_RESOLVER_DEBUG
-        auto src_node=move->src;
-        auto dst_node=move->get_dst();
-        while (dst_node) {
-            assert(dst_node!=src_node);
-            dst_node=dst_node->parent;
-        }
+#else
+        fprintf(log, "%s\tto\t%s\n",move->src->identifier.c_str(),move->get_dst()->identifier.c_str());
+        fflush(log);
+#endif
 #endif
         move_node(move->src, move->get_dst(), altered_node, t,
                   deleted_node_ptrs, nodes_to_clean);
-        std::vector<MAT::Node*> dfs=t.depth_first_expansion();
         /*std::unordered_set<std::string> to_check(samples);
         for(auto node:dfs){
             to_check.erase(node->identifier);
         }
         assert(to_check.empty());*/
     }
+    std::vector<MAT::Node*> dfs=t.depth_first_expansion();
     auto end = std::remove_if(altered_node.begin(), altered_node.end(),
                               [&deleted_node_ptrs](MAT::Node *node) {
                                   return deleted_node_ptrs.count((size_t)node);
@@ -139,12 +139,11 @@ void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t,
                               }),nodes_to_clean.end());
 #ifdef CHECK_STATE_REASSIGN
 
-    t.save_detailed_mutations("Before_reassign.pb");
     std::vector<MAT::Node *> old_nodes = t.breadth_first_expansion();
-    //MAT::Tree new_tree = reassign_state_full(t);
-    MAT::Tree new_tree;
-    new_tree.load_detatiled_mutations("After_reassign.pb");
-    //new_tree.save_detailed_mutations("After_reassign.pb");
+    //MAT::Tree new_tree;
+    //new_tree.load_detatiled_mutations("After_reassign.pb");
+    MAT::Tree new_tree = reassign_state_full(t);
+    new_tree.save_detailed_mutations("After_reassign.pb");
 #endif
     if (!altered_node.empty()) {
     reassign_backward_pass(altered_node, forward_pass_altered_nodes
@@ -154,15 +153,6 @@ void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t,
 #endif
     );
     }
-#ifdef CHECK_STATE_REASSIGN
-    /*for (const auto move : all_moves) {
-        check_major_state(move->src, new_tree);
-        auto p = move->src->parent;
-        if (p != move->get_dst()) {
-            check_major_state(p, new_tree);
-        }
-    }*/
-#endif
     for (const auto node : nodes_to_clean) {
         clean_up_src_states(node, forward_pass_altered_nodes);
     }
@@ -192,4 +182,9 @@ void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t,
     for(auto node:deleted_node_ptrs){
         delete ((MAT::Node*) node);
     }
+#ifdef CHECK_STATE_REASSIGN
+#ifndef SINGLE_THREAD_TEST
+    fclose(log);
+#endif
+#endif
 }
