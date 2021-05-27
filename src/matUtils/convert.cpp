@@ -506,16 +506,24 @@ void get_minimum_subtrees(MAT::Tree* T, std::vector<std::string> samples, size_t
         fprintf(stderr, "ERROR: Either JSON (-j) or Newick (-t) output must be requested alongside -N.");
         exit(1);
     }
+    if (json_n != output_dir) {
+        std::map<std::string,std::string> sqm;
+        for (auto s: samples) {
+            sqm[s] = "query";
+        }
+        std::map<std::string,std::map<std::string,std::string>> csqm;
+        csqm["query_sample"] = sqm;
+        catmeta->emplace_back(csqm);
+    }
     std::vector<size_t> displayed_samples (samples.size(), 0);
     int num_subtrees = 1;
     for (size_t i = 0; i < samples.size(); i++) {
         if (displayed_samples[i] != 0) {
-            fprintf(stderr, "%s is displayed in %ld, skipping\n", samples[i].c_str(), displayed_samples[i]);
+            // fprintf(stderr, "%s is displayed in %ld, skipping\n", samples[i].c_str(), displayed_samples[i]);
             continue;
         }
         Mutation_Annotated_Tree::Node* last_anc = T->get_node(samples[i]);
         std::vector<std::string> leaves_to_keep;
-
         for (auto anc: T->rsearch(samples[i], true)) {
             size_t num_leaves = T->get_num_leaves(anc);
             if (num_leaves <= nearest_subtree_size) {
@@ -547,6 +555,8 @@ void get_minimum_subtrees(MAT::Tree* T, std::vector<std::string> samples, size_t
                 }
             }
             auto new_T = Mutation_Annotated_Tree::get_subtree(*T, leaves_to_keep);
+            size_t count_displayed = 1;
+            displayed_samples[i] = num_subtrees;
             tbb::parallel_for (tbb::blocked_range<size_t>(i+1, samples.size(), 100),
                     [&](tbb::blocked_range<size_t> r) {
                     for (size_t j=r.begin(); j<r.end(); ++j){
@@ -554,6 +564,7 @@ void get_minimum_subtrees(MAT::Tree* T, std::vector<std::string> samples, size_t
                             if (displayed_samples[j] == 0) {
                                 if (new_T.get_node(samples[j]) != NULL) {
                                     displayed_samples[j] = num_subtrees;
+                                    count_displayed++;
                                 }
                             }
                         }
@@ -573,6 +584,7 @@ void get_minimum_subtrees(MAT::Tree* T, std::vector<std::string> samples, size_t
                 subtree_file.close();
             }
             ++num_subtrees;
+            fprintf(stderr, "Subtree %d identified, containing %ld samples\n", num_subtrees, count_displayed);
             break;
         }
     }
