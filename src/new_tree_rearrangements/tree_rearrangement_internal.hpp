@@ -85,5 +85,4 @@ void fix_condensed_nodes(MAT::Tree *tree) ;
 void find_nodes_to_move(const std::vector<MAT::Node *> &bfs_ordered_nodes,
                    tbb::concurrent_vector<MAT::Node*> &output) ;
                    void add_root(MAT::Tree *tree) ;
-void save_intermediate_tree(MAT::Tree& tree_to_save,const std::string& path);
 void VCF_input(const char * name,MAT::Tree& tree);

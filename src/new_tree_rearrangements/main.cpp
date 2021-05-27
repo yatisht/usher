@@ -120,7 +120,7 @@ int main(int argc, char **argv) {
     Original_State_t origin_states;
     Mutation_Annotated_Tree::Tree t=(input_pb_path!="")?load_tree(input_pb_path, origin_states):load_vcf_nh_directly(input_nh_path, input_vcf_path, origin_states);
     int iteration=0;
-    save_intermediate_tree(t, std::string(intermediate_pb_base_name).append(std::to_string(iteration++)).append(".pb"));
+    t.save_detailed_mutations(std::string(intermediate_pb_base_name).append(std::to_string(iteration++)).append(".pb"));
     Original_State_t origin_state_to_check(origin_states);
     check_samples(t.root, origin_state_to_check, &t);
     size_t score_before = t.get_parsimony_score();
@@ -134,11 +134,25 @@ int main(int argc, char **argv) {
         node->tree=&t;
     }
     size_t inner_loop_score_before = score_before;
-
-    //MAT::Node* src=t.get_node("6360");
-    //MAT::Node* dst=t.get_node("6347");
-    //MAT::Node* LCA=get_LCA(src, dst);
-    //individual_move(src,dst,LCA);
+    /*std::vector<MAT::Node *> old_nodes = t.breadth_first_expansion();
+    tbb::parallel_for(tbb::blocked_range<size_t>(0,old_nodes.size()),[&old_nodes](const tbb::blocked_range<size_t>&r){
+        for (size_t idx=r.begin(); idx<r.end(); idx++) {
+            auto node=old_nodes[idx];
+            assert(node->is_root() || node->is_leaf() || node->children.size() > 1);
+            if (node->parent){
+            for(const auto mut:node->mutations){
+            auto& par_mutations=node->parent->mutations;
+            auto iter=par_mutations.find(mut.get_position());
+            if(iter!=par_mutations.end()){
+                assert(iter->get_par_one_hot()!=mut.get_mut_one_hot()||(!mut.is_valid()));
+            }
+        }}
+        }
+    });
+    MAT::Node* src=t.get_node("MT834209.1|USA/WA-S1536/2020|20-05-25");
+    MAT::Node* dst=t.get_node("6379");
+    MAT::Node* LCA=get_LCA(src, dst);
+    individual_move(src,dst,LCA);*/
     while(stalled<=1){
     bfs_ordered_nodes = t.breadth_first_expansion();
     find_nodes_to_move(bfs_ordered_nodes, nodes_to_search);
@@ -146,7 +160,7 @@ int main(int argc, char **argv) {
         new_score =
             optimize_tree(bfs_ordered_nodes, nodes_to_search, t, origin_states,radius);
         fprintf(stderr, "after optimizing:%zu\n", new_score);
-        save_intermediate_tree(t,std::string(intermediate_pb_base_name).append(std::to_string(iteration++)).append(".pb"));
+        t.save_detailed_mutations(std::string(intermediate_pb_base_name).append(std::to_string(iteration++)).append(".pb"));
         if (new_score >= inner_loop_score_before) {
             stalled++;
         } else {

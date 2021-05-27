@@ -180,8 +180,8 @@ void Mutation_Annotated_Tree::Tree::load_detatiled_mutations(
         load_meta(this, (uint8_t *)file + meta_offset, file_size - meta_offset);
     //load_subtree(nullptr, (uint8_t *)file, temp.first, temp.second, this->root);
     tbb::task::spawn_root_and_wait(*new(tbb::task::allocate_root()) Load_Subtree_pararllel(nullptr, (uint8_t *)file, temp.first, temp.second, this->root));
-    std::vector<MAT::Node*> bfs_nodes=breadth_first_expansion();
-    for (auto node : bfs_nodes) {
+    std::vector<MAT::Node*> dfs_nodes=depth_first_expansion();
+    for (auto node : dfs_nodes) {
         all_nodes.emplace(node->identifier,node);
     }
 }

@@ -47,7 +47,7 @@ State_Change_Collection merge(const State_Change_Collection &in1,
 
 struct Forward_Pass_Comparator {
     bool operator()(const Altered_Node_t &first, const Altered_Node_t &second) {
-        return first.altered_node->bfs_index > second.altered_node->bfs_index;
+        return first.altered_node->dfs_index > second.altered_node->dfs_index;
     }
 };
 
@@ -72,6 +72,8 @@ class Forward_Pass_Heap {
             altered_nodes.pop_back();
             if (altered_nodes.back().changed_states.empty()) {
                 altered_nodes.pop_back();
+                std::pop_heap(altered_nodes.begin(), altered_nodes.end(),
+                    Forward_Pass_Comparator());
             }
             if (altered_nodes.size() <= 1) {
                 return;
@@ -88,7 +90,8 @@ class Forward_Pass_Heap {
     }
 
     Altered_Node_t &operator*() { return altered_nodes.back(); }
-    void pop_back() { altered_nodes.pop_back(); }
+    void pop_back() {
+         altered_nodes.pop_back(); }
 
     void push_back(Altered_Node_t &altered) {
         altered_nodes.push_back(altered);
@@ -155,9 +158,6 @@ void set_state_from_parent(MAT::Node *node,
     MAT::Mutations_Collection::const_iterator ref_iter = ref_node->mutations.begin();
     MAT::Mutations_Collection::const_iterator ref_end = ref_node->mutations.end();
 #endif
-    if (node->identifier == "176") {
-        fputc('a', stderr);
-    }
     for (auto &node_mut : node->mutations) {
         while (iter != end && iter->position < node_mut.get_position()) {
             unmatched_parent_state_change(node, new_mut, *iter, ref_iter, ref_end);
@@ -208,9 +208,22 @@ void forward_pass(std::vector<Altered_Node_t> &in
                   MAT::Tree &new_tree
 #endif
 ) {
+#ifdef CHECK_STATE_REASSIGN
+    int last_dfs_idx=0;
+#endif
     Forward_Pass_Heap heap(in);
     do {
         Altered_Node_t altered = *heap;
+#ifdef CHECK_STATE_REASSIGN
+        assert(last_dfs_idx<altered.altered_node->dfs_index);
+        last_dfs_idx=altered.altered_node->dfs_index;
+#endif
+            if ( altered.altered_node->identifier == "54106") {
+        fputc('a', stderr);
+    }
+    if ( altered.altered_node->identifier == "54108") {
+        fputc('a', stderr);
+    }
         heap.pop_back();
         for (auto child : altered.altered_node->children) {
             Altered_Node_t out(child);
