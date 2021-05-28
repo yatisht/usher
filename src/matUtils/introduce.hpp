@@ -6,6 +6,6 @@ std::map<std::string, std::vector<std::string>> read_two_column (std::string sam
 void record_clade_regions(MAT::Tree* T, std::map<std::string, std::map<std::string, float>> region_assignments, std::string filename);
 size_t get_monophyletic_cladesize(MAT::Tree* T, std::map<std::string, float> assignments, MAT::Node* subroot = NULL);
 float get_association_index(MAT::Tree* T, std::map<std::string, float> assignments, bool permute = false, MAT::Node* subroot = NULL);
-std::vector<std::string> find_introductions(MAT::Tree* T, std::vector<std::string> samples, std::vector<std::string> regions, bool add_info, std::string clade_output, float min_origin_confidence); 
-std::map<std::string, float> get_assignments(MAT::Tree* T, std::unordered_set<std::string> sample_set);
+std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, std::vector<std::string>> sample_regions, bool add_info, std::string clade_output, float min_origin_confidence, std::string dump_assignments, bool eval_uncertainty = false); 
+std::map<std::string, float> get_assignments(MAT::Tree* T, std::unordered_set<std::string> sample_set, bool eval_uncertainty = false);
 void introduce_main(po::parsed_options parsed);

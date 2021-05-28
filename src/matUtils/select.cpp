@@ -336,8 +336,8 @@ std::map<std::string,std::map<std::string,std::string>> read_metafile(std::strin
 std::vector<std::string> get_sample_match(MAT::Tree* T, std::string substring) {
     //get the set of samples which match the regular expression pattern and return them.
     //simple enough.
-    std::vector<std::string> matchsamples;
     std::regex pat (substring);
+    std::vector<std::string> matchsamples;
     for (auto l: T->get_leaves_ids()) {
         if (std::regex_match(l, pat)) {
             matchsamples.emplace_back(l);
