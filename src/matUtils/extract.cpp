@@ -133,7 +133,7 @@ void extract_main (po::parsed_options parsed) {
     std::string vcf_filename = dir_prefix + vm["write-vcf"].as<std::string>();
     std::string output_mat_filename = dir_prefix + vm["write-mat"].as<std::string>();
     std::string json_filename = dir_prefix + vm["write-json"].as<std::string>();
-    std::string meta_filename = dir_prefix + vm["metadata"].as<std::string>();
+    std::string meta_filename = vm["metadata"].as<std::string>();
     bool collapse_tree = vm["collapse-tree"].as<bool>();
     bool no_genotypes = vm["no-genotypes"].as<bool>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
@@ -549,7 +549,6 @@ void extract_main (po::parsed_options parsed) {
         timer.Start();
         // size_t counter = 0;
         static tbb::affinity_partitioner ap;
-        size_t num_desc = 0;
 
         tbb::parallel_for(tbb::blocked_range<size_t>(0, batch_samples.size() ),
                       [&](const tbb::blocked_range<size_t> r) {
