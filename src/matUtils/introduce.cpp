@@ -367,19 +367,22 @@ std::map<std::string, float> get_assignments(MAT::Tree* T, std::unordered_set<st
         }
     }
     if (eval_uncertainty) {
+        timer.Start();
+        fprintf(stderr, "Leaf label uncertainty estimate requested; calculating...\n");
         //update the assignments for specific leaves against the rest of the dataset
-        for (auto l: T->get_leaves_ids()) {
-            float total_conf = 0;
-            size_t traversed = 0;
-            size_t anc_count = 0;
-            for (auto anc: T->rsearch(l, false)) {
-                traversed += anc->mutations.size();
+        for (auto l: T->get_leaves()) {
+            float total_conf = 0.0;
+            float max_conf = 0.0;
+            float traversed = static_cast<float>(l->mutations.size());
+            for (auto anc: T->rsearch(l->identifier, false)) {
                 float acv = assignments.find(anc->identifier)->second;
-                total_conf += acv / traversed;
-                anc_count++;
+                total_conf += (acv / ((1+traversed) * (1+traversed)));
+                max_conf += (1 / ((1+traversed) * (1+traversed)));
+                traversed += static_cast<float>(anc->mutations.size());
             }
-            assignments[l] = total_conf / anc_count;
+            assignments[l->identifier] = total_conf / max_conf;
         }
+        fprintf(stderr, "All leaves processed in %ld msec.\n", timer.Stop());
     }
     return assignments;
 }
@@ -439,21 +442,20 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
     //now that we have all assignments sorted out, pass over it again
     //looking for introductions.
     std::vector<std::string> outstrs;
-    if (region_assignments.size() == 1) {
-        if (add_info) {
-            outstrs.push_back("sample\tintroduction_node\tintro_confidence\tparent_confidence\tdistance\tclades\tmutation_path\tmonophyl_size\tassoc_index\n");
-        } else {
-            outstrs.push_back("sample\tintroduction_node\tintro_confidence\tparent_confidence\tdistance\tclades\tmutation_path\n");
-        }
-    } else {
-        //add a column for the putative origin of the sample introduction
-        //if we're using multiple regions.
-        if (add_info) {
-            outstrs.push_back("sample\tintroduction_node\tintro_confidence\tparent_confidence\tdistance\tregion\torigins\torigins_confidence\tclades\tmutation_path\tmonophyl_size\tassoc_index\n");            
-        } else {
-            outstrs.push_back("sample\tintroduction_node\tintro_confidence\tparent_confidence\tdistance\tregion\torigins\torigins_confidence\tclades\tmutation_path\n");
-        }
+    std::string header = "sample\tintroduction_node\tintro_confidence\tparent_confidence\tdistance";
+    if (region_assignments.size() > 1) {
+        header += "\tregion\torigins\torigins_confidence";
     }
+    header += "\tclades\tmutation_path";
+    if (eval_uncertainty) {
+        header += "\tmeta_uncertainty";
+    }
+    if (add_info) {
+        header += "\tmonophyl_size\tassoc_index\n";
+    } else {
+        header += "\n";
+    }
+    outstrs.emplace_back(header);
     for (auto ra: region_assignments) {
         std::string region = ra.first;
         auto assignments = ra.second;
@@ -467,12 +469,12 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
         for (auto s: samples) {
             //timer.Start();
             //total_processed++;
-            //everything in this vector is going to be 1 (IN) this region
+            //everything in this vector is going to be considered 1 (IN) this region
             std::string last_encountered = s;
             MAT::Node* last_node = NULL;
             float last_anc_state = 1;
-            size_t traversed = 0;
-            for (auto a: T->rsearch(s,true)) {
+            size_t traversed = T->get_node(s)->mutations.size();
+            for (auto a: T->rsearch(s,false)) {
                 float anc_state;
                 if (a->is_root()) {
                     //if we get back to the root, the root is necessarily the point of introduction for this sample
@@ -578,6 +580,9 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                     std::stringstream ostr;
                     if (region_assignments.size() == 1) {
                         ostr << s << "\t" << last_encountered << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed << "\t" << intro_clades << "\t" << intro_mut_path;
+                        if (eval_uncertainty) {
+                            ostr << "\t" << assignments.find(s)->second;
+                        }
                         if (add_info) {
                             ostr << "\t" << mc << "\t" << ai << "\n";
                         } else {
@@ -585,6 +590,9 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                         }
                     } else {
                         ostr << s << "\t" << last_encountered << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed << "\t" << region << "\t" << origins << "\t" << origins_cons.str() << "\t" << intro_clades << "\t" << intro_mut_path;
+                        if (eval_uncertainty) {
+                            ostr << "\t" << assignments.find(s)->second;
+                        }
                         if (add_info) {
                             ostr << "\t" << mc << "\t" << ai << "\n";
                         } else {
