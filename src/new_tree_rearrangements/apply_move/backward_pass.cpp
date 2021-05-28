@@ -265,9 +265,6 @@ static bool adjust_node(MAT::Node *node,
                         MAT::Tree &new_tree
 #endif
 ) {
-    if (node->identifier == "6918") {
-        fputc('a', stderr);
-    }
     MAT::Mutations_Collection new_major_alleles;
     bool changed;
     if (node->children.size() == 2) {

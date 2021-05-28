@@ -55,11 +55,14 @@ void save_final_tree(MAT::Tree &t, Original_State_t origin_states,
     tbb::parallel_for(tbb::blocked_range<size_t>(0, dfs.size()),
                       [&dfs](tbb::blocked_range<size_t> r) {
                           for (size_t i = r.begin(); i < r.end(); i++) {
-                              dfs[i]->mutations.remove_invalid();
+                              if(!dfs[i]->is_leaf()){
+                                  dfs[i]->mutations.remove_invalid();
+                              }
                           }
                       });
     fix_condensed_nodes(&t);
     fprintf(stderr, "%d condensed_nodes",t.condensed_leaves.size());
     check_samples(t.root, origin_states, &t);
     Mutation_Annotated_Tree::save_mutation_annotated_tree(t, output_path);
+    MAT::Tree new_tree=Mutation_Annotated_Tree::load_mutation_annotated_tree(output_path);
 }

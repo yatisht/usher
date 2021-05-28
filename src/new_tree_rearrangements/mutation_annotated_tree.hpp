@@ -109,7 +109,7 @@ namespace Mutation_Annotated_Tree {
             boundary1_all_major_allele=(boundary1_all_major_allele&0xf)|(boundary1<<4);
         }
         
-        Mutation(const std::string& chromosome,int position,nuc_one_hot mut,nuc_one_hot par,nuc_one_hot tie,nuc_one_hot boundary1,nuc_one_hot ref=0);
+        Mutation(const std::string& chromosome,int position,nuc_one_hot mut,nuc_one_hot par,nuc_one_hot tie,nuc_one_hot ref=0);
 
         Mutation(int pos):position(pos),chrom_idx(0),par_mut_nuc(0),boundary1_all_major_allele(0),boundary2_flag(0){}
 

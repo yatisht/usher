@@ -360,16 +360,15 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
                }
                for (int k = 0; k < mutation_list.mutation_size(); k++) {
                   auto mut = mutation_list.mutation(k);
-                  char mut_one_hot=0;
+                  char mut_one_hot=1<<mut.mut_nuc(0);
+                  char all_major_alleles=mut_one_hot;
                   if (mut.position()>0) {
-                     for (int n = 0; n < mut.mut_nuc_size(); n++) {
-                        mut_one_hot|= (1<<mut.mut_nuc(n));
+                     for (int n = 1; n < mut.mut_nuc_size(); n++) {
+                        all_major_alleles|= (1<<mut.mut_nuc(n));
                      }
                   }
-                  if(mut_one_hot!=two_bit_to_one_hot(mut.par_nuc())){
-                    Mutation m(mut.chromosome(),mut.position(),nuc_one_hot(mut_one_hot),two_bit_to_one_hot(mut.par_nuc()),0,0,two_bit_to_one_hot(mut.ref_nuc()));
+                    Mutation m(mut.chromosome(),mut.position(),nuc_one_hot(mut_one_hot),two_bit_to_one_hot(mut.par_nuc()),all_major_alleles,two_bit_to_one_hot(mut.ref_nuc()));
                     node->add_mutation(m);
-                  }
                }
                if (!std::is_sorted(node->mutations.begin(), node->mutations.end())) {
                    fprintf(stderr, "WARNING: Mutations not sorted!\n");
@@ -403,7 +402,6 @@ void Mutation_Annotated_Tree::save_mutation_annotated_tree (const Mutation_Annot
     data.set_newick(get_newick_string(tree, true, true));
     data.set_internal_node_size(tree.curr_internal_node);
 
-
     for (size_t idx = 0; idx < dfs.size(); idx++) {
         auto meta = data.add_metadata();
         for (size_t k = 0; k < dfs[idx]->clade_annotations.size(); k++) {
@@ -430,9 +428,17 @@ void Mutation_Annotated_Tree::save_mutation_annotated_tree (const Mutation_Annot
                 mut->set_par_nuc(j);
 
                 mut->clear_mut_nuc();
-                for (auto nuc: get_nuc_vec_from_id(dfs[idx]->is_leaf()?m.get_all_major_allele():m.get_mut_one_hot())) {
-                    mut->add_mut_nuc(nuc);
-                }
+                mut->add_mut_nuc(one_hot_to_two_bit(m.get_mut_one_hot()));
+                /*if (dfs[idx]->is_leaf()) {
+                    nuc_one_hot other_mut=m.get_all_major_allele()&(~m.get_mut_one_hot());
+                    if (other_mut) {
+                        for (int i=0; i<4; i++) {
+                            if ((1<<i)&other_mut) {
+                                mut->add_mut_nuc(i);
+                            }
+                        }
+                    }
+                }*/
             }
         }
     }
@@ -473,17 +479,15 @@ void Mutation_Annotated_Tree::save_mutation_annotated_tree (const Mutation_Annot
 Mutation_Annotated_Tree::Mutation::Mutation(const std::string &chromosome,
                                             int position, nuc_one_hot mut,
                                             nuc_one_hot par, nuc_one_hot tie,
-                                            nuc_one_hot boundary1,
                                             nuc_one_hot ref)
     : position(position), par_mut_nuc((par << 4) | (mut)),
-      boundary1_all_major_allele(boundary1 << 4 | (tie|mut)) {
+      boundary1_all_major_allele(tie) {
     auto ins_result = chromosome_map.emplace(chromosome, chromosome_map.size());
     if (ins_result.second) {
         std::lock_guard<std::mutex> lk(ref_lock);
         chromosomes.push_back(chromosome);
     }
     chrom_idx = ins_result.first->second;
-    assert(is_valid() || (boundary1 | (tie^mut)));
     if (ref) {
         std::lock_guard<std::mutex> lk(ref_lock);
         refs.resize(std::max((int)refs.size(), position + 1));
