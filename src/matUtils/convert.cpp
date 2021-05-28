@@ -460,8 +460,14 @@ void write_json_from_mat(MAT::Tree* T, std::string output_filename, std::vector<
     if (catmeta->size()>0) {
         for (auto cmet: *catmeta) {
             for (const auto& cmi: cmet) {
-                std::map<std::string,std::string> mmap {{"key",cmi.first},{"title",cmi.first},{"type","categorical"}};
-                nj["meta"]["colorings"].push_back(mmap);                    
+                if (cmi.first.find("continuous") != std::string::npos) {
+                    //if the substring "continuous" is found in the metadata column name, attempt to interpet the values accordingly.
+                    std::map<std::string,std::string> mmap {{"key",cmi.first},{"title",cmi.first},{"type","continuous"}};
+                    nj["meta"]["colorings"].push_back(mmap);                      
+                } else {
+                    std::map<std::string,std::string> mmap {{"key",cmi.first},{"title",cmi.first},{"type","categorical"}};
+                    nj["meta"]["colorings"].push_back(mmap);         
+                }   
             }
         }
     }

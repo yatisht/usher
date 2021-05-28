@@ -22,6 +22,8 @@ po::variables_map parse_introduce_command(po::parsed_options parsed) {
         "Set the threshold for recording of putative origins of introductions. Default is 0.5")
         ("evaluate-metadata,E", po::bool_switch(),
         "Set to assign each leaf a confidence value based on ancestor distance and confidence.")
+        ("dump-assignments,D", po::value<std::string>()->default_value(""),
+        "Indicate a directory to which two-column text files containing node assignment values should be dumped for downstream processing.")
         // ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
         ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
@@ -387,7 +389,7 @@ std::map<std::string, float> get_assignments(MAT::Tree* T, std::unordered_set<st
     return assignments;
 }
 
-std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, std::vector<std::string>> sample_regions, bool add_info, std::string clade_output, float min_origin_confidence, bool eval_uncertainty) {
+std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, std::vector<std::string>> sample_regions, bool add_info, std::string clade_output, float min_origin_confidence, std::string dump_assignments, bool eval_uncertainty) {
     //for every region, independently assign IN/OUT states
     //and save these assignments into a map of maps
     //so we can check membership of introduction points in each of the other groups
@@ -610,6 +612,20 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
             }
         }
     }
+    if (dump_assignments != "") {
+        boost::filesystem::path path(dump_assignments);
+        if (!boost::filesystem::exists(path)) {
+            fprintf(stderr, "Creating output directory to dump region assignments.\n\n");
+            boost::filesystem::create_directory(dump_assignments);
+        }
+        for (auto ra: region_assignments) {
+            std::ofstream rof(dump_assignments + "/" + ra.first + "_assignments.tsv");
+            for (auto ass: ra.second) {
+                rof << ass.first << "\t" << ass.second << "\n";
+            }
+            rof.close();
+        }
+    }
     return outstrs;
 }
 
@@ -620,6 +636,7 @@ void introduce_main(po::parsed_options parsed) {
     std::string clade_regions = vm["clade-regions"].as<std::string>();
     bool add_info = vm["additional-info"].as<bool>();
     std::string output_file = vm["output"].as<std::string>();
+    std::string dump_assignments = vm["dump-assignments"].as<std::string>();
     float moconf = vm["origin-confidence"].as<float>();
     bool leafconf = vm["evaluate-metadata"].as<bool>();
     // int32_t num_threads = vm["threads"].as<uint32_t>();
@@ -631,7 +648,7 @@ void introduce_main(po::parsed_options parsed) {
       T.uncondense_leaves();
     }
     auto region_map = read_two_column(samples_filename);
-    auto outstrings = find_introductions(&T, region_map, add_info, clade_regions, moconf, leafconf);
+    auto outstrings = find_introductions(&T, region_map, add_info, clade_regions, moconf, dump_assignments, leafconf);
 
     std::ofstream of;
     of.open(output_file);
