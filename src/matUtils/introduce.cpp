@@ -620,8 +620,12 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
         }
         for (auto ra: region_assignments) {
             std::ofstream rof(dump_assignments + "/" + ra.first + "_assignments.tsv");
+            rof << "sample\tconfidence_continuous\n";
             for (auto ass: ra.second) {
-                rof << ass.first << "\t" << ass.second << "\n";
+                //only save nodes with non-zero confidence values for the sake of file size.
+                if (ass.second > 0) {
+                    rof << ass.first << "\t" << ass.second << "\n";
+                }
             }
             rof.close();
         }
