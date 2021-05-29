@@ -1,8 +1,10 @@
+#include "src/new_tree_rearrangements/check_samples.hpp"
 #include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
 #include "src/new_tree_rearrangements/tree_rearrangement_internal.hpp"
 #include "src/new_tree_rearrangements/priority_conflict_resolver.hpp"
 #include <cstddef>
 #include <cstdio>
+#include "tbb/parallel_for_each.h"
 #include <random>
 #include <chrono>
 #include <vector>
@@ -41,45 +43,62 @@ void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t,
 ) ;
 int main(int argc, char** argv){
     Original_State_t origin_states;
-    Mutation_Annotated_Tree::Tree t=load_tree(argv[1], origin_states);
+    MAT::Tree t;
+    t.load_detatiled_mutations(argv[1]);
+    fprintf(stderr, "%zu \n",t.get_parsimony_score());
+    auto bfs_ordered_nodes = t.breadth_first_expansion();
+    check_samples(t.root, origin_states, &t);
+    /*for (MAT::Node *node : bfs_ordered_nodes) {
+        for (const MAT::Mutation &m : node->mutations) {
+            mutated_positions.emplace(
+                m, new std::unordered_map<std::string, nuc_one_hot>);
+        }
+        node->tree = &t;
+    }
+        tbb::parallel_for_each(
+        mutated_positions.begin(), mutated_positions.end(),
+        [&origin_states](
+            const std::pair<MAT::Mutation,
+                            std::unordered_map<std::string, nuc_one_hot> *>
+                &pos) {
+            std::unordered_map<std::string, nuc_one_hot> *mutated = pos.second;
+            for (auto &sample : origin_states) {
+                auto iter = sample.second.find(pos.first);
+                if (iter != sample.second.end()) {
+                    mutated->emplace(sample.first, iter->get_all_major_allele());
+                }
+            }
+        });*/
     std::vector<Profitable_Moves_ptr_t> all_moves{};
-    std::vector<MAT::Node*> bfs_ordered_nodes=t.breadth_first_expansion();
-    /*Mutation_Annotated_Tree::Tree t=Mutation_Annotated_Tree::load_mutation_annotated_tree(argv[1]);
-    Conflict_Resolver resolver(bfs_ordered_nodes.size());
-    Profitable_Moves_ptr_t move=make_move(t.get_node("2085"), t.get_node("2273"));
-    move->score_change=-1;
-    std::vector<Profitable_Moves_ptr_t>temp{move};
-    resolver(temp);
-    move=make_move(t.get_node("2273"), t.get_node("2086"));
-    move->score_change=-2;
-   temp[0]=move;
-    resolver(temp);
-    resolver.schedule_moves(all_moves);*/
-
 
     tbb::concurrent_vector<MAT::Node *> deferred_nodes;
     if (argc==3) {
         FILE* moves=fopen(argv[2], "r");
         char src[BUFSIZ];
         char dst[BUFSIZ];
-        Conflict_Resolver resolver(bfs_ordered_nodes.size());
+        Conflict_Resolver resolver(bfs_ordered_nodes.size(),fopen("/dev/null", "w"));
         while (fscanf(moves, "Trying %s to %s\n",src,dst)!=EOF) {
+            if (std::string(src)=="43419") {
+                fputc('a',stderr);
+            }
             MAT::Node* src_node=t.get_node(src);
             MAT::Node* dst_node=t.get_node(dst);
             if(!(src_node&&dst_node)){
                 continue;
             }
             Profitable_Moves_ptr_t move=make_move(src_node,dst_node);
+            //all_moves.push_back(move);
             move->score_change=-1;
             std::vector<Profitable_Moves_ptr_t>temp{move};
             resolver(temp);
         }
         resolver.schedule_moves(all_moves);
         apply_moves(all_moves, t, bfs_ordered_nodes, deferred_nodes,origin_states);
+        fprintf(stderr, "%zu \n",t.get_parsimony_score());
         return 0;
     }
 
-
+/*
     //From https://www.cplusplus.com/reference/random/mersenne_twister_engine/mersenne_twister_engine/
     //unsigned seed1 = std::chrono::system_clock::now().time_since_epoch().count();
     unsigned seed1 = 234;
@@ -111,4 +130,5 @@ int main(int argc, char** argv){
     resolver.schedule_moves(all_moves);
     apply_moves(all_moves, t, bfs_ordered_nodes, deferred_nodes,origin_states);
     Mutation_Annotated_Tree::save_mutation_annotated_tree(t, "last_tree.pb");}
+    */
 }

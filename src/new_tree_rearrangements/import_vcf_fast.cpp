@@ -2,6 +2,8 @@
 #include "zlib.h"
 #include "tbb/concurrent_queue.h"
 #include "tbb/flow_graph.h"
+#include <cctype>
+#include <cstdio>
 #include <string>
 #include <vector>
 #include "import_vcf.hpp"
@@ -85,6 +87,12 @@ struct line_parser{
             bool is_last=false;
             while (!is_last) {
                 int allele_idx=(*line_in-'0');
+                line_in++;
+                while (std::isdigit(*line_in)) {
+                    allele_idx*=10;
+                    allele_idx+=(*line_in-'0');
+                    line_in++;
+                }
                 while (*line_in!='\t') {
                     if (*line_in=='\n'||*line_in==0) {
                         is_last=true;

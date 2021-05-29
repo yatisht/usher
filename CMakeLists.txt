@@ -3,12 +3,12 @@ cmake_minimum_required (VERSION 3.8)
 
 project(strain_phylogenetics)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer -march=native -std=c++11 -Wall -ggdb3 -Wno-unused-function")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer -march=native -std=c++11 -Wall -ggdb3 -Wno-unused-function -O3")
 #")
-set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O3")
+set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG")
 set(CMAKE_INCLUDE_CURRENT_DIR ON) 
-#  -O0     DDETAIL_DEBUG_MUTATION_SORTED -DDEBUG_PARSIMONY_SCORE_CHANGE_CORRECT 
-set(CMAKE_CXX_FLAGS_DEBUG " -O0 -fsanitize=leak -fsanitize=address -fsanitize=undefined -DCONFLICT_RESOLVER_DEBUG -DCHECK_STATE_REASSIGN ")
+#  -O0     DDETAIL_DEBUG_MUTATION_SORTED -DDEBUG_PARSIMONY_SCORE_CHANGE_CORRECT  -fsanitize=leak -fsanitize=address  -fsanitize=undefined 
+set(CMAKE_CXX_FLAGS_DEBUG "-O3 -DCONFLICT_RESOLVER_DEBUG -DCHECK_STATE_REASSIGN")
 #
 find_package(ZLIB)
 if(DEFINED Protobuf_PATH) 
@@ -42,7 +42,7 @@ file(GLOB MATUTIL_SRCS "src/matUtils/*.cpp" "src/matUtils/*.hpp")
 file(GLOB MATOPTIMIZE_SRCS "src/matOptimize/*.cpp" "src/matOptimize/*.hpp")
 
 
-set_source_files_properties(src/new_tree_rearrangements/Fitch_Sankoff.cpp PROPERTIES COMPILE_FLAGS -O3)
+set_source_files_properties(src/new_tree_rearrangements/priority_conflict_resolver.cpp PROPERTIES COMPILE_FLAGS -O0)
 #set_source_files_properties(src/new_tree_rearrangements/check_samples.cpp PROPERTIES COMPILE_FLAGS -O0)
 #set_source_files_properties(src/new_tree_rearrangements/main_load_tree.cpp PROPERTIES COMPILE_FLAGS -O0)
 if(DEFINED Protobuf_PATH)
@@ -87,7 +87,8 @@ else()
         PROTO_SRCS PROTO_HDRS
         parsimony.proto)
     protobuf_generate_cpp(DETAILED_MUTATIONS_PROTO_SRCS DETAILED_MUTATIONS_PROTO_HDRS mutation_detailed.proto)
-
+    
+    protobuf_generate_cpp(VCF_PROTO_SRCS VCF_PROTO_HDRS  src/new_tree_rearrangements/vcf.proto)
     add_executable(usher
         src/mutation_annotated_tree.cpp
         src/usher_mapper.cpp
@@ -119,7 +120,7 @@ else()
     src/new_tree_rearrangements/detailed_mutations_load_store.cpp
     src/new_tree_rearrangements/mutation_annotated_tree_nuc_util.cpp
     src/new_tree_rearrangements/main.cpp
-    src/new_tree_rearrangements/main_save_intermediate_tree.cpp
+    src/new_tree_rearrangements/optimize_tree.cpp
     src/new_tree_rearrangements/import_vcf_fast.cpp
     src/new_tree_rearrangements/main_load_tree.cpp
     src/new_tree_rearrangements/Get_parsimony_Score_FS.cpp
@@ -127,8 +128,8 @@ else()
     src/new_tree_rearrangements/Mutation_Collection.cpp
     src/new_tree_rearrangements/Fitch_Sankoff.cpp
     src/new_tree_rearrangements/check_samples.cpp
-    src/new_tree_rearrangements/priority_conflict_resolver_cross_only.cpp
-    #src/new_tree_rearrangements/priority_conflict_resolver.cpp
+    #src/new_tree_rearrangements/priority_conflict_resolver_cross_only.cpp
+    src/new_tree_rearrangements/priority_conflict_resolver.cpp
     ${patch_tree}
     ${New_Profitable_Moves_Enumerators}
     ${PROTO_SRCS}
@@ -137,6 +138,30 @@ else()
     ${DETAILED_MUTATIONS_PROTO_HDRS}
     )
 
+    add_executable(tree_clean_test
+    src/new_tree_rearrangements/mutation_annotated_tree.cpp
+    src/new_tree_rearrangements/mutation_annotated_tree_node.cpp
+    src/new_tree_rearrangements/mutation_annotated_tree_load_store.cpp
+    src/new_tree_rearrangements/detailed_mutations_load_store.cpp
+    src/new_tree_rearrangements/mutation_annotated_tree_nuc_util.cpp
+    src/new_tree_rearrangements/tree_clean_test.cpp
+    src/new_tree_rearrangements/optimize_tree.cpp
+    src/new_tree_rearrangements/import_vcf_fast.cpp
+    src/new_tree_rearrangements/main_load_tree.cpp
+    src/new_tree_rearrangements/Get_parsimony_Score_FS.cpp
+    src/new_tree_rearrangements/main_helper.cpp
+    src/new_tree_rearrangements/Mutation_Collection.cpp
+    src/new_tree_rearrangements/Fitch_Sankoff.cpp
+    src/new_tree_rearrangements/check_samples.cpp
+    #src/new_tree_rearrangements/priority_conflict_resolver_cross_only.cpp
+    src/new_tree_rearrangements/priority_conflict_resolver.cpp
+    ${patch_tree}
+    ${New_Profitable_Moves_Enumerators}
+    ${PROTO_SRCS}
+    ${PROTO_HDRS}
+    ${DETAILED_MUTATIONS_PROTO_SRCS}
+    ${DETAILED_MUTATIONS_PROTO_HDRS}
+    )
 
     add_executable(patch_tree_test
     src/new_tree_rearrangements/mutation_annotated_tree.cpp
@@ -157,6 +182,8 @@ else()
     ${PROTO_HDRS}
     ${DETAILED_MUTATIONS_PROTO_SRCS}
     ${DETAILED_MUTATIONS_PROTO_HDRS}
+    ${VCF_PROTO_SRCS}
+    ${VCF_PROTO_HDRS}
     )
 
     add_executable(tree_stat
@@ -189,19 +216,23 @@ else()
     ${DETAILED_MUTATIONS_PROTO_HDRS}
     )
     add_executable(single_move_test
+    src/new_tree_rearrangements/single_move_test.cpp
     src/new_tree_rearrangements/mutation_annotated_tree.cpp
     src/new_tree_rearrangements/mutation_annotated_tree_node.cpp
     src/new_tree_rearrangements/mutation_annotated_tree_load_store.cpp
     src/new_tree_rearrangements/detailed_mutations_load_store.cpp
     src/new_tree_rearrangements/mutation_annotated_tree_nuc_util.cpp
-    src/new_tree_rearrangements/single_move_test.cpp
-    src/new_tree_rearrangements/apply_moves.cpp
+    src/new_tree_rearrangements/optimize_tree.cpp
+    src/new_tree_rearrangements/import_vcf_fast.cpp
+    src/new_tree_rearrangements/main_load_tree.cpp
+    src/new_tree_rearrangements/Get_parsimony_Score_FS.cpp
     src/new_tree_rearrangements/main_helper.cpp
     src/new_tree_rearrangements/Mutation_Collection.cpp
-    src/new_tree_rearrangements/Get_parsimony_Score_FS.cpp
     src/new_tree_rearrangements/Fitch_Sankoff.cpp
     src/new_tree_rearrangements/check_samples.cpp
+    #src/new_tree_rearrangements/priority_conflict_resolver_cross_only.cpp
     src/new_tree_rearrangements/priority_conflict_resolver.cpp
+    ${patch_tree}
     ${New_Profitable_Moves_Enumerators}
     ${PROTO_SRCS}
     ${PROTO_HDRS}
@@ -228,8 +259,9 @@ endif(SAVE_PROFILE)
 
 TARGET_LINK_LIBRARIES(usher PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(tree_rearrange_new PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
+TARGET_LINK_LIBRARIES(tree_clean_test PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(tree_stat PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
-TARGET_LINK_LIBRARIES(single_move_test PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
+TARGET_LINK_LIBRARIES(single_move_test PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(patch_tree_test PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(load_store_test PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 

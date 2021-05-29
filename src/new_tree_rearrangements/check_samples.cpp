@@ -15,14 +15,13 @@ void ins_mut(Mutation_Set &parent_mutations,const Mutation_Annotated_Tree::Mutat
 {    const_cast<MAT::Mutation&>(*temp.first).set_auxillary(temp.first->get_mut_one_hot(),0);
 }    if (!temp.second) {
         assert(temp.first->get_mut_one_hot()==m.get_par_one_hot());
-        if (m.get_mut_one_hot() == m.get_ref_one_hot()) {
+        if ((m.get_mut_one_hot() == m.get_ref_one_hot()&&(!is_leaf))||(m.get_all_major_allele()==m.get_ref_one_hot())) {
             parent_mutations.erase(temp.first);
         }else {
         const_cast<MAT::Mutation&>(*temp.first).set_mut_one_hot(m.get_mut_one_hot());
         const_cast<MAT::Mutation&>(*temp.first).set_auxillary(is_leaf?m.get_all_major_allele():m.get_mut_one_hot(),0);
         }
     }else {
-        assert(m.get_mut_one_hot() != m.get_ref_one_hot());
         assert(m.get_par_one_hot() == m.get_ref_one_hot());
         assert(m.get_mut_one_hot() != m.get_par_one_hot()||!m.is_valid());
     }

@@ -76,11 +76,6 @@ char Conflict_Resolver::operator()(
         break;
     }
 
-#ifndef NDEBUG
-    if (selected_move) {
-        // nodes_inside++;
-    }
-#endif
     for (Profitable_Moves_ptr_t move : candidate_move) {
         if (move != selected_move) {
 #ifdef CHECK_LEAK

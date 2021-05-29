@@ -10,9 +10,9 @@
 
 bool Conflict_Resolver::check_single_move_no_conflict(Profitable_Moves_ptr_t& candidate_move)const{
     int best_score=0;
-    for(auto node:*candidate_move){
+    candidate_move->apply_nodes([&best_score,this](MAT::Node* node){
         best_score=std::min(best_score,potential_crosses[node->bfs_index].parsimony_score_change.load(std::memory_order_acquire));
-    }
+    });
     if (candidate_move->score_change<best_score) {
         return true;
     }
@@ -21,7 +21,8 @@ bool Conflict_Resolver::check_single_move_no_conflict(Profitable_Moves_ptr_t& ca
 
 static void remove_move(Cross_t &potential_crosses, const Profitable_Moves_ptr_t& other_move,
                         MAT::Node *exclude) {
-    for (MAT::Node *other_nodes_in_path : *other_move) {
+
+    other_move->apply_nodes([&](MAT::Node *other_nodes_in_path) {
         if (other_nodes_in_path != exclude) {
             auto& other_node_conflict = potential_crosses[other_nodes_in_path->bfs_index];
             assert(other_node_conflict.moves.size() == 1 &&
@@ -29,10 +30,10 @@ static void remove_move(Cross_t &potential_crosses, const Profitable_Moves_ptr_t
             other_node_conflict.parsimony_score_change.store(0,std::memory_order_release);
             other_node_conflict.moves.clear();
         }
-    }
+    });
 }
 
-void Conflict_Resolver::register_single_move_no_conflict(
+bool Conflict_Resolver::register_single_move_no_conflict(
     Profitable_Moves_ptr_t& candidate_move)  {
     if (candidate_move->src->bfs_index==5319&&candidate_move->dst_to_LCA[0]->bfs_index==1285) {
         fputc('a',stderr);
@@ -40,7 +41,7 @@ void Conflict_Resolver::register_single_move_no_conflict(
     if (candidate_move->src->bfs_index==19290&&candidate_move->dst_to_LCA[0]->bfs_index==9626) {
         fputc('a',stderr);
     }
-    for (auto node : *candidate_move) {
+    candidate_move->apply_nodes([&](MAT::Node* node) {
         Conflict_Set& iter = potential_crosses[node->bfs_index];
         iter.parsimony_score_change.store(candidate_move->score_change,std::memory_order_release);
             for (Profitable_Moves_ptr_t& other_move : iter.moves) {
@@ -60,16 +61,20 @@ void Conflict_Resolver::register_single_move_no_conflict(
             iter.moves.clear();
             iter.moves.push_back(candidate_move);
             assert(candidate_move->score_change==iter.parsimony_score_change);
-    }
+    });
     assert(potential_crosses[candidate_move->get_src()->bfs_index].moves[0]=candidate_move);
     assert(potential_crosses[candidate_move->get_dst()->bfs_index].moves[0]=candidate_move);
-
+    return true;
 }
 
 char Conflict_Resolver::operator()(std::vector<Profitable_Moves_ptr_t>& candidate_move){
     char ret=0;
     Profitable_Moves_ptr_t selected_move=nullptr;
     for (Profitable_Moves_ptr_t& move : candidate_move) {
+#ifdef CONFLICT_RESOLVER_DEBUG
+        fprintf(log, "Trying %s to %s\n",move->src->identifier.c_str(),move->get_dst()->identifier.c_str());
+#endif
+        //fflush(log);
         if (check_single_move_no_conflict(move)) {
             std::lock_guard<std::mutex> lk(register_lock);
             if (check_single_move_no_conflict(move)){
@@ -80,11 +85,14 @@ char Conflict_Resolver::operator()(std::vector<Profitable_Moves_ptr_t>& candidat
         }
     }
 
-    #ifndef NDEBUG
-    if(selected_move){
-        //nodes_inside++;
+    if(!selected_move&&(!candidate_move.empty())){
+        std::vector<std::string> dsts;
+        dsts.reserve(candidate_move.size());
+        for (Profitable_Moves_ptr_t move : candidate_move) {
+            dsts.push_back(move->get_dst()->identifier);
+        }
+        deferred_moves.emplace_back(candidate_move[0]->src->identifier,dsts);
     }
-    #endif
     for (Profitable_Moves_ptr_t move : candidate_move) {
         if (move!=selected_move) {
             #ifdef CHECK_LEAK
@@ -99,6 +107,8 @@ char Conflict_Resolver::operator()(std::vector<Profitable_Moves_ptr_t>& candidat
 
 void Conflict_Resolver::schedule_moves( std::vector<Profitable_Moves_ptr_t>& out){
     #ifdef CONFLICT_RESOLVER_DEBUG
+    fputc('\n', log);
+    fflush(log);
     std::unordered_map<size_t,std::pair<size_t,Profitable_Moves_ptr_t>> pushed_moves;
     #endif
     for (int idx=potential_crosses.size()-1; idx>=0; idx--) {

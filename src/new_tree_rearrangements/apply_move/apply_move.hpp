@@ -34,3 +34,42 @@ char merge_new_node_mutations(
     MAT::Mutations_Collection &to_merge_if_children);
 MAT::Node *replace_with_internal_node(MAT::Node *to_replace,
                                              MAT::Tree &tree);
+void move_node(MAT::Node *src, MAT::Node *dst,
+               std::vector<MAT::Node *> &altered_node, MAT::Tree &tree,
+               std::unordered_set<size_t> &deleted,
+               std::vector<MAT::Node *> &nodes_to_clean
+);
+
+#ifdef CHECK_STATE_REASSIGN
+MAT::Tree reassign_state_full(MAT::Tree &tree_in);
+void compare_mutation_tree(MAT::Tree &t,MAT::Tree &new_tree);
+#endif
+
+void reassign_backward_pass(
+    const std::vector<MAT::Node *> &altered_nodes_in,
+    std::vector<Altered_Node_t> &nodes_with_changed_states_out
+#ifdef CHECK_STATE_REASSIGN
+    ,
+    MAT::Tree &new_tree
+#endif
+) ;
+
+void forward_pass(std::vector<Altered_Node_t> &in
+#ifdef CHECK_STATE_REASSIGN
+                  ,
+                  MAT::Tree &new_tree
+#endif
+);
+void reassign_backward_pass(
+    const std::vector<MAT::Node *> &altered_nodes_in,
+    std::vector<Altered_Node_t> &nodes_with_changed_states_out
+#ifdef CHECK_STATE_REASSIGN
+    ,
+    MAT::Tree &new_tree
+#endif
+);
+bool
+merge_mutation_single_child(MAT::Node *node,
+                            const MAT::Mutations_Collection &merge_with);
+                            void clean_up_src_states(MAT::Node *src,
+                                std::vector<Altered_Node_t> &out);

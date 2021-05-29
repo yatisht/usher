@@ -14,17 +14,6 @@
 #include <iostream>
 namespace po = boost::program_options;
 namespace MAT = Mutation_Annotated_Tree;
-MAT::Node* get_LCA(MAT::Node* src,MAT::Node* dst){
-    while (src!=dst) {
-        if (src->dfs_index>dst->dfs_index) {
-            src=src->parent;
-        }
-        else if (src->dfs_index<dst->dfs_index) {
-            dst=dst->parent;
-        }
-    }
-    return src;
-}
 
 int main(int argc, char **argv) {
     std::string output_path;
@@ -106,6 +95,7 @@ int main(int argc, char **argv) {
     individual_move(src,dst,LCA);*/
     FILE* log=fopen("try_move","w");
     while(stalled<=1){
+    bfs_ordered_nodes = t.breadth_first_expansion();
     find_nodes_to_move(bfs_ordered_nodes, nodes_to_search);
     while (!nodes_to_search.empty()) {
         bfs_ordered_nodes = t.breadth_first_expansion();
@@ -123,7 +113,11 @@ int main(int argc, char **argv) {
             inner_loop_score_before = new_score;
             stalled = 0;
         }
-    }}
+
+    }
+        std::unordered_set<std::string> changed_nodes;
+        clean_tree(t, changed_nodes);
+    }
     fclose(log);
     save_final_tree(t, origin_states, output_path);
 }

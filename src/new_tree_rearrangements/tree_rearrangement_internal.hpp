@@ -19,49 +19,22 @@ struct Profitable_Moves{
         this->src=src;
         dst_to_LCA.push_back(dst);
     }
-    struct iterator{
-        MAT::Node* src;
-        std::vector<MAT::Node*>::const_iterator pos;
-        bool switched;
-        std::vector<MAT::Node*>::const_iterator change;
-        std::vector<MAT::Node*>::const_iterator change_to;
-        void operator++(){
-            if (src) {
-                src=nullptr;
-                return;
-            }
-            pos++;
-            if (pos==change) {
-                pos=change_to;
-                switched=true;
-            }
-        }
-        MAT::Node* operator*(){
-            if (src) {
-                return src;
-            }
-
-            return *pos;
-        }
-        bool operator!=(const iterator& other)const{
-            return pos!=other.pos||src!=other.src||switched!=other.switched;
-        }
-    };
     MAT::Node* get_src()const{
         return src;
     }
     MAT::Node* get_dst()const{
         return dst_to_LCA.front();
     }
-    iterator begin()const{
-        if (src_to_LCA.empty()) {
-            return {src,dst_to_LCA.begin(),true};
+    template<typename F>
+    void apply_nodes(F f){
+        f(src);
+        for(auto node: src_to_LCA){
+            f(node);
         }
-        return {src,src_to_LCA.begin(),false,src_to_LCA.end(),dst_to_LCA.begin()};
-    }
-    iterator end()const{
-        return {0,dst_to_LCA.end(),true,src_to_LCA.end(),dst_to_LCA.begin()};
-    }
+        for(auto node: dst_to_LCA){
+            f(node);
+        }
+    } 
 };
 typedef Profitable_Moves* Profitable_Moves_ptr_t;
 struct output_t{
@@ -70,7 +43,7 @@ struct output_t{
     output_t():score_change(-1){}
 };
 void find_profitable_moves(Mutation_Annotated_Tree::Node *src, output_t &out,int radius);
-int individual_move(Mutation_Annotated_Tree::Node* src,Mutation_Annotated_Tree::Node* dst,Mutation_Annotated_Tree::Node* LCA);
+int individual_move(Mutation_Annotated_Tree::Node* src,Mutation_Annotated_Tree::Node* dst,Mutation_Annotated_Tree::Node* LCA,output_t& out);
 Mutation_Annotated_Tree::Tree load_tree(const std::string& path,Original_State_t& origin_states);
 Mutation_Annotated_Tree::Tree load_vcf_nh_directly(const std::string& nh_path,const std::string& vcf_path,Original_State_t& origin_states);
 void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t,
@@ -93,5 +66,5 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
               ,FILE* log
             #endif
               );
-void save_final_tree(MAT::Tree &t, Original_State_t origin_states,
-                            const std::string &output_path);
+void save_final_tree(MAT::Tree &t, Original_State_t origin_states,const std::string &output_path);
+void clean_tree(MAT::Tree& t,std::unordered_set<std::string>& changed_nodes);

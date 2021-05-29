@@ -82,7 +82,7 @@ static bool find_path(std::vector<MAT::Node *> &dst_to_root_path,
     assert(dst_to_root_path.size()==dst_to_root_path_test.size());
     return true;
 }*/
-static bool
+bool
 merge_mutation_single_child(MAT::Node *node,
                             const MAT::Mutations_Collection &merge_with) {
     bool have_inconsistent_mut = false;

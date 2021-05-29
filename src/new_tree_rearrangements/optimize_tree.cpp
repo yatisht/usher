@@ -1,8 +1,32 @@
+#include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
 #include "tree_rearrangement_internal.hpp"
 #include "priority_conflict_resolver.hpp"
+#include <cstdio>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
 #include <tbb/partitioner.h>
+MAT::Node* get_LCA(MAT::Node* src,MAT::Node* dst){
+    while (src!=dst) {
+        if (src->dfs_index>dst->dfs_index) {
+            src=src->parent;
+        }
+        else if (src->dfs_index<dst->dfs_index) {
+            dst=dst->parent;
+        }
+    }
+    return src;
+}
+
+bool check_not_ancestor(MAT::Node* dst,MAT::Node* src){
+    while (dst) {
+        if (dst==src) {
+            return false;
+        }
+        dst=dst->parent;
+    }
+    return true;
+}
+
 size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
               tbb::concurrent_vector<MAT::Node *> &nodes_to_search,
               MAT::Tree &t, Original_State_t origin_states,int radius
@@ -15,7 +39,8 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
     fprintf(stderr, "Internal node size %zu\n", t.curr_internal_node);
 
     tbb::concurrent_vector<MAT::Node *> deferred_nodes;
-    Conflict_Resolver resolver(bfs_ordered_nodes.size()
+    Deferred_Move_t deferred_moves;
+    Conflict_Resolver resolver(bfs_ordered_nodes.size(),deferred_moves
 #ifdef CONFLICT_RESOLVER_DEBUG
     ,log
 #endif
@@ -41,6 +66,43 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
     ,origin_states
 #endif
     );
+    while (!deferred_moves.empty()) {
+        bfs_ordered_nodes=t.breadth_first_expansion();
+        t.save_detailed_mutations("Before_Deferred_Moves.pb");
+        {Deferred_Move_t deferred_moves_next;
+        Conflict_Resolver resolver(bfs_ordered_nodes.size(),deferred_moves_next
+#ifdef CONFLICT_RESOLVER_DEBUG
+    ,log
+#endif
+    );
+        tbb::parallel_for(tbb::blocked_range<size_t>(0,deferred_moves.size()),[&deferred_moves,&resolver,&t](const tbb::blocked_range<size_t>& r){
+            for (size_t i=r.begin(); i<r.end(); i++) {
+                MAT::Node* src=t.get_node(deferred_moves[i].first);
+                if (src) {
+                    output_t out;
+                    for(auto dst_id:deferred_moves[i].second){
+                        auto dst=t.get_node(dst_id);
+                        if (dst&&check_not_ancestor(dst, src)) {
+                            individual_move(src,dst,get_LCA(src, dst),out);
+                        }
+                    }
+                    if (!out.moves.empty()) {
+                        resolver(out.moves);
+                    }
+                }
+                
+            }
+        });
+        resolver.schedule_moves(all_moves);
+    apply_moves(all_moves, t, bfs_ordered_nodes, deferred_nodes
+#ifdef CHECK_STATE_REASSIGN
+    ,origin_states
+#endif
+    );
+        all_moves.clear();
+        deferred_moves=std::move(deferred_moves_next);}
+    
+    }
     check_samples(t.root, origin_states, &t);
     nodes_to_search = std::move(deferred_nodes);
     return t.get_parsimony_score();

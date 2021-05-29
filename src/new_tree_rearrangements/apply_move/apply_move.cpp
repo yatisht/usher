@@ -7,35 +7,8 @@
 #include <tbb/parallel_for.h>
 #include <unordered_set>
 #include <vector>
-void move_node(MAT::Node *src, MAT::Node *dst,
-               std::vector<MAT::Node *> &altered_node, MAT::Tree &tree,
-               std::unordered_set<size_t> &deleted,
-               std::vector<MAT::Node *> &nodes_to_clean
-);
 
-#ifdef CHECK_STATE_REASSIGN
-MAT::Tree reassign_state_full(MAT::Tree &tree_in);
-#endif
-
-void reassign_backward_pass(
-    const std::vector<MAT::Node *> &altered_nodes_in,
-    std::vector<Altered_Node_t> &nodes_with_changed_states_out);
-
-void forward_pass(std::vector<Altered_Node_t> &in
-#ifdef CHECK_STATE_REASSIGN
-                  ,
-                  MAT::Tree &new_tree
-#endif
-);
-void reassign_backward_pass(
-    const std::vector<MAT::Node *> &altered_nodes_in,
-    std::vector<Altered_Node_t> &nodes_with_changed_states_out
-#ifdef CHECK_STATE_REASSIGN
-    ,
-    MAT::Tree &new_tree
-#endif
-);
-static void clean_up_src_states(MAT::Node *src,
+void clean_up_src_states(MAT::Node *src,
                                 std::vector<Altered_Node_t> &out) {
     MAT::Mutations_Collection &in = src->mutations;
     bool have_change = false;
@@ -65,6 +38,10 @@ static void clean_up_src_states(MAT::Node *src,
 }
 void compare_mutations(MAT::Node *old_nodes, MAT::Node *new_nodes) {
     for (int mut_idx = 0; mut_idx < old_nodes->mutations.size(); mut_idx++) {
+        if (!(old_nodes->mutations[mut_idx] == new_nodes->mutations[mut_idx])) {
+            fprintf(stderr, "%d\n",mut_idx);
+            assert(false);
+        }
         assert(old_nodes->mutations[mut_idx] == new_nodes->mutations[mut_idx]);
         if (old_nodes->children.size() == 2) {
             assert(old_nodes->mutations[mut_idx].get_left_child_state() ==
@@ -85,12 +62,22 @@ const Altered_Node_t* find_altered_node(char* node_name, const std::vector<Alter
     return nullptr;
 }
 
+#ifdef CHECK_STATE_REASSIGN
+void compare_mutation_tree(MAT::Tree &t,MAT::Tree &new_tree) {
+    std::vector<MAT::Node *> old_nodes = t.breadth_first_expansion();
+    std::vector<MAT::Node *> new_nodes = new_tree.breadth_first_expansion();
+    for (int i = old_nodes.size() - 1; i >= 0; i--) {
+        compare_mutations(old_nodes[i], new_nodes[i]);
+    }
+    new_tree.delete_nodes();
+}
+#endif
 void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t,
                  std::vector<MAT::Node *> &bfs_ordered_nodes,
                  tbb::concurrent_vector<MAT::Node *> &to_filter
 #ifdef CHECK_STATE_REASSIGN
                  ,
-                 const Original_State_t& original_state
+                 const Original_State_t &original_state
 #endif
 ) {
     std::vector<MAT::Node *> altered_node;
@@ -139,7 +126,6 @@ void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t,
                               }),nodes_to_clean.end());
 #ifdef CHECK_STATE_REASSIGN
 
-    std::vector<MAT::Node *> old_nodes = t.breadth_first_expansion();
     //MAT::Tree new_tree;
     //new_tree.load_detatiled_mutations("After_reassign.pb");
     MAT::Tree new_tree = reassign_state_full(t);
@@ -165,11 +151,7 @@ void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t,
         );
     }
 #ifdef CHECK_STATE_REASSIGN
-    std::vector<MAT::Node *> new_nodes = new_tree.breadth_first_expansion();
-    for (int i = old_nodes.size() - 1; i >= 0; i--) {
-        compare_mutations(old_nodes[i], new_nodes[i]);
-    }
-    new_tree.delete_nodes();
+    compare_mutation_tree(t, new_tree);
 #endif
     tbb::concurrent_vector<MAT::Node*> filtered;
     filtered.reserve(to_filter.size());

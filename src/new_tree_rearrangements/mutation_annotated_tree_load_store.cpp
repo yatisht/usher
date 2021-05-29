@@ -205,9 +205,6 @@ static void load_with_internal_label(const char* start,const char* end,Mutation_
     }
 }
 void Mutation_Annotated_Tree::Tree::load_from_newick(const std::string& newick_string,bool use_internal_node_label){
-    if (use_internal_node_label) {
-        return load_with_internal_label(newick_string.data(),newick_string.data()+newick_string.size(),this);
-    }
     std::vector<std::string> leaves;
     std::vector<size_t> num_open;
     std::vector<size_t> num_close;
@@ -341,11 +338,7 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
     if (!hasmeta) {
         fprintf(stderr, "WARNING: This pb does not include any metadata. Filling in default values\n");
     }
-    size_t old_internal_node_size=data.internal_node_size();
-    tree.load_from_newick(data.newick(),old_internal_node_size);
-    if (old_internal_node_size) {
-        tree.curr_internal_node=old_internal_node_size;
-    }
+    tree.load_from_newick(data.newick());
     auto dfs = tree.depth_first_expansion();
     static tbb::affinity_partitioner ap;
     tbb::parallel_for( tbb::blocked_range<size_t>(0, dfs.size()),
@@ -400,8 +393,6 @@ void Mutation_Annotated_Tree::save_mutation_annotated_tree (const Mutation_Annot
 
 
     data.set_newick(get_newick_string(tree, true, true));
-    data.set_internal_node_size(tree.curr_internal_node);
-
     for (size_t idx = 0; idx < dfs.size(); idx++) {
         auto meta = data.add_metadata();
         for (size_t k = 0; k < dfs[idx]->clade_annotations.size(); k++) {

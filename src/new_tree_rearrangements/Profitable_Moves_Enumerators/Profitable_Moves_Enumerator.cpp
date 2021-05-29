@@ -267,7 +267,7 @@ void find_profitable_moves(MAT::Node *src, output_t &out,int radius) {
         radius--;
     }
 }
-int individual_move(MAT::Node* src,MAT::Node* dst,MAT::Node* LCA){
+int individual_move(MAT::Node* src,MAT::Node* dst,MAT::Node* LCA,output_t& out){
 MAT::Node *root = src->parent;
     Mutation_Count_Change_Collection mutations;
     init_mutation_change(src, mutations);
@@ -295,9 +295,9 @@ MAT::Node *root = src->parent;
     assert(std::max(src->mutations.size(), src->parent->mutations.size()) <=
            debug_from_src.size());
     old_debug_size = debug_from_src.size();
+#endif
     merge_mutation_src_to_LCA(root, mutations);
     root=root->parent;
-#endif
     }
 
 
@@ -312,6 +312,7 @@ MAT::Node *root = src->parent;
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
         assert(debug_from_src.size() == old_debug_size);
 #endif
+        assert(node_stack_from_src.back()!=root);
         node_stack_from_src.push_back(root);
         // mutations.merge(root->mutations,
         // MAT::Mutations_Collection::KEEP_SELF);
@@ -331,7 +332,6 @@ MAT::Node *root = src->parent;
         merge_mutation_LCA_to_dst(dst_path[i], mutations, child_mutations);
         mutations=std::move(child_mutations);
     }
-    output_t out;
     return check_move_profitable(src, dst, LCA, mutations, root_mutations_altered, parsimony_score_change,out, node_stack_from_src
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
     , debug_from_src

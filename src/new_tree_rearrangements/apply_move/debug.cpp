@@ -1,3 +1,4 @@
+#ifdef CHECK_STATE_REASSIGN
 #include "apply_move.hpp"
 #include "src/new_tree_rearrangements/Fitch_Sankoff.hpp"
 #include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
@@ -38,3 +39,4 @@ MAT::Tree reassign_state_full(MAT::Tree &tree_in) {
 
     return new_tree;
 }
+#endif
