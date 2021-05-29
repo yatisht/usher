@@ -15,6 +15,8 @@ po::variables_map parse_summary_command(po::parsed_options parsed) {
         "Write a tsv listing all samples in the tree and their parsimony score (terminal branch length).")
         ("clades,c", po::value<std::string>()->default_value(""),
         "Write a tsv listing all clades and the count of associated samples.")
+        ("sample-clades,C", po::value<std::string>()->default_value(""),
+        "Write a tsv of all samples and their associated clade values")
         ("mutations,m", po::value<std::string>()->default_value(""),
         "Write a tsv listing all mutations in the tree and their occurrence count.")
         ("aberrant,a", po::value<std::string>()->default_value(""),
@@ -164,6 +166,35 @@ void write_aberrant_table(MAT::Tree& T, std::string filename) {
     }
 }
 
+void write_sample_clades_table (MAT::Tree& T, std::string sample_clades) {
+    timer.Start();
+    fprintf(stderr, "Writing clade associations for all samples to output %s\n", sample_clades.c_str());
+    std::ofstream scfile;
+    scfile.open(sample_clades);
+    scfile << "sample\tannotation_1\tannotation_2\n";
+    for (auto n: T.get_leaves()) {
+        std::string ann_1 = "None";
+        std::string ann_2 = "None";
+        for (auto a: T.rsearch(n->identifier, false)) {
+            std::vector<std::string> canns = a->clade_annotations;
+            for (size_t i = 0; i < canns.size(); i++) {
+                if ((i == 0) && (canns[i] != "") && (ann_1 == "None")) {
+                    ann_1 = canns[i];
+                }
+                if ((i == 1) && (canns[i] != "") && (ann_2 == "None")) {
+                    ann_2 = canns[i];
+                }
+                if ((ann_1 != "None") && (ann_2 != "None")) {
+                    break;
+                }
+            }
+        }
+        scfile << n->identifier << "\t" << ann_1 << "\t" << ann_2 << "\n";
+    }
+    fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+    scfile.close();
+}
+
 void summary_main(po::parsed_options parsed) {
     po::variables_map vm = parse_summary_command(parsed);
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
@@ -180,6 +211,7 @@ void summary_main(po::parsed_options parsed) {
 
     std::string samples = dir_prefix + vm["samples"].as<std::string>();
     std::string clades = dir_prefix + vm["clades"].as<std::string>();
+    std::string sample_clades = dir_prefix + vm["sample-clades"].as<std::string>();
     std::string mutations = dir_prefix + vm["mutations"].as<std::string>();
     std::string aberrant = dir_prefix + vm["aberrant"].as<std::string>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
@@ -191,6 +223,7 @@ void summary_main(po::parsed_options parsed) {
         clades = dir_prefix + "clades.tsv";
         mutations = dir_prefix + "mutations.tsv";
         aberrant = dir_prefix + "aberrant.tsv";
+        sample_clades = dir_prefix + "sample-clades.tsv";
     }
     tbb::task_scheduler_init init(num_threads);
 
@@ -219,6 +252,10 @@ void summary_main(po::parsed_options parsed) {
     }  
     if (aberrant != dir_prefix) {
         write_aberrant_table(T, aberrant);
+        no_print = false;
+    }
+    if (sample_clades != dir_prefix) {
+        write_sample_clades_table(T, sample_clades);
         no_print = false;
     }
         
