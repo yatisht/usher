@@ -555,26 +555,6 @@ void get_minimum_subtrees(MAT::Tree* T, std::vector<std::string> samples, size_t
     }
     std::vector<size_t> displayed_samples (samples.size(), 0);
 
-/*
-
-Russ pseudocode
-
-1. create a thread-safe map of form <vector<string>> , count
-2. create a thead-safe map of for <string, count>
-
-now check if samples exist in map (2)
-
-if yes, skip it,
-otherwise,
-  record that we have it,
-  get the minimum subtree for that set of samples
-  print that subtree
-
-*/
-
-    /// sample sets that have been seen previously
-//    tbb::concurrent_unordered_map<std::vector<std::string>, int > trees_we_have_seen ;
-
     /// set of all samples that have been seen
     tbb::concurrent_unordered_map<std::string, int > samples_we_have_seen ;
 
@@ -590,11 +570,6 @@ otherwise,
             continue ;
         }
 
-//        if (displayed_samples[i] != 0) {
-            // fprintf(stderr, "%s is displayed in %ld, skipping\n", samples[i].c_str(), displayed_samples[i]);
-//            continue;
-//        }
-
         /// get the nearby tree of size nearest_subtree_size
         std::vector<std::string> leaves_to_keep = get_nearby( T, samples[i], nearest_subtree_size ) ;
 
@@ -608,71 +583,6 @@ otherwise,
 
         auto new_T = Mutation_Annotated_Tree::get_subtree(*T, leaves_to_keep);
 
-
-//        auto check_tree = trees_we_have_seen.find( leaves_to_keep ) ;
-//        if ( check_tree != trees_we_have_seen.end() ) {
-//            continue ;
-//        }
-//        check_tree->second = 1 ;
-//        trees_we_have_seen[ leaves_to_keep ] ++ ;
-
-        /// now insert all samples
-
-/*
-        Mutation_Annotated_Tree::Node* last_anc = T->get_node(samples[i]);
-        std::vector<std::string> leaves_to_keep;
-        for (auto anc: T->rsearch(samples[i], true)) {
-            size_t num_leaves = T->get_num_leaves(anc);
-            if (num_leaves <= nearest_subtree_size) {
-                last_anc = anc;
-                continue;
-            }
-
-            if (num_leaves > nearest_subtree_size) {
-                for (auto l: T->get_leaves(last_anc->identifier)) {
-                    leaves_to_keep.emplace_back(l->identifier);
-                }
-
-                std::vector<Mutation_Annotated_Tree::Node*> siblings;
-                for (auto child: anc->children) {
-                    if (child->identifier != last_anc->identifier) {
-                        siblings.emplace_back(child);
-                    }
-                }
-
-                for (size_t k=0; k<siblings.size(); k++) {
-                    for (auto l: T->get_leaves(siblings[k]->identifier)) {
-                        leaves_to_keep.emplace_back(l->identifier);
-                    }
-                }
-                leaves_to_keep.resize(nearest_subtree_size);
-            } else {
-                for (auto l: T->get_leaves(anc->identifier)) {
-                    leaves_to_keep.emplace_back(l->identifier);
-                }
-            }
-
-*/
-/*
-            auto new_T = Mutation_Annotated_Tree::get_subtree(*T, leaves_to_keep);
-            size_t count_displayed = 1;
-            displayed_samples[i] = num_subtrees;
-//            tbb::parallel_for (tbb::blocked_range<size_t>(i+1, samples.size(), 100),
-//                    [&](tbb::blocked_range<size_t> r) {
-//                    for (size_t j=r.begin(); j<r.end(); ++j){
-                        for (size_t j = i+1; j < samples.size(); j++) {
-                            if (displayed_samples[j] == 0) {
-                                if (new_T.get_node(samples[j]) != NULL) {
-                                    displayed_samples[j] = num_subtrees;
-                                    count_displayed++;
-                                }
-                            }
-                        }
-//                    }
-//                    });
-
-
-*/
             //from here, this function diverges from the similar function in the MAT definition.
             if (json_n != output_dir) {
                 std::string outf = json_n + "-subtree-" + std::to_string(tree_num) + ".json";
@@ -686,16 +596,9 @@ otherwise,
                 subtree_file << newick_ss.rdbuf();
                 subtree_file.close();
             }
-          }
-        /// end TBB loop
-        } ) ;
-/*
-            ++num_subtrees;
-            fprintf(stderr, "Subtree %d identified, containing %ld samples\n", num_subtrees, count_displayed);
-            break;
         }
-    }
-*/
+    /// end TBB loop
+    } ) ;
 
     std::ofstream tracker (output_dir + "subtree-assignments.tsv");
     tracker << "samples";
