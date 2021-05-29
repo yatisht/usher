@@ -29,9 +29,12 @@ bool check_not_ancestor(MAT::Node* dst,MAT::Node* src){
 
 size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
               tbb::concurrent_vector<MAT::Node *> &nodes_to_search,
-              MAT::Tree &t, Original_State_t origin_states,int radius
+              MAT::Tree &t,int radius
+              #ifndef NDEBUG
+              , Original_State_t origin_states
               #ifdef CONFLICT_RESOLVER_DEBUG
               ,FILE* log
+            #endif
             #endif
               ) {
     fprintf(stderr, "%zu nodes to search \n", nodes_to_search.size());
@@ -103,7 +106,9 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
         deferred_moves=std::move(deferred_moves_next);}
     
     }
+    #ifndef NDEBUG
     check_samples(t.root, origin_states, &t);
+    #endif
     nodes_to_search = std::move(deferred_nodes);
     return t.get_parsimony_score();
 }
@@ -124,7 +129,8 @@ void save_final_tree(MAT::Tree &t, Original_State_t origin_states,
                       });
     fix_condensed_nodes(&t);
     fprintf(stderr, "%d condensed_nodes",t.condensed_leaves.size());
+#ifndef NDEBUG
     check_samples(t.root, origin_states, &t);
+#endif
     Mutation_Annotated_Tree::save_mutation_annotated_tree(t, output_path);
-    MAT::Tree new_tree=Mutation_Annotated_Tree::load_mutation_annotated_tree(output_path);
 }

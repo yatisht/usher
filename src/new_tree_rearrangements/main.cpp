@@ -61,8 +61,10 @@ int main(int argc, char **argv) {
     Mutation_Annotated_Tree::Tree t=(input_pb_path!="")?load_tree(input_pb_path, origin_states):load_vcf_nh_directly(input_nh_path, input_vcf_path, origin_states);
     int iteration=0;
     t.save_detailed_mutations(std::string(intermediate_pb_base_name).append(std::to_string(iteration++)).append(".pb"));
+    #ifndef NDEBUG
     Original_State_t origin_state_to_check(origin_states);
     check_samples(t.root, origin_state_to_check, &t);
+    #endif
     size_t score_before = t.get_parsimony_score();
     size_t new_score = score_before;
     fprintf(stderr, "after state reassignment:%zu\n", score_before);
@@ -100,9 +102,12 @@ int main(int argc, char **argv) {
     while (!nodes_to_search.empty()) {
         bfs_ordered_nodes = t.breadth_first_expansion();
         new_score =
-            optimize_tree(bfs_ordered_nodes, nodes_to_search, t, origin_states,radius
+            optimize_tree(bfs_ordered_nodes, nodes_to_search, t,radius
+            #ifndef NDEBUG
+            , origin_states
             #ifdef CONFLICT_RESOLVER_DEBUG
             ,log
+            #endif
             #endif
             );
         fprintf(stderr, "after optimizing:%zu\n", new_score);
