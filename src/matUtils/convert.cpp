@@ -558,45 +558,48 @@ void get_minimum_subtrees(MAT::Tree* T, std::vector<std::string> samples, size_t
     /// set of all samples that have been seen
     tbb::concurrent_unordered_map<std::string, int > samples_we_have_seen ;
 
-    /// record the subtree number_to_get
-    tbb::atomic<int> num_subtrees = 0 ;
+    /// record trees here
+    std::vector<std::vector<std::string> > subtree_sample_sets ;
 
-    tbb::parallel_for (tbb::blocked_range<size_t>(1, samples.size()),
-            [&](tbb::blocked_range<size_t> r) {
-    for (size_t i = r.begin(); i < r.end() ; i++) {
+      for ( int i = 0 ; i < samples.size() ; i ++ ) {
 
-        auto check_sample = samples_we_have_seen.find( samples[i] ) ;
-        if ( check_sample != samples_we_have_seen.end() ) {
-            continue ;
-        }
+          auto check_sample = samples_we_have_seen.find( samples[i] ) ;
+          if ( check_sample != samples_we_have_seen.end() ) {
+              continue ;
+          }
 
-        /// get the nearby tree of size nearest_subtree_size
-        std::vector<std::string> leaves_to_keep = get_nearby( T, samples[i], nearest_subtree_size ) ;
+          /// get the nearby tree of size nearest_subtree_size
+          std::vector<std::string> leaves_to_keep = get_nearby( T, samples[i], nearest_subtree_size ) ;
 
-        /// increment number of subtrees
-        //num_subtrees ++ ;
-        int tree_num = ++ num_subtrees ;
-        /// now record all samples in this specific subtree
-        for ( int s = 0 ; s < leaves_to_keep.size() ; s ++ ) {
-            samples_we_have_seen.insert({leaves_to_keep[s],tree_num}) ;
-        }
+          /// record all samples seen
+          for ( int s = 0 ; s < leaves_to_keep.size() ; s ++ ) {
+              samples_we_have_seen.insert({leaves_to_keep[s],subtree_sample_sets.size()}) ;
+          }
 
-        auto new_T = Mutation_Annotated_Tree::get_subtree(*T, leaves_to_keep);
+          /// record sample set
+          subtree_sample_sets.push_back( leaves_to_keep ) ;
+      }
 
-            //from here, this function diverges from the similar function in the MAT definition.
-            if (json_n != output_dir) {
-                std::string outf = json_n + "-subtree-" + std::to_string(tree_num) + ".json";
-                write_json_from_mat(&new_T, outf, catmeta);
-            }
-            if (newick_n != output_dir) {
-                std::string outf = newick_n + "-subtree-" + std::to_string(tree_num) + ".nw";
-                std::ofstream subtree_file(outf.c_str(), std::ofstream::out);
-                std::stringstream newick_ss;
-                write_newick_string(newick_ss, new_T, new_T.root, true, true, retain_original_branch_len);
-                subtree_file << newick_ss.rdbuf();
-                subtree_file.close();
-            }
-        }
+      tbb::parallel_for (tbb::blocked_range<size_t>(0, subtree_sample_sets.size()),
+                  [&](tbb::blocked_range<size_t> r) {
+              for (size_t i = r.begin(); i < r.end() ; i++) {
+
+          auto new_T = Mutation_Annotated_Tree::get_subtree(*T, subtree_sample_sets[i]);
+
+          //from here, this function diverges from the similar function in the MAT definition.
+          if (json_n != output_dir) {
+              std::string outf = json_n + "-subtree-" + std::to_string(i) + ".json";
+              write_json_from_mat(&new_T, outf, catmeta);
+          }
+          if (newick_n != output_dir) {
+              std::string outf = newick_n + "-subtree-" + std::to_string(i) + ".nw";
+              std::ofstream subtree_file(outf.c_str(), std::ofstream::out);
+              std::stringstream newick_ss;
+              write_newick_string(newick_ss, new_T, new_T.root, true, true, retain_original_branch_len);
+              subtree_file << newick_ss.rdbuf();
+              subtree_file.close();
+          }
+      }
     /// end TBB loop
     } ) ;
 
