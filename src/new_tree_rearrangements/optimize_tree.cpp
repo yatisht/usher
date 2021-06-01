@@ -121,6 +121,9 @@ void save_final_tree(MAT::Tree &t, Original_State_t& origin_states,
     check_samples(t.root, origin_states, &t);
 #endif
     std::vector<MAT::Node *> dfs = t.depth_first_expansion();
+#ifndef NDEBUG
+    check_samples(t.root, origin_states, &t);
+#endif
     tbb::parallel_for(tbb::blocked_range<size_t>(0, dfs.size()),
                       [&dfs](tbb::blocked_range<size_t> r) {
                           for (size_t i = r.begin(); i < r.end(); i++) {
