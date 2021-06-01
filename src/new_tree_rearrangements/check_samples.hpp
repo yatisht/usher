@@ -2,6 +2,7 @@
 #define check_sample
 #include "mutation_annotated_tree.hpp"
 #include <cstdio>
+#include <tbb/concurrent_unordered_map.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -30,15 +31,15 @@ struct Node_Idx_Eq{
 };
 
 typedef std::unordered_set<Mutation_Annotated_Tree::Mutation, Mutation_Pos_Only_Hash, Mutation_Pos_Only_Comparator> Mutation_Set;
-typedef std::unordered_map<std::string, Mutation_Set>
+typedef tbb::concurrent_unordered_map<std::string, Mutation_Set>
     Original_State_t;
 void check_samples(
     Mutation_Annotated_Tree::Node *root,
     Original_State_t &samples,Mutation_Annotated_Tree::Tree* tree);
 //void get_mutation_set(Mutation_Annotated_Tree::Node* node, Mutation_Set& out);
-void check_samples_worker(Mutation_Annotated_Tree::Node *root,
+/*void check_samples_worker(Mutation_Annotated_Tree::Node *root,
                                  Mutation_Set parent_mutations,
                                  Original_State_t &samples,Mutation_Annotated_Tree::Tree* tree=nullptr);
-
+*/
 //void ins_mut(Mutation_Set &parent_mutations,const Mutation_Annotated_Tree::Mutation &m);
 #endif

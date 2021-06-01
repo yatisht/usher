@@ -1,5 +1,6 @@
 #include "mutation_annotated_tree.hpp"
 #include <algorithm>
+#include <atomic>
 #include <cstddef>
 #include <cstdio>
 #include <iomanip>
@@ -7,9 +8,12 @@
 #include <iostream>
 #include <string>
 #include <tbb/blocked_range.h>
+#include <tbb/concurrent_vector.h>
 #include <tbb/parallel_for.h>
 #include <stack>
 #include <queue>
+#include <tbb/task.h>
+#include <utility>
 #include <vector>
 // Uses one-hot encoding if base is unambiguous
 // A:1,C:2,G:4,T:8
@@ -169,53 +173,6 @@ size_t Mutation_Annotated_Tree::Tree::get_parsimony_score() {
     return score;
 }
 
-void Mutation_Annotated_Tree::Tree::condense_leaves(std::vector<std::string> missing_samples) {
-    if (condensed_nodes.size() > 0) {
-        fprintf(stderr, "WARNING: tree contains condensed nodes. It may be condensed already!\n");
-    }
-
-    auto tree_leaves = get_leaves_ids();
-    for (auto l1_id: tree_leaves) {
-        std::vector<Node*> polytomy_nodes;
-
-        auto l1 = get_node(l1_id);
-        if (l1 == NULL) {
-            continue;
-        }
-        if (std::find(missing_samples.begin(), missing_samples.end(), l1->identifier) != missing_samples.end()) {
-            continue;
-        }
-        if (l1->mutations.size() > 0) {
-            continue;
-        }
-
-        for (auto l2: l1->parent->children) {
-                if (std::find(missing_samples.begin(), missing_samples.end(), l2->identifier) != missing_samples.end()) {
-                    continue;
-                }
-            if (l2->is_leaf() && (get_node(l2->identifier) != NULL) && (l2->mutations.size() == 0)) {
-                polytomy_nodes.push_back(l2);
-            }
-        }
-
-        if (polytomy_nodes.size() > 1) {
-            std::string new_node_name = "node_" + std::to_string(1+condensed_nodes.size()) + "_condensed_" + std::to_string(polytomy_nodes.size()) + "_leaves";
-            
-            auto curr_node = get_node(l1->identifier);
-            auto new_node = create_node(new_node_name, curr_node->parent, l1->branch_length);
-
-            new_node->clear_mutations();
-            
-            condensed_nodes[new_node_name] = std::vector<std::string>(polytomy_nodes.size());
-
-            for (size_t it = 0; it < polytomy_nodes.size(); it++) {
-                condensed_nodes[new_node_name][it] = polytomy_nodes[it]->identifier;
-                remove_node(polytomy_nodes[it]->identifier, false);
-            }
-        }
-    }
-}
-
 void Mutation_Annotated_Tree::Tree::uncondense_leaves() {
     for (size_t it = 0; it < condensed_nodes.size(); it++) {
         auto cn = condensed_nodes.begin();
@@ -235,7 +192,6 @@ void Mutation_Annotated_Tree::Tree::uncondense_leaves() {
         }
     }
     condensed_nodes.clear();
-    condensed_leaves.clear();
 }
 // Merge nodes that have no mutations comparing to parent into parent node 
 void Mutation_Annotated_Tree::Tree::collapse_tree() {
@@ -314,7 +270,6 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_tree_copy(const Mutat
                copy.condensed_nodes.insert(std::pair<std::string, std::vector<std::string>>(cn->first, std::vector<std::string>(cn->second.size())));
                for (size_t k = 0; k < cn->second.size(); k++) {
                   copy.condensed_nodes[cn->first][k] = cn->second[k];
-                  copy.condensed_leaves.insert(cn->second[k]);
                }
             }
     }, ap);

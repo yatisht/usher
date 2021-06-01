@@ -378,7 +378,6 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
                tree.condensed_nodes.emplace(std::pair<std::string, std::vector<std::string>>(cn.node_name(), std::vector<std::string>(cn.condensed_leaves_size())));
                for (int k = 0; k < cn.condensed_leaves_size(); k++) {
                   tree.condensed_nodes[cn.node_name()][k] = cn.condensed_leaves(k);
-                  tree.condensed_leaves.emplace(cn.condensed_leaves(k));
                }
             }
     }, ap);

@@ -1,15 +1,7 @@
-#include "src/new_tree_rearrangements/check_samples.hpp"
-#include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
 #include "tree_rearrangement_internal.hpp"
+#include <string>
 #include "apply_move/apply_move.hpp"
-#include "tbb/parallel_for_each.h"
-#include <algorithm>
-#include <mutex>
-#include <tbb/blocked_range.h>
-#include <tbb/concurrent_vector.h>
-#include <tbb/parallel_for.h>
 #include <tbb/task.h>
-#include <vector>
 struct clean_up_internal_nodes_single_child_or_no_mutation:public tbb::task{
 MAT::Node* this_node;
 tbb::concurrent_vector<std::string>& changed_nodes;
@@ -81,7 +73,7 @@ tbb::task* execute() override{
 }
 };
 
-static void clean_up_internal_nodes_single_child_or_no_mutation(MAT::Node* this_node,MAT::Tree& tree,std::unordered_set<std::string>& changed_nodes,std::unordered_set<std::string>& node_with_inconsistent_state,std::vector<MAT::Node*> path){
+static void clean_up_internal_nodes_single_child_or_no_mutation(MAT::Node* this_node,MAT::Tree& tree,std::unordered_set<std::string>& changed_nodes,std::unordered_set<std::string>& node_with_inconsistent_state){
     tbb::concurrent_vector<std::string> changed_nodes_rep;
     tbb::concurrent_vector<std::string> node_with_inconsistent_state_rep;
     tbb::concurrent_vector<std::string> removed_nodes;
@@ -106,8 +98,7 @@ char get_major_allele(MAT::Node* node, int position){
 }
 static void clean_tree_load(MAT::Tree& t,std::unordered_set<std::string>& changed_nodes,Original_State_t& ori_state){
     std::unordered_set<std::string> node_with_inconsistent_states;
-        std::vector<MAT::Node*> path;
-        clean_up_internal_nodes_single_child_or_no_mutation(t.root, t, changed_nodes,node_with_inconsistent_states,path);
+        clean_up_internal_nodes_single_child_or_no_mutation(t.root, t, changed_nodes,node_with_inconsistent_states);
         //check_samples(t.root, ori_state, &t);
 #ifdef CHECK_STATE_REASSIGN
     MAT::Tree new_tree=reassign_state_full(t);
@@ -157,37 +148,18 @@ char get_state(char* sample,int position){
         }
     }
 }
-Original_State_t origin_states;
-char get_ori_state(char* sample,int position){
-    MAT::Mutation temp(position);
-    auto sample_iter=origin_states.find(std::string(sample));
-    if (sample_iter==origin_states.end()) {
-        return MAT::Mutation::refs[position].get_nuc_no_check();
-    }else {
-        auto pos_iter=sample_iter->second.find(temp);
-        if (sample_iter->second.end()==pos_iter) {
-        return MAT::Mutation::refs[position].get_nuc_no_check();
-        }else {
-            return pos_iter->get_all_major_allele().get_nuc_no_check();
-        }
-    }
-}
-int main(int argc,char** argv){
-    MAT::Tree t;
-    t.load_detatiled_mutations("with_boundary_mut.pb");
-    fprintf(stderr, "%zu\n",t.get_parsimony_score());
+MAT::Tree load_vcf_nh_directly(const std::string& nh_path,const std::string& vcf_path,Original_State_t& origin_states){
+    MAT::Tree t=Mutation_Annotated_Tree::create_tree_from_newick(nh_path);
+    VCF_input(vcf_path.c_str(),t);
     std::unordered_set<std::string> changed_nodes;
     clean_tree_load(t, changed_nodes,origin_states);
     t.condense_leaves();
-    auto bfs_ordered_nodes = t.breadth_first_expansion();
-    assert(bfs_ordered_nodes.size()==t.all_nodes.size());
     check_samples(t.root, origin_states, &t);
     //populate_mutated_pos(origin_states);
-    // save_final_tree(t,origin_states,"tttttt");
     changed_nodes.clear();
     for(const auto &condensed:t.condensed_nodes){
         changed_nodes.insert(t.get_node(condensed.first)->parent->identifier);
     }
     clean_tree_load(t, changed_nodes,origin_states);
-    save_final_tree(t, origin_states, "to_check.pb");
+    return t;
 }

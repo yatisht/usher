@@ -269,6 +269,7 @@ namespace Mutation_Annotated_Tree {
         const Mutation& operator[] (size_t idx) const{
             return mutations[idx];
         }
+        bool no_valid_mutation()const;
         void refill(std::vector<Mutation>& in){
             mutations=std::move(in);
             std::sort(mutations.begin(),mutations.end());
@@ -412,6 +413,9 @@ namespace Mutation_Annotated_Tree {
             void clear_annotations() {
                 clade_annotations.clear();
             }
+            bool no_valid_mutation()const{
+                return mutations.no_valid_mutation();
+            }
             template<typename iter_t>
             void refill(iter_t begin,iter_t end,size_t size=0,bool retain_invalid=true){
                 std::vector<Mutation> mutations;
@@ -446,7 +450,6 @@ namespace Mutation_Annotated_Tree {
 
             Node* root;
             condensed_node_t condensed_nodes;
-            tbb::concurrent_unordered_set<std::string> condensed_leaves;
 
             size_t curr_internal_node;
 

@@ -206,3 +206,12 @@ void Mutation_Annotated_Tree::Mutations_Collection::remove_invalid(){
     }
     mutations.swap(out);
 }
+
+bool Mutation_Annotated_Tree::Mutations_Collection::no_valid_mutation()const{
+    for(auto& mut:mutations){
+        if (mut.is_valid()) {
+            return false;
+        }
+    }
+    return true;
+}
