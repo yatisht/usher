@@ -190,7 +190,7 @@ void VCF_input(const char * name,MAT::Tree& tree){
             for (size_t i = r.begin(); i < r.end(); i++) {
                 const auto &to_refill = output[i];
                 bfs_ordered_nodes[i]->refill(to_refill.begin(), to_refill.end(),
-                                             to_refill.size());
+                                             to_refill.size(),false);
             }
         },
     ap);

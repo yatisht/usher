@@ -71,7 +71,6 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
     );
     while (!deferred_moves.empty()) {
         bfs_ordered_nodes=t.breadth_first_expansion();
-        t.save_detailed_mutations("Before_Deferred_Moves.pb");
         {Deferred_Move_t deferred_moves_next;
         Conflict_Resolver resolver(bfs_ordered_nodes.size(),deferred_moves_next
 #ifdef CONFLICT_RESOLVER_DEBUG
@@ -119,18 +118,16 @@ std::unordered_map<MAT::Mutation,
 void save_final_tree(MAT::Tree &t, Original_State_t origin_states,
                             const std::string &output_path) {
     std::vector<MAT::Node *> dfs = t.depth_first_expansion();
+#ifndef NDEBUG
+    check_samples(t.root, origin_states, &t);
+#endif
     tbb::parallel_for(tbb::blocked_range<size_t>(0, dfs.size()),
                       [&dfs](tbb::blocked_range<size_t> r) {
                           for (size_t i = r.begin(); i < r.end(); i++) {
-                              if(!dfs[i]->is_leaf()){
                                   dfs[i]->mutations.remove_invalid();
-                              }
                           }
                       });
     fix_condensed_nodes(&t);
     fprintf(stderr, "%d condensed_nodes",t.condensed_leaves.size());
-#ifndef NDEBUG
-    check_samples(t.root, origin_states, &t);
-#endif
     Mutation_Annotated_Tree::save_mutation_annotated_tree(t, output_path);
 }
