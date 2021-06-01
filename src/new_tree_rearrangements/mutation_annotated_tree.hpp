@@ -1,7 +1,6 @@
 #ifndef MUTATION_ANNOTATED_TREE
 #define MUTATION_ANNOTATED_TREE
 #include <algorithm>
-#include <bits/stdint-uintn.h>
 #include <cstddef>
 #include <mutex>
 #include <sys/types.h>

@@ -1,8 +1,6 @@
 #include "mutation_annotated_tree.hpp"
 #include "zlib.h"
 #include <array>
-#include <bits/stdint-uintn.h>
-#include <bits/types/FILE.h>
 #include <cstdio>
 #include <mutex>
 #include <sstream>

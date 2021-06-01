@@ -2,7 +2,6 @@
 #include "check_samples.hpp"
 #include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
 #include "tree_rearrangement_internal.hpp"
-#include <bits/types/FILE.h>
 #include <cstddef>
 #include <cstdio>
 #include <string>
