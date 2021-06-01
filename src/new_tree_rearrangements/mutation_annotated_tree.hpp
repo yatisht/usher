@@ -388,6 +388,7 @@ namespace Mutation_Annotated_Tree {
             size_t dfs_index; //index in dfs pre-order
             size_t dfs_end_index; //index in dfs pre-order
             size_t bfs_index; //index in bfs
+            bool changed;
             bool is_leaf() const;
             bool is_root();
             Tree* tree;

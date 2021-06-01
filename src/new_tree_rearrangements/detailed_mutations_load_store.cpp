@@ -15,7 +15,7 @@
 #include <sys/types.h>
 #include <vector>
 namespace MAT = Mutation_Annotated_Tree;
-void load_chrom_vector(const Mutation_Detailed::meta &to_load) {
+static void load_chrom_vector(const Mutation_Detailed::meta &to_load) {
     size_t chrom_size = to_load.chromosomes_size();
     MAT::Mutation::chromosomes.reserve(chrom_size);
     for (size_t idx = 0; idx < chrom_size; idx++) {
@@ -27,7 +27,7 @@ void load_chrom_vector(const Mutation_Detailed::meta &to_load) {
         MAT::Mutation::refs.push_back(nuc_one_hot(to_load.ref_nuc(i), true));
     }
 }
-void save_chrom_vector(Mutation_Detailed::meta &to_save) {
+static void save_chrom_vector(Mutation_Detailed::meta &to_save) {
     for (const std::string &chrom : MAT::Mutation::chromosomes) {
         to_save.add_chromosomes(chrom);
     }
@@ -35,7 +35,7 @@ void save_chrom_vector(Mutation_Detailed::meta &to_save) {
         to_save.add_ref_nuc(nuc.get_nuc_no_check());
     }
 }
-void set_protobuf(const MAT::Mutation &m,
+static void serialize_mutation(const MAT::Mutation &m,
                   Mutation_Detailed::detailed_mutation *out) {
     out->set_position((uint32_t)m.position);
     uint32_t temp = *((uint32_t *)(&m) + 1);
@@ -50,23 +50,6 @@ static MAT::Mutation load_mutation_from_protobuf(
     return m;
 }
 
-void dump_to_protobuf(const MAT::Mutations_Collection &to_dump,
-                      Mutation_Detailed::mutation_list *out) {
-    for (const MAT::Mutation &m : to_dump.mutations) {
-        auto t = out->add_mutation();
-        set_protobuf(m, t);
-    }
-}
-void load_from_protobuf(MAT::Mutations_Collection &to_load,
-                        const Mutation_Detailed::mutation_list *in) {
-    std::vector<MAT::Mutation> &mutations = to_load.mutations;
-    mutations.clear();
-    auto mut_count = in->mutation_size();
-    mutations.reserve(mut_count);
-    for (int i = 0; i < mut_count; i++) {
-        mutations.push_back(load_mutation_from_protobuf(in->mutation(i)));
-    }
-}
 u_int64_t save_meta(const MAT::Tree &tree, u_int64_t root_offset,
                     u_int64_t root_length, std::ofstream &outfile) {
     Mutation_Detailed::meta meta;
@@ -79,21 +62,27 @@ u_int64_t save_meta(const MAT::Tree &tree, u_int64_t root_offset,
     return meta_offset;
 }
 
-static std::pair<u_int64_t, u_int64_t> write_subtree(MAT::Node *root,
+static std::pair<u_int64_t, u_int64_t> write_subtree(MAT::Node *root,const MAT::Tree& tree,
                                                      std::ofstream &outfile) {
     std::vector<u_int64_t> children_offset;
     std::vector<u_int64_t> children_length;
     Mutation_Detailed::node this_node;
     for (auto child : root->children) {
-        auto temp = write_subtree(child, outfile);
+        auto temp = write_subtree(child, tree,outfile);
         this_node.add_children_offsets(temp.first);
         this_node.add_children_lengths(temp.second);
     }
     this_node.set_identifier(root->identifier);
-    Mutation_Detailed::mutation_list *temp =
-        new Mutation_Detailed::mutation_list;
-    dump_to_protobuf(root->mutations, temp);
-    this_node.set_allocated_node_mutations(temp);
+    for(const auto& mut:root->mutations){
+        auto serialized_mut=this_node.add_node_mutations();
+        serialize_mutation(mut, serialized_mut);
+    }
+    auto condensed_node_iter=tree.condensed_nodes.find(root->identifier);
+    if(condensed_node_iter!=tree.condensed_nodes.end()){
+        for(const auto& child_id:condensed_node_iter->second){
+            this_node.add_condensed_nodes(child_id);
+        }
+    }
     u_int64_t start = outfile.tellp();
     this_node.SerializeToOstream(&outfile);
     u_int64_t end = outfile.tellp();
@@ -104,7 +93,7 @@ void Mutation_Annotated_Tree::Tree::save_detailed_mutations(
     const std::string &path) const {
     std::ofstream outfile(path, std::ios::out | std::ios::binary);
     outfile.seekp(8, std::ios::cur);
-    auto ret = write_subtree(this->root, outfile);
+    auto ret = write_subtree(this->root,*this, outfile);
     u_int64_t meta_offset = save_meta(*this, ret.first, ret.second, outfile);
     outfile.seekp(0, std::ios::beg);
     outfile.write((char *)&meta_offset, 8);
@@ -124,10 +113,11 @@ struct Load_Subtree_pararllel : public tbb::task {
     int64_t start_offset;
     int length;
     MAT::Node *&out;
+    MAT::Tree::condensed_node_t& condensed_nodes;
     Load_Subtree_pararllel(MAT::Node *parent, const uint8_t *file_start,
-                           int64_t start_offset, int length, MAT::Node *&out)
+                           int64_t start_offset, int length, MAT::Node *&out,MAT::Tree::condensed_node_t& condensed_nodes)
         : parent(parent), file_start(file_start), start_offset(start_offset),
-          length(length), out(out) {}
+          length(length), out(out),condensed_nodes(condensed_nodes) {}
     tbb::task *execute() override {
         out = new MAT::Node();
         out->parent = parent;
@@ -136,7 +126,20 @@ struct Load_Subtree_pararllel : public tbb::task {
         Mutation_Detailed::node node;
         node.ParseFromCodedStream(&inputi);
         out->identifier = node.identifier();
-        load_from_protobuf(out->mutations, &node.node_mutations());
+        auto mut_size=node.node_mutations_size();
+        out->mutations.reserve(mut_size);
+        for (int i=0; i<mut_size; i++) {
+            out->mutations.push_back(load_mutation_from_protobuf(node.node_mutations(i)));
+        }
+        auto condensed_node_size=node.condensed_nodes_size();
+        if (condensed_node_size) {
+            std::vector<std::string> this_node_condensed;
+            this_node_condensed.reserve(condensed_node_size);
+            for (int i=0; i<condensed_node_size; i++) {
+                this_node_condensed.push_back(node.condensed_nodes(i));
+            }
+            condensed_nodes.emplace(out->identifier,std::move(this_node_condensed));
+        }
         size_t child_size = node.children_offsets_size();
         out->children = std::vector<MAT::Node *>(child_size);
         tbb::empty_task* empty=new(allocate_continuation()) tbb::empty_task();
@@ -145,29 +148,11 @@ struct Load_Subtree_pararllel : public tbb::task {
             empty->spawn(*new (
                 empty->allocate_child()) Load_Subtree_pararllel{
                 out, file_start, node.children_offsets(child_idx),
-                node.children_lengths(child_idx), out->children[child_idx]});
+                node.children_lengths(child_idx), out->children[child_idx],condensed_nodes});
         }
         return child_size?nullptr:empty;
     }
 };
-static void load_subtree(MAT::Node *parent, const uint8_t *file_start,
-                         int start_offset, int length, MAT::Node *&out) {
-    out = new MAT::Node();
-    out->parent = out;
-    google::protobuf::io::CodedInputStream inputi(file_start + start_offset,
-                                                  length);
-    Mutation_Detailed::node node;
-    node.ParseFromCodedStream(&inputi);
-    out->identifier = node.identifier();
-    load_from_protobuf(out->mutations, &node.node_mutations());
-    size_t child_size = node.children_offsets_size();
-    out->children = std::vector<MAT::Node *>(child_size);
-    for (size_t child_idx = 0; child_idx < child_size; child_idx++) {
-        load_subtree(out, file_start, node.children_offsets(child_idx),
-                     node.children_lengths(child_idx),
-                     out->children[child_idx]);
-    }
-}
 void Mutation_Annotated_Tree::Tree::load_detatiled_mutations(
     const std::string &path) {
     int fd = open(path.c_str(), O_RDONLY);
@@ -179,7 +164,7 @@ void Mutation_Annotated_Tree::Tree::load_detatiled_mutations(
     auto temp =
         load_meta(this, (uint8_t *)file + meta_offset, file_size - meta_offset);
     //load_subtree(nullptr, (uint8_t *)file, temp.first, temp.second, this->root);
-    tbb::task::spawn_root_and_wait(*new(tbb::task::allocate_root()) Load_Subtree_pararllel(nullptr, (uint8_t *)file, temp.first, temp.second, this->root));
+    tbb::task::spawn_root_and_wait(*new(tbb::task::allocate_root()) Load_Subtree_pararllel(nullptr, (uint8_t *)file, temp.first, temp.second, this->root,this->condensed_nodes));
     std::vector<MAT::Node*> dfs_nodes=depth_first_expansion();
     for (auto node : dfs_nodes) {
         all_nodes.emplace(node->identifier,node);

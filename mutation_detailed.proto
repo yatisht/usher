@@ -3,19 +3,15 @@ package Mutation_Detailed;
 
 message detailed_mutation {
     int32 position = 1;
-    int32 other_fields = 2;
+    fixed32 other_fields = 2;
 }
-
-message mutation_list {
-    repeated detailed_mutation mutation = 1;
-}
-
 
 message node {
-    mutation_list node_mutations = 1;
-    string identifier = 2; 
+    repeated detailed_mutation node_mutations = 1;
+    string identifier = 2;
     repeated int64 children_offsets =3;
     repeated int32 children_lengths =4;
+    repeated string condensed_nodes =5;
 }
 
 message meta {

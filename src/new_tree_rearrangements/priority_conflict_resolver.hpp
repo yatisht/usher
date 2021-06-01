@@ -17,7 +17,7 @@ struct Conflict_Set{
     Conflict_Set():parsimony_score_change(0){}
 };
 typedef std::vector<Conflict_Set> Cross_t;
-typedef tbb::concurrent_vector<std::pair<std::string,std::vector<std::string>>> Deferred_Move_t;
+typedef tbb::concurrent_vector<std::pair<std::string,std::string>> Deferred_Move_t;
 struct Conflict_Resolver{
     Cross_t potential_crosses;
     //int& nodes_inside;

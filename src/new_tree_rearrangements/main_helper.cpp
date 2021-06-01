@@ -3,6 +3,10 @@
 #include "Fitch_Sankoff.hpp"
 #include "src/new_tree_rearrangements/Twice_Bloom_Filter.hpp"
 #include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
+#include <cstdio>
+#include <tbb/blocked_range.h>
+#include <tbb/parallel_for.h>
+#include <unordered_set>
 namespace MAT=Mutation_Annotated_Tree;
 void add_root(MAT::Tree *tree) {
     MAT::Node *old_root = tree->root;
@@ -50,23 +54,71 @@ static void find_nodes_with_recurrent_mutations(
         }
     }
 }
- void
+static bool check_common(MAT::Node* to_check,const std::unordered_set<int>& pos){
+    for(const auto& mut:to_check->mutations){
+        if (pos.count(mut.get_position())) {
+            return true;
+        }
+    }
+    return false;
+}
+static void check_changed_neighbor(int radius, MAT::Node* root, MAT::Node* exclude,bool& found,bool is_first,const std::unordered_set<int>& pos){
+    if ((root->changed||is_first)&&check_common(root, pos)) {
+        found=true;
+        return;
+    }
+    if (!radius||found) {
+        return;
+    }
+    if (root->parent&&root->parent!=exclude) {
+        check_changed_neighbor(radius-1, root->parent, root, found,is_first,pos);
+    }
+    for(auto node:root->children){
+        if (found) {
+            return;
+        }
+        if(node!=exclude){
+            check_changed_neighbor(radius-1, node, root, found,is_first,pos);
+        }
+    }
+}
+void
 find_nodes_to_move(const std::vector<MAT::Node *> &bfs_ordered_nodes,
-                   tbb::concurrent_vector<MAT::Node*> &output) {
+                   tbb::concurrent_vector<MAT::Node*> &output,bool is_first,int radius) {
     std::vector<MAT::Node *> nodes_with_recurrent_mutations;
     find_nodes_with_recurrent_mutations(bfs_ordered_nodes,
                                         nodes_with_recurrent_mutations);
 
     std::unordered_set<size_t> pushed_nodes;
+    pushed_nodes.reserve(nodes_with_recurrent_mutations.size()*4);
+    std::vector<MAT::Node*> first_pass_nodes;
+    first_pass_nodes.reserve(nodes_with_recurrent_mutations.size()*2);
     for (MAT::Node *this_node : nodes_with_recurrent_mutations) {
         while (this_node->parent) {
             auto result = pushed_nodes.insert(this_node->bfs_index);
             if (result.second) {
-                output.push_back(this_node);
+                first_pass_nodes.push_back(this_node);
                 this_node = this_node->parent;
             } else {
                 break;
             }
         }
     }
+    fprintf(stderr, "First pass nodes: %zu \n",first_pass_nodes.size());
+    output.reserve(first_pass_nodes.size());
+    tbb::parallel_for(tbb::blocked_range<size_t>(0,first_pass_nodes.size()),[&first_pass_nodes,is_first,radius,&output](const tbb::blocked_range<size_t>& r){
+        for (size_t idx=r.begin(); idx<r.end(); idx++) {
+            auto node=first_pass_nodes[idx];
+            std::unordered_set<int> pos;
+            pos.reserve(node->mutations.size()*4);
+            for(const auto& mut:node->mutations){
+                pos.insert(mut.get_position());
+            }
+            bool found;
+            check_changed_neighbor(radius, node, nullptr, found, is_first, pos);
+            if (found) {
+                output.push_back(node);
+            }
+        }
+    });
 }

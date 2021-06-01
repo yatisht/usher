@@ -428,7 +428,9 @@ void move_node(MAT::Node *src, MAT::Node *dst,
         std::find(src_parent_children.begin(), src_parent_children.end(), src);
     src_parent_children.erase(iter);
     nodes_to_clean.push_back(src);
+    src->changed=true;
     nodes_to_clean.push_back(dst);
+    dst->changed=true;
     MAT::Node *dst_altered = dst;
     /*if (altered_node.back() == dst) {
         assert(dst_to_root_path.empty());
@@ -443,7 +445,9 @@ void move_node(MAT::Node *src, MAT::Node *dst,
     }
     altered_node.push_back(
         clean_up_after_remove(src_parent, deleted, nodes_to_clean,tree));
+    altered_node.back()->changed=true;
     altered_node.push_back(dst_altered);
+    altered_node.back()->changed=true;
 #ifdef CHECK_PRIMARY_MOVE
     MAT::Mutations_Collection after_move;
     get_mutation_set_from_root(src, after_move);

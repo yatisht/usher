@@ -95,9 +95,11 @@ int main(int argc, char **argv) {
     MAT::Node* LCA=get_LCA(src, dst);
     individual_move(src,dst,LCA);*/
     FILE* log=fopen("try_move","w");
+    bool isfirst=true;
     while(stalled<=1){
     bfs_ordered_nodes = t.breadth_first_expansion();
-    find_nodes_to_move(bfs_ordered_nodes, nodes_to_search);
+    find_nodes_to_move(bfs_ordered_nodes, nodes_to_search,isfirst,radius);
+    isfirst=false;
     while (!nodes_to_search.empty()) {
         bfs_ordered_nodes = t.breadth_first_expansion();
         new_score =

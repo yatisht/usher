@@ -40,7 +40,9 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
     fprintf(stderr, "%zu nodes to search \n", nodes_to_search.size());
     fprintf(stderr, "Node size: %zu\n", bfs_ordered_nodes.size());
     fprintf(stderr, "Internal node size %zu\n", t.curr_internal_node);
-
+    for(auto node:bfs_ordered_nodes){
+        node->changed=false;
+    }
     tbb::concurrent_vector<MAT::Node *> deferred_nodes;
     Deferred_Move_t deferred_moves;
     Conflict_Resolver resolver(bfs_ordered_nodes.size(),deferred_moves
@@ -80,14 +82,12 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
         tbb::parallel_for(tbb::blocked_range<size_t>(0,deferred_moves.size()),[&deferred_moves,&resolver,&t](const tbb::blocked_range<size_t>& r){
             for (size_t i=r.begin(); i<r.end(); i++) {
                 MAT::Node* src=t.get_node(deferred_moves[i].first);
-                if (src) {
+                MAT::Node* dst=t.get_node(deferred_moves[i].second);
+                if (src&&dst) {
                     output_t out;
-                    for(auto dst_id:deferred_moves[i].second){
-                        auto dst=t.get_node(dst_id);
-                        if (dst&&check_not_ancestor(dst, src)) {
+                        if (check_not_ancestor(dst, src)) {
                             individual_move(src,dst,get_LCA(src, dst),out);
                         }
-                    }
                     if (!out.moves.empty()) {
                         resolver(out.moves);
                     }
@@ -128,6 +128,6 @@ void save_final_tree(MAT::Tree &t, Original_State_t& origin_states,
                           }
                       });
     fix_condensed_nodes(&t);
-    fprintf(stderr, "%d condensed_nodes",t.condensed_nodes.size());
+    fprintf(stderr, "%zu condensed_nodes",t.condensed_nodes.size());
     Mutation_Annotated_Tree::save_mutation_annotated_tree(t, output_path);
 }

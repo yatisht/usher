@@ -309,5 +309,8 @@ void reassign_backward_pass(
                               new_tree
 #endif
         );
+        if (changed) {
+            heap->altered_node->changed=true;
+        }
     } while (heap.next(changed));
 }

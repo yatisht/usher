@@ -86,12 +86,10 @@ char Conflict_Resolver::operator()(std::vector<Profitable_Moves_ptr_t>& candidat
     }
 
     if(!selected_move&&(!candidate_move.empty())){
-        std::vector<std::string> dsts;
-        dsts.reserve(candidate_move.size());
+        deferred_moves.reserve(deferred_moves.size()+candidate_move.size());
         for (Profitable_Moves_ptr_t move : candidate_move) {
-            dsts.push_back(move->get_dst()->identifier);
+            deferred_moves.emplace_back(move->src->identifier,move->get_dst()->identifier);
         }
-        deferred_moves.emplace_back(candidate_move[0]->src->identifier,dsts);
     }
     for (Profitable_Moves_ptr_t move : candidate_move) {
         if (move!=selected_move) {
