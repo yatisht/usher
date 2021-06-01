@@ -4,6 +4,7 @@
 #include "tbb/flow_graph.h"
 #include <cctype>
 #include <cstdio>
+#include <cstdlib>
 #include <string>
 #include <vector>
 #include "import_vcf.hpp"
@@ -156,14 +157,14 @@ struct Assign_State{
         delete vcf_line;
     }
 };
-
+#define CHUNK_SIZ 10
 void VCF_input(const char * name,MAT::Tree& tree){
     std::vector<std::string> fields;
     gzFile fd=gzopen(name, "r");
     gzbuffer(fd,ZLIB_BUFSIZ);
     unsigned int header_size=read_header(&fd, fields);
     tbb::flow::graph input_graph;
-    decompressor_node_t decompressor(input_graph,1,Decompressor{&fd,50*header_size,2*header_size});
+    decompressor_node_t decompressor(input_graph,1,Decompressor{&fd,CHUNK_SIZ*header_size,2*header_size});
     line_parser_t parser(input_graph,tbb::flow::unlimited,line_parser{fields});
     tbb::flow::make_edge(tbb::flow::output_port<1>(parser),decompressor);
     tbb::flow::make_edge(tbb::flow::output_port<0>(decompressor),parser);
@@ -173,7 +174,12 @@ void VCF_input(const char * name,MAT::Tree& tree){
     tbb::flow::function_node<Parsed_VCF_Line*> assign_state(input_graph,tbb::flow::unlimited,Assign_State{bfs_ordered_nodes,output});
     tbb::flow::make_edge(tbb::flow::output_port<0>(parser),assign_state);
     for (int i=0; i<10; i++) {
-        decompressor.try_put((char*)malloc(52*header_size));
+        auto chunk=(char*)malloc((CHUNK_SIZ+2)*header_size);
+        if (!chunk) {
+            fputs("VCF parser chunk size too large \n", stderr);
+            exit(1);
+        }
+        decompressor.try_put(chunk);
     }
     input_graph.wait_for_all();
 
@@ -184,7 +190,7 @@ void VCF_input(const char * name,MAT::Tree& tree){
             for (size_t i = r.begin(); i < r.end(); i++) {
                 const auto &to_refill = output[i];
                 bfs_ordered_nodes[i]->refill(to_refill.begin(), to_refill.end(),
-                                             to_refill.size(),false);
+                                             to_refill.size());
             }
         },
     ap);
