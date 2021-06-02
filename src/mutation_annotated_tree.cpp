@@ -853,6 +853,16 @@ std::vector<Mutation_Annotated_Tree::Node*> Mutation_Annotated_Tree::Tree::rsear
     return ancestors;
 }
 
+std::string Mutation_Annotated_Tree::Tree::get_clade_assignment (const Node* n, int clade_id, bool include_self) const {
+    assert ((size_t)clade_id < get_num_annotations());
+    for (auto anc: rsearch(n->identifier, include_self)) {
+        if (anc->clade_annotations[clade_id] != "") {
+            return anc->clade_annotations[clade_id];
+        }
+    }
+    return "UNDEFINED";
+}
+
 void Mutation_Annotated_Tree::Tree::remove_node_helper (std::string nid, bool move_level) { 
     auto it = all_nodes.find(nid);
     if (it == all_nodes.end()) {

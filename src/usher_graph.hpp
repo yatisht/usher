@@ -49,6 +49,9 @@ struct Missing_Sample {
     {
             return (*this).num_ambiguous < other.num_ambiguous;
     }
+
+    std::vector<std::string> best_clade_assignment;
+    std::vector<std::vector<std::string>> clade_assignments;
 };
 
 struct mapper_input {
