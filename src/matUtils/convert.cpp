@@ -47,7 +47,7 @@ int8_t *new_gt_array(int size, int8_t ref) {
 }
 
 uint r_add_genotypes(MAT::Node *node,
-                     std::unordered_map<std::string, std::vector<int8_t *>> &chrom_pos_genotypes, 
+                     std::unordered_map<std::string, std::vector<int8_t *>> &chrom_pos_genotypes,
                      std::unordered_map<std::string, std::vector<int8_t>> &chrom_pos_ref,
                      uint leaf_count, uint leaf_ix, std::vector<struct MAT::Mutation *> &mut_stack) {
     // Traverse tree, adding leaf/sample genotypes for mutations annotated on path from root to node
@@ -274,7 +274,7 @@ void make_vcf (MAT::Tree T, std::string vcf_filepath, bool no_genotypes) {
         boost::iostreams::filtering_streambuf<boost::iostreams::output> outbuf;
         if (vcf_filepath.find(".gz\0") != std::string::npos) {
             outbuf.push(boost::iostreams::gzip_compressor());
-        } 
+        }
         outbuf.push(outfile);
         std::ostream vcf_file(&outbuf);
         //FILE *vcf_file = fopen(vcf_filepath.c_str(), "w");
@@ -304,7 +304,7 @@ std::string write_mutations(MAT::Node *N) { // writes muts as a list, e.g. "A234
     return muts ;
 }
 
-//the below is more formal JSON parsing code. 
+//the below is more formal JSON parsing code.
 //the goal is to load a nextstrain JSON into a MAT structure
 //which is compatible with various downstream tools.
 
@@ -312,7 +312,7 @@ void create_node_from_json(MAT::Tree* T, json nodeinfo, MAT::Node* parent = NULL
     //this function is recursive.
     //generate and save a node from the parent first
     //then for each child, run this function on them, with this node as the parent.
-    if (nodeinfo.contains("branch_attrs")) {    
+    if (nodeinfo.contains("branch_attrs")) {
         std::string nid;
         if (nodeinfo.contains("name")) {
             nid = nodeinfo["name"];
@@ -322,7 +322,7 @@ void create_node_from_json(MAT::Tree* T, json nodeinfo, MAT::Node* parent = NULL
         }
         MAT::Node* n;
         if (parent != NULL) {
-            n = T->create_node(nid, parent);    
+            n = T->create_node(nid, parent);
         } else {
             n = T->create_node(nid, 0.0, 1);
         }
@@ -341,13 +341,13 @@ void create_node_from_json(MAT::Tree* T, json nodeinfo, MAT::Node* parent = NULL
                 int8_t nucid;
                 if (static_cast<char>(m[0]) == '-') {
                     //the MAT .pb format does NOT support ambiguous parent bases.
-                    //skip these. 
+                    //skip these.
                     //record the number of entries skipped for warning printouts.
                     (*warning_counter)++;
                     continue;
                 } else {
                     nucid = MAT::get_nuc_id(m[0]);
-                    mut.par_nuc = nucid; 
+                    mut.par_nuc = nucid;
                     mut.ref_nuc = nucid; //JSON does not track the original reference vs the parent. We're going to treat the parent as reference.
                 }
                 mut.position = std::stoi(m.substr(1, m.size()-1));
@@ -373,7 +373,7 @@ void create_node_from_json(MAT::Tree* T, json nodeinfo, MAT::Node* parent = NULL
         }
     } else {
         //there are sometimes "nodes" in the json
-        //which do not represent actual samples, or anything, and do not have 
+        //which do not represent actual samples, or anything, and do not have
         //branch_attrs. in these cases, we want to continue with their children
         //treating the parent of this pseudo-node as their parent.
         if (nodeinfo.contains("children")) {
@@ -415,8 +415,8 @@ json get_json_entry(MAT::Node* n, std::vector<std::map<std::string,std::map<std:
         }
     }
     std::map<std::string,std::vector<std::string>> nmap {{"nuc", mutids},};
-    //mutation information is encoded twice in the output we're using. 
-    //don't ask me why. 
+    //mutation information is encoded twice in the output we're using.
+    //don't ask me why.
     std::map<std::string,std::string> mutv {{"nuc mutations", muts}, {"sample",n->identifier}};
     sj["branch_attrs"] = {{"labels",mutv}, {"mutations",nmap}};
     //note: the below is pretty much sars-cov-2 specific. but so is all json-related things.
@@ -454,7 +454,7 @@ json get_json_entry(MAT::Node* n, std::vector<std::map<std::string,std::map<std:
     for (const auto& cmet: *catmeta) {
         for (const auto& cmi: cmet) {
             if (cmi.second.find(n->identifier) != cmi.second.end()) {
-                //store the metadata on both the branch and the tip for now. 
+                //store the metadata on both the branch and the tip for now.
                 sj["branch_attrs"]["labels"][cmi.first] = cmi.second.at(n->identifier);
                 sj["node_attrs"][cmi.first]["value"] = cmi.second.at(n->identifier);
             }
@@ -495,15 +495,15 @@ void write_json_from_mat(MAT::Tree* T, std::string output_filename, std::vector<
                 if (cmi.first.find("continuous") != std::string::npos) {
                     //if the substring "continuous" is found in the metadata column name, attempt to interpet the values accordingly.
                     std::map<std::string,std::string> mmap {{"key",cmi.first},{"title",cmi.first},{"type","continuous"}};
-                    nj["meta"]["colorings"].push_back(mmap);                      
+                    nj["meta"]["colorings"].push_back(mmap);
                 } else {
                     std::map<std::string,std::string> mmap {{"key",cmi.first},{"title",cmi.first},{"type","categorical"}};
-                    nj["meta"]["colorings"].push_back(mmap);         
-                }   
+                    nj["meta"]["colorings"].push_back(mmap);
+                }
             }
         }
     }
-    //check whether each of the mat clade annotation fields are used by any sample. 
+    //check whether each of the mat clade annotation fields are used by any sample.
     bool uses_clade_0 = false;
     bool uses_clade_1 = false;
     for (auto n: T->depth_first_expansion()) {
@@ -554,78 +554,55 @@ void get_minimum_subtrees(MAT::Tree* T, std::vector<std::string> samples, size_t
         catmeta->emplace_back(csqm);
     }
     std::vector<size_t> displayed_samples (samples.size(), 0);
-    int num_subtrees = 1;
-    for (size_t i = 0; i < samples.size(); i++) {
-        if (displayed_samples[i] != 0) {
-            // fprintf(stderr, "%s is displayed in %ld, skipping\n", samples[i].c_str(), displayed_samples[i]);
-            continue;
-        }
-        Mutation_Annotated_Tree::Node* last_anc = T->get_node(samples[i]);
-        std::vector<std::string> leaves_to_keep;
-        for (auto anc: T->rsearch(samples[i], true)) {
-            size_t num_leaves = T->get_num_leaves(anc);
-            if (num_leaves <= nearest_subtree_size) {
-                last_anc = anc;
-                continue;
-            }
 
-            if (num_leaves > nearest_subtree_size) {
-                for (auto l: T->get_leaves(last_anc->identifier)) {
-                    leaves_to_keep.emplace_back(l->identifier);
-                }
+    /// set of all samples that have been seen
+    tbb::concurrent_unordered_map<std::string, int > samples_we_have_seen ;
 
-                std::vector<Mutation_Annotated_Tree::Node*> siblings;
-                for (auto child: anc->children) {
-                    if (child->identifier != last_anc->identifier) {
-                        siblings.emplace_back(child);
-                    }
-                }
+    /// record trees here
+    std::vector<std::vector<std::string> > subtree_sample_sets ;
 
-                for (size_t k=0; k<siblings.size(); k++) {
-                    for (auto l: T->get_leaves(siblings[k]->identifier)) {
-                        leaves_to_keep.emplace_back(l->identifier);
-                    }
-                }
-                leaves_to_keep.resize(nearest_subtree_size);
-            } else {
-                for (auto l: T->get_leaves(anc->identifier)) {
-                    leaves_to_keep.emplace_back(l->identifier);
-                }
-            }
-            auto new_T = Mutation_Annotated_Tree::get_subtree(*T, leaves_to_keep);
-            size_t count_displayed = 1;
-            displayed_samples[i] = num_subtrees;
-//            tbb::parallel_for (tbb::blocked_range<size_t>(i+1, samples.size(), 100),
-//                    [&](tbb::blocked_range<size_t> r) {
-//                    for (size_t j=r.begin(); j<r.end(); ++j){
-                        for (size_t j = i+1; j < samples.size(); j++) {
-                            if (displayed_samples[j] == 0) {
-                                if (new_T.get_node(samples[j]) != NULL) {
-                                    displayed_samples[j] = num_subtrees;
-                                    count_displayed++;
-                                }
-                            }
-                        }
-//                    }
-//                    });
-            //from here, this function diverges from the similar function in the MAT definition.
-            if (json_n != output_dir) {
-                std::string outf = json_n + "-subtree-" + std::to_string(num_subtrees) + ".json";
-                write_json_from_mat(&new_T, outf, catmeta);
-            }
-            if (newick_n != output_dir) {
-                std::string outf = newick_n + "-subtree-" + std::to_string(num_subtrees) + ".nw";
-                std::ofstream subtree_file(outf.c_str(), std::ofstream::out);
-                std::stringstream newick_ss;
-                write_newick_string(newick_ss, new_T, new_T.root, true, true, retain_original_branch_len);
-                subtree_file << newick_ss.rdbuf(); 
-                subtree_file.close();
-            }
-            ++num_subtrees;
-            fprintf(stderr, "Subtree %d identified, containing %ld samples\n", num_subtrees, count_displayed);
-            break;
-        }
-    }
+      for ( int i = 0 ; i < samples.size() ; i ++ ) {
+
+          auto check_sample = samples_we_have_seen.find( samples[i] ) ;
+          if ( check_sample != samples_we_have_seen.end() ) {
+              continue ;
+          }
+
+          /// get the nearby tree of size nearest_subtree_size
+          std::vector<std::string> leaves_to_keep = get_nearby( T, samples[i], nearest_subtree_size ) ;
+
+          /// record all samples seen
+          for ( int s = 0 ; s < leaves_to_keep.size() ; s ++ ) {
+              samples_we_have_seen.insert({leaves_to_keep[s],subtree_sample_sets.size()}) ;
+          }
+
+          /// record sample set
+          subtree_sample_sets.push_back( leaves_to_keep ) ;
+      }
+
+      tbb::parallel_for (tbb::blocked_range<size_t>(0, subtree_sample_sets.size()),
+                  [&](tbb::blocked_range<size_t> r) {
+              for (size_t i = r.begin(); i < r.end() ; i++) {
+
+          auto new_T = Mutation_Annotated_Tree::get_subtree(*T, subtree_sample_sets[i]);
+
+          //from here, this function diverges from the similar function in the MAT definition.
+          if (json_n != output_dir) {
+              std::string outf = json_n + "-subtree-" + std::to_string(i) + ".json";
+              write_json_from_mat(&new_T, outf, catmeta);
+          }
+          if (newick_n != output_dir) {
+              std::string outf = newick_n + "-subtree-" + std::to_string(i) + ".nw";
+              std::ofstream subtree_file(outf.c_str(), std::ofstream::out);
+              std::stringstream newick_ss;
+              write_newick_string(newick_ss, new_T, new_T.root, true, true, retain_original_branch_len);
+              subtree_file << newick_ss.rdbuf();
+              subtree_file.close();
+          }
+      }
+    /// end TBB loop
+    } ) ;
+
     std::ofstream tracker (output_dir + "subtree-assignments.tsv");
     tracker << "samples";
     if (json_n != output_dir) {
@@ -638,11 +615,11 @@ void get_minimum_subtrees(MAT::Tree* T, std::vector<std::string> samples, size_t
     for (size_t i = 0; i < samples.size(); i++) {
         tracker << samples[i];
         if (json_n != output_dir) {
-            std::string outf = json_n + "-subtree-" + std::to_string(displayed_samples[i]) + ".json";
-            tracker << "\t" << outf;            
+            std::string outf = json_n + "-subtree-" + std::to_string(samples_we_have_seen[samples[i]]) + ".json";
+            tracker << "\t" << outf;
         }
         if (newick_n != output_dir) {
-            std::string outf = newick_n + "-subtree-" + std::to_string(displayed_samples[i]) + ".nw";
+            std::string outf = newick_n + "-subtree-" + std::to_string(samples_we_have_seen[samples[i]]) + ".nw";
             tracker << "\t" << outf;
         }
         tracker << "\n";
