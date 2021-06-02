@@ -214,6 +214,68 @@ int main(int argc, char** argv) {
         }
         size_t num_mutations = pruned_sample.sample_mutations.size();
 
+        tbb::mutex tbb_lock;
+        size_t total_nodes = bfs.size();
+
+        std::vector<std::vector<MAT::Mutation>> node_excess_mutations(total_nodes);
+        std::vector<std::vector<MAT::Mutation>> imputed_mutations(total_nodes);
+
+        std::vector<int> node_set_difference(total_nodes);
+
+        size_t best_node_num_leaves = 0;
+        int best_set_difference = 1e9;
+
+        std::vector<bool> node_has_unique(total_nodes);
+        size_t best_j = 0;
+        bool best_node_has_unique = false;
+
+        size_t best_distance = 1e9;
+
+        std::vector<size_t> best_j_vec;
+
+        size_t num_best = 1;
+        MAT::Node* best_node = T.root;
+        best_j_vec.emplace_back(0);
+
+        std::vector<size_t> node_distance(total_nodes);
+
+        tbb::parallel_for( tbb::blocked_range<size_t>(0, total_nodes),
+                [&](tbb::blocked_range<size_t> r) {
+                for (size_t k=r.begin(); k<r.end(); ++k) {
+                if (T.get_num_leaves(bfs[k]) < num_descendants) {
+                continue;
+                }
+
+                node_has_unique[k] = false;
+
+                mapper2_input inp;
+                inp.T = &T;
+                inp.node = bfs[k];
+                inp.missing_sample_mutations = &pruned_sample.sample_mutations;
+                inp.excess_mutations = &node_excess_mutations[k];
+                inp.imputed_mutations = &imputed_mutations[k];
+                inp.best_node_num_leaves = &best_node_num_leaves;
+                inp.best_set_difference = &best_set_difference;
+                inp.best_node = &best_node;
+                inp.best_j =  &best_j;
+                inp.num_best = &num_best;
+                inp.j = k;
+                inp.has_unique = &best_node_has_unique;
+
+                inp.set_difference = &node_set_difference[k];
+
+                inp.distance = node_distance[k];
+                inp.best_distance = &best_distance;
+
+                inp.best_j_vec = &best_j_vec;
+                inp.node_has_unique = &(node_has_unique);
+
+                mapper2_body(inp, true);
+
+                }
+        }, ap);
+
+
         bool has_recomb = false;
         for (size_t i = 0; i<num_mutations; i++) {
             for (size_t j=i; j<num_mutations; j++) {
@@ -248,131 +310,84 @@ int main(int argc, char** argv) {
 
                 donor_nodes.clear();
                 acceptor_nodes.clear();
-
-                tbb::mutex tbb_lock;
-
                 // find acceptor(s) 
                 {
-                    size_t total_nodes = bfs.size();
-
-                    std::vector<std::vector<MAT::Mutation>> node_excess_mutations(total_nodes);
-                    std::vector<std::vector<MAT::Mutation>> imputed_mutations(total_nodes);
-
-                    std::vector<int> node_set_difference(total_nodes);
-
-                    size_t best_node_num_leaves = 0;
-                    int best_set_difference = 1e9;
-
-                    std::vector<bool> node_has_unique(total_nodes);
-                    size_t best_j = 0;
-                    bool best_node_has_unique = false;
-
-                    size_t best_distance = 1e9;
-
-                    std::vector<size_t> best_j_vec;
-
-                    size_t num_best = 1;
-                    MAT::Node* best_node = T.root;
-                    best_j_vec.emplace_back(0);
-
-                    std::vector<size_t> node_distance(total_nodes);
-
                     tbb::parallel_for( tbb::blocked_range<size_t>(0, total_nodes),
                             [&](tbb::blocked_range<size_t> r) {
-                            for (size_t k=r.begin(); k<r.end(); ++k) {
-                               if (T.get_num_leaves(bfs[k]) < num_descendants) {
-                                   continue;
-                               }
                                
-                               node_has_unique[k] = false;
+                            size_t num_mut = 0;
 
-                               mapper2_input inp;
-                               inp.T = &T;
-                               inp.node = bfs[k];
-                               inp.missing_sample_mutations = &acceptor.sample_mutations;
-                               inp.excess_mutations = &node_excess_mutations[k];
-                               inp.imputed_mutations = &imputed_mutations[k];
-                               inp.best_node_num_leaves = &best_node_num_leaves;
-                               inp.best_set_difference = &best_set_difference;
-                               inp.best_node = &best_node;
-                               inp.best_j =  &best_j;
-                               inp.num_best = &num_best;
-                               inp.j = k;
-                               inp.has_unique = &best_node_has_unique;
-
-                               inp.set_difference = &node_set_difference[k];
-
-                               inp.distance = node_distance[k];
-                               inp.best_distance = &best_distance;
-
-                               inp.best_j_vec = &best_j_vec;
-                               inp.node_has_unique = &(node_has_unique);
-
-                               mapper2_body(inp, true);
-
-                               // Is placement as sibling
-                               if (bfs[k]->is_leaf() || node_has_unique[k]) {
-                                   std::vector<MAT::Mutation> l2_mut;
-
-                                   // Compute l2_mut
-                                   for (auto m1: node_excess_mutations[k]) {
-                                       bool found = false;
-                                       for (auto m2: bfs[k]->mutations) {
-                                           if (m1.is_masked()) {
-                                               break;
-                                           }
-                                           if (m1.position == m2.position) {
-                                               if (m1.mut_nuc == m2.mut_nuc) {
-                                                   found = true;
-                                                   break;
-                                               }
-                                           }
-                                       }
-                                       if (!found) {
-                                           if ((m1.position <= start_range_low) || (m1.position > end_range_high)) {
-                                               l2_mut.emplace_back(m1.copy());
-                                           }
-                                       }
-                                   }
-
-                                   if (l2_mut.size() <= (size_t) orig_parsimony) {
-                                       tbb_lock.lock();
-                                       acceptor_nodes.emplace_back(Recomb_Node(bfs[k]->identifier, l2_mut.size()));
-                                       tbb_lock.unlock();
-                                   }
-                               }
-                               // Else placement as child
-                               else {
-                                   std::vector<MAT::Mutation> node_mut;
-
-                                   for (auto m1: node_excess_mutations[k]) {
-                                       bool found = false;
-                                       for (auto m2: bfs[k]->mutations) {
-                                           if (m1.is_masked()) {
-                                               break;
-                                           }
-                                           if (m1.position == m2.position) {
-                                               if (m1.mut_nuc == m2.mut_nuc) {
-                                                   found = true;
-                                                   break;
-                                               }
-                                           }
-                                       }
-                                       if (!found) {
-                                           if ((m1.position < start_range_low) || (m1.position > end_range_high)) {
-                                               node_mut.emplace_back(m1.copy());
-                                           }
-                                       }
-                                   }
-
-                                   if (node_mut.size() <= (size_t) orig_parsimony) {
-                                       tbb_lock.lock();
-                                       acceptor_nodes.emplace_back(Recomb_Node(bfs[k]->identifier, node_mut.size()));
-                                       tbb_lock.unlock();
-                                   }
-                               }
+                            for (size_t k=r.begin(); k<r.end(); ++k) {
+                            if (T.get_num_leaves(bfs[k]) < num_descendants) {
+                            continue;
                             }
-                        }, ap);
+                            // Is placement as sibling
+                            if (bfs[k]->is_leaf() || node_has_unique[k]) {
+                            std::vector<MAT::Mutation> l2_mut;
+
+                            // Compute l2_mut
+                            for (auto m1: node_excess_mutations[k]) {
+                            bool found = false;
+                            for (auto m2: bfs[k]->mutations) {
+                            if (m1.is_masked()) {
+                            break;
+                            }
+                            if (m1.position == m2.position) {
+                            if (m1.mut_nuc == m2.mut_nuc) {
+                            found = true;
+                            break;
+                            }
+                            }
+                            }
+                            if (!found) {
+                                if ((m1.position <= start_range_low) || (m1.position > end_range_high)) {
+                                    num_mut++;
+                                }
+                            }
+                            if (num_mut + parsimony_improvement > (size_t) orig_parsimony) {
+                                break;
+                            }
+                            }
+
+                            if (num_mut + parsimony_improvement <= (size_t) orig_parsimony) {
+                                tbb_lock.lock();
+                                acceptor_nodes.emplace_back(Recomb_Node(bfs[k]->identifier, num_mut));
+                                tbb_lock.unlock();
+                            }
+                            }
+                            // Else placement as child
+                            else {
+                                for (auto m1: node_excess_mutations[k]) {
+                                    bool found = false;
+                                    for (auto m2: bfs[k]->mutations) {
+                                        if (m1.is_masked()) {
+                                            break;
+                                        }
+                                        if (m1.position == m2.position) {
+                                            if (m1.mut_nuc == m2.mut_nuc) {
+                                                found = true;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    if (!found) {
+                                        if ((m1.position < start_range_low) || (m1.position > end_range_high)) {
+                                            num_mut++;
+                                        }
+                                    }
+                                    if (num_mut + parsimony_improvement > (size_t) orig_parsimony) {
+                                        break;
+                                    }
+                                }
+
+                                if (num_mut + parsimony_improvement <= (size_t) orig_parsimony) {
+                                    tbb_lock.lock();
+                                    acceptor_nodes.emplace_back(Recomb_Node(bfs[k]->identifier, num_mut));
+                                    tbb_lock.unlock();
+                                }
+                            }
+                            }
+                            }, ap);
                 }
 
                 if (acceptor_nodes.size() == 0) {
@@ -381,30 +396,6 @@ int main(int argc, char** argv) {
 
                 // find donor(s) 
                 {
-                    size_t total_nodes = bfs.size();
-
-                    std::vector<std::vector<MAT::Mutation>> node_excess_mutations(total_nodes);
-                    std::vector<std::vector<MAT::Mutation>> imputed_mutations(total_nodes);
-
-                    std::vector<int> node_set_difference(total_nodes);
-
-                    size_t best_node_num_leaves = 0;
-                    int best_set_difference = 1e9;
-
-                    std::vector<bool> node_has_unique(total_nodes);
-                    size_t best_j = 0;
-                    bool best_node_has_unique = false;
-
-                    size_t best_distance = 1e9;
-
-                    std::vector<size_t> best_j_vec;
-
-                    size_t num_best = 1;
-                    MAT::Node* best_node = T.root;
-                    best_j_vec.emplace_back(0);
-
-                    std::vector<size_t> node_distance(total_nodes);
-
                     tbb::parallel_for( tbb::blocked_range<size_t>(0, total_nodes),
                             [&](tbb::blocked_range<size_t> r) {
                             for (size_t k=r.begin(); k<r.end(); ++k) {
@@ -412,31 +403,7 @@ int main(int argc, char** argv) {
                                    continue;
                                }
                                
-                               node_has_unique[k] = false;
-
-                               mapper2_input inp;
-                               inp.T = &T;
-                               inp.node = bfs[k];
-                               inp.missing_sample_mutations = &donor.sample_mutations;
-                               inp.excess_mutations = &node_excess_mutations[k];
-                               inp.imputed_mutations = &imputed_mutations[k];
-                               inp.best_node_num_leaves = &best_node_num_leaves;
-                               inp.best_set_difference = &best_set_difference;
-                               inp.best_node = &best_node;
-                               inp.best_j =  &best_j;
-                               inp.num_best = &num_best;
-                               inp.j = k;
-                               inp.has_unique = &best_node_has_unique;
-
-                               inp.set_difference = &node_set_difference[k];
-
-                               inp.distance = node_distance[k];
-                               inp.best_distance = &best_distance;
-
-                               inp.best_j_vec = &best_j_vec;
-                               inp.node_has_unique = &(node_has_unique);
-
-                               mapper2_body(inp, true);
+                               size_t num_mut = 0;
 
                                // Is placement as sibling
                                if (bfs[k]->is_leaf() || node_has_unique[k]) {
@@ -458,21 +425,23 @@ int main(int argc, char** argv) {
                                        }
                                        if (!found) {
                                            if ((m1.position >= start_range_high) && (m1.position <= end_range_low)) {
-                                               l2_mut.emplace_back(m1.copy());
+                                               num_mut++;
                                            }
+                                       }
+                                       
+                                       if (num_mut + parsimony_improvement > (size_t) orig_parsimony) {
+                                           break;
                                        }
                                    }
 
-                                   if (l2_mut.size() <= (size_t) orig_parsimony) {
+                                   if (num_mut + parsimony_improvement <= (size_t) orig_parsimony) {
                                        tbb_lock.lock();
-                                       donor_nodes.emplace_back(Recomb_Node(bfs[k]->identifier, l2_mut.size()));
+                                       donor_nodes.emplace_back(Recomb_Node(bfs[k]->identifier, num_mut));
                                        tbb_lock.unlock();
                                    }
                                }
                                // Else placement as child
                                else {
-                                   std::vector<MAT::Mutation> node_mut;
-
                                    for (auto m1: node_excess_mutations[k]) {
                                        bool found = false;
                                        for (auto m2: bfs[k]->mutations) {
@@ -488,14 +457,17 @@ int main(int argc, char** argv) {
                                        }
                                        if (!found) {
                                            if ((m1.position >= start_range_high) && (m1.position <= end_range_low)) {
-                                               node_mut.emplace_back(m1.copy());
+                                               num_mut++;
                                            }
+                                       }
+                                       if (num_mut + parsimony_improvement > (size_t) orig_parsimony) {
+                                           break;
                                        }
                                    }
 
-                                   if (node_mut.size() <= (size_t) orig_parsimony) {
+                                   if (num_mut + parsimony_improvement <= (size_t) orig_parsimony) {
                                        tbb_lock.lock();
-                                       donor_nodes.emplace_back(Recomb_Node(bfs[k]->identifier, node_mut.size()));
+                                       donor_nodes.emplace_back(Recomb_Node(bfs[k]->identifier, num_mut));
                                        tbb_lock.unlock();
                                    }
                                }
@@ -513,7 +485,7 @@ int main(int argc, char** argv) {
                         // node total parsimony is less than the maximum allowed
                         if ((d.name!=a.name) && (d.name!=nid_to_consider) && (a.name!=nid_to_consider) && 
                                 (!T.is_ancestor(nid_to_consider,d.name)) && (!T.is_ancestor(nid_to_consider,a.name)) 
-                                && ((orig_parsimony-(d.parsimony+a.parsimony)) >= parsimony_improvement)) {
+                                && (orig_parsimony >= d.parsimony + a.parsimony + parsimony_improvement)) {
                             std::string end_range_high_str = (end_range_high == 1e9) ? "GENOME_SIZE" : std::to_string(end_range_high);
                             fprintf(recomb_file, "%s\t(%i,%i)\t(%i,%s)\t%s\t%s\t%i\n", nid_to_consider.c_str(), start_range_low, start_range_high,
                                     end_range_low, end_range_high_str.c_str(), d.name.c_str(), a.name.c_str(), d.parsimony+a.parsimony);
