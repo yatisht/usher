@@ -191,7 +191,7 @@ int main(int argc, char** argv) {
     fprintf(stderr, "Creating file %s to write recombination events\n", 
             recomb_filename.c_str());
     FILE* recomb_file = fopen(recomb_filename.c_str(), "w");
-    fprintf(recomb_file, "#recomb_node_id\tbreakpoint-1_interval\tbreakpoint-2_interval\tdonor_node_id\tacceptor_node_id\tparsimony\n");
+    fprintf(recomb_file, "#recomb_node_id\tbreakpoint-1_interval\tbreakpoint-2_interval\tdonor_node_id\tacceptor_node_id\toriginal_parsimony\trecomb_parsimony\n");
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     
     timer.Start();
@@ -487,8 +487,8 @@ int main(int argc, char** argv) {
                                 (!T.is_ancestor(nid_to_consider,d.name)) && (!T.is_ancestor(nid_to_consider,a.name)) 
                                 && (orig_parsimony >= d.parsimony + a.parsimony + parsimony_improvement)) {
                             std::string end_range_high_str = (end_range_high == 1e9) ? "GENOME_SIZE" : std::to_string(end_range_high);
-                            fprintf(recomb_file, "%s\t(%i,%i)\t(%i,%s)\t%s\t%s\t%i\n", nid_to_consider.c_str(), start_range_low, start_range_high,
-                                    end_range_low, end_range_high_str.c_str(), d.name.c_str(), a.name.c_str(), d.parsimony+a.parsimony);
+                            fprintf(recomb_file, "%s\t(%i,%i)\t(%i,%s)\t%s\t%s\t%i\t%i\n", nid_to_consider.c_str(), start_range_low, start_range_high,
+                                    end_range_low, end_range_high_str.c_str(), d.name.c_str(), a.name.c_str(), orig_parsimony, d.parsimony+a.parsimony);
                             has_recomb = true;
                             has_printed = true;
                             fflush(recomb_file);
