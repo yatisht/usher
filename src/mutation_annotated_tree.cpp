@@ -1518,13 +1518,11 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (Mutation_Annotated_Tre
             tbb::parallel_for (tbb::blocked_range<size_t>(i+1, samples.size(), 100),
                     [&](tbb::blocked_range<size_t> r) {
                     for (size_t j=r.begin(); j<r.end(); ++j){
-                        for (size_t j = i+1; j < samples.size(); j++) {
                             if (!displayed_samples[j]) {
                                 if (new_T.get_node(samples[j]) != NULL) {
                                     displayed_samples[j] = true;
                                 }
                             }
-                        }
                     }
                     });
 
