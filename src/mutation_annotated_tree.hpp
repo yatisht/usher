@@ -124,6 +124,7 @@ namespace Mutation_Annotated_Tree {
             Node* get_node (std::string identifier) const;
             bool is_ancestor (std::string anc_id, std::string nid) const;
             std::vector<Node*> rsearch (const std::string& nid, bool include_self = false) const;
+            std::string get_clade_assignment (const Node* n, int clade_id, bool include_self = true) const;
             void remove_node (std::string nid, bool move_level);
             void move_node (std::string source, std::string destination, bool move_level=true);
             std::vector<Node*> breadth_first_expansion(std::string nid="");

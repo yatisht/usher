@@ -10,7 +10,7 @@ std::vector<std::string> read_sample_names (std::string sample_filename) {
     if (!infile) {
         fprintf(stderr, "ERROR: Could not open the file: %s!\n", sample_filename.c_str());
         exit(1);
-    }    
+    }
     std::string line;
     bool warned = false;
     while (std::getline(infile, line)) {
@@ -20,7 +20,7 @@ std::vector<std::string> read_sample_names (std::string sample_filename) {
             fprintf(stderr, "WARNING: Input file %s contains excess columns; ignoring\n", sample_filename.c_str());
             warned = true;
         }
-        //remove carriage returns from the input to handle windows os 
+        //remove carriage returns from the input to handle windows os
         auto sname = words[0];
         if (sname[sname.size()-1] == '\r') {
             sname = sname.substr(0,sname.size()-1);
@@ -49,7 +49,7 @@ std::vector<std::string> get_clade_samples (MAT::Tree* T, std::string clade_name
                         //this is the root of the input clade (first one encountered in tree)
                         //get the set of samples descended from this clade root
                         csamples = T->get_leaves_ids(s->identifier);
-                        //and break out by returning 
+                        //and break out by returning
                         return csamples;
                     }
                 }
@@ -67,14 +67,14 @@ std::vector<std::string> get_mutation_samples (MAT::Tree* T, std::string mutatio
 
     for (auto node: T->get_leaves()) {
         bool assigned = false;
-        //first, check if this specific sample has the mutation 
+        //first, check if this specific sample has the mutation
         for (auto m: node->mutations) {
             if (m.get_string() == mutation_id) {
                 good_samples.push_back(node->identifier);
                 assigned = true;
                 break;
             }
-        } 
+        }
         if (!assigned) {
             std::vector<MAT::Node*> path = T->rsearch(node->identifier);
             //for every ancestor up to the root, check if they have the mutation
@@ -85,7 +85,7 @@ std::vector<std::string> get_mutation_samples (MAT::Tree* T, std::string mutatio
                         if (m.get_string() == mutation_id) {
                             good_samples.push_back(node->identifier);
                             assigned = true;
-                            break;     
+                            break;
                         }
                     }
                 } else {
@@ -113,7 +113,7 @@ std::vector<std::string> get_parsimony_samples (MAT::Tree* T, int max_parsimony)
 std::vector<std::string> get_clade_representatives(MAT::Tree* T) {
     timer.Start();
     fprintf(stderr, "Selecting clade representative samples...");
-    //get a pair of representative leaves for every clade currently annotated in the tree 
+    //get a pair of representative leaves for every clade currently annotated in the tree
     //and return as a vector of samples
     //specifically, the leaves LCA must be the clade root node
     //to accomplish this, first identify the clade root,
@@ -124,7 +124,7 @@ std::vector<std::string> get_clade_representatives(MAT::Tree* T) {
     std::vector<std::string> rep_samples;
     //expand and identify clades seen
     std::unordered_set<std::string> clades_seen;
-    
+
     auto dfs = T->breadth_first_expansion();
     for (auto n: dfs) {
         std::string curpath;
@@ -156,7 +156,7 @@ std::vector<std::string> get_clade_representatives(MAT::Tree* T) {
                         }
                     }
                     //there may be cases where a clade iterates all the way through and every sample which could represent it is already
-                    //selected by some other clade, but in that case its perfectly represented anyways, so theres no reason to get more 
+                    //selected by some other clade, but in that case its perfectly represented anyways, so theres no reason to get more
                     //samples just for it
                 }
             }
@@ -191,7 +191,7 @@ std::vector<std::string> get_nearby (MAT::Tree* T, std::string sample_id, int nu
     }
     std::vector<std::string> leaves_to_keep;
     for (auto anc: T->rsearch(sample_id, true)) {
-        size_t num_leaves = T->get_num_leaves(anc);
+        int num_leaves = static_cast<int>(T->get_num_leaves(anc));
         if (num_leaves <= number_to_get) {
             last_anc = anc;
             continue;
@@ -220,7 +220,7 @@ std::vector<std::string> get_nearby (MAT::Tree* T, std::string sample_id, int nu
                 leaves_to_keep.emplace_back(l->identifier);
             }
         }
-        if (leaves_to_keep.size() >= number_to_get) {
+        if (static_cast<int>(leaves_to_keep.size()) >= number_to_get) {
             break;
         }
     }
@@ -287,7 +287,7 @@ std::vector<std::string> get_short_steppers(MAT::Tree* T, std::vector<std::strin
         }
         if (!badanc) {
             good_samples.push_back(s);
-        } 
+        }
     }
     return good_samples;
 }
@@ -297,7 +297,7 @@ std::map<std::string,std::map<std::string,std::string>> read_metafile(std::strin
     if (!infile) {
         fprintf(stderr, "ERROR: Could not open the file: %s!\n", metainf.c_str());
         exit(1);
-    }    
+    }
     std::string line;
     bool first = true;
     char delim = '\t';
@@ -323,9 +323,9 @@ std::map<std::string,std::map<std::string,std::string>> read_metafile(std::strin
         } else {
             for (size_t i=1; i < words.size(); i++) {
                 //std::cerr << words[i];
-                if (samples_to_use.find(words[0]) != samples_to_use.end()) {
+//                if (samples_to_use.find(words[0]) != samples_to_use.end()) {
                     metamap[keys[i]][words[0]] = words[i];
-                }
+//                }
             }
         }
     }
@@ -347,7 +347,7 @@ std::vector<std::string> get_sample_match(MAT::Tree* T, std::string substring) {
 }
 
 std::vector<std::string> fill_random_samples(MAT::Tree* T, std::vector<std::string> current_samples, size_t target_size) {
-    //expand the current sample selection with random samples until it is the indicated size. 
+    //expand the current sample selection with random samples until it is the indicated size.
     //alternatively, prune random samples from the selection until it is the indicated size, as necessary.
     std::set<std::string> choices;
     fprintf(stderr, "Selected sample set is %ld samples with %ld requested subtree size; ", current_samples.size(), target_size);
@@ -381,4 +381,4 @@ std::vector<std::string> fill_random_samples(MAT::Tree* T, std::vector<std::stri
     std::vector<std::string> filled_samples (choices.begin(), choices.end());
     assert (filled_samples.size() == target_size);
     return filled_samples;
-}  
+}
