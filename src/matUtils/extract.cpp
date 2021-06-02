@@ -553,7 +553,7 @@ void extract_main (po::parsed_options parsed) {
         tbb::parallel_for(tbb::blocked_range<size_t>(0, batch_samples.size() ),
                       [&](const tbb::blocked_range<size_t> r) {
 
-           for (int s = r.begin() ; s < r.end() ; ++s ) {
+           for (auto s = r.begin() ; s < r.end() ; ++s ) {
                 //std::map<std::string,std::string> conmap;
                 //conmap[batch_samples[s]] = "focal";
                 //catmeta["focal_view"] = conmap;

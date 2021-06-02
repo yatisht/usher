@@ -191,7 +191,7 @@ std::vector<std::string> get_nearby (MAT::Tree* T, std::string sample_id, int nu
     }
     std::vector<std::string> leaves_to_keep;
     for (auto anc: T->rsearch(sample_id, true)) {
-        size_t num_leaves = T->get_num_leaves(anc);
+        int num_leaves = static_cast<int>(T->get_num_leaves(anc));
         if (num_leaves <= number_to_get) {
             last_anc = anc;
             continue;
@@ -220,7 +220,7 @@ std::vector<std::string> get_nearby (MAT::Tree* T, std::string sample_id, int nu
                 leaves_to_keep.emplace_back(l->identifier);
             }
         }
-        if (leaves_to_keep.size() >= number_to_get) {
+        if (static_cast<int>(leaves_to_keep.size()) >= number_to_get) {
             break;
         }
     }
