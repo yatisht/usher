@@ -114,7 +114,7 @@ find_nodes_to_move(const std::vector<MAT::Node *> &bfs_ordered_nodes,
             for(const auto& mut:node->mutations){
                 pos.insert(mut.get_position());
             }
-            bool found;
+            bool found=false;
             check_changed_neighbor(radius, node, nullptr, found, is_first, pos);
             if (found) {
                 output.push_back(node);

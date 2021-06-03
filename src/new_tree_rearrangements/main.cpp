@@ -59,6 +59,7 @@ int main(int argc, char **argv) {
     Original_State_t origin_states;
     Mutation_Annotated_Tree::Tree t=(input_pb_path!="")?load_tree(input_pb_path, origin_states):load_vcf_nh_directly(input_nh_path, input_vcf_path, origin_states);
     int iteration=0;
+    puts("Checkpoint initial tree.\n");
     t.save_detailed_mutations(std::string(intermediate_pb_base_name).append(std::to_string(iteration++)).append(".pb"));
     #ifndef NDEBUG
     Original_State_t origin_state_to_check(origin_states);
@@ -94,21 +95,23 @@ int main(int argc, char **argv) {
     MAT::Node* dst=t.get_node("6379");
     MAT::Node* LCA=get_LCA(src, dst);
     individual_move(src,dst,LCA);*/
-    FILE* log=fopen("try_move","w");
+    FILE* log=fopen("profitable_src","w");
+    perror("");
     bool isfirst=true;
     while(stalled<=1){
     bfs_ordered_nodes = t.breadth_first_expansion();
     find_nodes_to_move(bfs_ordered_nodes, nodes_to_search,isfirst,radius);
     isfirst=false;
+    printf("%zu nodes to search\n",nodes_to_search.size());
+    if (nodes_to_search.empty()) {
+        break;
+    }
     while (!nodes_to_search.empty()) {
         bfs_ordered_nodes = t.breadth_first_expansion();
         new_score =
-            optimize_tree(bfs_ordered_nodes, nodes_to_search, t,radius
+            optimize_tree(bfs_ordered_nodes, nodes_to_search, t,radius,log
             #ifndef NDEBUG
             , origin_states
-            #ifdef CONFLICT_RESOLVER_DEBUG
-            ,log
-            #endif
             #endif
             );
         fprintf(stderr, "after optimizing:%zu\n", new_score);
@@ -126,4 +129,8 @@ int main(int argc, char **argv) {
     }
     fclose(log);
     save_final_tree(t, origin_states, output_path);
+    for(auto& pos:mutated_positions){
+        delete pos.second;
+    }
+    t.delete_nodes();
 }

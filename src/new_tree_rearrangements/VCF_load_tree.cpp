@@ -1,4 +1,5 @@
 #include "tree_rearrangement_internal.hpp"
+#include <cstdio>
 #include <string>
 #include "apply_move/apply_move.hpp"
 #include <tbb/task.h>
@@ -151,12 +152,14 @@ char get_state(char* sample,int position){
 MAT::Tree load_vcf_nh_directly(const std::string& nh_path,const std::string& vcf_path,Original_State_t& origin_states){
     MAT::Tree t=Mutation_Annotated_Tree::create_tree_from_newick(nh_path);
     VCF_input(vcf_path.c_str(),t);
+    puts("Finished loading from VCF\n");
     std::unordered_set<std::string> changed_nodes;
     clean_tree_load(t, changed_nodes,origin_states);
     t.condense_leaves();
     check_samples(t.root, origin_states, &t);
     //populate_mutated_pos(origin_states);
     changed_nodes.clear();
+    printf("%zu condensed nodes\n",t.condensed_nodes.size());
     for(const auto &condensed:t.condensed_nodes){
         changed_nodes.insert(t.get_node(condensed.first)->parent->identifier);
     }

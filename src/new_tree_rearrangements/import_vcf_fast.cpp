@@ -154,6 +154,7 @@ struct Assign_State{
     std::vector<tbb::concurrent_vector<Mutation_Annotated_Tree::Mutation>> &output;
     void operator()(const Parsed_VCF_Line* vcf_line)const{
         Fitch_Sankoff_Whole_Tree(bfs_ordered_nodes,vcf_line->mutation,vcf_line->mutated,output);
+        printf("assigned %d\r",vcf_line->mutation.get_position());
         delete vcf_line;
     }
 };
@@ -182,7 +183,7 @@ void VCF_input(const char * name,MAT::Tree& tree){
         decompressor.try_put(chunk);
     }
     input_graph.wait_for_all();
-
+    gzclose(fd);
     tbb::affinity_partitioner ap;
         tbb::parallel_for(
         tbb::blocked_range<size_t>(0, bfs_ordered_nodes.size()),

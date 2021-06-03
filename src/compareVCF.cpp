@@ -221,7 +221,11 @@ static int  map_index(gzFile* fd1,gzFile* fd2,std::vector<unsigned int>& index_m
     idx_map.reserve(2*header1.size());
     for (size_t i=0; i<header1.size()-line_parser::SAMPLE_START_IDX; i++) {
         samples.push_back(header1[i+line_parser::SAMPLE_START_IDX]);
-        idx_map.emplace(header1[i+line_parser::SAMPLE_START_IDX],i);
+        auto emplace_result=idx_map.emplace(header1[i+line_parser::SAMPLE_START_IDX],i);
+        if (!emplace_result.second) {
+            fprintf(stderr, "%s\t %d",emplace_result.first->first.c_str(),emplace_result.first->second);
+        }
+        assert(emplace_result.second);
         index_map1.push_back(i);
     }
     for (size_t i=0; i<header2.size()-line_parser::SAMPLE_START_IDX; i++) {
@@ -253,8 +257,8 @@ int main(int argc, char**argv){
     size_t header_size=map_index(&fd1, &fd2, index_map1, index_map2);
 
     tbb::flow::graph input_graph;
-    decompressor_node_t decompressor1(input_graph,1,Decompressor{&fd1,LINE_PER_BLOCK*header_size,2*header_size});
-    decompressor_node_t decompressor2(input_graph,1,Decompressor{&fd2,LINE_PER_BLOCK*header_size,2*header_size});
+    decompressor_node_t decompressor1(input_graph,1,Decompressor{&fd1,LINE_PER_BLOCK*header_size,5*header_size});
+    decompressor_node_t decompressor2(input_graph,1,Decompressor{&fd2,LINE_PER_BLOCK*header_size,5*header_size});
 
     tbb::flow::function_node<char*,char*> parser1(input_graph,tbb::flow::unlimited,line_parser{index_map1,0});
     tbb::flow::function_node<char*,char*> parser2(input_graph,tbb::flow::unlimited,line_parser{index_map2,1});
@@ -264,8 +268,8 @@ int main(int argc, char**argv){
     tbb::flow::make_edge(parser2,decompressor2);
     tbb::flow::make_edge(tbb::flow::output_port<0>(decompressor2),parser2);
     for (int i=0; i<80; i++) {
-        decompressor1.try_put((char*)malloc((2+LINE_PER_BLOCK)*header_size));
-        decompressor2.try_put((char*)malloc((2+LINE_PER_BLOCK)*header_size));
+        decompressor1.try_put((char*)malloc((5+LINE_PER_BLOCK)*header_size));
+        decompressor2.try_put((char*)malloc((5+LINE_PER_BLOCK)*header_size));
     }
     input_graph.wait_for_all();
 }

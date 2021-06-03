@@ -62,12 +62,9 @@ void VCF_input(const char * name,MAT::Tree& tree);
 
 size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
               tbb::concurrent_vector<MAT::Node *> &nodes_to_search,
-              MAT::Tree &t,int radius
+              MAT::Tree &t,int radius,FILE* log
               #ifndef NDEBUG
               , Original_State_t origin_states
-              #ifdef CONFLICT_RESOLVER_DEBUG
-              ,FILE* log
-            #endif
             #endif
               );
 void save_final_tree(MAT::Tree &t, Original_State_t& origin_states,const std::string &output_path);

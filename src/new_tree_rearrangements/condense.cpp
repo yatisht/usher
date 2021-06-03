@@ -84,14 +84,21 @@ struct Node_Condenser:public tbb::task{
             std::vector<std::string> children_id{std::move(polytomy_nodes[0]->identifier)};
             children_id.reserve(polytomy_nodes.size());
             new_children.push_back(polytomy_nodes[0]);
-            polytomy_nodes[0]->identifier="node_" + std::to_string(condensed_nodes_count++) + "_condensed_" + std::to_string(polytomy_nodes.size()) + "_leaves";
+            polytomy_nodes[0]->identifier="node_" + std::to_string(++condensed_nodes_count) + "_condensed_" + std::to_string(polytomy_nodes.size()) + "_leaves";
             polytomy_nodes[0]->mutations.swap(new_shared_muts);
             for (size_t replaced_child_idx=1; replaced_child_idx<polytomy_nodes.size(); replaced_child_idx++) {
                 children_id.push_back(std::move(polytomy_nodes[replaced_child_idx]->identifier));
                 delete polytomy_nodes[replaced_child_idx];
             }
-            condensed_nodes.emplace(polytomy_nodes[0]->identifier,std::move(children_id));
+            //assert(res.second);
             root->children.swap(new_children);
+            std::vector<std::string> temp;
+            auto condensed_node_insert_result=condensed_nodes.emplace(polytomy_nodes[0]->identifier,temp);
+            while (!condensed_node_insert_result.second) {
+                polytomy_nodes[0]->identifier="node_" + std::to_string(++condensed_nodes_count) + "_condensed_" + std::to_string(polytomy_nodes.size()) + "_leaves";
+                condensed_node_insert_result=condensed_nodes.emplace(polytomy_nodes[0]->identifier,temp);
+            }
+            condensed_node_insert_result.first->second=std::move(children_id);
         }
         return to_spawn.empty()?empty:nullptr;
     }
@@ -102,12 +109,12 @@ void Mutation_Annotated_Tree::Tree::condense_leaves(std::vector<std::string> mis
     }
     std::atomic<size_t> condensed_nodes_count(0);
     tbb::task::spawn_root_and_wait(*new(tbb::task::allocate_root()) Node_Condenser(condensed_nodes,missing_samples,root,condensed_nodes_count));
-    assert(condensed_nodes_count.load()==condensed_nodes.size());
+    //assert(condensed_nodes_count.load()==condensed_nodes.size());
     for(const auto& condensed:condensed_nodes){
         Mutation_Annotated_Tree::Node* ori_node=get_node(condensed.second[0]);
-        assert(condensed.second[0]!=ori_node->identifier);
         all_nodes.emplace(ori_node->identifier,ori_node);
         for(auto node_id:condensed.second){
+            assert(condensed_nodes.count(node_id)==0);
             all_nodes.erase(node_id);
         }
 

@@ -124,6 +124,9 @@ void populate_mutated_pos(const Original_State_t& origin_state){
             sample_mutex->unlock();
         }
     });
+    for(auto m:pos_mutexes){
+        delete m.second;
+    }
 }
 
 static void reassign_states(MAT::Tree& t, Original_State_t& origin_states){

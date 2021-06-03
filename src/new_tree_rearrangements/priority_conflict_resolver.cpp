@@ -35,12 +35,6 @@ static void remove_move(Cross_t &potential_crosses, const Profitable_Moves_ptr_t
 
 bool Conflict_Resolver::register_single_move_no_conflict(
     Profitable_Moves_ptr_t& candidate_move)  {
-    if (candidate_move->src->bfs_index==5319&&candidate_move->dst_to_LCA[0]->bfs_index==1285) {
-        fputc('a',stderr);
-    }
-    if (candidate_move->src->bfs_index==19290&&candidate_move->dst_to_LCA[0]->bfs_index==9626) {
-        fputc('a',stderr);
-    }
     candidate_move->apply_nodes([&](MAT::Node* node) {
         Conflict_Set& iter = potential_crosses[node->bfs_index];
         iter.parsimony_score_change.store(candidate_move->score_change,std::memory_order_release);
@@ -69,11 +63,10 @@ bool Conflict_Resolver::register_single_move_no_conflict(
 
 char Conflict_Resolver::operator()(std::vector<Profitable_Moves_ptr_t>& candidate_move){
     char ret=0;
+    fputs(candidate_move[0]->src->identifier.c_str(), log);
+    fputc('\n',log);
     Profitable_Moves_ptr_t selected_move=nullptr;
     for (Profitable_Moves_ptr_t& move : candidate_move) {
-#ifdef CONFLICT_RESOLVER_DEBUG
-        fprintf(log, "Trying %s to %s\n",move->src->identifier.c_str(),move->get_dst()->identifier.c_str());
-#endif
         //fflush(log);
         if (check_single_move_no_conflict(move)) {
             std::lock_guard<std::mutex> lk(register_lock);
@@ -86,7 +79,6 @@ char Conflict_Resolver::operator()(std::vector<Profitable_Moves_ptr_t>& candidat
     }
 
     if(!selected_move&&(!candidate_move.empty())){
-        deferred_moves.reserve(deferred_moves.size()+candidate_move.size());
         for (Profitable_Moves_ptr_t move : candidate_move) {
             deferred_moves.emplace_back(move->src->identifier,move->get_dst()->identifier);
         }
@@ -104,9 +96,8 @@ char Conflict_Resolver::operator()(std::vector<Profitable_Moves_ptr_t>& candidat
 }
 
 void Conflict_Resolver::schedule_moves( std::vector<Profitable_Moves_ptr_t>& out){
-    #ifdef CONFLICT_RESOLVER_DEBUG
     fputc('\n', log);
-    fflush(log);
+    #ifdef CONFLICT_RESOLVER_DEBUG
     std::unordered_map<size_t,std::pair<size_t,Profitable_Moves_ptr_t>> pushed_moves;
     #endif
     for (int idx=potential_crosses.size()-1; idx>=0; idx--) {

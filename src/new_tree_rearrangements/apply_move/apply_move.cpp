@@ -113,6 +113,7 @@ void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t,
             to_check.erase(node->identifier);
         }
         assert(to_check.empty());*/
+        delete move;
     }
     std::vector<MAT::Node*> dfs=t.depth_first_expansion();
     auto end = std::remove_if(altered_node.begin(), altered_node.end(),
@@ -162,6 +163,7 @@ void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t,
     }
     to_filter.swap(filtered);
     for(auto node:deleted_node_ptrs){
+        t.all_nodes.erase(((MAT::Node*) node)->identifier);
         delete ((MAT::Node*) node);
     }
 #ifdef CHECK_STATE_REASSIGN
