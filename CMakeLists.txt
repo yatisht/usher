@@ -1,7 +1,9 @@
 
 cmake_minimum_required (VERSION 3.8) 
 
-project(strain_phylogenetics)
+project(usher VERSION 0.3.0)
+
+configure_file(src/version.hpp.in version.hpp)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -std=c++11 -Wall -g -Wno-unused-function")
 set(CMAKE_INCLUDE_CURRENT_DIR ON) 
@@ -110,6 +112,7 @@ else(SAVE_PROFILE)
 endif(SAVE_PROFILE)
 
 TARGET_LINK_LIBRARIES(usher PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
+target_include_directories(usher PUBLIC "${PROJECT_BINARY_DIR}")
 
 TARGET_COMPILE_OPTIONS(matUtils PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
 TARGET_LINK_LIBRARIES(matUtils PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
