@@ -35,7 +35,6 @@ int main(int argc, char** argv) {
     bool print_uncondensed_tree = false;
     bool print_parsimony_scores = false;
     bool retain_original_branch_len = false;
-    bool print_version = false;
     size_t print_subtrees_size=0;
     size_t print_subtrees_single=0;
     po::options_description desc{"Options"};
@@ -73,7 +72,7 @@ int main(int argc, char** argv) {
         ("retain-input-branch-lengths,l", po::bool_switch(&retain_original_branch_len), \
          "Retain the branch lengths from the input tree in out newick files instead of using number of mutations for the branch lengths.")
         ("threads,T", po::value<uint32_t>(&num_threads)->default_value(num_cores), num_threads_message.c_str())
-        ("version", "Print help messages")
+        ("version", "Print version number")
         ("help,h", "Print help messages");
     
     po::options_description all_options;
