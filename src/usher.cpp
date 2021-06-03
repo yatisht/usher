@@ -10,6 +10,7 @@
 #include "boost/filesystem.hpp"
 #include "usher_graph.hpp"
 #include "parsimony.pb.h"
+#include "version.hpp"
 
 namespace po = boost::program_options;
 namespace MAT = Mutation_Annotated_Tree;
@@ -71,6 +72,7 @@ int main(int argc, char** argv) {
         ("retain-input-branch-lengths,l", po::bool_switch(&retain_original_branch_len), \
          "Retain the branch lengths from the input tree in out newick files instead of using number of mutations for the branch lengths.")
         ("threads,T", po::value<uint32_t>(&num_threads)->default_value(num_cores), num_threads_message.c_str())
+        ("version", "Print version number")
         ("help,h", "Print help messages");
     
     po::options_description all_options;
@@ -82,12 +84,19 @@ int main(int argc, char** argv) {
         po::notify(vm);
     }
     catch(std::exception &e){
-        std::cerr << desc << std::endl;
-        // Return with error code 1 unless the user specifies help
-        if(vm.count("help"))
+        std::cerr << "UShER (v" << PROJECT_VERSION << ")" << std::endl;
+        if (!vm.count("version")) {
+            std::cerr << desc << std::endl;
+        }
+        // Return with error code 1 unless the user specifies help or version
+        if(vm.count("help") || vm.count("version"))
             return 0;
         else
             return 1;
+    }
+        
+    if (vm.count("version")) {
+        std::cerr << "UShER (v" << PROJECT_VERSION << ")" << std::endl;
     }
 
     if (print_subtrees_size == 1) {
