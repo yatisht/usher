@@ -27,6 +27,12 @@ po::variables_map check_options(int argc, char** argv) {
          "Maximum range of the genomic coordinates of the mutations on the branch")
         ("min-coordinate-range,r", po::value<int>()->default_value(1e3), \
          "Minimum range of the genomic coordinates of the mutations on the branch")
+        ("start-index,S", po::value<int>()->default_value(-1), \
+         "Start index of the interval in the sorted vector of nodes to consider.")
+        ("end-index,E", po::value<int>()->default_value(-1), \
+         "End index of the interval in the sorted vector of nodes to consider.")
+        ("min-coordinate-range,r", po::value<int>()->default_value(1e3), \
+         "Minimum range of the genomic coordinates of the mutations on the branch")
         ("outdir,d", po::value<std::string>()->default_value("."), 
          "Output directory to dump output files [DEFAULT uses current directory]")
         ("samples-filename,s", po::value<std::string>()->default_value(""),
@@ -102,6 +108,8 @@ int main(int argc, char** argv) {
     int max_range = vm["max-coordinate-range"].as<int>();
     int min_range = vm["min-coordinate-range"].as<int>();
     uint32_t num_descendants = vm["num-descendants"].as<uint32_t>();
+    int start_idx = vm["start-index"].as<int>();
+    int end_idx = vm["end-index"].as<int>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
 
     tbb::task_scheduler_init init(num_threads);
@@ -168,6 +176,12 @@ int main(int argc, char** argv) {
             }
         }, ap);
     }
+
+    std::vector<std::string> nodes_to_consider_vec;
+    for (auto elem: nodes_to_consider) {
+        nodes_to_consider_vec.emplace_back(elem);
+    }
+    std::sort(nodes_to_consider_vec.begin(), nodes_to_consider_vec.end());
     
     fprintf(stderr, "Found %zu long branches\n", nodes_to_consider.size());
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
@@ -196,10 +210,20 @@ int main(int argc, char** argv) {
     
     timer.Start();
     
-    fprintf(stderr, "Running placement individually for %zu branches to identify potential recombination events.\n", nodes_to_consider.size());
+    size_t s = 0, e = nodes_to_consider.size();
+    
+    if ((start_idx >= 0) && (end_idx >= 0)) {
+        s = start_idx;
+        if (end_idx <= (int) e) {
+            e = end_idx;
+        }
+    }
+    
+    fprintf(stderr, "Running placement individually for %zu branches to identify potential recombination events.\n", e-s);
 
     size_t num_done = 0;
-    for (auto nid_to_consider: nodes_to_consider) {
+    for (size_t idx = s; idx < e; idx++) {
+        auto nid_to_consider = nodes_to_consider_vec[idx];
         fprintf(stderr, "At node id: %s\n", nid_to_consider.c_str());
 
         int orig_parsimony = (int) T.get_node(nid_to_consider)->mutations.size(); 
