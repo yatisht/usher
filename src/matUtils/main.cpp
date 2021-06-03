@@ -3,6 +3,7 @@
 #include "summary.hpp"
 #include "extract.hpp"
 #include "introduce.hpp"
+#include "version.hpp"
 
 Timer timer; 
 
@@ -50,6 +51,8 @@ int main (int argc, char** argv) {
         summary_main(parsed);
     } else if (cmd == "introduce") {
         introduce_main(parsed);
+    } else if (cmd == "version") {
+        std::cerr << "matUtils (v" << PROJECT_VERSION << ")" << std::endl;
     } else if (cmd == "help") { 
         fprintf(stderr, "\n");
         for (int i = 0; i < 7; ++i) {
