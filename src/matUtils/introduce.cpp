@@ -390,33 +390,35 @@ std::map<std::string, float> get_assignments(MAT::Tree* T, std::unordered_set<st
     return assignments;
 }
 
-boost::gregorian::date get_nearest_date(MAT::Tree* T, MAT::Node* n, std::map<std::string, std::string> datemeta = {}) {
+boost::gregorian::date get_nearest_date(MAT::Tree* T, MAT::Node* n, std::set<std::string>* in_samples, std::map<std::string, std::string> datemeta = {}) {
     boost::gregorian::date earliest = boost::gregorian::day_clock::universal_day();
     for (auto l: T->get_leaves_ids(n->identifier)) {
-        if (datemeta.size() > 0) {
-            if (datemeta.find(l) != datemeta.end()) {
-                auto leafdate = boost::gregorian::from_string(datemeta.find(l)->second);
-                if (leafdate < earliest) {
-                    earliest = leafdate;
+        if (in_samples->find(l) != in_samples->end()) {
+            if (datemeta.size() > 0) {
+                if (datemeta.find(l) != datemeta.end()) {
+                    auto leafdate = boost::gregorian::from_string(datemeta.find(l)->second);
+                    if (leafdate < earliest) {
+                        earliest = leafdate;
+                    }
                 }
-            }
-        } else {
-            std::string datend = l.substr(l.rfind("|")+1, std::string::npos);
-            if (datend.size() > 0) {
-                boost::gregorian::date leafdate;
-                try {
-                    if (datend.size() == 8) {
-                        leafdate = boost::gregorian::from_string("20"+datend);
-                    } else if (datend.size() == 10) {
-                        leafdate = boost::gregorian::from_string(datend);
-                    } else {
+            } else {
+                std::string datend = l.substr(l.rfind("|")+1, std::string::npos);
+                if (datend.size() > 0) {
+                    boost::gregorian::date leafdate;
+                    try {
+                        if (datend.size() == 8) {
+                            leafdate = boost::gregorian::from_string("20"+datend);
+                        } else if (datend.size() == 10) {
+                            leafdate = boost::gregorian::from_string(datend);
+                        } else {
+                            continue;
+                        }
+                    } catch (const std::out_of_range& oor) {
                         continue;
                     }
-                } catch (const std::out_of_range& oor) {
-                    continue;
-                }
-                if (leafdate < earliest) {
-                    earliest = leafdate;
+                    if (leafdate < earliest) {
+                        earliest = leafdate;
+                    }
                 }
             }
         }
@@ -498,6 +500,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
         std::string region = ra.first;
         auto assignments = ra.second;
         std::vector<std::string> samples = sample_regions[region];
+        std::set<std::string> sampleset (samples.begin(), samples.end());
         std::map<std::string, size_t> recorded_mc;
         std::map<std::string, float> recorded_ai;
         //its time to identify introductions. we're going to do this by iterating
@@ -627,7 +630,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                     } else {
                         // timer.Start();
                         // fprintf(stderr, "Getting date for internal node %s\n", a->identifier.c_str());
-                        boost::gregorian::date ldate = get_nearest_date(T, a);
+                        boost::gregorian::date ldate = get_nearest_date(T, a, &sampleset);
                         ldatestr = boost::gregorian::to_simple_string(ldate);
                         date_tracker[a->identifier] = ldatestr;
                         // fprintf(stderr, "Date gotten in %ld msec\n", timer.Stop());
