@@ -4,7 +4,7 @@
 Functions in this module take a MAT and a set of samples and return the a smaller MAT
 representing those samples in an optimal manner.
 */
-MAT::Tree filter_master(const MAT::Tree& T, std::vector<std::string> sample_names, bool prune) {
+MAT::Tree filter_master(const MAT::Tree& T, std::vector<std::string> sample_names, bool prune, bool keep_clade_annotations) {
     MAT::Tree subtree;
     if (prune) {
         subtree = prune_leaves(T, sample_names);
@@ -14,9 +14,9 @@ MAT::Tree filter_master(const MAT::Tree& T, std::vector<std::string> sample_name
         //all other nodes becomes more efficient, because get_subtree scales with 
         //the size of the input sample set, while prune takes a similar time for 
         //any sample set size, while scaling on total tree size
-        subtree = get_sample_subtree(T, sample_names);
+        subtree = get_sample_subtree(T, sample_names, keep_clade_annotations);
     } else {
-        subtree = get_sample_prune(T, sample_names);
+        subtree = get_sample_prune(T, sample_names, keep_clade_annotations);
     }
     return subtree;
 }
@@ -40,17 +40,17 @@ MAT::Tree prune_leaves (const MAT::Tree& T, std::vector<std::string> sample_name
     return subtree;
 }
 
-MAT::Tree get_sample_subtree (const MAT::Tree& T, std::vector<std::string> sample_names) {
+MAT::Tree get_sample_subtree (const MAT::Tree& T, std::vector<std::string> sample_names, bool keep_clade_annotations) {
 
     timer.Start();
     fprintf(stderr, "Extracting subtree of %zu samples.\n", sample_names.size());
-    auto subtree = MAT::get_subtree(T, sample_names);
+    auto subtree = MAT::get_subtree(T, sample_names, keep_clade_annotations);
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 
     return subtree;
 }
 
-MAT::Tree get_sample_prune (const MAT::Tree& T, std::vector<std::string> sample_names) {
+MAT::Tree get_sample_prune (const MAT::Tree& T, std::vector<std::string> sample_names, bool keep_clade_annotations) {
     
     timer.Start();
     fprintf(stderr, "Large sample input; building subtree by pruning all but %zu samples.\n", sample_names.size());
@@ -61,6 +61,9 @@ MAT::Tree get_sample_prune (const MAT::Tree& T, std::vector<std::string> sample_
     auto subtree = MAT::get_tree_copy(T);
     auto dfs = T.depth_first_expansion();
     for (auto s: dfs) {
+        if (!keep_clade_annotations) {
+            s->clear_annotations();
+        }
         //only call the remover on leaf nodes (can't be deleting the root...)
         if (s->is_leaf()) {
             //if the node is NOT in the set, remove it
