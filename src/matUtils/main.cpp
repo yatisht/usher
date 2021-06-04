@@ -18,7 +18,7 @@ int main (int argc, char** argv) {
     po::variables_map vm;
     po::parsed_options parsed = po::command_line_parser(argc, argv).options(global).positional(pos).allow_unregistered().run();
     //this help string shows up over and over, lets just define it once
-    std::string cnames[8] = {"COMMAND","summary","extract","annotate","uncertainty","mask","introduce","--version"};
+    std::string cnames[8] = {"COMMAND","summary","extract","annotate","uncertainty","mask","introduce","version"};
     std::string chelp[8] = {
         "DESCRIPTION\n\n",
         "calculates basic statistics and counts samples, mutations, and clades in the input MAT\n\n",
@@ -52,10 +52,11 @@ int main (int argc, char** argv) {
         summary_main(parsed);
     } else if (cmd == "introduce") {
         introduce_main(parsed);
-    } else if (cmd == "--version") {
+    } else if (cmd == "version") {
         std::cerr << "matUtils (v" << PROJECT_VERSION << ")" << std::endl;
     } else if (cmd == "help") { 
         fprintf(stderr, "\n");
+        std::cerr << "matUtils (v" << PROJECT_VERSION << ")" << std::endl;
         for (int i = 0; i < 8; ++i) {
             fprintf(stderr, "%-15s\t%s", cnames[i].c_str(), chelp[i].c_str());
         }        
