@@ -420,7 +420,7 @@ void extract_main (po::parsed_options parsed) {
         //fprintf(stderr, "Filtering again to a clade representative tree...\n");
         auto rep_samples = get_clade_representatives(&subtree);
         //run filter master again
-        subtree = filter_master(subtree, rep_samples, false);
+        subtree = filter_master(subtree, rep_samples, false, true);
         //overwrite samples with new subset
         samples = rep_samples;
     }
