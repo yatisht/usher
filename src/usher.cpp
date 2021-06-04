@@ -35,6 +35,8 @@ int main(int argc, char** argv) {
     bool print_uncondensed_tree = false;
     bool print_parsimony_scores = false;
     bool retain_original_branch_len = false;
+    bool no_add = false;
+    bool detailed_clades = false;
     size_t print_subtrees_size=0;
     size_t print_subtrees_single=0;
     po::options_description desc{"Options"};
@@ -71,6 +73,10 @@ int main(int argc, char** argv) {
          "Create a new tree up to this limit for each possibility of parsimony-optimal placement")
         ("retain-input-branch-lengths,l", po::bool_switch(&retain_original_branch_len), \
          "Retain the branch lengths from the input tree in out newick files instead of using number of mutations for the branch lengths.")
+        ("no-add,n", po::bool_switch(&no_add), \
+         "Do not add new samples to the tree")
+        ("detailed-clades,D", po::bool_switch(&detailed_clades), \
+         "In clades.txt, write a histogram of annotated clades and counts across all equally parsimonious placements")
         ("threads,T", po::value<uint32_t>(&num_threads)->default_value(num_cores), num_threads_message.c_str())
         ("version", "Print version number")
         ("help,h", "Print help messages");
@@ -84,8 +90,11 @@ int main(int argc, char** argv) {
         po::notify(vm);
     }
     catch(std::exception &e){
-        std::cerr << "UShER (v" << PROJECT_VERSION << ")" << std::endl;
-        if (!vm.count("version")) {
+        if (vm.count("version")) {
+            std::cout << "UShER (v" << PROJECT_VERSION << ")" << std::endl;
+        }
+        else {
+            std::cerr << "UShER (v" << PROJECT_VERSION << ")" << std::endl;
             std::cerr << desc << std::endl;
         }
         // Return with error code 1 unless the user specifies help or version
@@ -96,7 +105,7 @@ int main(int argc, char** argv) {
     }
         
     if (vm.count("version")) {
-        std::cerr << "UShER (v" << PROJECT_VERSION << ")" << std::endl;
+        std::cout << "UShER (v" << PROJECT_VERSION << ")" << std::endl;
     }
 
     if (print_subtrees_size == 1) {
@@ -153,6 +162,11 @@ int main(int argc, char** argv) {
         }
     }
     */
+
+    if (no_add && (print_subtrees_size > 0 || print_subtrees_single)) {
+        std::cerr << "ERROR: Sorry, cannot output subtrees when -n/--no-add is specified.\n";
+        return 1;
+    }
 
     if (retain_original_branch_len) {
         fprintf(stderr, "Output newick files will retain branch lengths from the input tree (unspecified at branches modified during the placement).\n\n");
@@ -952,8 +966,8 @@ int main(int argc, char** argv) {
                             best_node = bfs[best_j];
                         }
                         
-                        // Ensure sample not already in the tree
-                        if (T->get_node(sample) == NULL) {
+                        // Add sample to tree unless --no-add or it is already in the tree
+                        if (!no_add && T->get_node(sample) == NULL) {
                             // Is placement as sibling
                             if (best_node->is_leaf() || best_node_has_unique) {
                                 std::string nid = std::to_string(++T->curr_internal_node);
@@ -1244,7 +1258,7 @@ int main(int argc, char** argv) {
                         for (size_t k=0; k< num_annotations; k++) {
                             fprintf(annotations_file, "%s", missing_samples[s].best_clade_assignment[k].c_str());
                             //TODO
-                            if (max_trees == 1) {
+                            if (max_trees == 1 && detailed_clades) {
                                 fprintf(annotations_file, "*|");
                                 std::string curr_clade = "";
                                 int curr_count = 0;
