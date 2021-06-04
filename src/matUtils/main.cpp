@@ -51,7 +51,7 @@ int main (int argc, char** argv) {
         summary_main(parsed);
     } else if (cmd == "introduce") {
         introduce_main(parsed);
-    } else if (cmd == "version") {
+    } else if (cmd == "--version") {
         std::cerr << "matUtils (v" << PROJECT_VERSION << ")" << std::endl;
     } else if (cmd == "help") { 
         fprintf(stderr, "\n");
