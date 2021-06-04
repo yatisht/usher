@@ -17,10 +17,13 @@ if __name__ == "__main__":
                         help="end low")
     parser.add_argument("-e2", type=int,
                         help="end high")
+    parser.add_argument("-o", type=str,
+                        help="output filename")
 
 
     args = vars(parser.parse_args())
     vcf_filename = args.get('v', '')
+    output_filename = args.get('o', '')
     length = args.get('l', '')
     s1 = args.get('s1', '')
     e1 = args.get('e1', '')
@@ -47,10 +50,10 @@ if __name__ == "__main__":
     num_words = 0
     for line in open(vcf_filename):
         words=line.split()
-        if ((!header_found) && (words[1] == "POS")):
+        if ((not header_found) and (len(words) >2) and (words[1] == "POS")):
             header_found = True
             num_words = len(words)
-        else:
+        elif (header_found):
             if (int(words[num_words-3]) > 0):
                 x1.append(int(words[1]))
             if (int(words[num_words-2]) > 0):
@@ -71,4 +74,4 @@ if __name__ == "__main__":
     ax.plot([e2,e2],[-10, 10],'k')
 
     plt.ylim([-10, 10])
-    plt.show()
+    plt.savefig(output_filename)
