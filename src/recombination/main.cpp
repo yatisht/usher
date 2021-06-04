@@ -321,8 +321,11 @@ int main(int argc, char** argv) {
                 int start_range_high = pruned_sample.sample_mutations[i].position;
                 int start_range_low = (i>=1) ? pruned_sample.sample_mutations[i-1].position : 0;
 
-                int end_range_low = pruned_sample.sample_mutations[j].position; 
-                int end_range_high = (j+1<num_mutations) ? pruned_sample.sample_mutations[j+1].position : 1e9;
+                int end_range_high = pruned_sample.sample_mutations[j].position;
+                int end_range_low = (j>=1) ? pruned_sample.sample_mutations[j-1].position : 0;
+                
+                //int end_range_low = pruned_sample.sample_mutations[j].position; 
+                //int end_range_high = (j+1<num_mutations) ? pruned_sample.sample_mutations[j+1].position : 1e9;
 
                 if ((donor.sample_mutations.size() < branch_len) || (acceptor.sample_mutations.size() < branch_len) ||
                         (end_range_low-start_range_high < min_range) || (end_range_low-start_range_high > max_range)) {
@@ -364,7 +367,7 @@ int main(int argc, char** argv) {
                             }
                             }
                             if (!found) {
-                                if ((m1.position <= start_range_low) || (m1.position > end_range_high)) {
+                                if ((m1.position < start_range_high) || (m1.position > end_range_low)) {
                                     num_mut++;
                                 }
                             }
@@ -395,7 +398,7 @@ int main(int argc, char** argv) {
                                         }
                                     }
                                     if (!found) {
-                                        if ((m1.position < start_range_low) || (m1.position > end_range_high)) {
+                                        if ((m1.position < start_range_high) || (m1.position > end_range_low)) {
                                             num_mut++;
                                         }
                                     }
@@ -510,6 +513,66 @@ int main(int argc, char** argv) {
                         if ((d.name!=a.name) && (d.name!=nid_to_consider) && (a.name!=nid_to_consider) && 
                                 (!T.is_ancestor(nid_to_consider,d.name)) && (!T.is_ancestor(nid_to_consider,a.name)) 
                                 && (orig_parsimony >= d.parsimony + a.parsimony + parsimony_improvement)) {
+                            Pruned_Sample donor("curr-donor");
+                            donor.sample_mutations.clear();
+                            acceptor.sample_mutations.clear();
+
+                            for (size_t k=0; k<num_mutations; k++) {
+                                if ((k>=i) && (k<j)) {
+                                    donor.add_mutation(pruned_sample.sample_mutations[k]);
+                                }
+                            }
+
+                            for (auto mut: donor.sample_mutations) {
+                                if ((mut.position > start_range_low) && (mut.position <= start_range_high)) {
+                                    bool in_pruned_sample = false;
+                                    for (auto mut2: pruned_sample.sample_mutations) {
+                                        if (mut.position == mut2.position) {
+                                            in_pruned_sample = true;
+                                        }
+                                    }
+                                    if (!in_pruned_sample) {
+                                        start_range_low = mut.position;
+                                    }
+                                }
+                                if ((mut.position > end_range_low) && (mut.position <= end_range_high)) {
+                                    bool in_pruned_sample = false;
+                                    for (auto mut2: pruned_sample.sample_mutations) {
+                                        if (mut.position == mut2.position) {
+                                            in_pruned_sample = true;
+                                        }
+                                    }
+                                    if (!in_pruned_sample) {
+                                        end_range_high = mut.position;
+                                    }
+                                }
+                            }
+
+                            for (auto mut: pruned_sample.sample_mutations) {
+                                if ((mut.position > start_range_low) && (mut.position <= start_range_high)) {
+                                    bool in_pruned_sample = false;
+                                    for (auto mut2: donor.sample_mutations) {
+                                        if (mut.position == mut2.position) {
+                                            in_pruned_sample = true;
+                                        }
+                                    }
+                                    if (!in_pruned_sample) {
+                                        start_range_low = mut.position;
+                                    }
+                                }
+                                if ((mut.position > end_range_low) && (mut.position <= end_range_high)) {
+                                    bool in_pruned_sample = false;
+                                    for (auto mut2: donor.sample_mutations) {
+                                        if (mut.position == mut2.position) {
+                                            in_pruned_sample = true;
+                                        }
+                                    }
+                                    if (!in_pruned_sample) {
+                                        end_range_high = mut.position;
+                                    }
+                                }
+                            }
+
                             std::string end_range_high_str = (end_range_high == 1e9) ? "GENOME_SIZE" : std::to_string(end_range_high);
                             fprintf(recomb_file, "%s\t(%i,%i)\t(%i,%s)\t%s\t%s\t%i\t%i\n", nid_to_consider.c_str(), start_range_low, start_range_high,
                                     end_range_low, end_range_high_str.c_str(), d.name.c_str(), a.name.c_str(), orig_parsimony, d.parsimony+a.parsimony);
