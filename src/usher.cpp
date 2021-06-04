@@ -84,8 +84,11 @@ int main(int argc, char** argv) {
         po::notify(vm);
     }
     catch(std::exception &e){
-        std::cerr << "UShER (v" << PROJECT_VERSION << ")" << std::endl;
-        if (!vm.count("version")) {
+        if (vm.count("version")) {
+            std::cout << "UShER (v" << PROJECT_VERSION << ")" << std::endl;
+        }
+        else {
+            std::cerr << "UShER (v" << PROJECT_VERSION << ")" << std::endl;
             std::cerr << desc << std::endl;
         }
         // Return with error code 1 unless the user specifies help or version
@@ -96,7 +99,7 @@ int main(int argc, char** argv) {
     }
         
     if (vm.count("version")) {
-        std::cerr << "UShER (v" << PROJECT_VERSION << ")" << std::endl;
+        std::cout << "UShER (v" << PROJECT_VERSION << ")" << std::endl;
     }
 
     if (print_subtrees_size == 1) {
