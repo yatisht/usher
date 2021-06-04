@@ -18,7 +18,7 @@ int main (int argc, char** argv) {
     po::variables_map vm;
     po::parsed_options parsed = po::command_line_parser(argc, argv).options(global).positional(pos).allow_unregistered().run();
     //this help string shows up over and over, lets just define it once
-    std::string cnames[7] = {"COMMAND","summary","extract","annotate","uncertainty","mask","introduce"};
+    std::string cnames[7] = {"COMMAND","summary","extract","annotate","uncertainty","mask","introduce","--version"};
     std::string chelp[7] = {
         "DESCRIPTION\n\n",
         "calculates basic statistics and counts samples, mutations, and clades in the input MAT\n\n",
@@ -26,7 +26,8 @@ int main (int argc, char** argv) {
         "assigns clade identities to nodes, directly or by inference\n\n",
         "calculates sample placement uncertainty metrics and writes the results to tsv\n\n",
         "masks the input samples\n\n",
-        "given sample region information, heuristically identifies points of geographic introduction along the phylogeny\n\n"
+        "given sample region information, heuristically identifies points of geographic introduction along the phylogeny\n\n",
+        "display version number\n\n"
     };
     try {
         po::store(parsed, vm);
