@@ -504,8 +504,8 @@ void extract_main (po::parsed_options parsed) {
         }
         assert (mutations.size() > 0);
         for (auto n: subtree.depth_first_expansion()) {
+            std::string metastr = "";
             for (auto m: n->mutations) {
-                std::string metastr = "";
                 for (auto mstr: mutations ) {
                     if (m.get_string() == mstr) {
                         if (metastr == "") {
@@ -515,9 +515,9 @@ void extract_main (po::parsed_options parsed) {
                         }
                     }
                 }
-                mutmap[n->identifier] = metastr;
-                break;
+                // break;
             }
+            mutmap[n->identifier] = metastr;
         }
         std::map<std::string,std::map<std::string,std::string>> submet;
         submet["mutation_of_interest"]=mutmap; 
