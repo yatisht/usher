@@ -134,51 +134,58 @@ bool get_parsimony_score_change_from_add(
     const std::vector<MAT::Node *> &node_stack
 #endif
 ) {
-    bool have_shared=false;
-    auto parent_addable_iter = node->mutations.begin();
-    auto parent_addable_end = node->mutations.end();
+    bool have_not_shared=false;
+    auto sibling_addable_iter = node->mutations.begin();
+    auto sibling_addable_end = node->mutations.end();
     for (const auto &added_child_mutation : children_added_mutations) {
         /*if(added_child_mutation.get_position()==23635){
             fputc('ab', stderr);
         }*/
-        while (parent_addable_end != parent_addable_iter &&
-               parent_addable_iter->get_position() < added_child_mutation.get_position()) {
+        while (sibling_addable_end != sibling_addable_iter &&
+               sibling_addable_iter->get_position() < added_child_mutation.get_position()) {
                 // Adding a children with parent state
-                nuc_one_hot major_alleles = parent_addable_iter->get_mut_one_hot();
-                register_change_from_new_state(parent_added_mutations, 0, *parent_addable_iter, major_alleles);
+                nuc_one_hot major_alleles = sibling_addable_iter->get_all_major_allele()&sibling_addable_iter->get_par_one_hot();
+                if (!major_alleles) {
+                    major_alleles=sibling_addable_iter->get_all_major_allele()|sibling_addable_iter->get_par_one_hot();
+                    have_not_shared=true;
+                    parsimony_score_change++;
+                }
+                register_change_from_new_state(parent_added_mutations, 0, *sibling_addable_iter, major_alleles);
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-                test_allele_out_init(node, 0, *parent_addable_iter,
+                test_allele_out_init(node, 0, *sibling_addable_iter,
                                      0,
                                      major_alleles,
-                                     parent_addable_iter->get_mut_one_hot(),
+                                     sibling_addable_iter->get_mut_one_hot(),
                                      parent_added_mutations, debug);
 
 #endif
             
-            parent_addable_iter++;
+            sibling_addable_iter++;
         }
 int old_parsimony_score=parsimony_score_change;
-        if (parent_addable_end != parent_addable_iter &&
-            parent_addable_iter->get_position() ==
+        if (sibling_addable_end != sibling_addable_iter &&
+            sibling_addable_iter->get_position() ==
                 added_child_mutation.get_position()) {
 
             nuc_one_hot major_alleles;
-            int new_score=get_new_major_allele_binary_node(parent_addable_iter->get_all_major_allele(), added_child_mutation.get_incremented(), major_alleles);
-            have_shared=have_shared||(!new_score);
+            int new_score=get_new_major_allele_binary_node(sibling_addable_iter->get_all_major_allele(), added_child_mutation.get_incremented(), major_alleles);
+            have_not_shared=have_not_shared||(new_score);
             parsimony_score_change+=new_score;
-            register_change_from_new_state(parent_added_mutations, new_score, *parent_addable_iter, major_alleles);
+            register_change_from_new_state(parent_added_mutations, new_score, *sibling_addable_iter, major_alleles);
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-            test_allele_out_init(node, 0, *parent_addable_iter,
+            test_allele_out_init(node, 0, *sibling_addable_iter,
                                  parsimony_score_change-old_parsimony_score,
                                  major_alleles,
                                  added_child_mutation.get_incremented(),
                                  parent_added_mutations, debug);
 
 #endif
-            parent_addable_iter++;
+            sibling_addable_iter++;
         } else {
             nuc_one_hot major_allele;
-            parsimony_score_change+=get_new_major_allele_binary_node(added_child_mutation.get_par_state() ,added_child_mutation.get_incremented(),major_allele);
+            int new_score=get_new_major_allele_binary_node(added_child_mutation.get_par_state(), added_child_mutation.get_incremented(), major_allele);
+            have_not_shared=have_not_shared||(new_score);
+            parsimony_score_change+=new_score;
             if (major_allele!=added_child_mutation.get_par_state()) {
                 parent_added_mutations.emplace_back(added_child_mutation,major_allele);
             }
@@ -189,22 +196,27 @@ int old_parsimony_score=parsimony_score_change;
 
         }
     }
-    while (parent_addable_iter != parent_addable_end) {
+    while (sibling_addable_iter != sibling_addable_end) {
 
-            // Adding a children with parent state
-                nuc_one_hot major_alleles = parent_addable_iter->get_mut_one_hot();
-                register_change_from_new_state(parent_added_mutations, 0, *parent_addable_iter, major_alleles);
+                nuc_one_hot major_alleles = sibling_addable_iter->get_all_major_allele()&sibling_addable_iter->get_par_one_hot();
+                if (!major_alleles) {
+                    major_alleles=sibling_addable_iter->get_all_major_allele()|sibling_addable_iter->get_par_one_hot();
+                    have_not_shared=true;
+                    parsimony_score_change++;
+                }
+                register_change_from_new_state(parent_added_mutations, 0, *sibling_addable_iter, major_alleles);
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-            test_allele_out_init(node, node_stack.back(), *parent_addable_iter,
-                                 0,
-                                 major_alleles,
-                                 parent_addable_iter->get_mut_one_hot(),
-                                 parent_added_mutations, debug);
+                test_allele_out_init(node, 0, *sibling_addable_iter,
+                                     0,
+                                     major_alleles,
+                                     sibling_addable_iter->get_mut_one_hot(),
+                                     parent_added_mutations, debug);
 
 #endif
-        parent_addable_iter++;
+
+        sibling_addable_iter++;
     }
-    return have_shared;
+    return have_not_shared;
 }
 
 /*

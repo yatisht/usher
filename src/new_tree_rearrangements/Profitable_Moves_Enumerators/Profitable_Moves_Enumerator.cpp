@@ -47,6 +47,7 @@ static void
 merge_mutation_LCA_to_dst(MAT::Node *child,
                           const Mutation_Count_Change_Collection &mutations,
                           Mutation_Count_Change_Collection &child_mutations) {
+    child_mutations.reserve(mutations.size()+child->mutations.size());
     auto child_mutation_iter = child->mutations.begin();
     auto child_mutation_end = child->mutations.end();
     for (const Mutation_Count_Change &m : mutations) {
@@ -84,7 +85,7 @@ merge_mutation_LCA_to_dst(MAT::Node *child,
 }
 static void search_subtree_not_LCA(
     MAT::Node *root, MAT::Node *LCA, MAT::Node *src,
-    Mutation_Count_Change_Collection mutations,
+    const Mutation_Count_Change_Collection& mutations,
     output_t &profitable_moves,
     const Mutation_Count_Change_Collection &root_mutations_altered,int radius,
     int parsimony_score_change_from_removal,const std::vector<MAT::Node *> &node_stack_from_src
@@ -93,9 +94,9 @@ static void search_subtree_not_LCA(
 #endif
 ) {
     if(!(root->children.size()==1&&root->children[0]->is_leaf())&&radius>0){
+        Mutation_Count_Change_Collection child_mutations;
+        merge_mutation_LCA_to_dst(root, mutations, child_mutations);
     for (MAT::Node *child : root->children) {
-            Mutation_Count_Change_Collection child_mutations;
-            merge_mutation_LCA_to_dst(child, mutations, child_mutations);
             search_subtree_not_LCA(child, LCA, src, child_mutations,
                            profitable_moves, root_mutations_altered,radius-1,
                            parsimony_score_change_from_removal, node_stack_from_src
@@ -132,9 +133,7 @@ void search_subtree(
     if(!(LCA->children.size()==1&&LCA->children[0]->is_leaf())&&radius>0){
     for (MAT::Node *child : LCA->children) {
         if (child !=exclude) {
-            Mutation_Count_Change_Collection child_mutations;
-            merge_mutation_LCA_to_dst(child, mutations, child_mutations);
-            search_subtree_not_LCA(child, LCA, src, child_mutations,
+            search_subtree_not_LCA(child, LCA, src,mutations,
                            profitable_moves, src_branch_mutations_altered,radius-1,
                            parsimony_score_change_from_removal, node_stack_from_src
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
