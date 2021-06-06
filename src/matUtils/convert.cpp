@@ -571,6 +571,11 @@ void get_minimum_subtrees(MAT::Tree* T, std::vector<std::string> samples, size_t
           /// get the nearby tree of size nearest_subtree_size
           std::vector<std::string> leaves_to_keep = get_nearby( T, samples[i], nearest_subtree_size ) ;
 
+          if ( leaves_to_keep.size() == 0 ) {
+              samples_we_have_seen.insert({samples[i],-1}) ; 
+              continue ;
+          }
+
           /// record all samples seen
           for ( int s = 0 ; s < leaves_to_keep.size() ; s ++ ) {
               samples_we_have_seen.insert({leaves_to_keep[s],subtree_sample_sets.size()}) ;
@@ -613,6 +618,9 @@ void get_minimum_subtrees(MAT::Tree* T, std::vector<std::string> samples, size_t
     }
     tracker << "\n";
     for (size_t i = 0; i < samples.size(); i++) {
+        if ( samples_we_have_seen[samples[i]] == -1 ) {
+            continue ;
+        }
         tracker << samples[i];
         if (json_n != output_dir) {
             std::string outf = json_n + "-subtree-" + std::to_string(samples_we_have_seen[samples[i]]) + ".json";

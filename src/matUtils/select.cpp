@@ -187,7 +187,7 @@ std::vector<std::string> get_nearby (MAT::Tree* T, std::string sample_id, int nu
     //unfortunately. so we have to brute force it.
     MAT::Node* last_anc = T->get_node(sample_id);
     if (last_anc == NULL) {
-        fprintf(stderr, "ERROR: Indicated sample does not exist in the tree!\n");
+        fprintf(stderr, "ERROR: %s is not present in the tree!\n", sample_id.c_str() );
     }
     std::vector<std::string> leaves_to_keep;
     for (auto anc: T->rsearch(sample_id, true)) {
@@ -224,7 +224,7 @@ std::vector<std::string> get_nearby (MAT::Tree* T, std::string sample_id, int nu
             break;
         }
     }
-    assert (leaves_to_keep.size() == static_cast<size_t>(number_to_get));
+    //assert (leaves_to_keep.size() == static_cast<size_t>(number_to_get));
     return leaves_to_keep;
 }
     //by far the simplest way to do this is to get_leaves_ids and subset out a distance around the index

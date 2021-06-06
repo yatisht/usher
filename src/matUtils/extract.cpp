@@ -138,7 +138,7 @@ void extract_main (po::parsed_options parsed) {
     bool no_genotypes = vm["no-genotypes"].as<bool>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
     //check that at least one of the output filenames (things which take dir_prefix)
-    //are set before proceeding. 
+    //are set before proceeding.
     std::vector<std::string> outs = {sample_path_filename, clade_path_filename, all_path_filename, tree_filename, vcf_filename, output_mat_filename, json_filename, used_sample_filename};
     if (!std::any_of(outs.begin(), outs.end(), [=](std::string f){return f != dir_prefix;})) {
         if (nearest_k_batch_file == "") {
@@ -150,7 +150,7 @@ void extract_main (po::parsed_options parsed) {
     tbb::task_scheduler_init init(num_threads);
 
     timer.Start();
-    fprintf(stderr, "Loading input MAT file %s.\n", input_mat_filename.c_str()); 
+    fprintf(stderr, "Loading input MAT file %s.\n", input_mat_filename.c_str());
     // Load input MAT and uncondense tree
     MAT::Tree T;
     if (input_mat_filename.find(".pb\0") != std::string::npos) {
@@ -178,7 +178,7 @@ void extract_main (po::parsed_options parsed) {
     std::vector<std::string> samples;
     if (input_samples_file != "") {
         samples = read_sample_names(input_samples_file);
-    } 
+    }
     std::string sample_id;
     if (nearest_k != "") {
         auto split_point = nearest_k.find(":");
@@ -187,13 +187,16 @@ void extract_main (po::parsed_options parsed) {
             exit(1);
         }
         sample_id = nearest_k.substr(0, split_point);
-        std::string nkstr = nearest_k.substr(split_point+1, nearest_k.size() - split_point); 
+        std::string nkstr = nearest_k.substr(split_point+1, nearest_k.size() - split_point);
         int nk = std::stoi(nkstr);
         if (nk <= 0) {
             fprintf(stderr, "ERROR: Invalid neighborhood size. Please choose a positive nonzero integer.\n");
             exit(1);
         }
         auto nk_samples = get_nearby(&T, sample_id, nk);
+        if ( nk_samples.size() == 0 ) {
+            continue ;
+        }
         if (samples.size() == 0) {
             samples = nk_samples;
         } else {
@@ -295,7 +298,7 @@ void extract_main (po::parsed_options parsed) {
                 exit(1);
             }
         }
-    } 
+    }
     if (max_branch >= 0) {
         //intersection is built into this one because its a significant runtime gain to not rsearch samples I won't use anyways
         samples = get_short_steppers(&T, samples, max_branch);
@@ -353,9 +356,9 @@ void extract_main (po::parsed_options parsed) {
         }
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
-    //before proceeding to actually applying sample selection, 
-    //if usher-style subtree output is requested, 
-    //produce that. 
+    //before proceeding to actually applying sample selection,
+    //if usher-style subtree output is requested,
+    //produce that.
 
     if (usher_minimum_subtrees_size > 0) {
         timer.Start();
@@ -380,11 +383,11 @@ void extract_main (po::parsed_options parsed) {
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
 
-    //if we have no samples at the end without throwing an error, 
+    //if we have no samples at the end without throwing an error,
     //probably because no selection arguments were set,
     //we want the samples to be all samples in the tree
     //and don't bother pruning.
-    MAT::Tree subtree; 
+    MAT::Tree subtree;
     if (samples.size() == 0) {
         fprintf(stderr, "No sample selection arguments passed; using full input tree for further output.\n");
         samples = T.get_leaves_ids();
@@ -474,7 +477,7 @@ void extract_main (po::parsed_options parsed) {
         for (auto cstr: cpaths) {
             outfile << cstr;
         }
-        outfile.close(); 
+        outfile.close();
         fprintf(stderr, "Completed in %ld msec\n\n", timer.Stop());
     }
     std::vector<std::map<std::string,std::map<std::string,std::string>>> catmeta;
@@ -492,7 +495,7 @@ void extract_main (po::parsed_options parsed) {
             catmeta.emplace_back(scm);
         }
     }
-    //if json output AND mutation context is requested, add an additional metadata column indicating whether each branch contains 
+    //if json output AND mutation context is requested, add an additional metadata column indicating whether each branch contains
     //the mutation of interest. the metadata map is not limited to leaf nodes.
     if ((json_filename != "") && (mutation_choice != "")) {
         std::map<std::string,std::string> mutmap;
@@ -520,7 +523,7 @@ void extract_main (po::parsed_options parsed) {
             }
         }
         std::map<std::string,std::map<std::string,std::string>> submet;
-        submet["mutation_of_interest"]=mutmap; 
+        submet["mutation_of_interest"]=mutmap;
         catmeta.push_back(submet);
     }
     if (minimum_subtrees_size > 0) {
@@ -539,7 +542,7 @@ void extract_main (po::parsed_options parsed) {
             exit(1);
         }
         std::string sample_file = nearest_k_batch_file.substr(0, split_point);
-        std::string nkstr = nearest_k_batch_file.substr(split_point+1, nearest_k_batch_file.size() - split_point); 
+        std::string nkstr = nearest_k_batch_file.substr(split_point+1, nearest_k_batch_file.size() - split_point);
         int nk = std::stoi(nkstr);
         if (nk <= 0) {
             fprintf(stderr, "ERROR: Invalid neighborhood size. Please choose a positive nonzero integer.\n");
@@ -558,6 +561,9 @@ void extract_main (po::parsed_options parsed) {
                 //conmap[batch_samples[s]] = "focal";
                 //catmeta["focal_view"] = conmap;
                 auto cs = get_nearby(&T, batch_samples[s], nk);
+                if ( cs.size() == 0 ) {
+                    continue ;
+                }
                 MAT::Tree subt = filter_master(T, cs, false);
                 //remove forward slashes from the string, replacing them with underscores.
                 size_t pos = 0;
@@ -567,22 +573,22 @@ void extract_main (po::parsed_options parsed) {
                 //fprintf(stderr, "DEBUG: writing file %s\n", (std::to_string(counter) + "_context.json").c_str());
                 write_json_from_mat(&subt, batch_samples[s] + "_context.json", &catmeta);
                 // counter++;
-            }    
-        }, ap) ; 
+            }
+        }, ap) ;
         fprintf(stderr, "%ld batch sample jsons written in %ld msec.\n\n", batch_samples.size(), timer.Stop());
 
-    }    
+    }
     //if json output AND sample context is requested, add an additional metadata column which simply indicates the focal sample versus context
     if ((json_filename != "") && (nearest_k != "")) {
         std::map<std::string,std::string> conmap;
         for (auto s: samples) {
             if (s == sample_id) {
                 conmap[s] = "focal";
-            } 
+            }
         }
-        std::map<std::string,std::map<std::string,std::string>> submet; 
+        std::map<std::string,std::map<std::string,std::string>> submet;
         submet["focal_view"] = conmap;
-        catmeta.emplace_back(submet);    
+        catmeta.emplace_back(submet);
     }
     //last step is to convert the subtree to other file formats
     if (vcf_filename != dir_prefix) {
@@ -598,11 +604,11 @@ void extract_main (po::parsed_options parsed) {
         FILE *tree_file = fopen(tree_filename.c_str(), "w");
         fprintf(tree_file, "%s\n",
             MAT::get_newick_string(subtree, true, true, retain_branch).c_str());
-        fclose(tree_file);        
+        fclose(tree_file);
     }
     //and save a MAT if that was set
     if (output_mat_filename != dir_prefix) {
-        fprintf(stderr, "Saving output MAT file %s.\n", output_mat_filename.c_str()); 
+        fprintf(stderr, "Saving output MAT file %s.\n", output_mat_filename.c_str());
         //only recondense the tree if polytomies weren't resolved.
         if (collapse_tree) {
             subtree.collapse_tree();
