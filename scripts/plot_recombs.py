@@ -54,6 +54,9 @@ if __name__ == "__main__":
             header_found = True
             num_words = len(words)
         elif (header_found):
+            if ((int(words[num_words-3]) == int(words[num_words-2])) and
+                     (int(words[num_words-3]) == int(words[num_words-1]))):
+                      continue
             if (int(words[num_words-3]) > 0):
                 x1.append(int(words[1]))
             if (int(words[num_words-2]) > 0):
