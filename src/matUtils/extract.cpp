@@ -194,9 +194,7 @@ void extract_main (po::parsed_options parsed) {
             exit(1);
         }
         auto nk_samples = get_nearby(&T, sample_id, nk);
-        if ( nk_samples.size() == 0 ) {
-            continue ;
-        }
+        assert ( nk_samples.size() > 0 ) ; 
         if (samples.size() == 0) {
             samples = nk_samples;
         } else {
