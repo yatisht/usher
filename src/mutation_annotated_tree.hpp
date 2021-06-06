@@ -124,6 +124,7 @@ namespace Mutation_Annotated_Tree {
             Node* get_node (std::string identifier) const;
             bool is_ancestor (std::string anc_id, std::string nid) const;
             std::vector<Node*> rsearch (const std::string& nid, bool include_self = false) const;
+            std::string get_clade_assignment (const Node* n, int clade_id, bool include_self = true) const;
             void remove_node (std::string nid, bool move_level);
             void move_node (std::string source, std::string destination, bool move_level=true);
             std::vector<Node*> breadth_first_expansion(std::string nid="");
@@ -150,8 +151,10 @@ namespace Mutation_Annotated_Tree {
     Tree get_tree_copy(const Tree& tree, const std::string& identifier="");
 
     Node* LCA (const Tree& tree, const std::string& node_id1, const std::string& node_id2);
-    Tree get_subtree (const Tree& tree, const std::vector<std::string>& samples);
-
+    Tree get_subtree (const Tree& tree, const std::vector<std::string>& samples, bool keep_clade_annotations=false);
+    void get_random_single_subtree (Mutation_Annotated_Tree::Tree* T, std::vector<std::string> samples, std::string outdir, size_t subtree_size, size_t tree_idx = 0, bool use_tree_idx = false, bool retain_original_branch_len = false);
+    void get_random_sample_subtrees (Mutation_Annotated_Tree::Tree* T, std::vector<std::string> samples, std::string outdir, size_t subtree_size, size_t tree_idx = 0, bool use_tree_idx = false, bool retain_original_branch_len = false);
+    void get_sample_mutation_paths (Mutation_Annotated_Tree::Tree* T, std::vector<std::string> samples, std::string mutation_paths_filename);
     void clear_tree(Tree& tree);
 }
 

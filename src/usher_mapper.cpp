@@ -7,6 +7,10 @@ int mapper_body::operator()(mapper_input input) {
     
     // Valid variants should have positions >= 0
     if (input.variant_pos >= 0) {
+        data_lock.lock();
+        fprintf(stderr, "At variant site %i\n", input.variant_pos);
+        data_lock.unlock();
+
         size_t num_nodes = input.bfs->size();
 
         // State and score vector for the Fitch-Sankoff algorithm. State uses
@@ -43,9 +47,8 @@ int mapper_body::operator()(mapper_input input) {
             size_t pos = std::get<0> (v);
             int8_t nuc = std::get<1> (v);
             std::string nid = (*input.variant_ids)[pos];
-            auto iter = std::find(input.missing_samples->begin(), input.missing_samples->end(), nid);
             // If variant is for the tree sample
-            if (iter == input.missing_samples->end()) {
+            if (input.bfs_idx->find(nid) != input.bfs_idx->end()) {
                 size_t idx= (*input.bfs_idx)[nid];
                 // Initialize scores for bases corresponding to alternate
                 // alleles to 0 and remaining to a high value (num_nodes) 
@@ -59,8 +62,7 @@ int mapper_body::operator()(mapper_input input) {
             // If variant is for the missing sample to be placed, simply add the
             // variant to the sample mutation list
             else {
-                auto mutations_iter = input.missing_sample_mutations->begin() + (iter - input.missing_samples->begin());
-                data_lock.lock();
+                //auto mutations_iter = input.missing_sample_mutations->begin() + (iter - input.missing_samples->begin());
                 MAT::Mutation m;
                 m.chrom = input.chrom;
                 m.position = input.variant_pos;
@@ -73,7 +75,9 @@ int mapper_body::operator()(mapper_input input) {
                     assert ((nuc > 0) && (nuc < 15));
                     m.mut_nuc = nuc;
                 }
-                (*mutations_iter).emplace_back(m);
+                auto iter = std::find(input.missing_samples->begin(), input.missing_samples->end(), nid);
+                data_lock.lock();
+                (*iter).mutations.emplace_back(m);
                 data_lock.unlock();
             }
         }

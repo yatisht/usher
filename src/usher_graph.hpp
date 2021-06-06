@@ -30,6 +30,30 @@ class Timer {
         
 };
 
+struct Missing_Sample {
+    std::string name;
+    std::vector<MAT::Mutation> mutations;
+    size_t num_ambiguous;
+
+    Missing_Sample (std::string sample_name) {
+        name = sample_name;
+        mutations.clear();
+        num_ambiguous = 0;
+    }
+
+    bool operator==(const Missing_Sample& other) const
+    {
+            return (*this).name == other.name;
+    }
+    bool operator<(const Missing_Sample& other) const
+    {
+            return (*this).num_ambiguous < other.num_ambiguous;
+    }
+
+    std::vector<std::string> best_clade_assignment;
+    std::vector<std::vector<std::string>> clade_assignments;
+};
+
 struct mapper_input {
     MAT::Tree* T;
     std::string chrom;
@@ -40,8 +64,8 @@ struct mapper_input {
     std::vector<std::tuple<size_t, int8_t>> variants;
     std::vector<std::string>* variant_ids;
     
-    std::vector<std::string>* missing_samples;
-    std::vector<std::vector<MAT::Mutation>>* missing_sample_mutations;
+    std::vector<Missing_Sample>* missing_samples;
+    //std::vector<std::vector<MAT::Mutation>>* missing_sample_mutations;
 };
 
 struct mapper_body {
