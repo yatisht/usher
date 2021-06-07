@@ -94,7 +94,8 @@ struct Pruned_Sample {
 struct Recomb_Node {
     std::string name;
     int parsimony;
-    Recomb_Node(std::string n, int p) : name(n), parsimony(p)
+    char is_sibling;
+    Recomb_Node(std::string n, int p, char s) : name(n), parsimony(p), is_sibling(s)
     {}
 };
 
@@ -205,7 +206,7 @@ int main(int argc, char** argv) {
     fprintf(stderr, "Creating file %s to write recombination events\n", 
             recomb_filename.c_str());
     FILE* recomb_file = fopen(recomb_filename.c_str(), "w");
-    fprintf(recomb_file, "#recomb_node_id\tbreakpoint-1_interval\tbreakpoint-2_interval\tdonor_node_id\tacceptor_node_id\toriginal_parsimony\trecomb_parsimony\n");
+    fprintf(recomb_file, "#recomb_node_id\tbreakpoint-1_interval\tbreakpoint-2_interval\tdonor_node_id\tdonor_is_sibling\tacceptor_node_id\tacceptor_is_sibling\toriginal_parsimony\trecomb_parsimony\n");
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     
     timer.Start();
@@ -378,7 +379,7 @@ int main(int argc, char** argv) {
 
                             if (num_mut + parsimony_improvement <= (size_t) orig_parsimony) {
                                 tbb_lock.lock();
-                                acceptor_nodes.emplace_back(Recomb_Node(bfs[k]->identifier, num_mut));
+                                acceptor_nodes.emplace_back(Recomb_Node(bfs[k]->identifier, num_mut, 'y'));
                                 tbb_lock.unlock();
                             }
                             }
@@ -409,7 +410,7 @@ int main(int argc, char** argv) {
 
                                 if (num_mut + parsimony_improvement <= (size_t) orig_parsimony) {
                                     tbb_lock.lock();
-                                    acceptor_nodes.emplace_back(Recomb_Node(bfs[k]->identifier, num_mut));
+                                    acceptor_nodes.emplace_back(Recomb_Node(bfs[k]->identifier, num_mut, 'n'));
                                     tbb_lock.unlock();
                                 }
                             }
@@ -463,7 +464,7 @@ int main(int argc, char** argv) {
 
                                    if (num_mut + parsimony_improvement <= (size_t) orig_parsimony) {
                                        tbb_lock.lock();
-                                       donor_nodes.emplace_back(Recomb_Node(bfs[k]->identifier, num_mut));
+                                       donor_nodes.emplace_back(Recomb_Node(bfs[k]->identifier, num_mut, 'y'));
                                        tbb_lock.unlock();
                                    }
                                }
@@ -494,7 +495,7 @@ int main(int argc, char** argv) {
 
                                    if (num_mut + parsimony_improvement <= (size_t) orig_parsimony) {
                                        tbb_lock.lock();
-                                       donor_nodes.emplace_back(Recomb_Node(bfs[k]->identifier, num_mut));
+                                       donor_nodes.emplace_back(Recomb_Node(bfs[k]->identifier, num_mut, 'n'));
                                        tbb_lock.unlock();
                                    }
                                }
@@ -517,9 +518,9 @@ int main(int argc, char** argv) {
                             donor.sample_mutations.clear();
                             acceptor.sample_mutations.clear();
 
-                            for (size_t k=0; k<num_mutations; k++) {
-                                if ((k>=i) && (k<j)) {
-                                    donor.add_mutation(pruned_sample.sample_mutations[k]);
+                            for (auto anc: T.rsearch(d.name, true)) {
+                                for (auto mut: anc->mutations) { 
+                                    donor.add_mutation(mut);
                                 }
                             }
 
@@ -574,8 +575,9 @@ int main(int argc, char** argv) {
                             }
 
                             std::string end_range_high_str = (end_range_high == 1e9) ? "GENOME_SIZE" : std::to_string(end_range_high);
-                            fprintf(recomb_file, "%s\t(%i,%i)\t(%i,%s)\t%s\t%s\t%i\t%i\n", nid_to_consider.c_str(), start_range_low, start_range_high,
-                                    end_range_low, end_range_high_str.c_str(), d.name.c_str(), a.name.c_str(), orig_parsimony, d.parsimony+a.parsimony);
+                            fprintf(recomb_file, "%s\t(%i,%i)\t(%i,%s)\t%s\t%c\t%s%c\t\t%i\t%i\n", nid_to_consider.c_str(), start_range_low, start_range_high,
+                                    end_range_low, end_range_high_str.c_str(), d.name.c_str(), d.is_sibling, a.name.c_str(), a.is_sibling, orig_parsimony, 
+                                    d.parsimony+a.parsimony);
                             has_recomb = true;
                             has_printed = true;
                             fflush(recomb_file);

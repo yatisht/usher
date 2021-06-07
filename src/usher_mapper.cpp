@@ -224,10 +224,8 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores) {
 
                             ancestral_mutations.emplace_back(m);
                             anc_positions.emplace_back(m1.position);
-                            if (!compute_parsimony_scores) {
-                                assert((m.mut_nuc & (m.mut_nuc-1)) == 0);
-                                (*input.excess_mutations).emplace_back(m);
-                            }
+                            assert((m.mut_nuc & (m.mut_nuc-1)) == 0);
+                            (*input.excess_mutations).emplace_back(m);
                             // Ambiguous base
                             //if ((nuc & (nuc-1)) != 0) {
                             //    (*input.imputed_mutations).emplace_back(m);
@@ -253,10 +251,8 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores) {
 
                     ancestral_mutations.emplace_back(m);
                     anc_positions.emplace_back(m1.position);
-                    if (!compute_parsimony_scores) {
-                        assert((m.mut_nuc & (m.mut_nuc-1)) == 0);
-                        (*input.excess_mutations).emplace_back(m);
-                    }
+                    assert((m.mut_nuc & (m.mut_nuc-1)) == 0);
+                    (*input.excess_mutations).emplace_back(m);
                     num_common_mut++;
                 }
                 else {
