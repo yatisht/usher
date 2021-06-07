@@ -1252,6 +1252,10 @@ int main(int argc, char** argv) {
                     FILE* annotations_file = fopen(annotations_filename.c_str(), "w");
 
                     for (size_t s=0; s<missing_samples.size(); s++) {
+                        if (missing_samples[s].best_clade_assignment.size() == 0) {
+                            // Sample was not placed (e.g. exceeded max EPPs) so no clades assigned
+                            continue;
+                        }
                         auto sample = missing_samples[s].name;
                         
                         fprintf(annotations_file, "%s\t", sample.c_str());
