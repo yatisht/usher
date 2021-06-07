@@ -572,7 +572,7 @@ void get_minimum_subtrees(MAT::Tree* T, std::vector<std::string> samples, size_t
           std::vector<std::string> leaves_to_keep = get_nearby( T, samples[i], nearest_subtree_size ) ;
 
           if ( leaves_to_keep.size() == 0 ) {
-              samples_we_have_seen.insert({samples[i],-1}) ; 
+              samples_we_have_seen.insert({samples[i],-1}) ;
               continue ;
           }
 
@@ -608,6 +608,18 @@ void get_minimum_subtrees(MAT::Tree* T, std::vector<std::string> samples, size_t
     /// end TBB loop
     } ) ;
 
+    /// get the set of metadata fields in the requested samples
+    std::set<std::string> metafields ;
+    for ( int i = 0 ; i < samples.size() ; i ++ ) {
+        for (const auto& cmet: *catmeta) {
+            for (const auto& cmi: cmet) {
+                if (cmi.second.find(samples[i]) != cmi.second.end()) {
+                    metafields.insert(cmi.first) ;
+                }
+            }
+        }
+    }
+
     std::ofstream tracker (output_dir + "subtree-assignments.tsv");
     tracker << "samples";
     if (json_n != output_dir) {
@@ -616,6 +628,11 @@ void get_minimum_subtrees(MAT::Tree* T, std::vector<std::string> samples, size_t
     if (newick_n != output_dir) {
         tracker << "\t" << "newick_file";
     }
+
+    for ( const auto& m : metafields ) {
+        tracker << "\t" << m ;
+    }
+
     tracker << "\n";
     for (size_t i = 0; i < samples.size(); i++) {
         if ( samples_we_have_seen[samples[i]] == -1 ) {
@@ -630,6 +647,26 @@ void get_minimum_subtrees(MAT::Tree* T, std::vector<std::string> samples, size_t
             std::string outf = newick_n + "-subtree-" + std::to_string(samples_we_have_seen[samples[i]]) + ".nw";
             tracker << "\t" << outf;
         }
+
+        /// now print all of the relevant metadata
+        /// get the set of metadata fields in the requested samples
+        for ( const auto& m : metafields ) {
+            bool print = false ;
+            for (const auto& cmet: *catmeta) {
+                for ( const auto& cmi: cmet ) {
+                    if ( cmi.first == m && cmi.second.find( samples[i] ) != cmi.second.end()  ) {
+                        if ( print == false ) {
+                            tracker << "\t" << cmi.second.at(samples[i]) ;
+                            print = true ;
+                        }
+                    }
+                }
+            }
+            if ( print == false ) {
+                tracker << "\tNA" ;
+            }
+        }
+
         tracker << "\n";
     }
     tracker.close();
