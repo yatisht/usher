@@ -505,8 +505,8 @@ void extract_main (po::parsed_options parsed) {
         }
         assert (mutations.size() > 0);
         for (auto n: subtree.depth_first_expansion()) {
+            std::string metastr = "";
             for (auto m: n->mutations) {
-                std::string metastr = "";
                 for (auto mstr: mutations ) {
                     if (m.get_string() == mstr) {
                         if (metastr == "") {
@@ -516,9 +516,9 @@ void extract_main (po::parsed_options parsed) {
                         }
                     }
                 }
-                mutmap[n->identifier] = metastr;
-                break;
+                // break;
             }
+            mutmap[n->identifier] = metastr;
         }
         std::map<std::string,std::map<std::string,std::string>> submet;
         submet["mutation_of_interest"]=mutmap;
@@ -591,7 +591,7 @@ void extract_main (po::parsed_options parsed) {
     //last step is to convert the subtree to other file formats
     if (vcf_filename != dir_prefix) {
         fprintf(stderr, "Generating VCF of final tree\n");
-        make_vcf(subtree, vcf_filename, no_genotypes);
+        make_vcf(subtree, vcf_filename, no_genotypes, samples);
     }
     if (json_filename != dir_prefix) {
         fprintf(stderr, "Generating JSON of final tree\n");
