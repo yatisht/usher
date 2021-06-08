@@ -1,7 +1,7 @@
 
 cmake_minimum_required (VERSION 3.8) 
 
-project(usher VERSION 0.3.0)
+project(usher VERSION 0.3.1)
 
 configure_file(src/version.hpp.in version.hpp)
 
