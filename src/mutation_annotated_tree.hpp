@@ -15,6 +15,7 @@
 #include <tbb/task_scheduler_init.h>
 #include <tbb/blocked_range.h>
 #include <tbb/tbb.h>
+#include <tbb/mutex.h>
 #include "parsimony.pb.h"
 #include "Instrumentor.h"
 
@@ -104,8 +105,6 @@ namespace Mutation_Annotated_Tree {
                 root = NULL;
                 all_nodes.clear();
             }
-
-            Tree (Node* n);
 
             Node* root;
             tbb::concurrent_unordered_map<std::string, std::vector<std::string>> condensed_nodes;
