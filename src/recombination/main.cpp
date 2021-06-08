@@ -575,7 +575,7 @@ int main(int argc, char** argv) {
                             }
 
                             std::string end_range_high_str = (end_range_high == 1e9) ? "GENOME_SIZE" : std::to_string(end_range_high);
-                            fprintf(recomb_file, "%s\t(%i,%i)\t(%i,%s)\t%s\t%c\t%s%c\t\t%i\t%i\n", nid_to_consider.c_str(), start_range_low, start_range_high,
+                            fprintf(recomb_file, "%s\t(%i,%i)\t(%i,%s)\t%s\t%c\t%s\t%c\t%i\t%i\n", nid_to_consider.c_str(), start_range_low, start_range_high,
                                     end_range_low, end_range_high_str.c_str(), d.name.c_str(), d.is_sibling, a.name.c_str(), a.is_sibling, orig_parsimony, 
                                     d.parsimony+a.parsimony);
                             has_recomb = true;
