@@ -591,7 +591,7 @@ void extract_main (po::parsed_options parsed) {
     //last step is to convert the subtree to other file formats
     if (vcf_filename != dir_prefix) {
         fprintf(stderr, "Generating VCF of final tree\n");
-        make_vcf(subtree, vcf_filename, no_genotypes);
+        make_vcf(subtree, vcf_filename, no_genotypes, samples);
     }
     if (json_filename != dir_prefix) {
         fprintf(stderr, "Generating JSON of final tree\n");
