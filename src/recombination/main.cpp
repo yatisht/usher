@@ -98,6 +98,66 @@ struct Recomb_Node {
     Recomb_Node(std::string n, int p, char s) : name(n), parsimony(p), is_sibling(s)
     {}
 };
+struct Recomb_Interval {
+    Recomb_Node donor;
+    Recomb_Node acceptor;
+    int start_range_low;
+    int start_range_high;
+    int end_range_low;
+    int end_range_high;
+    Recomb_Interval(Recomb_Node d, Recomb_Node a, int sl, int sh, int el, int eh): 
+    donor(d), acceptor(a), start_range_low(sl), start_range_high(sh), end_range_low(el), end_range_high(eh)
+    {}
+    bool operator<(const Recomb_Interval& other) const{//compare second interval
+        return end_range_low < other.end_range_low;
+    } 
+};
+
+struct Comp_First_Interval{
+    inline bool operator()(const Recomb_Interval& one, const Recomb_Interval& other){
+       return one.start_range_low < other.start_range_low;
+    }
+};
+
+
+std::vector<Recomb_Interval> combine_intervals(std::vector<Recomb_Interval> pair_list) {
+    //combine second interval
+    std::vector<Recomb_Interval> pairs(pair_list);
+    std::sort(pairs.begin(), pairs.end());//sorts by beginning of second interval
+    std::vector<Recomb_Interval> newPairs;
+    for(int i = 0; i < pairs.size(); i++){
+        newPairs.push_back(pairs[i]);
+        for(int j = i+1; j < pairs.size(); j++){
+            //check everything except first interval is same and first interval of pairs[i] ends where it starts for pairs[j]
+            if(pairs[i].donor.name == pairs[j].donor.name && pairs[i].acceptor.name == pairs[j].acceptor.name &&
+                pairs[i].start_range_low == pairs[j].start_range_low && pairs[i].start_range_high == pairs[j].start_range_high
+                && pairs[i].end_range_high == pairs[j].end_range_low){
+                newPairs[i].end_range_high = pairs[j].end_range_high;
+                pairs[i].end_range_high = pairs[j].end_range_high;
+                pairs.erase(pairs.begin()+j);//remove the combined element
+                j--;
+            }
+        }
+    }
+    //combine first interval
+    std::sort(newPairs.begin(), newPairs.end(), Comp_First_Interval());
+    std::vector<Recomb_Interval> combinedPairs;
+    for(int i = 0; i < newPairs.size(); i++){
+        combinedPairs.push_back(newPairs[i]);
+        for(int j = i + 1; j < newPairs.size(); j++){
+            //check everything except second interval is same and second interval of pairs[i] ends where it starts for pairs[j]
+            if(newPairs[i].donor.name == newPairs[j].donor.name && newPairs[i].acceptor.name == newPairs[j].acceptor.name &&
+                newPairs[i].end_range_low == newPairs[j].end_range_low && newPairs[i].end_range_high == newPairs[j].end_range_high
+                && newPairs[i].start_range_high == newPairs[j].start_range_low){
+                combinedPairs[i].start_range_high = newPairs[j].start_range_high;
+                newPairs[i].start_range_high = newPairs[j].start_range_high;
+                newPairs.erase(newPairs.begin()+j);
+                j--;
+            }
+        }
+    }
+    return combinedPairs;
+}
 
 int main(int argc, char** argv) {
     po::variables_map vm = check_options(argc, argv);
@@ -300,7 +360,7 @@ int main(int argc, char** argv) {
                 }
         }, ap);
 
-
+        std::vector<Recomb_Interval> valid_pairs;
         bool has_recomb = false;
         for (size_t i = 0; i<num_mutations; i++) {
             for (size_t j=i; j<num_mutations; j++) {
@@ -505,7 +565,7 @@ int main(int argc, char** argv) {
                 
                 // to print any pair of breakpoint interval exactly once for
                 // multiple donor-acceptor pairs
-                bool has_printed = false;
+                bool has_added = false;
                 for (auto d: donor_nodes) {
                     for (auto a:acceptor_nodes) {
                         // Ensure donor and acceptor are not the same and
@@ -573,25 +633,32 @@ int main(int argc, char** argv) {
                                     }
                                 }
                             }
-
-                            std::string end_range_high_str = (end_range_high == 1e9) ? "GENOME_SIZE" : std::to_string(end_range_high);
-                            fprintf(recomb_file, "%s\t(%i,%i)\t(%i,%s)\t%s\t%c\t%s\t%c\t%i\t%i\n", nid_to_consider.c_str(), start_range_low, start_range_high,
-                                    end_range_low, end_range_high_str.c_str(), d.name.c_str(), d.is_sibling, a.name.c_str(), a.is_sibling, orig_parsimony, 
-                                    d.parsimony+a.parsimony);
+                            valid_pairs.push_back(Recomb_Interval(d, a, start_range_low, start_range_high, end_range_low, end_range_high));
                             has_recomb = true;
-                            has_printed = true;
+                            has_added = true;
                             fflush(recomb_file);
                             break;
                         }
                     }
-                    if (has_printed) {
+                    if (has_added) {
                         break;
                     }
                 }
 
             }
         }
-        
+
+        valid_pairs = combine_intervals(valid_pairs);
+        //print combined pairs 
+        for(auto p: valid_pairs){
+            std::string end_range_high_str = (p.end_range_high == 1e9) ? "GENOME_SIZE" : std::to_string(p.end_range_high);
+            fprintf(recomb_file, "%s\t(%i,%i)\t(%i,%s)\t%s\t%c\t%s\t%c\t%i\t%i\n", nid_to_consider.c_str(), p.start_range_low, p.start_range_high,
+                p.end_range_low, end_range_high_str.c_str(), p.donor.name.c_str(), p.donor.is_sibling, p.acceptor.name.c_str(), 
+                p.acceptor.is_sibling, orig_parsimony, p.donor.parsimony+p.acceptor.parsimony);
+            fflush(recomb_file);
+        }
+        valid_pairs.clear();
+
         if (has_recomb) {
             fprintf(desc_file, "%s\t", nid_to_consider.c_str());
             for (auto l: T.get_leaves(nid_to_consider)) {
