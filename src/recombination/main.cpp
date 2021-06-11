@@ -132,15 +132,12 @@ std::vector<Recomb_Interval> combine_intervals(std::vector<Recomb_Interval> pair
     //combine second interval
     std::vector<Recomb_Interval> pairs(pair_list);
     std::sort(pairs.begin(), pairs.end());//sorts by beginning of second interval
-    std::vector<Recomb_Interval> newPairs;
     for(int i = 0; i < pairs.size(); i++){
-        newPairs.push_back(pairs[i]);
         for(int j = i+1; j < pairs.size(); j++){
             //check everything except first interval is same and first interval of pairs[i] ends where it starts for pairs[j]
             if(pairs[i].d.name == pairs[j].d.name && pairs[i].a.name == pairs[j].a.name &&
                 pairs[i].start_range_low == pairs[j].start_range_low && pairs[i].start_range_high == pairs[j].start_range_high
                 && pairs[i].end_range_high == pairs[j].end_range_low && (pairs[i].d.parsimony+pairs[i].a.parsimony) == (pairs[j].d.parsimony+pairs[j].a.parsimony)){
-                newPairs[i].end_range_high = pairs[j].end_range_high;
                 pairs[i].end_range_high = pairs[j].end_range_high;
                 pairs.erase(pairs.begin()+j);//remove the combined element
                 j--;
@@ -148,23 +145,20 @@ std::vector<Recomb_Interval> combine_intervals(std::vector<Recomb_Interval> pair
         }
     }
     //combine first interval
-    std::sort(newPairs.begin(), newPairs.end(), Comp_First_Interval());
-    std::vector<Recomb_Interval> combinedPairs;
-    for(int i = 0; i < newPairs.size(); i++){
-        combinedPairs.push_back(newPairs[i]);
-        for(int j = i + 1; j < newPairs.size(); j++){
+    std::sort(pairs.begin(), pairs.end(), Comp_First_Interval());
+    for(int i = 0; i < pairs.size(); i++){
+        for(int j = i + 1; j < pairs.size(); j++){
             //check everything except second interval is same and second interval of pairs[i] ends where it starts for pairs[j]
-            if(newPairs[i].d.name == newPairs[j].d.name && newPairs[i].a.name == newPairs[j].a.name &&
-                newPairs[i].end_range_low == newPairs[j].end_range_low && newPairs[i].end_range_high == newPairs[j].end_range_high
-                && newPairs[i].start_range_high == newPairs[j].start_range_low && (newPairs[i].d.parsimony+newPairs[i].a.parsimony) == (newPairs[j].d.parsimony+newPairs[j].a.parsimony)){
-                combinedPairs[i].start_range_high = newPairs[j].start_range_high;
-                newPairs[i].start_range_high = newPairs[j].start_range_high;
-                newPairs.erase(newPairs.begin()+j);
+            if(pairs[i].d.name == pairs[j].d.name && pairs[i].a.name == pairs[j].a.name &&
+                pairs[i].end_range_low == pairs[j].end_range_low && pairs[i].end_range_high == pairs[j].end_range_high
+                && pairs[i].start_range_high == pairs[j].start_range_low && (pairs[i].d.parsimony+pairs[i].a.parsimony) == (pairs[j].d.parsimony+pairs[j].a.parsimony)){
+                pairs[i].start_range_high = pairs[j].start_range_high;
+                pairs.erase(pairs.begin()+j);
                 j--;
             }
         }
     }
-    return combinedPairs;
+    return pairs;
 }
 
 
@@ -640,7 +634,6 @@ int main(int argc, char** argv) {
                             
                             has_recomb = true;
                             has_printed = true;
-                            fflush(recomb_file);
                             break;
                         }
                     }
@@ -661,7 +654,6 @@ int main(int argc, char** argv) {
                                     p.a.name.c_str(), p.a.is_sibling, p.a.node_parsimony, orig_parsimony, p.d.parsimony+p.a.parsimony);
             fflush(recomb_file);
         }
-        valid_pairs.clear();
         
         if (has_recomb) {
             fprintf(desc_file, "%s\t", nid_to_consider.c_str());
