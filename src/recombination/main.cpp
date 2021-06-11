@@ -269,7 +269,7 @@ int main(int argc, char** argv) {
     fprintf(stderr, "Creating file %s to write recombination events\n", 
             recomb_filename.c_str());
     FILE* recomb_file = fopen(recomb_filename.c_str(), "w");
-    fprintf(recomb_file, "#recomb_node_id\tbreakpoint-1_interval\tbreakpoint-2_interval\tdonor_node_id\tdonor_is_sibling\tdonor_parsimony\tacceptor_node_id\tacceptor_is_sibling\tacceptor_parsimony\toriginal_parsimony\tbest_placement_parsimony\trecomb_parsimony\n");
+    fprintf(recomb_file, "#recomb_node_id\tbreakpoint-1_interval\tbreakpoint-2_interval\tdonor_node_id\tdonor_is_sibling\tdonor_parsimony\tacceptor_node_id\tacceptor_is_sibling\tacceptor_parsimony\toriginal_parsimony\tmin_starting_parsimony\trecomb_parsimony\n");
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     
     timer.Start();
@@ -644,13 +644,14 @@ int main(int argc, char** argv) {
             }
         }
 
-        valid_pairs = combine_intervals(valid_pairs);
+        //valid_pairs = combine_intervals(valid_pairs);
         //print combined pairs 
         for(auto p: valid_pairs){
             std::string end_range_high_str = (p.end_range_high == 1e9) ? "GENOME_SIZE" : std::to_string(p.end_range_high);
-            fprintf(recomb_file, "%s\t(%i,%i)\t(%i,%s)\t%s\t%c\t%i\t%s\t%c\t%i\t%i\t%i\n", nid_to_consider.c_str(), p.start_range_low, p.start_range_high,
-                                    p.end_range_low, end_range_high_str.c_str(), p.d.name.c_str(), p.d.is_sibling, p.d.node_parsimony, 
-                                    p.a.name.c_str(), p.a.is_sibling, p.a.node_parsimony, orig_parsimony, p.d.parsimony+p.a.parsimony);
+            fprintf(recomb_file, "%s\t(%i,%i)\t(%i,%s)\t%s\t%c\t%i\t%s\t%c\t%i\t%i\t%i\t%i\n", nid_to_consider.c_str(), p.start_range_low, 
+            p.start_range_high, p.end_range_low, end_range_high_str.c_str(), p.d.name.c_str(), p.d.is_sibling, p.d.node_parsimony, 
+                p.a.name.c_str(), p.a.is_sibling, p.a.node_parsimony, orig_parsimony,
+                std::min({orig_parsimony, p.d.node_parsimony, p.a.node_parsimony}), p.d.parsimony+p.a.parsimony);
             fflush(recomb_file);
         }
         
