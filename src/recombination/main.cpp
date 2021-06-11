@@ -630,7 +630,9 @@ int main(int argc, char** argv) {
                                     }
                                 }
                             }
+
                             valid_pairs.push_back(Recomb_Interval(d, a, start_range_low, start_range_high, end_range_low, end_range_high));
+
                             has_recomb = true;
                             has_printed = true;
                             break;
@@ -644,7 +646,7 @@ int main(int argc, char** argv) {
             }
         }
 
-        //valid_pairs = combine_intervals(valid_pairs);
+        valid_pairs = combine_intervals(valid_pairs);
         //print combined pairs 
         for(auto p: valid_pairs){
             std::string end_range_high_str = (p.end_range_high == 1e9) ? "GENOME_SIZE" : std::to_string(p.end_range_high);
