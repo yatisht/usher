@@ -213,7 +213,7 @@ int main(int argc, char** argv) {
     fprintf(stderr, "Creating file %s to write recombination events\n", 
             recomb_filename.c_str());
     FILE* recomb_file = fopen(recomb_filename.c_str(), "w");
-    fprintf(recomb_file, "#recomb_node_id\tbreakpoint-1_interval\tbreakpoint-2_interval\tdonor_node_id\tdonor_is_sibling\tdonor_parsimony\tacceptor_node_id\tacceptor_is_sibling\tacceptor_parsimony\toriginal_parsimony\tbest_placement_parsimony\trecomb_parsimony\n");
+    fprintf(recomb_file, "#recomb_node_id\tbreakpoint-1_interval\tbreakpoint-2_interval\tdonor_node_id\tdonor_is_sibling\tdonor_parsimony\tacceptor_node_id\tacceptor_is_sibling\tacceptor_parsimony\toriginal_parsimony\tmin_starting_parsimony\trecomb_parsimony\n");
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     
     timer.Start();
@@ -576,9 +576,10 @@ int main(int argc, char** argv) {
                             }
 
                             std::string end_range_high_str = (end_range_high == 1e9) ? "GENOME_SIZE" : std::to_string(end_range_high);
-                            fprintf(recomb_file, "%s\t(%i,%i)\t(%i,%s)\t%s\t%c\t%i\t%s\t%c\t%i\t%i\t%i\n", nid_to_consider.c_str(), start_range_low, start_range_high,
+                            fprintf(recomb_file, "%s\t(%i,%i)\t(%i,%s)\t%s\t%c\t%i\t%s\t%c\t%i\t%i\t%i\t%i\n", nid_to_consider.c_str(), start_range_low, start_range_high,
                                     end_range_low, end_range_high_str.c_str(), d.name.c_str(), d.is_sibling, d.node_parsimony, 
-                                    a.name.c_str(), a.is_sibling, a.node_parsimony, orig_parsimony, d.parsimony+a.parsimony);
+                                    a.name.c_str(), a.is_sibling, a.node_parsimony, orig_parsimony, std::min({orig_parsimony, d.node_parsimony, a.node_parsimony}), 
+                                    d.parsimony+a.parsimony);
                             has_recomb = true;
                             has_printed = true;
                             fflush(recomb_file);
