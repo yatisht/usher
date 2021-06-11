@@ -135,9 +135,9 @@ std::vector<Recomb_Interval> combine_intervals(std::vector<Recomb_Interval> pair
     for(int i = 0; i < pairs.size(); i++){
         for(int j = i+1; j < pairs.size(); j++){
             //check everything except first interval is same and first interval of pairs[i] ends where it starts for pairs[j]
-            if(pairs[i].d.name == pairs[j].d.name && pairs[i].a.name == pairs[j].a.name &&
-                pairs[i].start_range_low == pairs[j].start_range_low && pairs[i].start_range_high == pairs[j].start_range_high
-                && pairs[i].end_range_high == pairs[j].end_range_low && (pairs[i].d.parsimony+pairs[i].a.parsimony) == (pairs[j].d.parsimony+pairs[j].a.parsimony)){
+            if((pairs[i].d.name == pairs[j].d.name) && (pairs[i].a.name == pairs[j].a.name) &&
+                (pairs[i].start_range_low == pairs[j].start_range_low) && (pairs[i].start_range_high == pairs[j].start_range_high) && 
+                (pairs[i].end_range_high == pairs[j].end_range_low) && ((pairs[i].d.parsimony+pairs[i].a.parsimony) == (pairs[j].d.parsimony+pairs[j].a.parsimony))){
                 pairs[i].end_range_high = pairs[j].end_range_high;
                 pairs.erase(pairs.begin()+j);//remove the combined element
                 j--;
@@ -149,9 +149,9 @@ std::vector<Recomb_Interval> combine_intervals(std::vector<Recomb_Interval> pair
     for(int i = 0; i < pairs.size(); i++){
         for(int j = i + 1; j < pairs.size(); j++){
             //check everything except second interval is same and second interval of pairs[i] ends where it starts for pairs[j]
-            if(pairs[i].d.name == pairs[j].d.name && pairs[i].a.name == pairs[j].a.name &&
-                pairs[i].end_range_low == pairs[j].end_range_low && pairs[i].end_range_high == pairs[j].end_range_high
-                && pairs[i].start_range_high == pairs[j].start_range_low && (pairs[i].d.parsimony+pairs[i].a.parsimony) == (pairs[j].d.parsimony+pairs[j].a.parsimony)){
+            if((pairs[i].d.name == pairs[j].d.name) && (pairs[i].a.name == pairs[j].a.name) &&
+                (pairs[i].end_range_low == pairs[j].end_range_low) && (pairs[i].end_range_high == pairs[j].end_range_high) && 
+                (pairs[i].start_range_high == pairs[j].start_range_low) && ((pairs[i].d.parsimony+pairs[i].a.parsimony) == (pairs[j].d.parsimony+pairs[j].a.parsimony))){
                 pairs[i].start_range_high = pairs[j].start_range_high;
                 pairs.erase(pairs.begin()+j);
                 j--;
@@ -631,7 +631,6 @@ int main(int argc, char** argv) {
                                 }
                             }
                             valid_pairs.push_back(Recomb_Interval(d, a, start_range_low, start_range_high, end_range_low, end_range_high));
-                            
                             has_recomb = true;
                             has_printed = true;
                             break;
