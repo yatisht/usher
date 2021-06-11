@@ -444,6 +444,7 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores) {
     // Set the number of parsimony-increasing mutations
     if (compute_parsimony_scores) {
         *input.set_difference = set_difference;
+        (*input.node_has_unique)[input.j] = has_unique;
     }
 
     // if sibling of internal node or leaf, ensure it is not equivalent to placing under parent
