@@ -8,6 +8,7 @@
 #include <boost/filesystem.hpp>
 #include "tbb/concurrent_unordered_set.h"
 #include "../usher_graph.hpp"
+ 
 
 namespace po = boost::program_options;
 
@@ -78,8 +79,9 @@ struct Pruned_Sample {
         // If not reversal to reference allele 
         if ((mut.ref_nuc != mut.mut_nuc) && (positions.find(mut.position) == positions.end())) {
             auto iter = std::lower_bound(sample_mutations.begin(), sample_mutations.end(), mut);
-            mut.par_nuc = mut.ref_nuc;
-            sample_mutations.insert(iter, mut);
+            auto m = mut.copy();
+            m.par_nuc = m.ref_nuc;
+            sample_mutations.insert(iter, m);
         }
         positions.insert(mut.position);
     }
@@ -93,10 +95,15 @@ struct Pruned_Sample {
 
 struct Recomb_Node {
     std::string name;
+    int node_parsimony;
     int parsimony;
     char is_sibling;
-    Recomb_Node(std::string n, int p, char s) : name(n), parsimony(p), is_sibling(s)
+    Recomb_Node(std::string n, int np, int p, char s) : name(n), node_parsimony(np), parsimony(p), is_sibling(s)
     {}
+    inline bool operator< (const Recomb_Node& n) const {
+        return (((*this).parsimony < n.parsimony) || (((*this).name <  n.name) && ((*this).parsimony == n.parsimony)));
+    }
+
 };
 
 int main(int argc, char** argv) {
@@ -206,7 +213,7 @@ int main(int argc, char** argv) {
     fprintf(stderr, "Creating file %s to write recombination events\n", 
             recomb_filename.c_str());
     FILE* recomb_file = fopen(recomb_filename.c_str(), "w");
-    fprintf(recomb_file, "#recomb_node_id\tbreakpoint-1_interval\tbreakpoint-2_interval\tdonor_node_id\tdonor_is_sibling\tacceptor_node_id\tacceptor_is_sibling\toriginal_parsimony\trecomb_parsimony\n");
+    fprintf(recomb_file, "#recomb_node_id\tbreakpoint-1_interval\tbreakpoint-2_interval\tdonor_node_id\tdonor_is_sibling\tdonor_parsimony\tacceptor_node_id\tacceptor_is_sibling\tacceptor_parsimony\toriginal_parsimony\tbest_placement_parsimony\trecomb_parsimony\n");
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     
     timer.Start();
@@ -239,7 +246,6 @@ int main(int argc, char** argv) {
         }
         size_t num_mutations = pruned_sample.sample_mutations.size();
 
-        tbb::mutex tbb_lock;
         size_t total_nodes = bfs.size();
 
         std::vector<std::vector<MAT::Mutation>> node_excess_mutations(total_nodes);
@@ -262,7 +268,7 @@ int main(int argc, char** argv) {
         MAT::Node* best_node = T.root;
         best_j_vec.emplace_back(0);
 
-        std::vector<size_t> node_distance(total_nodes);
+        std::vector<size_t> node_distance(total_nodes, 0);
 
         tbb::parallel_for( tbb::blocked_range<size_t>(0, total_nodes),
                 [&](tbb::blocked_range<size_t> r) {
@@ -333,8 +339,8 @@ int main(int argc, char** argv) {
                     continue;
                 }
 
-                std::vector<Recomb_Node> donor_nodes;
-                std::vector<Recomb_Node> acceptor_nodes;
+                tbb::concurrent_vector<Recomb_Node> donor_nodes;
+                tbb::concurrent_vector<Recomb_Node> acceptor_nodes;
 
                 donor_nodes.clear();
                 acceptor_nodes.clear();
@@ -343,9 +349,9 @@ int main(int argc, char** argv) {
                     tbb::parallel_for( tbb::blocked_range<size_t>(0, total_nodes),
                             [&](tbb::blocked_range<size_t> r) {
                                
-                            size_t num_mut = 0;
 
                             for (size_t k=r.begin(); k<r.end(); ++k) {
+                            size_t num_mut = 0;
                             if (T.get_num_leaves(bfs[k]) < num_descendants) {
                             continue;
                             }
@@ -378,9 +384,7 @@ int main(int argc, char** argv) {
                             }
 
                             if (num_mut + parsimony_improvement <= (size_t) orig_parsimony) {
-                                tbb_lock.lock();
-                                acceptor_nodes.emplace_back(Recomb_Node(bfs[k]->identifier, num_mut, 'y'));
-                                tbb_lock.unlock();
+                                acceptor_nodes.emplace_back(Recomb_Node(bfs[k]->identifier, node_set_difference[k], num_mut, 'y'));
                             }
                             }
                             // Else placement as child
@@ -409,9 +413,7 @@ int main(int argc, char** argv) {
                                 }
 
                                 if (num_mut + parsimony_improvement <= (size_t) orig_parsimony) {
-                                    tbb_lock.lock();
-                                    acceptor_nodes.emplace_back(Recomb_Node(bfs[k]->identifier, num_mut, 'n'));
-                                    tbb_lock.unlock();
+                                    acceptor_nodes.emplace_back(Recomb_Node(bfs[k]->identifier, node_set_difference[k], num_mut, 'n'));
                                 }
                             }
                             }
@@ -463,9 +465,7 @@ int main(int argc, char** argv) {
                                    }
 
                                    if (num_mut + parsimony_improvement <= (size_t) orig_parsimony) {
-                                       tbb_lock.lock();
-                                       donor_nodes.emplace_back(Recomb_Node(bfs[k]->identifier, num_mut, 'y'));
-                                       tbb_lock.unlock();
+                                       donor_nodes.emplace_back(Recomb_Node(bfs[k]->identifier, node_set_difference[k], num_mut, 'y'));
                                    }
                                }
                                // Else placement as child
@@ -494,15 +494,16 @@ int main(int argc, char** argv) {
                                    }
 
                                    if (num_mut + parsimony_improvement <= (size_t) orig_parsimony) {
-                                       tbb_lock.lock();
-                                       donor_nodes.emplace_back(Recomb_Node(bfs[k]->identifier, num_mut, 'n'));
-                                       tbb_lock.unlock();
+                                       donor_nodes.emplace_back(Recomb_Node(bfs[k]->identifier, node_set_difference[k], num_mut, 'n'));
                                    }
                                }
                             }
                         }, ap);
                 }
                 
+                std::sort (donor_nodes.begin(), donor_nodes.end());
+                std::sort (acceptor_nodes.begin(), acceptor_nodes.end());
+
                 // to print any pair of breakpoint interval exactly once for
                 // multiple donor-acceptor pairs
                 bool has_printed = false;
@@ -575,9 +576,9 @@ int main(int argc, char** argv) {
                             }
 
                             std::string end_range_high_str = (end_range_high == 1e9) ? "GENOME_SIZE" : std::to_string(end_range_high);
-                            fprintf(recomb_file, "%s\t(%i,%i)\t(%i,%s)\t%s\t%c\t%s\t%c\t%i\t%i\n", nid_to_consider.c_str(), start_range_low, start_range_high,
-                                    end_range_low, end_range_high_str.c_str(), d.name.c_str(), d.is_sibling, a.name.c_str(), a.is_sibling, orig_parsimony, 
-                                    d.parsimony+a.parsimony);
+                            fprintf(recomb_file, "%s\t(%i,%i)\t(%i,%s)\t%s\t%c\t%i\t%s\t%c\t%i\t%i\t%i\n", nid_to_consider.c_str(), start_range_low, start_range_high,
+                                    end_range_low, end_range_high_str.c_str(), d.name.c_str(), d.is_sibling, d.node_parsimony, 
+                                    a.name.c_str(), a.is_sibling, a.node_parsimony, orig_parsimony, d.parsimony+a.parsimony);
                             has_recomb = true;
                             has_printed = true;
                             fflush(recomb_file);
