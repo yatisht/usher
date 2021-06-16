@@ -258,6 +258,7 @@ namespace Mutation_Annotated_Tree {
         static const char INVERT_MERGE=3;
         typedef std::vector<Mutation>::iterator iterator;
         typedef std::vector<Mutation>::const_iterator const_iterator;
+        typedef Mutation value_type;
         size_t size() const {return mutations.size();}
         Mutations_Collection(){}
         void swap(Mutations_Collection& in){

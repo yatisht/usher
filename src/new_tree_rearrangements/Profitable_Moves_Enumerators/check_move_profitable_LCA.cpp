@@ -2,70 +2,49 @@
 #include "src/new_tree_rearrangements/Profitable_Moves_Enumerators/Profitable_Moves_Enumerators.hpp"
 #include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
 
-#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-static void LCA_place_mezzanine_update_debug(
-    std::vector<state_change_hist_dbg>::const_iterator &dst_debug_in,
-    std::vector<state_change_hist_dbg>::const_iterator &dst_debug_end,
-    std::vector<state_change_hist_dbg> &debug_above_LCA,
-    Mutation_Count_Change_Collection &out, int position,
-    nuc_one_hot major_allele, nuc_one_hot par_nuc, int score_change) {
-    while (dst_debug_in != dst_debug_end && dst_debug_in->position < position) {
-        debug_above_LCA.emplace_back(
-            dst_debug_in->position, dst_debug_in->par_nuc.back(),
-            dst_debug_in->par_nuc.back(), 0, Mutation_Count_Change());
-        dst_debug_in++;
+//Mutation added by moving src to LCA doesn't match any sensitive mutation on LCA. Spliting the edge is equivalent to adding a binary node with parent state and src state at this node
+static void added_no_match(const Mutation_Count_Change &mutation_to_add,
+                           Mutation_Count_Change_Collection &out,
+                           int &parsimony_score_change,
+                           MAT::Node *src_branch_node) {
+    assert(mutation_to_add.get_par_state() ==
+           get_parent_state(src_branch_node, mutation_to_add.get_position()));
+    nuc_one_hot major_allele =
+        mutation_to_add.get_par_state() & mutation_to_add.get_incremented();
+    if (!major_allele) {
+        parsimony_score_change++;
+        major_allele =
+            mutation_to_add.get_par_state() | mutation_to_add.get_incremented();
+        out.emplace_back(mutation_to_add);
+        out.back().set_ori_state(mutation_to_add.get_par_state());
+        out.back().set_change(0, mutation_to_add.get_incremented(),
+                              major_allele);
     }
-    if (dst_debug_in!=dst_debug_end&&position == dst_debug_in->position) {
-        dst_debug_in++;
-    }
-    debug_above_LCA.emplace_back(
-        position, par_nuc, major_allele, score_change,
-        (!out.empty() && out.back().get_position() == position)
-            ? out.back()
-            : Mutation_Count_Change());
 }
-#endif
-static void added_no_match(const Mutation_Count_Change_Collection::const_iterator& added_iter,Mutation_Count_Change_Collection &out, int &parsimony_score_change, MAT::Node* src_branch_node
-#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-    ,
-    std::vector<state_change_hist_dbg> &debug_above_LCA,
-    std::vector<state_change_hist_dbg>::const_iterator& src_debug_in_iter,
-    std::vector<state_change_hist_dbg>::const_iterator& src_debug_end
-#endif
-){
-#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-    int old_parsimony_score=parsimony_score_change;
-#endif
-                assert(added_iter->get_par_state()==get_parent_state(src_branch_node, added_iter->get_position()));
-            nuc_one_hot major_allele =
-                added_iter->get_par_state() & added_iter->get_incremented();
-            if(!major_allele){
-                parsimony_score_change++;
-                major_allele = added_iter->get_par_state() | added_iter->get_incremented();
-                out.emplace_back(*added_iter);
-                out.back().set_ori_state(added_iter->get_par_state());
-                out.back().set_change(0, added_iter->get_incremented(),
-                                  major_allele);
-            }
-#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-            LCA_place_mezzanine_update_debug(
-                src_debug_in_iter, src_debug_end, debug_above_LCA, out,
-                added_iter->get_position(), major_allele,
-                added_iter->get_par_state(), parsimony_score_change-old_parsimony_score);
-#endif
-}
+
+/**
+ * @brief Calculate parsimony score change and fitch set change if the src node is moved directly under LCA (dst==LCA)
+        LCA
+        /
+     src_branch_node
+      /
+    ...
+    /
+ src
+ * @param src_branch_node the immediate child of LCA that is on path from src to LCA
+ * @param dst_mutations the mutation needed to perserve state of src if it is moved under the src_branch_node
+ * @param src_branch_node_mutations_altered change in fitch set of src_branch_node just from removal of src
+ * @param out the change in fitch set of the node formed from spliting the branch between LCA and src_branch_node to the original state of src_branch_node
+ * @param parsimony_score_change 
+ * @return whether there are mutations that src_branch_node have but the src node have, if not it is better to split between src_branch_node and its descendent, rather than here.
+ */
 static bool LCA_place_mezzanine(
     MAT::Node *src_branch_node,
     const Mutation_Count_Change_Collection &dst_mutations,
     const Mutation_Count_Change_Collection &src_branch_node_mutations_altered,
     Mutation_Count_Change_Collection &out, int &parsimony_score_change
-#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-    ,
-    const std::vector<state_change_hist_dbg> &src_dbg_states_in,
-    std::vector<state_change_hist_dbg> &debug_above_LCA
-#endif
 ) {
-    bool have_shared=false;
+    //TODO: use the common three way merge template
     bool have_not_shared=false;
 
     auto src_branch_node_change_iter = src_branch_node_mutations_altered.begin();
@@ -74,43 +53,33 @@ static bool LCA_place_mezzanine(
     auto added_iter = dst_mutations.begin();
     auto added_end = dst_mutations.end();
 
-#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-    auto src_debug_in_iter = src_dbg_states_in.begin();
-    auto src_debug_end = src_dbg_states_in.end();
-#endif
-
     for (const MAT::Mutation &m : src_branch_node->mutations) {
-        /*if (m.get_position()==13270) {
-            fputc('ab',stderr);
-        }*/
+        //Mutation unique in the moved src, even though it is not shared,
+        // it is not because the mutation at src_branch_node, so still the same 
+        //parsimony score as inserting here or its descendant, so cannot be the sole reason of trying here.
         while (added_iter < added_end &&
                added_iter->get_position() < m.get_position()) {
-        /*if (added_iter->get_position()==13270) {
-            fputc('ab',stderr);
-        }*/
-            added_no_match( added_iter, out, parsimony_score_change, src_branch_node
-#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-            , debug_above_LCA, src_debug_in_iter, src_debug_end
-#endif
-            );
+            added_no_match(*added_iter, out, parsimony_score_change, src_branch_node);
             assert(added_iter < added_end );
             added_iter++;
         }
+
         nuc_one_hot major_allele = m.get_all_major_allele();
         nuc_one_hot new_major_allele = major_allele;
         int score_change = 0;
+        //Override the Fitch set of src_branch_node if modified
         if (src_branch_node_change_iter != src_branch_node_change_end &&
             src_branch_node_change_iter->get_position() == m.get_position()) {
             major_allele = src_branch_node_change_iter->get_new_state();
             src_branch_node_change_iter++;
         }
+        //Coincide
         if (added_iter < added_end &&
             m.get_position() == added_iter->get_position()) {
-            //This is a newly added mutation while traversing to LCA
                 if (added_iter->get_incremented()&major_allele) {
-                    have_shared=true;
                     new_major_allele=added_iter->get_incremented()&major_allele;
                 }else {
+                    //This is a newly added mutation while traversing to LCA
                     have_not_shared=true;
                     new_major_allele=added_iter->get_incremented()|major_allele;
                     score_change++;
@@ -118,59 +87,35 @@ static bool LCA_place_mezzanine(
             assert(added_iter < added_end );
             added_iter++;
         }else {
-            //The newly added node follow LCA
+            //The newly added node follow LCA like the src_branch_node
             have_not_shared=true;
             score_change+=get_new_major_allele_binary_node(major_allele, m.get_par_one_hot(), new_major_allele);
         }
         register_change_from_new_state(out, 0, m, new_major_allele);
         parsimony_score_change += score_change;
-#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-        LCA_place_mezzanine_update_debug(src_debug_in_iter, src_debug_end,
-                                         debug_above_LCA, out, m.get_position(),
-                                         new_major_allele, m.get_par_one_hot(),
-                                         score_change);
-#endif
     }
     while (added_iter<added_end) {
-        added_no_match(added_iter, out, parsimony_score_change, src_branch_node
-#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-        , debug_above_LCA, src_debug_in_iter, src_debug_end
-#endif
-);
+        added_no_match(*added_iter, out, parsimony_score_change, src_branch_node);
         added_iter++;
     }
-#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-    while (src_debug_in_iter < src_debug_end) {
-        debug_above_LCA.emplace_back(src_debug_in_iter->position,src_debug_in_iter->par_nuc.back(),src_debug_in_iter->par_nuc.back(),0,Mutation_Count_Change());
-        src_debug_in_iter++;
-    }
-#endif
         return have_not_shared;
 }
 
-#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-static void
-LCA_no_change_update_debug(const MAT::Node *LCA,
-                           std::vector<state_change_hist_dbg> &debug_above_LCA,
-                           std::vector<LCA_merged_states> &merged_states) {
-    auto iter = LCA->mutations.begin();
-    auto end = LCA->mutations.end();
-    for (auto &in : merged_states) {
-        while (iter != end && iter->get_position() < in.position) {
-            iter++;
-        }
-        if (iter != end && iter->get_position() == in.position) {
-            debug_above_LCA.emplace_back(
-                iter->get_position(), iter->get_par_one_hot(),
-                iter->get_all_major_allele(), 0, Mutation_Count_Change());
-        } else {
-            debug_above_LCA.emplace_back(in.position, in.par_allele,
-                                         in.par_allele, 0,
-                                         Mutation_Count_Change());
-        }
-    }
-}
-#endif
+/**
+ * @brief Calculate parsimony score change due to state changes of nodes above LCA
+ * @param src
+ * @param dst
+ * @param LCA
+ * @param mutations mutations needed above src node for moving src under parent of dst
+ * @param root_mutations_altered fitch set change of src_branch_node from removing src
+ * @param parsimony_score_change
+ * @param node_stack_from_dst nodes from dst to LCA
+ * @param parent_added state change of dst_branch_node from inserting src to its new location
+ * @param node_stack_from_src nodes from src to LCA
+ * @param node_stack_above_LCA node above LCA that have change in their Fitch set
+ * @param debug_above_LCA
+ * @return The highest node had their Fitch set changed
+ */
 MAT::Node *check_move_profitable_LCA(
     MAT::Node *src, MAT::Node *dst, MAT::Node *LCA,
     const Mutation_Count_Change_Collection &mutations,
@@ -182,79 +127,36 @@ MAT::Node *check_move_profitable_LCA(
     std::vector<MAT::Node *>& node_stack_above_LCA
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
     ,
-    const std::vector<state_change_hist_dbg>& debug_from_src,
-    const std::vector<state_change_hist_dbg>& debug_from_dst,
-    std::vector<state_change_hist_dbg>& debug_above_LCA
+    std::vector<Mutation_Count_Change_Collection>& debug_above_LCA
 #endif
 ) {
     Mutation_Count_Change_Collection parent_of_parent_added;
     MAT::Node *ancestor = LCA;
     if (dst==LCA) {
-        if(!LCA_place_mezzanine(node_stack_from_src.back(), mutations, root_mutations_altered, parent_of_parent_added, parsimony_score_change
-#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-        , debug_from_src, debug_above_LCA
-#endif
-        )){
+        if(!LCA_place_mezzanine(node_stack_from_src.back(), mutations, root_mutations_altered, parent_of_parent_added, parsimony_score_change)){
             return nullptr;
         }
+        //No need to go to parent, the node from branch splitting is the actual LCA
     }else{
-#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-    assert(debug_from_dst.empty() ||
-           debug_from_dst[0].mutation_score_change.size() ==
-               node_stack_from_dst.size());
-    std::vector<LCA_merged_states> merged_states;
-    prep_LCA_checker(debug_from_src, debug_from_dst, merged_states);
-#endif
         bool is_src_terminal = src->parent == LCA;
-        bool is_dst_terminal = dst == LCA;
         if ((!(root_mutations_altered.empty() && parent_added.empty())) ||
-            is_src_terminal || is_dst_terminal) {
-            if (LCA->children.size()==2) {
-            get_LCA_mutation_binary_node(LCA, is_src_terminal ? src : node_stack_from_src.back(),is_src_terminal ,is_dst_terminal ? dst : node_stack_from_dst.back(),
-                             is_dst_terminal, root_mutations_altered,
-                             is_dst_terminal ? mutations : parent_added,
-                             parent_of_parent_added, parsimony_score_change
-#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-                             ,
-                             debug_above_LCA, merged_states,
-                             node_stack_above_LCA
-#endif
-            );
-            }else{
-                get_LCA_mutation(LCA, is_src_terminal ? src : 0,
-                             is_dst_terminal ? dst : 0, root_mutations_altered,
-                             is_dst_terminal ? mutations : parent_added,
-                             parent_of_parent_added, parsimony_score_change
-#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-                             ,
-                             debug_above_LCA, merged_states,
-                             node_stack_above_LCA,
-                             is_src_terminal ? src : node_stack_from_src.back(),
-                             is_dst_terminal ? dst : node_stack_from_dst.back()
-#endif
-            );}
-        }else {
-#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-        LCA_no_change_update_debug(LCA, debug_above_LCA, merged_states);
-#endif
+            is_src_terminal ) {
+                get_LCA_mutation(LCA, node_stack_from_src.back(), is_src_terminal, root_mutations_altered, parent_added, parent_of_parent_added, parsimony_score_change);
         }
         ancestor = LCA->parent;
     }
     node_stack_above_LCA.push_back(LCA);
     parent_added = std::move(parent_of_parent_added);
+    //Go up the tree until there is no change to fitch set
     while (ancestor && (!parent_added.empty())) {
-        get_intermediate_nodes_mutations(ancestor, parent_added,
+        get_intermediate_nodes_mutations(ancestor,node_stack_above_LCA.back(), parent_added,
                                          parent_of_parent_added,
-                                         parsimony_score_change
-#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-                                         ,
-                                         debug_above_LCA, node_stack_above_LCA
-#endif
-        );
+                                         parsimony_score_change);
         node_stack_above_LCA.push_back(ancestor);
         parent_added = std::move(parent_of_parent_added);
         ancestor = ancestor->parent;
     }
+    //Hit root
     if (!ancestor) {
         for (auto &a : parent_added) {
             parsimony_score_change += a.get_default_change_internal();

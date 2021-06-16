@@ -35,14 +35,13 @@ class Mutation_Count_Change {
       decremented_allele=ori_state&(~new_major_allele);
       was_valid=child_mut_count.par_state!=child_mut_count.new_state;
   }
-    Mutation_Count_Change(const MAT::Mutation &pos) {
+    Mutation_Count_Change(const MAT::Mutation &pos,nuc_one_hot decremented,nuc_one_hot incremented,nuc_one_hot new_state,bool nocheck=false) {
         position = pos.get_position();
         chromIdx = pos.get_chromIdx();
         was_valid=pos.is_valid();
         ori_state=pos.get_all_major_allele();
         par_state=pos.get_par_one_hot();
-        decremented_allele=0;
-        incremented_allele=0;
+        set_change(decremented, incremented, new_state,nocheck);
     }
     operator bool() const{
         return was_valid;
@@ -118,98 +117,17 @@ static bool operator<(const MAT::Mutation &lhs, const Mutation_Count_Change &rhs
 
 typedef std::vector<Mutation_Count_Change> Mutation_Count_Change_Collection;
 
-#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-struct state_change_hist_dbg{
-    int position;
-    std::vector<nuc_one_hot> par_nuc;
-    std::vector<nuc_one_hot> major_allele;
-    std::vector<int> mutation_score_change;
-    std::vector<Mutation_Count_Change> count_change;
-    state_change_hist_dbg(){}
-    state_change_hist_dbg(int position,nuc_one_hot par_nuc,nuc_one_hot major_allele,int mutation_score_change,const Mutation_Count_Change& count_change):position(position),par_nuc({par_nuc}),major_allele({major_allele}),mutation_score_change({mutation_score_change}),count_change({count_change}){}
+template <typename T> class range {
+    typedef typename T::const_iterator const_iterator;
+    const_iterator curr;
+    const const_iterator end;
+
+  public:
+    range(const T &container) : curr(container.begin()), end(container.end()) {}
+    operator bool() const { return curr != end; }
+    const_iterator operator->() { return curr; }
+    const typename T::value_type &operator*() { return *curr; }
+    void operator++() { curr++; }
+    void operator++(int) { curr++; }
 };
-typedef std::vector<state_change_hist_dbg>::iterator dbg_iter;
-struct LCA_merged_states{
-    int position;
-    nuc_one_hot major_allele_src;
-    nuc_one_hot major_allele_dst;
-    nuc_one_hot par_allele;
-    LCA_merged_states(){}
-    LCA_merged_states(int position,nuc_one_hot par_allele):position(position),major_allele_src(0),major_allele_dst(0),par_allele(par_allele){}
-};
-void test_allele_out_init(
-    const MAT::Node *this_node,const MAT::Node *altered_node,
-    const MAT::Mutation &mutation,int score_change,
-    nuc_one_hot major_alleles_to_check, nuc_one_hot altered_allele,
-    const Mutation_Count_Change_Collection &last_inserted_count,
-    std::vector<state_change_hist_dbg>& debug
-);
-
-void test_allele_count_out(
-    const MAT::Node *this_node,
-    const MAT::Mutation &mutation,
-    nuc_one_hot major_alleles_to_check, nuc_one_hot altered_allele,
-    const Mutation_Count_Change_Collection &last_inserted_count, int score_change,
-    dbg_iter& debug,dbg_iter& debug_end,
-    const std::vector<MAT::Node *>& node_stack);
-
-void test_allele_count_out_LCA(
-    const MAT::Node *LCA_node,
-    const MAT::Node *src_branch,bool is_src_terminal,
-    const MAT::Node *dst_branch,uint8_t dst_terminal_state,
-    const MAT::Mutation &mutation,
-    nuc_one_hot major_alleles_to_check,int score_change,
-    const Mutation_Count_Change_Collection &last_inserted_count,
-    std::vector<state_change_hist_dbg>& debug,
-    std::vector<LCA_merged_states>::const_iterator& in,const std::vector<LCA_merged_states>::const_iterator& end);
-
-int get_parsimmony_score_dumb(MAT::Node* ancestor,MAT::Node* LCA,MAT::Node* src, MAT::Node* dst,const std::vector<state_change_hist_dbg>& debug_from_src,const std::vector<MAT::Node*> node_stack_from_src,const std::vector<state_change_hist_dbg>& debug_from_dst,const std::vector<MAT::Node*> node_stack_from_dst,const std::vector<state_change_hist_dbg>& debug_above_LCA,const std::vector<MAT::Node*> node_stack_above_LCA);
-
-void prep_LCA_checker(
-    const std::vector<state_change_hist_dbg> &from_src,
-    const std::vector<state_change_hist_dbg> &from_dst,
-    std::vector<LCA_merged_states> &out);
-
-int rewind_mutations(int target_position,dbg_iter& debug,dbg_iter& end);
-void update_par_cur_nuc(MAT::Mutations_Collection::const_iterator parent_mutation_iter,dbg_iter& debug_iter,dbg_iter& debug_end);
-void update_dbg_vector_score_only(
-    int position, dbg_iter &debug_iter,dbg_iter &debug_end,
-    int par_score_change);
-
-void set_LCA_par_score_change(
-    const Mutation_Count_Change &change,
-    std::vector<state_change_hist_dbg> &debug,
-    std::vector<LCA_merged_states>::const_iterator &in,
-    const std::vector<LCA_merged_states>::const_iterator &begin,
-    const std::vector<LCA_merged_states>::const_iterator &end,
-    int score_change);
-#endif
-
-/*
-struct New_Tie_t {
-    int position;
-    uint8_t tied_alleles;
-    uint8_t ori_par_allele;
-    // short score_change;
-};
-typedef std::vector<New_Tie_t> New_Tie_Collection_t;
-
-
-void
-register_new_tied_mutations(New_Tie_Collection_t &new_unresolved_ties,
-                            nuc_one_hot major_alleles, const MAT::Mutation &mut,
-                            int parsimony_score_change) ;
-                            
-                             void resolve_remaining_ties(
-    New_Tie_Collection_t::const_iterator &parent_unresolved_iter,
-    const New_Tie_Collection_t::const_iterator &parent_unresolved_end,
-    int &parsimony_score_change) ;
-    
-     void
-resolve_ties(New_Tie_Collection_t::const_iterator &parent_unresolved_iter,
-             const New_Tie_Collection_t::const_iterator &parent_unresolved_end,
-             int this_mutation_position, nuc_one_hot major_allele,
-             New_Tie_Collection_t &remain_unresolved,
-             int &parsimony_score_change);
-*/
 #endif

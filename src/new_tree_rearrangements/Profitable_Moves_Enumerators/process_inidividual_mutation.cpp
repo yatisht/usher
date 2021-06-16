@@ -4,9 +4,7 @@ static void register_change(Mutation_Count_Change_Collection &out,
                             const MAT::Mutation &pos,
                             nuc_one_hot decremented_allele,
                             nuc_one_hot incremented_allele,nuc_one_hot new_state) {
-    out.emplace_back(pos);
-    Mutation_Count_Change &last_added = out.back();
-    last_added.set_change(decremented_allele, incremented_allele,new_state);
+    out.emplace_back(pos,decremented_allele, incremented_allele,new_state);
 }
 nuc_one_hot decrement_mutation_count(Mutation_Count_Change_Collection &out,
                                      const MAT::Mutation &parent_mut,

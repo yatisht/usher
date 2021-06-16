@@ -65,7 +65,7 @@ Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Node::add_child(Node *ne
     if (is_leaf()) {
         std::string old_name(identifier);
         tree->rename_node(identifier, std::to_string(++tree->curr_internal_node));
-        Mutation_Annotated_Tree::Node* sample_node=tree->create_node(old_name,this);
+        tree->create_node(old_name,this);
         ret= this;
     }
     new_child->parent = this;

@@ -7,8 +7,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer -march=native -s
 #")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-DNDEBUG -O3")
 set(CMAKE_INCLUDE_CURRENT_DIR ON) 
-#  -O0     DDETAIL_DEBUG_MUTATION_SORTED -DDEBUG_PARSIMONY_SCORE_CHANGE_CORRECT  -fsanitize=leak -fsanitize=address  -fsanitize=undefined  -DCHECK_STATE_REASSIGN  -DCHECK_CONDENSE -DCONFLICT_RESOLVER_DEBUG -fsanitize=leak -fsanitize=address  -fsanitize=undefined
-set(CMAKE_CXX_FLAGS_DEBUG "-O3  ")
+#  -O0     DDETAIL_DEBUG_MUTATION_SORTED -DDEBUG_PARSIMONY_SCORE_CHANGE_CORRECT  -fsanitize=leak -fsanitize=address  -fsanitize=undefined  -DCHECK_STATE_REASSIGN  -DCHECK_CONDENSE -DCONFLICT_RESOLVER_DEBUG -fsanitize=leak -fsanitize=address  -fsanitize=undefined 
+set(CMAKE_CXX_FLAGS_DEBUG "-O3 -DDEBUG_PARSIMONY_SCORE_CHANGE_CORRECT ")
 #
 find_package(ZLIB)
 if(DEFINED Protobuf_PATH) 
@@ -130,7 +130,6 @@ else()
     src/new_tree_rearrangements/condense.cpp
     src/new_tree_rearrangements/VCF_load_tree.cpp
     src/new_tree_rearrangements/main_load_tree.cpp
-    src/new_tree_rearrangements/Get_parsimony_Score_FS.cpp
     src/new_tree_rearrangements/main_helper.cpp
     src/new_tree_rearrangements/Mutation_Collection.cpp
     src/new_tree_rearrangements/Fitch_Sankoff.cpp
