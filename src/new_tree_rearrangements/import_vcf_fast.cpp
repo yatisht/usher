@@ -87,7 +87,7 @@ struct line_parser{
             //samples
             bool is_last=false;
             while (!is_last) {
-                int allele_idx=(*line_in-'0');
+                unsigned int allele_idx=(*line_in-'0');
                 line_in++;
                 while (std::isdigit(*line_in)) {
                     allele_idx*=10;
@@ -101,7 +101,7 @@ struct line_parser{
                     }
                     line_in++;
                 }
-                if (allele_idx>=(allele_translated.size()+1)||allele_idx<0) {
+                if (allele_idx>=(allele_translated.size()+1)) {
                     parsed_line->mutated.emplace(header[field_idx],0xf);
                 }else if (allele_idx) {
                     parsed_line->mutated.emplace(header[field_idx],allele_translated[allele_idx-1]);

@@ -14,7 +14,8 @@ int check_move_profitable(
     const std::vector<MAT::Node *> node_stack_from_src
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
     ,
-    const std::vector<Mutation_Count_Change_Collection> debug_from_src
+    const std::vector<Mutation_Count_Change_Collection> debug_from_src,
+    const MAT::Tree* tree
 #endif
 );
 static void
@@ -64,7 +65,8 @@ static void search_subtree_not_LCA(
     const Mutation_Count_Change_Collection &root_mutations_altered,int radius,
     int parsimony_score_change_from_removal,const std::vector<MAT::Node *> &node_stack_from_src
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-    ,const std::vector<Mutation_Count_Change_Collection> &debug_from_src
+    ,const std::vector<Mutation_Count_Change_Collection> &debug_from_src,
+    MAT::Tree* tree
 #endif
 ) {
     if(!(root->children.size()==1&&root->children[0]->is_leaf())&&radius>0){
@@ -75,7 +77,7 @@ static void search_subtree_not_LCA(
                            profitable_moves, root_mutations_altered,radius-1,
                            parsimony_score_change_from_removal, node_stack_from_src
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-                           ,debug_from_src
+                           ,debug_from_src,tree
 #endif
             );
     }}
@@ -83,7 +85,7 @@ static void search_subtree_not_LCA(
             src, root, LCA, mutations, root_mutations_altered,
             parsimony_score_change_from_removal,profitable_moves, node_stack_from_src
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-            ,debug_from_src
+            ,debug_from_src,tree
 #endif
         );
 }
@@ -91,7 +93,7 @@ static void search_subtree_not_LCA(
 void search_subtree(
     MAT::Node *LCA, MAT::Node *src,Mutation_Count_Change_Collection mutations,output_t &profitable_moves,const Mutation_Count_Change_Collection &src_branch_mutations_altered,int radius,int parsimony_score_change_from_removal,const std::vector<MAT::Node *> &node_stack_from_src
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-    ,const std::vector<Mutation_Count_Change_Collection> &debug_from_src
+    ,const std::vector<Mutation_Count_Change_Collection> &debug_from_src,MAT::Tree* tree
 #endif
 ) {
     if (src->parent!=LCA) {
@@ -99,7 +101,7 @@ void search_subtree(
             src, LCA, LCA, mutations, src_branch_mutations_altered,
             parsimony_score_change_from_removal,profitable_moves, node_stack_from_src
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-            ,debug_from_src
+            ,debug_from_src,tree
 #endif
         );
     }
@@ -111,7 +113,7 @@ void search_subtree(
                            profitable_moves, src_branch_mutations_altered,radius-1,
                            parsimony_score_change_from_removal, node_stack_from_src
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-                           ,debug_from_src
+                           ,debug_from_src,tree
 #endif
             );
         }
@@ -160,7 +162,11 @@ static void init_mutation_change(MAT::Node* src, Mutation_Count_Change_Collectio
         }
     }
 }
-void find_profitable_moves(MAT::Node *src, output_t &out,int radius) {
+void find_profitable_moves(MAT::Node *src, output_t &out,int radius
+#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
+,MAT::Tree* tree
+#endif
+) {
     if (src->is_root()) {
         return;
     }
@@ -183,7 +189,7 @@ void find_profitable_moves(MAT::Node *src, output_t &out,int radius) {
                        Mutation_Count_Change_Collection(),radius, 0,
                        std::vector<MAT::Node *>({})
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-                       ,std::vector<Mutation_Count_Change_Collection>()
+                       ,std::vector<Mutation_Count_Change_Collection>(),tree
                        #endif
     );
     }
@@ -201,7 +207,7 @@ void find_profitable_moves(MAT::Node *src, output_t &out,int radius) {
                        std::vector<MAT::Node *>(node_stack)
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
                        ,
-                       std::vector<Mutation_Count_Change_Collection>(debug)
+                       std::vector<Mutation_Count_Change_Collection>(debug),tree
 #endif
         );
 
@@ -216,7 +222,11 @@ void find_profitable_moves(MAT::Node *src, output_t &out,int radius) {
         radius--;
     }
 }
-int individual_move(MAT::Node* src,MAT::Node* dst,MAT::Node* LCA,output_t& out){
+int individual_move(MAT::Node* src,MAT::Node* dst,MAT::Node* LCA,output_t& out
+#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
+,MAT::Tree* tree
+#endif
+){
 MAT::Node *root = src->parent;
     Mutation_Count_Change_Collection mutations;
     init_mutation_change(src, mutations);
@@ -266,7 +276,7 @@ MAT::Node *root = src->parent;
     }
     return check_move_profitable(src, dst, LCA, mutations, root_mutations_altered, parsimony_score_change,out, node_stack_from_src
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-    , debug
+    , debug,tree
 #endif
     );
 }

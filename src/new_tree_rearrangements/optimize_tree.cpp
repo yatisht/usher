@@ -88,10 +88,18 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
     output_t out;
     tbb::parallel_for(tbb::blocked_range<size_t>(0, nodes_to_search.size()),
                       [&nodes_to_search, &resolver,
-                       &deferred_nodes,radius,&checked_nodes](tbb::blocked_range<size_t> r) {
+                       &deferred_nodes,radius,&checked_nodes
+                              #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
+,&t
+#endif
+                       ](tbb::blocked_range<size_t> r) {
                           for (size_t i = r.begin(); i < r.end(); i++) {
                               output_t out;
-                              find_profitable_moves(nodes_to_search[i], out, radius);
+                              find_profitable_moves(nodes_to_search[i], out, radius
+                              #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
+,&t
+#endif
+                              );
                               if (!out.moves.empty()) {
                                   deferred_nodes.push_back(
                                       out.moves[0]->get_src());
@@ -126,7 +134,11 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
                 if (src&&dst) {
                     output_t out;
                         if (check_not_ancestor(dst, src)) {
-                            individual_move(src,dst,get_LCA(src, dst),out);
+                            individual_move(src,dst,get_LCA(src, dst),out
+                              #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
+,&t
+#endif
+                            );
                         }
                     if (!out.moves.empty()) {
                         resolver(out.moves);

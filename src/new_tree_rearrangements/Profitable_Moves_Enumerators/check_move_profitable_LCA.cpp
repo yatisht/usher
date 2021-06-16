@@ -141,15 +141,15 @@ MAT::Node *check_move_profitable_LCA(
         bool is_src_terminal = src->parent == LCA;
         if ((!(root_mutations_altered.empty() && parent_added.empty())) ||
             is_src_terminal ) {
-                get_LCA_mutation(LCA, node_stack_from_src.back(), is_src_terminal, root_mutations_altered, parent_added, parent_of_parent_added, parsimony_score_change);
+                get_LCA_mutation(LCA, is_src_terminal?src:node_stack_from_src.back(), is_src_terminal, root_mutations_altered, parent_added, parent_of_parent_added, parsimony_score_change);
         }
+        node_stack_above_LCA.push_back(LCA);
         ancestor = LCA->parent;
     }
-    node_stack_above_LCA.push_back(LCA);
     parent_added = std::move(parent_of_parent_added);
     //Go up the tree until there is no change to fitch set
     while (ancestor && (!parent_added.empty())) {
-        get_intermediate_nodes_mutations(ancestor,node_stack_above_LCA.back(), parent_added,
+        get_intermediate_nodes_mutations(ancestor,node_stack_above_LCA.empty()?node_stack_from_src.back():node_stack_above_LCA.back(), parent_added,
                                          parent_of_parent_added,
                                          parsimony_score_change);
         node_stack_above_LCA.push_back(ancestor);
@@ -163,6 +163,8 @@ MAT::Node *check_move_profitable_LCA(
         }
         ancestor=node_stack_above_LCA.back();
     }
-
+    if (node_stack_above_LCA.empty()) {
+        node_stack_above_LCA.push_back(LCA);
+    }
     return ancestor;
 }

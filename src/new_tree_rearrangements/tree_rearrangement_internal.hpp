@@ -42,8 +42,16 @@ struct output_t{
     std::vector<Profitable_Moves_ptr_t> moves;
     output_t():score_change(-1){}
 };
-void find_profitable_moves(Mutation_Annotated_Tree::Node *src, output_t &out,int radius);
-int individual_move(Mutation_Annotated_Tree::Node* src,Mutation_Annotated_Tree::Node* dst,Mutation_Annotated_Tree::Node* LCA,output_t& out);
+void find_profitable_moves(Mutation_Annotated_Tree::Node *src, output_t &out,int radius
+#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
+,MAT::Tree* tree
+#endif
+);
+int individual_move(Mutation_Annotated_Tree::Node* src,Mutation_Annotated_Tree::Node* dst,Mutation_Annotated_Tree::Node* LCA,output_t& out
+#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
+,MAT::Tree* tree
+#endif
+);
 Mutation_Annotated_Tree::Tree load_tree(const std::string& path,Original_State_t& origin_states);
 Mutation_Annotated_Tree::Tree load_vcf_nh_directly(const std::string& nh_path,const std::string& vcf_path,Original_State_t& origin_states);
 void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t,

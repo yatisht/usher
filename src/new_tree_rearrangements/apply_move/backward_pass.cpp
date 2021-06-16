@@ -31,9 +31,11 @@ class Backward_Pass_Heap {
                altered_nodes.back().altered_node) {
             std::pop_heap(altered_nodes.begin(), altered_nodes.end() - 1,
                           State_Assign_Comparator());
+#ifdef CHECK_STATE_REASSIGN
             size_t last_idx = altered_nodes.size() - 1;
             assert(altered_nodes[last_idx].altered_node ==
                    altered_nodes[last_idx - 1].altered_node);
+#endif
             altered_nodes.pop_back();
             if (altered_nodes.size() <= 1) {
                 return;
@@ -82,6 +84,7 @@ class Backward_Pass_Heap {
         return true;
     }
 };
+#ifdef CHECK_STATE_REASSIGN
 static void check_changed(const MAT::Mutations_Collection &ori,
                           const MAT::Mutations_Collection &changed_mut,
                           bool changed,
@@ -149,6 +152,7 @@ static void check_changed(const MAT::Mutations_Collection &ori,
     assert(!changed || checked||no_check);
     assert(state_change_iter == state_changed.end());
 }
+#endif
 void check_major_state(MAT::Node *node, const MAT::Tree &new_tree) {
     auto ref_node = new_tree.get_node(node->identifier);
     auto ref_mut_iter = ref_node->mutations.begin();
@@ -276,8 +280,10 @@ static bool adjust_node(MAT::Node *node,
         changed = get_major_allele_polytomy(node, new_major_alleles,
                                             changed_mutation);
     }
+#ifdef CHECK_STATE_REASSIGN
     check_changed(node->mutations, new_major_alleles, changed,
                   changed_mutation,node->is_root());
+#endif
     node->mutations.swap(new_major_alleles);
 #ifdef CHECK_STATE_REASSIGN
     check_major_state(node, new_tree);

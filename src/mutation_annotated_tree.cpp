@@ -1,5 +1,4 @@
 #include "mutation_annotated_tree.hpp"
-#include <bits/stdint-uintn.h>
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
 #include <fcntl.h>

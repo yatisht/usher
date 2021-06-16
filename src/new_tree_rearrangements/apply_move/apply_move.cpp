@@ -11,14 +11,14 @@
 void clean_up_src_states(MAT::Node *src,
                                 std::vector<Altered_Node_t> &out) {
     MAT::Mutations_Collection &in = src->mutations;
-    bool have_change = false;
+    //bool have_change = false;
     State_Change_Collection changed_state;
     for (auto &mut : in) {
         nuc_one_hot new_state =
             mut.get_par_one_hot() & mut.get_all_major_allele();
         nuc_one_hot old_state = mut.get_mut_one_hot();
         if (new_state && old_state != new_state) {
-            have_change = true;
+            //have_change = true;
             mut.set_mut_one_hot(new_state);
             changed_state.emplace_back(mut, old_state);
         }
@@ -36,8 +36,9 @@ void clean_up_src_states(MAT::Node *src,
         out.back().changed_states = std::move(changed_state);
     }
 }
+#ifdef CHECK_STATE_REASSIGN
 void compare_mutations(MAT::Node *old_nodes, MAT::Node *new_nodes) {
-    for (int mut_idx = 0; mut_idx < old_nodes->mutations.size(); mut_idx++) {
+    for (size_t mut_idx = 0; mut_idx < old_nodes->mutations.size(); mut_idx++) {
         if (!(old_nodes->mutations[mut_idx] == new_nodes->mutations[mut_idx])) {
             fprintf(stderr, "%d\n",mut_idx);
             assert(false);
@@ -51,7 +52,7 @@ void compare_mutations(MAT::Node *old_nodes, MAT::Node *new_nodes) {
         }
     }
 }
-
+#endif
 void check_major_state(MAT::Node *node, const MAT::Tree &new_tree);
 const Altered_Node_t* find_altered_node(char* node_name, const std::vector<Altered_Node_t>& to_find){
     for(const auto& temp:to_find){

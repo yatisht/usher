@@ -11,7 +11,6 @@ namespace MAT=Mutation_Annotated_Tree;
 void add_root(MAT::Tree *tree) {
     MAT::Node *old_root = tree->root;
     MAT::Node *new_root = new MAT::Node();
-    new_root->tree=tree;
     new_root->identifier = std::to_string(++tree->curr_internal_node);
     std::string &node_name = new_root->identifier;
     new_root->children.push_back(old_root);

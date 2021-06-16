@@ -57,10 +57,9 @@ Mutation_Annotated_Tree::Node::Node (std::string id, Node* p, float len) {
     parent = p;
     branch_length = len;
     mutations.clear();
-    tree=p->tree;
 }
 
-Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Node::add_child(Node *new_child) {
+Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Node::add_child(Node *new_child,Mutation_Annotated_Tree::Tree* tree) {
     Mutation_Annotated_Tree::Node* ret=nullptr;
     if (is_leaf()) {
         std::string old_name(identifier);
@@ -74,8 +73,7 @@ Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Node::add_child(Node *ne
 }
 Mutation_Annotated_Tree::Node::Node(const Node &other, Node *parent, Tree *tree,bool copy_mutations)
     :  branch_length(other.branch_length),
-      identifier(other.identifier), parent(parent),
-       tree(tree) {
+      identifier(other.identifier), parent(parent){
     children.reserve(other.children.size());
     if (copy_mutations) {
         mutations=other.mutations;
@@ -219,7 +217,7 @@ void Mutation_Annotated_Tree::Tree::move_node (std::string source_id, std::strin
 }
 Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Tree::create_node (std::string const& identifier, float branch_len, size_t num_annotations) {
     all_nodes.clear();
-    Node* n = new Node(identifier, branch_len,this);
+    Node* n = new Node(identifier, branch_len);
     for (size_t k=0; k < num_annotations; k++) {
         n->clade_annotations.emplace_back("");
     }
@@ -233,7 +231,7 @@ Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Tree::create_node (std::
         fprintf(stderr, "Error: %s already in the tree!\n", identifier.c_str());
         exit(1);
     }
-    Node* n = new Node(identifier, par, branch_len,this);
+    Node* n = new Node(identifier, par, branch_len);
     size_t num_annotations = get_num_annotations();
     for (size_t k=0; k < num_annotations; k++) {
         n->clade_annotations.emplace_back("");

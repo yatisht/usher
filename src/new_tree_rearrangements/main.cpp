@@ -72,9 +72,6 @@ int main(int argc, char **argv) {
     tbb::concurrent_vector<MAT::Node *> nodes_to_search;
     std::vector<MAT::Node *> bfs_ordered_nodes;
     bfs_ordered_nodes = t.breadth_first_expansion();
-    for(auto node:bfs_ordered_nodes){
-        node->tree=&t;
-    }
     size_t inner_loop_score_before = score_before;
     /*std::vector<MAT::Node *> old_nodes = t.breadth_first_expansion();
     tbb::parallel_for(tbb::blocked_range<size_t>(0,old_nodes.size()),[&old_nodes](const tbb::blocked_range<size_t>&r){

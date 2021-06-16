@@ -100,11 +100,11 @@ void Conflict_Resolver::schedule_moves( std::vector<Profitable_Moves_ptr_t>& out
     #ifdef CONFLICT_RESOLVER_DEBUG
     std::unordered_map<size_t,std::pair<size_t,Profitable_Moves_ptr_t>> pushed_moves;
     #endif
-    for (int idx=potential_crosses.size()-1; idx>=0; idx--) {
+    for (size_t idx=potential_crosses.size()-1; true; idx--) {
         auto& moves_on_this_node=potential_crosses[idx];
         if (!moves_on_this_node.moves.empty()) {
             const Profitable_Moves_ptr_t this_move=moves_on_this_node.moves[0];
-            if ((int)this_move->get_src()->bfs_index>=idx&&(int)this_move->get_dst()->bfs_index>=idx) {
+            if (this_move->get_src()->bfs_index>=idx&&this_move->get_dst()->bfs_index>=idx) {
                 assert(this_move->get_src()->bfs_index==idx||this_move->get_dst()->bfs_index==idx);
     #ifdef CONFLICT_RESOLVER_DEBUG
         auto src_res=pushed_moves.emplace(this_move->src->bfs_index,std::make_pair(idx, this_move));
@@ -117,6 +117,9 @@ void Conflict_Resolver::schedule_moves( std::vector<Profitable_Moves_ptr_t>& out
                 out.push_back(this_move);
                 remove_move(potential_crosses, this_move, 0);
             }
+        }
+        if (idx==0) {
+            break;
         }
     }
     #ifndef NDEBUG

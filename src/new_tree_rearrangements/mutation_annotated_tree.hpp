@@ -246,10 +246,6 @@ namespace Mutation_Annotated_Tree {
     class Mutations_Collection{
         public:
         std::vector<Mutation> mutations;
-        std::vector<char> remove_or_replace;
-        std::vector<Mutation> new_inserts;
-
-        typedef std::mutex mutex_type;
         //mutex_type mutex;
         static const char NO_DUPLICATE=-1;
         static const char KEEP_SELF=1;
@@ -392,16 +388,10 @@ namespace Mutation_Annotated_Tree {
             bool changed;
             bool is_leaf() const;
             bool is_root();
-            Tree* tree;
             Node();
             Node(std::string id, float l);
             Node(std::string id, Node* p, float l);
-            Node(Tree* tree):Node("",-1,tree){
-            }
-            
-            Node(const std::string& id, float l,Tree* tree):Node(id,nullptr,l,tree){}
-            
-            Node(const std::string& id, Node* p,float l,Tree* tree):branch_length(l),identifier(id),parent(p),tree(tree){}
+
             Node(const Node& other, Node* parent,Tree* tree,bool copy_mutation=true);
             bool add_mutation(Mutation& mut){
                 return mutations.insert(mut,Mutations_Collection::KEEP_OTHER);
@@ -430,7 +420,7 @@ namespace Mutation_Annotated_Tree {
                 mutations.shrink_to_fit();
                 this->mutations.refill(mutations);
             }
-            Node* add_child(Node* new_child);
+            Node* add_child(Node* new_child,Mutation_Annotated_Tree::Tree* tree);
             void delete_this();
     };
 

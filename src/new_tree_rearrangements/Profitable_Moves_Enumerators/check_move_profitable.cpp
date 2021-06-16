@@ -68,8 +68,7 @@ void output_result(MAT::Node *&src, MAT::Node *&dst, MAT::Node *&LCA,
         output.moves.push_back(new_move);
     }
 }
-int get_parsimmony_score_only(MAT::Node* src, MAT::Node* dst,MAT::Node* LCA);
-
+int get_parsimmony_score_only(MAT::Node *src, MAT::Node *dst, MAT::Node *LCA,const MAT::Tree* ori_tree);
 MAT::Node *check_move_profitable_LCA(
     MAT::Node *src, MAT::Node *dst, MAT::Node *LCA,
     const Mutation_Count_Change_Collection &mutations,
@@ -106,7 +105,8 @@ int check_move_profitable(
     const std::vector<MAT::Node *> node_stack_from_src
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
     ,
-    const std::vector<Mutation_Count_Change_Collection> debug_from_src
+    const std::vector<Mutation_Count_Change_Collection> debug_from_src,
+    const MAT::Tree* tree
 #endif
 ) {
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
@@ -146,7 +146,8 @@ int check_move_profitable(
     }
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
     //fprintf(stderr, "LCA idx: %zu",LCA_a->bfs_index);
-    assert(parsimony_score_change == get_parsimmony_score_only(src,dst,LCA));
+    auto ref_score=get_parsimmony_score_only(src,dst,LCA,tree);
+    assert(parsimony_score_change == ref_score);
 #endif
     assert((dst==LCA&&node_stack_above_LCA[0]==LCA)||node_stack_from_dst[0]==dst);
     output_result(src, dst, LCA, parsimony_score_change, output,
