@@ -13,6 +13,7 @@
 #define ZLIB_BUFSIZ 0x10000
 typedef tbb::flow::multifunction_node<char*,tbb::flow::tuple<char*>> decompressor_node_t;
 typedef tbb::flow::multifunction_node<char*,tbb::flow::tuple<Parsed_VCF_Line*,char*>> line_parser_t;
+//Decouple parsing (slow) and decompression, segment file into blocks for parallelized parsing
 struct Decompressor{
     gzFile* fd;
     size_t cont_read_size;
@@ -27,13 +28,14 @@ struct Decompressor{
             free(buf);
             return;
         }
+        //Make sure the last line is complete in the block.
         if(!gzgets(*fd, buf+read_size, cont_read_size)){
             *(buf+read_size)=0;
         }
         std::get<0>(out).try_put(buf);
     }
 };
-
+//Parse a block of lines, assuming there is a complete line in the line_in buffer
 struct line_parser{
     const std::vector<std::string>& header;
     void operator()(char* line_in, line_parser_t::output_ports_type& out)const{
@@ -101,6 +103,7 @@ struct line_parser{
                     }
                     line_in++;
                 }
+                //output prototype of mutation, and a map from sample to non-ref allele
                 if (allele_idx>=(allele_translated.size()+1)) {
                     parsed_line->mutated.emplace(header[field_idx],0xf);
                 }else if (allele_idx) {
@@ -115,7 +118,7 @@ struct line_parser{
         std::get<1>(out).try_put(start);
     }
 };
-
+//tokenize header, get sample name
 static int read_header(gzFile* fd,std::vector<std::string>& out){
     int header_len=0;
     char in=gzgetc(*fd);
@@ -161,17 +164,26 @@ struct Assign_State{
 #define CHUNK_SIZ 10
 void VCF_input(const char * name,MAT::Tree& tree){
     std::vector<std::string> fields;
+    //open file set increase buffer size
     gzFile fd=gzopen(name, "r");
+    if (!fd) {
+        fprintf(stderr, "cannnot open vcf file : %s, exiting.\n",name);
+        exit(EXIT_FAILURE);
+    }
     gzbuffer(fd,ZLIB_BUFSIZ);
+
     unsigned int header_size=read_header(&fd, fields);
     tbb::flow::graph input_graph;
+
     decompressor_node_t decompressor(input_graph,1,Decompressor{&fd,CHUNK_SIZ*header_size,2*header_size});
     line_parser_t parser(input_graph,tbb::flow::unlimited,line_parser{fields});
     tbb::flow::make_edge(tbb::flow::output_port<1>(parser),decompressor);
+    //feed used buffer back to decompressor
     tbb::flow::make_edge(tbb::flow::output_port<0>(decompressor),parser);
 
     std::vector<MAT::Node*> bfs_ordered_nodes=tree.breadth_first_expansion();
     std::vector<tbb::concurrent_vector<Mutation_Annotated_Tree::Mutation>> output(bfs_ordered_nodes.size());
+
     tbb::flow::function_node<Parsed_VCF_Line*> assign_state(input_graph,tbb::flow::unlimited,Assign_State{bfs_ordered_nodes,output});
     tbb::flow::make_edge(tbb::flow::output_port<0>(parser),assign_state);
     for (int i=0; i<10; i++) {
@@ -184,6 +196,7 @@ void VCF_input(const char * name,MAT::Tree& tree){
     }
     input_graph.wait_for_all();
     gzclose(fd);
+    //Filling mutation vector
     tbb::affinity_partitioner ap;
         tbb::parallel_for(
         tbb::blocked_range<size_t>(0, bfs_ordered_nodes.size()),

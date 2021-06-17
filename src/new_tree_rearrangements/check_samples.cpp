@@ -10,15 +10,21 @@
 #include <vector>
 #undef NDEBUG
 #include <cassert>
+//add mutation m to parent_mutations, which represent the mutation of a node relative to root, 
+//or update major allele if already present
 void ins_mut(Mutation_Set &parent_mutations,const Mutation_Annotated_Tree::Mutation &m,bool is_leaf) {
     auto temp = parent_mutations.insert(m);
+    //other major allele of leaf node is also counted
     if(!is_leaf)
 {    const_cast<MAT::Mutation&>(*temp.first).set_auxillary(temp.first->get_mut_one_hot(),0);
 }    if (!temp.second) {
+        //already present
         assert(temp.first->get_mut_one_hot()==m.get_par_one_hot());
+        //mutate back to ref, so no more mutation
         if ((m.get_mut_one_hot() == m.get_ref_one_hot()&&(!is_leaf))||(m.get_all_major_allele()==m.get_ref_one_hot())) {
             parent_mutations.erase(temp.first);
         }else {
+        // update state
         const_cast<MAT::Mutation&>(*temp.first).set_mut_one_hot(m.get_mut_one_hot());
         const_cast<MAT::Mutation&>(*temp.first).set_auxillary(is_leaf?m.get_all_major_allele():m.get_mut_one_hot(),0);
         }
@@ -27,48 +33,40 @@ void ins_mut(Mutation_Set &parent_mutations,const Mutation_Annotated_Tree::Mutat
         assert(m.get_mut_one_hot() != m.get_par_one_hot()||!m.is_valid());
     }
 }
+//functor for getting state of all leaves
 struct insert_samples_worker:public tbb::task {
-    Mutation_Annotated_Tree::Node *root;
-    Mutation_Set parent_mutations;
-    Original_State_t &samples;
+    Mutation_Annotated_Tree::Node *root; //starting node whose subtree need to be processed
+    Mutation_Set parent_mutations; //mutation of parent of "root" relative to the root of the entire tree
+    Original_State_t &samples; //output
     insert_samples_worker(Mutation_Annotated_Tree::Node *root,
                           const Mutation_Set &parent_mutations,
                           Original_State_t &samples)
         : root(root), parent_mutations(parent_mutations),
           samples(samples) {}
     tbb::task* execute() override{
+        //add mutation of "root"
         for (Mutation_Annotated_Tree::Mutation &m : root->mutations) {
         if(m.is_valid()||root->is_leaf()){ins_mut(parent_mutations, m,root->is_leaf());}
     }
+    //output
     if (root->is_leaf()) {
         samples.insert(std::make_pair(root->identifier, parent_mutations));
     }
+    //continuation
     tbb::empty_task* empty=new(allocate_continuation()) tbb::empty_task();
+    //spawn a task for each children
     empty->set_ref_count(root->children.size());
     for (auto child : root->children) {
         assert(child->parent==root);
             empty->spawn(*new (empty->allocate_child())insert_samples_worker(child, parent_mutations, samples));
     }
+    //bypass the scheduler to execute continuation task directly to fix ref count
+    // if no child spawned (otherwise it will hang)
     return root->children.empty()?empty:nullptr;
     }
 };
 
-
-void get_mutation_set(Mutation_Annotated_Tree::Node* node, Mutation_Set& out){
-    while (node) {
-        for(Mutation_Annotated_Tree::Mutation& m : node->mutations){
-            out.insert(m);
-        }
-        node=node->parent;
-    }
-    for (auto iter=out.begin(); iter!=out.end();) {
-        auto old_iter = iter;
-        iter++;
-        if (old_iter->get_ref_one_hot()==old_iter->get_mut_one_hot()) {
-           out.erase(old_iter);
-        }
-    }
-}
+//functor for checking state of all leaves
 struct check_samples_worker:public tbb::task{
     const Mutation_Annotated_Tree::Node *root;
                                  Mutation_Set parent_mutations;
@@ -131,7 +129,7 @@ tbb::task* execute() override{
     return nullptr;
 }
 };
-
+//top level
 void check_samples(Mutation_Annotated_Tree::Node *root,
                    Original_State_t &samples,MAT::Tree* tree) {
     Mutation_Set mutations;

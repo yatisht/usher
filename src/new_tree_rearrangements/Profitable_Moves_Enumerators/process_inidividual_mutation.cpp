@@ -118,12 +118,22 @@ nuc_one_hot decrement_increment_mutation_count(
     nuc_one_hot incremented = change_in.get_incremented();
     nuc_one_hot decremented = change_in.get_decremented();
     assert(!(decremented & incremented));
+    //specialization when change_in is pure increment/decrement, which is the case for nodes under LCA
+    //Remove node (base case)|| all state change is decrementing allele (induction) -> 
+    //  some of decremented allele decremented (if some major allele not decremented) OR
+    //  some of non-decremented allele (allele count diff with major allele=1 ) incremented
+
+    //Add node (base case)|| all state change is incrementing allele (induction) -> 
+    //  some of incremented allele incremented (none of incremented allele was originally major allele ) OR
+    //  some of non-incremented allele (original major allele not incremented ) decremented
+
     if (incremented&&(!decremented)) {
         return increment_mutation_count(parent_node_mutation_count_change,parent_mutation,change_in,score_change);
     } else if (decremented&&(!incremented)) {
         return decrement_mutation_count(parent_node_mutation_count_change,parent_mutation,change_in,score_change);
     }
 
+    //For mixed increment/decrement (rare case)
     nuc_one_hot all_major_alleles = parent_mutation.get_all_major_allele();
     nuc_one_hot major_alleles = all_major_alleles;
 
@@ -214,7 +224,12 @@ nuc_one_hot dbl_inc_dec_mutations(
     nuc_one_hot dst_decrement=dst_add_count.get_decremented();
     nuc_one_hot src_increment=src_count_change.get_incremented();
     nuc_one_hot src_decrement=src_count_change.get_decremented();
-
+    //Merging allele change toghether
+    //Here we assume no allele will change in the same direction on both src branch and dst branch
+    //Because on src branch, where a node is removed, some of its allele are decremented or some of the complement of 
+    //its allele are incremented at src_branch_node. 
+    //When it is added back at dst branch, some of its allele are incremented, some of the complement of its alleles are
+    // decremented at dst branch node, so any individual allele cannot change in the same direction.
     nuc_one_hot any_increment = (src_increment&(~dst_decrement))|(dst_increment&(~src_decrement));
     nuc_one_hot any_decrement = (src_decrement&(~dst_increment))|(dst_decrement&(~src_increment));
 

@@ -1,7 +1,7 @@
 #include "process_each_node.hpp"
 #include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
 #include "process_individual_mutation.hpp"
-
+//functor for adding src to split the edge between dst and its parent, same as geting major allele of a binary node
 struct get_parsimony_score_from_add {
     typedef Mutation_Count_Change_Collection T1;
     typedef MAT::Mutations_Collection T2;
@@ -16,6 +16,7 @@ struct get_parsimony_score_from_add {
           parsimony_score_change(parent_parsimony_score_change),
           have_not_shared(have_not_shared) {}
     void T1_only(const T1::value_type &added_child_mutation) {
+        //mutation unique to moved src, so the dst node have par_state
         nuc_one_hot major_allele;
         int new_score = get_new_major_allele_binary_node(
             added_child_mutation.get_par_state(),
@@ -63,7 +64,7 @@ bool get_parsimony_score_change_from_add(
     merge_func<get_parsimony_score_from_add>()(children_added_mutations,node->mutations,functor);
     return have_not_shared;
 }
-
+//Functor for removing src from a non-binary node
 struct get_parent_altered_remove {
     typedef MAT::Mutations_Collection T1;
     typedef MAT::Mutations_Collection T2;
@@ -76,6 +77,7 @@ struct get_parent_altered_remove {
         : parent_mutation_count_change_out(parent_node_mutation_count_change),
           parent_parsimony_score_change(parent_parsimony_score_change) {}
     void T1_only(const T1::value_type &src_mut) {
+            //only src have this mutation, so decrement parsimony score if removing a valid mutation
             if (src_mut.is_valid()) {
                 parent_parsimony_score_change--;
             }
@@ -83,6 +85,7 @@ struct get_parent_altered_remove {
     void T2_only(const T2::value_type &parent_variable) {
             Mutation_Count_Change temp(parent_variable,parent_variable.get_mut_one_hot(),0,0,true);
             decrement_mutation_count(parent_mutation_count_change_out, parent_variable, temp,parent_parsimony_score_change);
+            //decrement_mutation_count manipulate parsimony score change only on how such change change the number of children able to have major allele state (as if src branch node is not removed), so need to decrement artificailly to account for src->parent have one less children
             parent_parsimony_score_change--;
     }
     void T1_T2_match(const T1::value_type &src_mut,
@@ -91,6 +94,7 @@ struct get_parent_altered_remove {
             decrement_mutation_count(
                 parent_mutation_count_change_out, parent_variable, temp,
                 parent_parsimony_score_change);
+            //same as above
             parent_parsimony_score_change--;
     }
 };
@@ -111,7 +115,7 @@ void get_parent_altered_remove(
     merge_func<struct get_parent_altered_remove>()(src->mutations,src->parent->mutations,functor);
 }
 
-
+//specialization when src->parent is binary, then it just have the same major allele set as its remaining children 
 void get_child_removed_binary_node(
     Mutation_Count_Change_Collection &parent_mutation_count_change_out,
     const MAT::Node *src, int &parent_parsimony_score_change) {

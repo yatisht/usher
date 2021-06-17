@@ -9,11 +9,16 @@
 #include <tbb/concurrent_vector.h>
 #include <tbb/parallel_for.h>
 #include <tbb/partitioner.h>
+#include <tbb/task.h>
 #include <thread>
 #include <condition_variable>
 #include <unistd.h>
+extern tbb::task_group_context search_context;
 MAT::Node* get_LCA(MAT::Node* src,MAT::Node* dst){
     while (src!=dst) {
+        //as dfs index of parent node will always smaller than its children's , so 
+        //substitute the node with larger dfs index with its parent and see whether 
+        //it will be the same as the other node
         if (src->dfs_index>dst->dfs_index) {
             src=src->parent;
         }
@@ -33,6 +38,7 @@ bool check_not_ancestor(MAT::Node* dst,MAT::Node* src){
     }
     return true;
 }
+//The progress bar that does a linear extrapolation of time left for a round
 static void print_progress(
     const std::atomic<int> *checked_nodes,
     std::chrono::time_point<
@@ -57,6 +63,7 @@ static void print_progress(
         }
         {
             std::unique_lock<std::mutex> done_lock(*done_mutex);
+            //I want it to print every second, but it somehow managed to print every minute...
             done_cv->wait_for(done_lock,std::chrono::seconds(1));
             if (*done) {
                 return;
@@ -77,14 +84,18 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
     for(auto node:bfs_ordered_nodes){
         node->changed=false;
     }
+    //for resolving conflicting moves
     tbb::concurrent_vector<MAT::Node *> deferred_nodes;
     Deferred_Move_t deferred_moves;
     Conflict_Resolver resolver(bfs_ordered_nodes.size(),deferred_moves,log);
+    //progress bar
     std::atomic<int> checked_nodes(0);
     bool done=false;
     std::mutex done_mutex;
     std::condition_variable done_cv;
-    std::thread progress_meter(print_progress,&checked_nodes, std::chrono::steady_clock::now(), nodes_to_search.size(), &deferred_nodes,&done,&done_mutex,&done_cv);
+    auto search_start= std::chrono::steady_clock::now();
+    std::thread progress_meter(print_progress,&checked_nodes,search_start, nodes_to_search.size(), &deferred_nodes,&done,&done_mutex,&done_cv);
+    //Actual search of profitable moves
     output_t out;
     tbb::parallel_for(tbb::blocked_range<size_t>(0, nodes_to_search.size()),
                       [&nodes_to_search, &resolver,
@@ -101,19 +112,25 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
 #endif
                               );
                               if (!out.moves.empty()) {
+                                  //resolve conflicts
                                   deferred_nodes.push_back(
                                       out.moves[0]->get_src());
                                   resolver(out.moves);
                               }
                               checked_nodes.fetch_add(1,std::memory_order_relaxed);
                           }
-                      });
+                      },search_context);
     {
+        //stop the progress bar
         std::unique_lock<std::mutex> done_lock(done_mutex);
         done=true;
         done_lock.unlock();
         done_cv.notify_all();
     }
+    auto searh_end=std::chrono::steady_clock::now();
+    std::chrono::duration<double> elpased_time =searh_end-search_start;
+    fprintf(stderr, "Search took %f minutes\n",elpased_time.count()/60);
+    //apply moves
     std::vector<Profitable_Moves_ptr_t> all_moves;
     resolver.schedule_moves(all_moves);
     apply_moves(all_moves, t, bfs_ordered_nodes, deferred_nodes
@@ -121,12 +138,16 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
     ,origin_states
 #endif
     );
+    auto apply_end=std::chrono::steady_clock::now();
+    elpased_time =apply_end-searh_end;
+    fprintf(stderr, "apply moves took %f minutes\n",elpased_time.count());
+    //recycle conflicting moves
     while (!deferred_moves.empty()) {
         bfs_ordered_nodes=t.breadth_first_expansion();
         {Deferred_Move_t deferred_moves_next;
         static FILE* ignored=fopen("/dev/null", "w");
         Conflict_Resolver resolver(bfs_ordered_nodes.size(),deferred_moves_next,ignored);
-    printf("recycling conflicting moves, %zu left\n",deferred_moves.size());
+    printf("recycling conflicting moves, %zu left\r",deferred_moves.size());
         tbb::parallel_for(tbb::blocked_range<size_t>(0,deferred_moves.size()),[&deferred_moves,&resolver,&t](const tbb::blocked_range<size_t>& r){
             for (size_t i=r.begin(); i<r.end(); i++) {
                 MAT::Node* src=t.get_node(deferred_moves[i].first);
@@ -157,6 +178,9 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
         deferred_moves=std::move(deferred_moves_next);}
     
     }
+    auto recycle_end=std::chrono::steady_clock::now();
+    elpased_time =recycle_end-apply_end;
+    fprintf(stderr, "recycling moves took %f minutes\n",elpased_time.count());
     #ifndef NDEBUG
     check_samples(t.root, origin_states, &t);
     #endif

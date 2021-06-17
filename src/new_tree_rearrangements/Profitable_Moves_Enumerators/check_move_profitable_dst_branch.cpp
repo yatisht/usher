@@ -35,10 +35,11 @@ bool dst_branch(const MAT::Node *LCA,
     //Change in major alleles set of this_node, needed to update major alleles set of parent of this_node
     //Push dst to dst->LCA node stack
     node_stack_from_dst.push_back(this_node);
-    //Check whether the moved src and dst share any mutation, if not, stop here, as moving to parent of dst will be at least as profitable. Also register parsimony score contributed by dst->src edge, and major allele state change of dst.
+    //Check whether the dst have any mutation not shared by src, if not, stop here, as moving to a child of dst will be at least as profitable, if there is any. 
+    //Also register parsimony score contributed by dst->src edge, and major allele state change of dst.
     if(!get_parsimony_score_change_from_add(this_node, mutations, parent_added,
                                          parsimony_score_change
-    )){return false;}
+    )&&(!this_node->is_leaf())){return false;}
     this_node = this_node->parent;
 
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT

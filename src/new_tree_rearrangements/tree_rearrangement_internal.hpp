@@ -76,5 +76,6 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
             #endif
               );
 void save_final_tree(MAT::Tree &t, Original_State_t& origin_states,const std::string &output_path);
-void clean_tree(MAT::Tree& t,std::unordered_set<std::string>& changed_nodes);
+//For removing nodes with no valid mutations between rounds
+void clean_tree(MAT::Tree& t);
 void populate_mutated_pos(const Original_State_t& origin_state);

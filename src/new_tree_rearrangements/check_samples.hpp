@@ -7,6 +7,7 @@
 #include <unordered_set>
 #include <utility>
 struct ConfirmedMove;
+//Identify 2 mutation as the same if position match, used for overriding mutation as going down to leaf from root
 struct Mutation_Pos_Only_Comparator {
     bool operator()(const Mutation_Annotated_Tree::Mutation &first,
                     const Mutation_Annotated_Tree::Mutation &second) const {
@@ -33,6 +34,7 @@ struct Node_Idx_Eq{
 typedef std::unordered_set<Mutation_Annotated_Tree::Mutation, Mutation_Pos_Only_Hash, Mutation_Pos_Only_Comparator> Mutation_Set;
 typedef tbb::concurrent_unordered_map<std::string, Mutation_Set>
     Original_State_t;
+//populate state of all leaves when original state is empty, check if not
 void check_samples(
     Mutation_Annotated_Tree::Node *root,
     Original_State_t &samples,Mutation_Annotated_Tree::Tree* tree);

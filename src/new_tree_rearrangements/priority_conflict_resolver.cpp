@@ -1,3 +1,4 @@
+//If the path of 2 moves intersect, they are considered conflicting
 #include "priority_conflict_resolver.hpp"
 #include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
 #include "src/new_tree_rearrangements/tree_rearrangement_internal.hpp"
@@ -10,15 +11,19 @@
 
 bool Conflict_Resolver::check_single_move_no_conflict(Profitable_Moves_ptr_t& candidate_move)const{
     int best_score=0;
+    //gather the minimium parsimony score of all the moves intersecting with this move
     candidate_move->apply_nodes([&best_score,this](MAT::Node* node){
         best_score=std::min(best_score,potential_crosses[node->bfs_index].parsimony_score_change.load(std::memory_order_acquire));
     });
+    //only insert if its score change is the most negative among all conflicting moves
     if (candidate_move->score_change<best_score) {
         return true;
     }
     return false;
 }
-
+//Remove other ove from the set of move to apply, by clearing it from all nodes on its path
+// also reset the minimum parsimony score change of all moves whose path include these nodes to 0
+//, except for the "exclude" node, as it have been set for the new move.
 static void remove_move(Cross_t &potential_crosses, const Profitable_Moves_ptr_t& other_move,
                         MAT::Node *exclude) {
 
@@ -32,12 +37,15 @@ static void remove_move(Cross_t &potential_crosses, const Profitable_Moves_ptr_t
         }
     });
 }
-
+// Reggister "candidate_move" to apply
 bool Conflict_Resolver::register_single_move_no_conflict(
     Profitable_Moves_ptr_t& candidate_move)  {
     candidate_move->apply_nodes([&](MAT::Node* node) {
+        //for each node on the path
         Conflict_Set& iter = potential_crosses[node->bfs_index];
+        //register score change of the new move
         iter.parsimony_score_change.store(candidate_move->score_change,std::memory_order_release);
+            //clear all the conflicting moves
             for (Profitable_Moves_ptr_t& other_move : iter.moves) {
                 assert(other_move->score_change >=
                        candidate_move->score_change);
@@ -52,6 +60,7 @@ bool Conflict_Resolver::register_single_move_no_conflict(
                 delete other_move;
                 #endif
             }
+            //register this move a this node
             iter.moves.clear();
             iter.moves.push_back(candidate_move);
             assert(candidate_move->score_change==iter.parsimony_score_change);
@@ -68,13 +77,13 @@ char Conflict_Resolver::operator()(std::vector<Profitable_Moves_ptr_t>& candidat
     Profitable_Moves_ptr_t selected_move=nullptr;
     for (Profitable_Moves_ptr_t& move : candidate_move) {
         //fflush(log);
-        if (check_single_move_no_conflict(move)) {
-            std::lock_guard<std::mutex> lk(register_lock);
-            if (check_single_move_no_conflict(move)){
+        //don't need check-lock-check-set, as there is little contension on conflict resolver 
+        std::lock_guard<std::mutex> lk(register_lock);
+        if (check_single_move_no_conflict(move)){
             register_single_move_no_conflict(move);
             ret =1;
             selected_move = move;
-            break;}
+            break;
         }
     }
 
@@ -94,17 +103,20 @@ char Conflict_Resolver::operator()(std::vector<Profitable_Moves_ptr_t>& candidat
     }
     return ret;
 }
-
+//output all the nodes for apply
 void Conflict_Resolver::schedule_moves( std::vector<Profitable_Moves_ptr_t>& out){
     fputc('\n', log);
     #ifdef CONFLICT_RESOLVER_DEBUG
     std::unordered_map<size_t,std::pair<size_t,Profitable_Moves_ptr_t>> pushed_moves;
     #endif
+    //go from leaf to root (reverse bfs order), so will get the terminal of the move (src and dst) first,
+    //before most of the other 
     for (size_t idx=potential_crosses.size()-1; true; idx--) {
         auto& moves_on_this_node=potential_crosses[idx];
         if (!moves_on_this_node.moves.empty()) {
             const Profitable_Moves_ptr_t this_move=moves_on_this_node.moves[0];
             if (this_move->get_src()->bfs_index>=idx&&this_move->get_dst()->bfs_index>=idx) {
+                //add move at the first time when both src and dst are reached
                 assert(this_move->get_src()->bfs_index==idx||this_move->get_dst()->bfs_index==idx);
     #ifdef CONFLICT_RESOLVER_DEBUG
         auto src_res=pushed_moves.emplace(this_move->src->bfs_index,std::make_pair(idx, this_move));
@@ -115,6 +127,7 @@ void Conflict_Resolver::schedule_moves( std::vector<Profitable_Moves_ptr_t>& out
         }
     #endif
                 out.push_back(this_move);
+                //remove it to prevent it from enqueued again
                 remove_move(potential_crosses, this_move, 0);
             }
         }

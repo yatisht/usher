@@ -3,11 +3,13 @@
 #include "Fitch_Sankoff.hpp"
 #include "src/new_tree_rearrangements/Twice_Bloom_Filter.hpp"
 #include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
+#include <chrono>
 #include <cstdio>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
 #include <unordered_set>
 namespace MAT=Mutation_Annotated_Tree;
+//add a root above current root, so nodes can move above the current node
 void add_root(MAT::Tree *tree) {
     MAT::Node *old_root = tree->root;
     MAT::Node *new_root = new MAT::Node();
@@ -18,6 +20,8 @@ void add_root(MAT::Tree *tree) {
     old_root->parent=new_root;
     tree->root=new_root;
 }
+//Usher expect parent of condensed node have no mutation, so before outputing usher compatible protobuf,
+//add intermediate nodes to carry mutations of condensed nodes
 void fix_condensed_nodes(MAT::Tree *tree) {
     std::vector<MAT::Node *> nodes_to_fix;
     for (auto iter : tree->all_nodes) {
@@ -34,7 +38,7 @@ void fix_condensed_nodes(MAT::Tree *tree) {
     }
 }
 
-
+//Use a bloom filter to find nodes carrying mutations that happened twice anywhere in the tree
 static void find_nodes_with_recurrent_mutations(
     const std::vector<MAT::Node *> &all_nodes,
     std::vector<MAT::Node *> &output) {
@@ -53,6 +57,7 @@ static void find_nodes_with_recurrent_mutations(
         }
     }
 }
+//see whether to_check carry mutations in pos
 static bool check_common(MAT::Node* to_check,const std::unordered_set<int>& pos){
     for(const auto& mut:to_check->mutations){
         if (pos.count(mut.get_position())) {
@@ -61,6 +66,7 @@ static bool check_common(MAT::Node* to_check,const std::unordered_set<int>& pos)
     }
     return false;
 }
+//see whether within radius of root have nodes that have same mutation as root and have changed in previous iteration (or this is the first iteration)
 static void check_changed_neighbor(int radius, MAT::Node* root, MAT::Node* exclude,bool& found,bool is_first,const std::unordered_set<int>& pos){
     if ((root->changed||is_first)&&check_common(root, pos)) {
         found=true;
@@ -81,10 +87,12 @@ static void check_changed_neighbor(int radius, MAT::Node* root, MAT::Node* exclu
         }
     }
 }
+//find src node to search
 void
 find_nodes_to_move(const std::vector<MAT::Node *> &bfs_ordered_nodes,
                    tbb::concurrent_vector<MAT::Node*> &output,bool is_first,int radius) {
     std::vector<MAT::Node *> nodes_with_recurrent_mutations;
+    auto start=std::chrono::steady_clock::now();
     find_nodes_with_recurrent_mutations(bfs_ordered_nodes,
                                         nodes_with_recurrent_mutations);
 
@@ -120,4 +128,6 @@ find_nodes_to_move(const std::vector<MAT::Node *> &bfs_ordered_nodes,
             }
         }
     });
+    std::chrono::duration<double> elapsed_seconds = std::chrono::steady_clock::now()-start;
+    fprintf(stderr, "Took %f s to find nodes to move",elapsed_seconds.count());
 }

@@ -7,7 +7,7 @@
 #include <utility>
 #include <vector>
 namespace MAT = Mutation_Annotated_Tree;
-
+//Class for recording change in major allele set
 class Mutation_Count_Change {
     int position;
     uint8_t chromIdx;
@@ -25,6 +25,7 @@ class Mutation_Count_Change {
     decremented_allele=0;
     incremented_allele=0;
   }
+  //copy over position, original state, par state from a mutation
   Mutation_Count_Change(const Mutation_Count_Change& child_mut_count,nuc_one_hot new_major_allele){
       position=child_mut_count.position;
       chromIdx=child_mut_count.chromIdx;
@@ -68,38 +69,29 @@ class Mutation_Count_Change {
     nuc_one_hot get_par_state() const {
         return par_state;
     }
+    //parsimony score change (number of children able to follow major allele) if the parent node is not sensitive at this loci
     int get_default_change_internal()const {
         if(par_state&incremented_allele){
+            //able to follow major allele
             assert(was_valid);
             return -1;
         }
         if(par_state&decremented_allele){
+            //no longer able to follow major allele
             assert(!was_valid);
             return 1;
         }
         return 0;
     }
+    //Also account for change in number of children, if is terminal
     int get_default_change_terminal()const {
         if(incremented_allele&&(!(par_state&incremented_allele))){
+            //add new children, and not of parent allele state
             return 1;
         }
         if((!(decremented_allele&par_state))&&decremented_allele){
+            //removed children with valid mutation
             return -1;
-        }
-        return 0;
-    }
-    int get_default_change(const Mutation_Count_Change& other)const {
-        nuc_one_hot incremented=incremented_allele&other.incremented_allele;
-        nuc_one_hot decremented=decremented_allele&other.decremented_allele;
-        assert(position==other.position);
-        assert(par_state==other.par_state);
-        if(par_state&incremented){
-            assert(was_valid);
-            return -1;
-        }
-        if(par_state&decremented){
-            assert(!was_valid);
-            return 1;
         }
         return 0;
     }
@@ -116,7 +108,7 @@ static bool operator<(const MAT::Mutation &lhs, const Mutation_Count_Change &rhs
 }
 
 typedef std::vector<Mutation_Count_Change> Mutation_Count_Change_Collection;
-
+//convience class for tracking iterator and its end position
 template <typename T> class range {
     typedef typename T::const_iterator const_iterator;
     const_iterator curr;

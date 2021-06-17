@@ -32,6 +32,7 @@ class nuc_2bit{
     }
     operator nuc_one_hot() const;
 };
+//wrapper of one hot encoded state
 class nuc_one_hot{
     uint8_t nuc;
     public:
@@ -97,12 +98,12 @@ namespace Mutation_Annotated_Tree {
         int position;
         uint8_t chrom_idx;
         uint8_t par_mut_nuc;
-        uint8_t boundary1_all_major_allele;
-        uint8_t boundary2_flag;
+        uint8_t boundary1_all_major_allele; //boundary 1 alleles are alleles with allele count one less than major allele count
+        uint8_t child_muts;//left child state then right child state for binary nodes
         static tbb::concurrent_unordered_map<std::string, uint8_t> chromosome_map;
-        static std::mutex ref_lock;
+        static std::mutex ref_lock;//reference nuc are stored in a separate vector, need to be locked when adding new mutations
         public:
-        static std::vector<std::string> chromosomes;
+        static std::vector<std::string> chromosomes;// chromosome index to name map
         static std::vector<nuc_one_hot> refs;
         void set_boundary_one_hot(nuc_one_hot boundary1){
             boundary1_all_major_allele=(boundary1_all_major_allele&0xf)|(boundary1<<4);
@@ -110,9 +111,9 @@ namespace Mutation_Annotated_Tree {
         
         Mutation(const std::string& chromosome,int position,nuc_one_hot mut,nuc_one_hot par,nuc_one_hot tie,nuc_one_hot ref=0);
 
-        Mutation(int pos):position(pos),chrom_idx(0),par_mut_nuc(0),boundary1_all_major_allele(0),boundary2_flag(0){}
+        Mutation(int pos):position(pos),chrom_idx(0),par_mut_nuc(0),boundary1_all_major_allele(0),child_muts(0){}
 
-        Mutation(uint8_t chrom_idx,int pos,uint8_t par_nuc,uint8_t mut_nuc):position(pos),chrom_idx(chrom_idx),par_mut_nuc((par_nuc<<4)|mut_nuc),boundary1_all_major_allele(mut_nuc),boundary2_flag(mut_nuc|(mut_nuc<<4)){}
+        Mutation(uint8_t chrom_idx,int pos,uint8_t par_nuc,uint8_t mut_nuc):position(pos),chrom_idx(chrom_idx),par_mut_nuc((par_nuc<<4)|mut_nuc),boundary1_all_major_allele(mut_nuc),child_muts(mut_nuc|(mut_nuc<<4)){}
 
         bool same_chrom(const Mutation& other) const{
             return chrom_idx==other.chrom_idx;
@@ -124,22 +125,22 @@ namespace Mutation_Annotated_Tree {
 
         void set_children(nuc_one_hot boundary1_alleles,nuc_one_hot tie_nuc,nuc_one_hot left_child_state,nuc_one_hot right_child_state){
             boundary1_all_major_allele=(boundary1_alleles<<4)|tie_nuc;
-            boundary2_flag=(left_child_state<<4)|right_child_state;
+            child_muts=(left_child_state<<4)|right_child_state;
         }
 
         uint8_t get_left_child_state()const{
-            return boundary2_flag>>4;
+            return child_muts>>4;
         }
 
         uint8_t get_right_child_state()const{
-            return boundary2_flag&0xf;
+            return child_muts&0xf;
         }
 
         const uint8_t get_chromIdx()const{
             return chrom_idx;
         }
 
-
+        //order defined only by position, not chromidx yet
         inline bool operator< (const Mutation& m) const {
             return ((*this).position < m.position);
         }
@@ -147,28 +148,15 @@ namespace Mutation_Annotated_Tree {
         inline bool operator<= (const Mutation& m) const {
             return ((*this).position <= m.position);
         }
-
+/*
         inline Mutation copy() const {
             Mutation m(*this);
             return m;
         }
-        
-        Mutation():position(-1),chrom_idx(0),par_mut_nuc(0),boundary1_all_major_allele(0),boundary2_flag(0){
+ */       
+        Mutation():position(-1),chrom_idx(0),par_mut_nuc(0),boundary1_all_major_allele(0),child_muts(0){
         }
 
-/*
-        void set_minor_allele(nuc_one_hot minor_allele){
-            ref_minor&=0xf0;
-            ref_minor|=minor_allele;
-        }
-        uint8_t get_flag() const{
-            return flag2;
-        }
-
-        void set_flag(uint8_t flag){
-            this->flag2=flag;
-        }
-        */
         nuc_one_hot get_ref_one_hot() const{
             return refs[position];
         }
@@ -194,10 +182,6 @@ namespace Mutation_Annotated_Tree {
             return boundary1_all_major_allele>>4;
         }
 
-        nuc_one_hot get_boundary2_one_hot() const{
-            return boundary2_flag>>4;
-        }
-
         void set_auxillary(nuc_one_hot all_major_allele,nuc_one_hot boundary1){
             assert(all_major_allele&get_mut_one_hot());
             boundary1_all_major_allele=all_major_allele|(boundary1<<4);
@@ -210,17 +194,15 @@ namespace Mutation_Annotated_Tree {
             par_mut_nuc&=0xf;
             par_mut_nuc|=(new_par<<4);
         }
-
-
+        //valid when it par_nuc!=mut_nuc
         bool is_valid() const{
             return (par_mut_nuc^(par_mut_nuc<<4))&0xf0;
         }
 
-
         int get_position() const {
             return position;
         }
-
+        //position and all states equal
         bool operator==(const Mutation& other) const{
             if(other.par_mut_nuc!=par_mut_nuc) return false;
             if(other.position!=position) return false;
@@ -242,11 +224,11 @@ namespace Mutation_Annotated_Tree {
             }
         }
     };
-
+    //Wraper of a vector of mutation, sort of like boost::flatmap
     class Mutations_Collection{
         public:
         std::vector<Mutation> mutations;
-        //mutex_type mutex;
+        //Falgs for merging two mutation vector
         static const char NO_DUPLICATE=-1;
         static const char KEEP_SELF=1;
         static const char KEEP_OTHER=0;
@@ -267,6 +249,7 @@ namespace Mutation_Annotated_Tree {
             return mutations[idx];
         }
         bool no_valid_mutation()const;
+        //For finishing up fitch sankoff, fill itself with a sorted input
         void refill(std::vector<Mutation>& in){
             mutations=std::move(in);
             std::sort(mutations.begin(),mutations.end());
@@ -302,6 +285,7 @@ namespace Mutation_Annotated_Tree {
             assert(mutations.empty()||m.get_position()>mutations.back().get_position());
             mutations.push_back(m);
         }
+        //Find next mutation with position greater or equal to pos
         iterator find_next(int pos);
 
         iterator find(int position) {
@@ -311,6 +295,7 @@ namespace Mutation_Annotated_Tree {
             }
             return iter;
         }
+        //invert par_nuc and mut_nuc for all mutations inside the vector
         Mutations_Collection reverse() const{
             Mutations_Collection result;
             result.mutations.reserve(mutations.size());
@@ -345,7 +330,9 @@ namespace Mutation_Annotated_Tree {
             merge_out(other, new_set, keep_self);
             mutations.swap(new_set.mutations);
         }
+        //For outputing usher compatible pb, remove all mutations with par_nuc==mut_nuc
         void remove_invalid();
+        //for leaf nodes and nodes with one children, their boundary1 allele are inferred
         void remove_boundary_only(){
             mutations.erase(std::remove_if(mutations.begin(), mutations.end(), [](const Mutation& mut){
                 return mut.get_par_one_hot()==mut.get_all_major_allele();
@@ -355,7 +342,6 @@ namespace Mutation_Annotated_Tree {
                             Mutations_Collection &this_unique,
                             Mutations_Collection &other_unique,
                             Mutations_Collection &common) const;
-        void batch_find(Mutations_Collection &target);
         bool insert(const Mutation &mut, char keep_self = -1) {
             //assert(mut.get_par_one_hot()!=mut.get_mut_one_hot());
             auto iter=find_next(mut.get_position());
@@ -370,7 +356,6 @@ namespace Mutation_Annotated_Tree {
             mutations.insert(iter,mut);
             return true;
         }
-        void finalize();
     };
 
     class Node {
@@ -396,9 +381,6 @@ namespace Mutation_Annotated_Tree {
             bool add_mutation(Mutation& mut){
                 return mutations.insert(mut,Mutations_Collection::KEEP_OTHER);
             }
-            void finalize(){
-                mutations.finalize();
-            }
             void clear_mutations(){
                 mutations.clear();
             }
@@ -408,6 +390,7 @@ namespace Mutation_Annotated_Tree {
             bool no_valid_mutation()const{
                 return mutations.no_valid_mutation();
             }
+            //refill mutation with the option of filtering invalid mutations
             template<typename iter_t>
             void refill(iter_t begin,iter_t end,size_t size=0,bool retain_invalid=true){
                 std::vector<Mutation> mutations;
@@ -425,8 +408,6 @@ namespace Mutation_Annotated_Tree {
     };
 
     class Tree {
-        private:
-            void remove_node_helper (std::string nid, bool move_level);
         public:
             typedef  tbb::concurrent_unordered_map<std::string, std::vector<std::string>> condensed_node_t;
             std::unordered_map <std::string, Node*> all_nodes;
@@ -446,9 +427,6 @@ namespace Mutation_Annotated_Tree {
             size_t curr_internal_node;
 
             void rename_node(std::string old_nid, std::string new_nid);
-            std::vector<Node*> get_leaves(std::string nid="");
-            std::vector<std::string> get_leaves_ids(std::string nid="");
-            size_t get_num_leaves(Node* node=NULL);
             Node* create_node (std::string const& identifier, float branch_length = -1.0, size_t num_annotations=0); 
             Node* create_node (std::string const& identifier, Node* par, float branch_length = -1.0);
             Node* create_node (std::string const& identifier, std::string const& parent_id, float branch_length = -1.0);
@@ -460,8 +438,6 @@ namespace Mutation_Annotated_Tree {
                 return NULL;
             }
             Node* get_node_c_str (char* identifier) const;
-            void remove_node (std::string nid, bool move_level);
-            void move_node (std::string source, std::string destination);
             std::vector<Node*> breadth_first_expansion(std::string nid="");
             std::vector<Node*> depth_first_expansion(Node* node=NULL) const;
 
@@ -476,15 +452,10 @@ namespace Mutation_Annotated_Tree {
             }
             void save_detailed_mutations(const std::string& path)const;
             void load_detatiled_mutations(const std::string& path);
-            bool is_ancestor (std::string anc_id, std::string nid) const;
-            std::vector<Mutation_Annotated_Tree::Node*> rsearch (const std::string& nid, bool include_self) const ;
             void load_from_newick(const std::string& newick_string,bool use_internal_node_label=false);
-            //void write_newick_with_mutations(FILE* f);
             void condense_leaves(std::vector<std::string> = std::vector<std::string>());
             void uncondense_leaves();
-            void collapse_tree();
             
-            void finalize();
             friend class Node;
             void delete_nodes();
     };
@@ -499,12 +470,6 @@ namespace Mutation_Annotated_Tree {
 
     Tree load_mutation_annotated_tree (std::string filename);
     void save_mutation_annotated_tree (const Tree& tree, std::string filename);
-    
-    Tree get_tree_copy(const Tree& tree, const std::string& identifier="");
-    
-    Node* LCA (const Tree& tree, const std::string& node_id1, const std::string& node_id2);
-    Tree get_subtree (const Tree& tree, const std::vector<std::string>& samples);
-    void remove_child(Node* child_to_remove,std::vector<Node*>& removed_nodes);
 }
 bool check_grand_parent(const Mutation_Annotated_Tree::Node* node,const Mutation_Annotated_Tree::Node* grand_parent);
 

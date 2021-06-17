@@ -3,12 +3,15 @@
 #include <algorithm>
 #include <cstdio>
 #include <vector>
+//Merge the changed state of a node toghether, persumably one coming from the forward pass of its ancestral nodes, 
+//the other changed state list produced by backward pass at this node
 State_Change_Collection merge(const State_Change_Collection &in1,
                               const State_Change_Collection &in2) {
     auto in1_iter = in1.begin();
     auto in1_end = in1.end();
     bool in1_new = false;
     State_Change_Collection out;
+    //figure out which one is from forward pass of ancestral nodes
     if (in1_iter->position == NEW_MARK) {
         in1_new = true;
         in1_iter++;
@@ -16,7 +19,9 @@ State_Change_Collection merge(const State_Change_Collection &in1,
     } else {
         assert(in2.begin()->position == NEW_MARK);
     }
+
     for (const auto &in2_change : in2) {
+        //skip the marker
         if (in2_change.position==NEW_MARK) {
             continue;
         }
@@ -27,9 +32,11 @@ State_Change_Collection merge(const State_Change_Collection &in1,
         }
         out.push_back(in2_change);
         if (in1_iter != in1_end && in1_iter->position == in2_change.position) {
+            //The one from forward pass of ancestral nodes have accurate current parent state,
             if (in1_new) {
                 out.back().new_state = in1_iter->new_state;
             } else {
+            //The one produced by backward pass have accurate original parent state
                 out.back().old_state = in1_iter->old_state;
             }
             if (out.back().new_state == out.back().old_state) {
@@ -44,7 +51,7 @@ State_Change_Collection merge(const State_Change_Collection &in1,
     }
     return out;
 }
-
+//Forward pass, make node parent node come out before child node (small dfs index come out first)
 struct Forward_Pass_Comparator {
     bool operator()(const Altered_Node_t &first, const Altered_Node_t &second) {
         return first.altered_node->dfs_index > second.altered_node->dfs_index;
@@ -66,6 +73,8 @@ class Forward_Pass_Heap {
             size_t last_idx = altered_nodes.size() - 1;
             assert(altered_nodes[last_idx].altered_node ==
                    altered_nodes[last_idx - 1].altered_node);
+            //It the same node is found from original backward pass and fixing state of ancestral node,
+            // merge them
             altered_nodes[last_idx - 1].changed_states =
                 merge(altered_nodes[last_idx - 1].changed_states,
                       altered_nodes[last_idx].changed_states);
@@ -108,6 +117,14 @@ class Forward_Pass_Heap {
     }
 };
 
+/**
+ * @brief insert chnge to original parent state, if its 
+ parent node changed state, and this node have no mutation 
+ at this loci from original state of parent node
+ * @param node this_node
+ * @param[out] new_mut new mutation vector to add mutation back to original parent state if necessary
+ * @param change the parent allele change
+ */
 void unmatched_parent_state_change(
     MAT::Node *&node,
     MAT::Mutations_Collection &new_mut,
@@ -121,6 +138,7 @@ void unmatched_parent_state_change(
         ) {
     MAT::Mutation mut(change.chr_idx, change.position, change.new_state,
                       change.old_state);
+    //need to set boundary one allele specially for node with only one child
     if (node->children.size() <= 1) {
         mut.set_boundary_one_hot(0xf & (~mut.get_mut_one_hot()));
         if (mut.get_all_major_allele() !=
@@ -142,6 +160,12 @@ void unmatched_parent_state_change(
 #endif
     }
 }
+/**
+ * @brief Change state assignment of node so it follow the parent state if possible to reduce parsimony score
+ * @param node the node to change
+ * @param parent_altered list of parent state change
+ * @param this_state_altered_out state change at this node, to adjust state of children of node
+ */
 void set_state_from_parent(MAT::Node *node,
                            const State_Change_Collection &parent_altered,
                            State_Change_Collection &this_state_altered_out
@@ -164,6 +188,7 @@ void set_state_from_parent(MAT::Node *node,
 #endif
     for (auto &node_mut : node->mutations) {
         while (iter != end && iter->position < node_mut.get_position()) {
+            //parental state change, but no old mutation at this loci
             unmatched_parent_state_change(node, new_mut, *iter
 #ifdef CHECK_STATE_REASSIGN
             , ref_iter, ref_end
@@ -172,13 +197,17 @@ void set_state_from_parent(MAT::Node *node,
             iter++;
         }
         if (iter != end && iter->position == node_mut.get_position()) {
+            //match
             nuc_one_hot par_state = iter->new_state;
             nuc_one_hot new_state = node_mut.get_all_major_allele() & par_state;
             nuc_one_hot old_state = node_mut.get_mut_one_hot();
+            //If cannot follow parent,perserve original state to minimize change in the tree
+            //the current state is always a major allele, set in backward pass
             if (!new_state) {
                 new_state = old_state;
             }
             node_mut.set_par_mut(par_state, new_state);
+            //add to mutation vector if necessary
             if (par_state != node_mut.get_all_major_allele() ||
                 (node_mut.get_boundary1_one_hot() &&
                  node->children.size() > 1)) {
@@ -190,10 +219,12 @@ void set_state_from_parent(MAT::Node *node,
 #endif
             }
             if (new_state != old_state) {
+                //register state change at this node
                 this_state_altered_out.emplace_back(new_mut.back(), old_state);
             }
             iter++;
         } else {
+            //copy over old mutations not influenced by parental state change
             new_mut.push_back(node_mut);
 #ifdef CHECK_STATE_REASSIGN
             assert(ref_iter != ref_end);
@@ -227,12 +258,14 @@ void forward_pass(std::vector<Altered_Node_t> &in
 #endif
     Forward_Pass_Heap heap(in);
     do {
+        //set state of nodes in root to leaf order, maintained by the heap
         Altered_Node_t altered = *heap;
 #ifdef CHECK_STATE_REASSIGN
         assert(last_dfs_idx<altered.altered_node->dfs_index);
         last_dfs_idx=altered.altered_node->dfs_index;
 #endif
         heap.pop_back();
+        //fix the state of each immediate child of a node whose state have changed
         for (auto child : altered.altered_node->children) {
             Altered_Node_t out(child);
             out.changed_states.emplace_back();
@@ -244,6 +277,7 @@ void forward_pass(std::vector<Altered_Node_t> &in
 #endif
             );
             if (out.changed_states.size() > 1) {
+                //out have state change, so its children may have to have their state reset.
                 heap.push_back(out);
             }
         }

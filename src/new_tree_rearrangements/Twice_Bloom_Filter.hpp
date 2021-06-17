@@ -1,6 +1,7 @@
 #include <atomic>
 #include <cstdio>
 #include <sys/mman.h>
+//See whether a valus appeared twice
 class Twice_Bloom_Filter{
     uint16_t* filter;
     int hash(int pos){
@@ -17,12 +18,13 @@ class Twice_Bloom_Filter{
     }
     void insert(int pos){
         int hash_code=hash(pos);
+        //MSB is twice mask, LSB is once mask
         uint16_t* value_ptr=filter+(hash_code>>3);
         uint16_t value=*value_ptr;
 
         uint16_t once_mask=1<<(hash_code&7);
-        //check whether hit once
-        uint16_t mark_twice_mask=((once_mask&once_mask)<<8);
+        //select the hit once bit, and move up to become hit twice mask, so hit twice will be set only if hit once is set
+        uint16_t mark_twice_mask=((once_mask&value)<<8);
 
         *value_ptr=value|once_mask|mark_twice_mask;
     }

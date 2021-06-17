@@ -14,7 +14,14 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <vector>
+/*
+File structure:
+offset of metadata message (8 byte)
+repeated node messages (node in mutation_detailed.proto), one message for each node in the tree, each contain the offset and size of its children
+metadata message (meta in mutation_detailed.proto), contain offset and size of root node
+*/
 namespace MAT = Mutation_Annotated_Tree;
+//mapping between chromosome string and chromosome index
 static void load_chrom_vector(const Mutation_Detailed::meta &to_load) {
     size_t chrom_size = to_load.chromosomes_size();
     MAT::Mutation::chromosomes.reserve(chrom_size);
@@ -35,6 +42,8 @@ static void save_chrom_vector(Mutation_Detailed::meta &to_save) {
         to_save.add_ref_nuc(nuc.get_nuc_no_check());
     }
 }
+//each mutation, serialization format is dependent on in-memory representation, as it write all the state information
+//toghether as a int, to save space, as protobuf don't have char data type
 static void serialize_mutation(const MAT::Mutation &m,
                   Mutation_Detailed::detailed_mutation *out) {
     out->set_position((uint32_t)m.position);
@@ -49,7 +58,7 @@ static MAT::Mutation load_mutation_from_protobuf(
     *((uint32_t *)(&m) + 1) = temp;
     return m;
 }
-
+//meta mesaage
 u_int64_t save_meta(const MAT::Tree &tree, u_int64_t root_offset,
                     u_int64_t root_length, std::ofstream &outfile) {
     Mutation_Detailed::meta meta;
@@ -61,7 +70,7 @@ u_int64_t save_meta(const MAT::Tree &tree, u_int64_t root_offset,
     meta.SerializePartialToOstream(&outfile);
     return meta_offset;
 }
-
+//serialize each node recursively, post-order traversl, so parent node know the offset of its children
 static std::pair<u_int64_t, u_int64_t> write_subtree(MAT::Node *root,const MAT::Tree& tree,
                                                      std::ofstream &outfile) {
     std::vector<u_int64_t> children_offset;
@@ -88,7 +97,7 @@ static std::pair<u_int64_t, u_int64_t> write_subtree(MAT::Node *root,const MAT::
     u_int64_t end = outfile.tellp();
     return std::make_pair(start, end - start);
 }
-
+// main save function
 void Mutation_Annotated_Tree::Tree::save_detailed_mutations(
     const std::string &path) const {
     std::ofstream outfile(path, std::ios::out | std::ios::binary);
@@ -126,11 +135,13 @@ struct Load_Subtree_pararllel : public tbb::task {
         Mutation_Detailed::node node;
         node.ParseFromCodedStream(&inputi);
         out->identifier = node.identifier();
+        //deserialize mutations
         auto mut_size=node.node_mutations_size();
         out->mutations.reserve(mut_size);
         for (int i=0; i<mut_size; i++) {
             out->mutations.push_back(load_mutation_from_protobuf(node.node_mutations(i)));
         }
+        //deserialize condensed nodes
         auto condensed_node_size=node.condensed_nodes_size();
         if (condensed_node_size) {
             std::vector<std::string> this_node_condensed;
@@ -140,6 +151,7 @@ struct Load_Subtree_pararllel : public tbb::task {
             }
             condensed_nodes.emplace(out->identifier,std::move(this_node_condensed));
         }
+        //spawn a new task for deserializing each children
         size_t child_size = node.children_offsets_size();
         out->children = std::vector<MAT::Node *>(child_size);
         tbb::empty_task* empty=new(allocate_continuation()) tbb::empty_task();
@@ -153,6 +165,7 @@ struct Load_Subtree_pararllel : public tbb::task {
         return child_size?nullptr:empty;
     }
 };
+//main load function
 void Mutation_Annotated_Tree::Tree::load_detatiled_mutations(
     const std::string &path) {
     int fd = open(path.c_str(), O_RDONLY);
@@ -163,7 +176,6 @@ void Mutation_Annotated_Tree::Tree::load_detatiled_mutations(
     uint64_t meta_offset = *((u_int64_t *)file);
     auto temp =
         load_meta(this, (uint8_t *)file + meta_offset, file_size - meta_offset);
-    //load_subtree(nullptr, (uint8_t *)file, temp.first, temp.second, this->root);
     tbb::task::spawn_root_and_wait(*new(tbb::task::allocate_root()) Load_Subtree_pararllel(nullptr, (uint8_t *)file, temp.first, temp.second, this->root,this->condensed_nodes));
     std::vector<MAT::Node*> dfs_nodes=depth_first_expansion();
     for (auto node : dfs_nodes) {

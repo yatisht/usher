@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#ifdef CHECK_PRIMARY_MOVE
 static void get_mutation_set_from_root(MAT::Node *node,
                                        MAT::Mutations_Collection &mutations) {
     MAT::Mutations_Collection temp;
@@ -19,9 +20,13 @@ static void get_mutation_set_from_root(MAT::Node *node,
         }
     }
 }
+#endif
 
 bool get_new_mut_binary(MAT::Mutation &base, nuc_one_hot left_branch,
                         nuc_one_hot right_branch);
+//Because moving nodes around breaks dfs order, and doing a dfs after each move is too expensive, so 
+// use a slower method of tracing back from src to root, and find the earliest intersection with path
+// from dst to root
 static bool find_path_no_dfs(std::vector<MAT::Node *> &dst_to_root_path,
                       std::vector<MAT::Node *> &src_to_root_path,
                       MAT::Node *src_ancestor, MAT::Node *dst_ancestor) {
@@ -48,42 +53,8 @@ static bool find_path_no_dfs(std::vector<MAT::Node *> &dst_to_root_path,
     assert(false);
     return false;
 }
-/*
-static bool find_path(std::vector<MAT::Node *> &dst_to_root_path,
-                      std::vector<MAT::Node *> &src_to_root_path,
-                      MAT::Node *src_ancestor, MAT::Node *dst_ancestor) {
-        std::vector<MAT::Node *> dst_to_root_path_test;
-    std::vector<MAT::Node *> src_to_root_path_test;
-    find_path_no_dfs(dst_to_root_path_test, src_to_root_path_test, src_ancestor, dst_ancestor);
-    auto temp=dst_ancestor;
-    while (temp) {
-        if (temp==src_ancestor) {
-            return false;
-        }
-        temp=temp->parent;
-    }
-    while (src_ancestor->dfs_index != dst_ancestor->dfs_index) {
-        if (src_ancestor->dfs_index < dst_ancestor->dfs_index) {
-            dst_to_root_path.push_back(dst_ancestor);
-            dst_ancestor = dst_ancestor->parent;
-        } else if (src_ancestor->dfs_index > dst_ancestor->dfs_index) {
-            // mutations.merge(src->mutations,MAT::Mutations_Collection::KEEP_SELF);
-            src_to_root_path.push_back(src_ancestor);
-            src_ancestor = src_ancestor->parent;
-        }
-    }
-    for (int i=0; i<src_to_root_path.size(); i++) {
-        assert(src_to_root_path[i]==src_to_root_path_test[i]);
-    }
-    assert(src_to_root_path.size()==src_to_root_path_test.size());
-    for (int i=0; i<dst_to_root_path.size(); i++) {
-        assert(dst_to_root_path[i]==dst_to_root_path_test[i]);
-    }
-    assert(dst_to_root_path.size()==dst_to_root_path_test.size());
-    return true;
-}*/
-bool
-merge_mutation_single_child(MAT::Node *node,
+
+bool merge_mutation_single_child(MAT::Node *node,
                             const MAT::Mutations_Collection &merge_with) {
     bool have_inconsistent_mut = false;
     auto iter = merge_with.begin();
@@ -91,8 +62,10 @@ merge_mutation_single_child(MAT::Node *node,
     MAT::Mutations_Collection mutations;
     for (const auto &mut : node->mutations) {
         while (iter != end && iter->get_position() < mut.get_position()) {
+            //mutation in parent of node, need to be merged to mutation of node to remove the parent of node
             if (iter->is_valid()) {
                 mutations.push_back(*iter);
+                //set left and right children both to the parent state as they inherits
                 mutations.back().set_children(0, iter->get_mut_one_hot(),
                                               iter->get_mut_one_hot(),
                                               iter->get_mut_one_hot());
@@ -102,10 +75,12 @@ merge_mutation_single_child(MAT::Node *node,
         mutations.push_back(mut);
         auto &new_mut = mutations.back();
         if (iter != end && iter->get_position() == mut.get_position()) {
+            //match, adjust parent state
             new_mut.set_par_one_hot(iter->get_par_one_hot());
             have_inconsistent_mut |= (mut.is_valid() ^ new_mut.is_valid());
             iter++;
         }
+        //remove unnecessary mutation
         if (new_mut.get_all_major_allele() == new_mut.get_par_one_hot() &&
             (!new_mut.get_boundary1_one_hot())) {
             mutations.mutations.pop_back();
@@ -123,13 +98,24 @@ merge_mutation_single_child(MAT::Node *node,
     node->mutations.swap(mutations);
     return have_inconsistent_mut;
 }
+/**
+ * @brief Remove internal nodes that lost all its children or having only one child after removing src
+ * @param[in] node parent of src node just removed
+ * @param[out] deleted record nodes to free
+ * @param[out] nodes_to_clean add sibling of src , if any, 
+    a forward pass on them is needed, as their parent state have changed
+ * @param[out] tree to remove removed node from all_nodes hashmap
+ * @return the last surviving parent of src, need to do backward pass on it as its children set have changed
+ */
 static MAT::Node *
 clean_up_after_remove(MAT::Node *node, std::unordered_set<size_t> &deleted,
                       std::vector<MAT::Node *> &nodes_to_clean,MAT::Tree& tree) {
     MAT::Node *parent_node = node->parent;
+    //root node, cannot remove
     if (!parent_node) {
         return node;
     }
+    //internal node lost all children 
     if (node->children.empty()) {
         auto &parent_children = parent_node->children;
         auto iter =
@@ -138,15 +124,20 @@ clean_up_after_remove(MAT::Node *node, std::unordered_set<size_t> &deleted,
         deleted.insert((size_t)node);
         tree.all_nodes.erase(node->identifier);
         //delete node;
+        //this node is removed, its parental node may have similar situation
         return clean_up_after_remove(parent_node, deleted, nodes_to_clean,tree);
     } else if (node->children.size() == 1) {
+        //node with one child left
         auto &parent_children = parent_node->children;
+        //detach from parent
         auto iter =
             std::find(parent_children.begin(), parent_children.end(), node);
         MAT::Node *child = node->children[0];
+        //child may have its parental state changed
         if (merge_mutation_single_child(child, node->mutations)) {
             nodes_to_clean.push_back(child);
         }
+        //fix boundary one alleles if child have only one child (parent of condensed node)
         if (child->children.size() <= 1) {
             auto &child_mut = child->mutations;
             for (auto &mut : child_mut) {
@@ -160,6 +151,7 @@ clean_up_after_remove(MAT::Node *node, std::unordered_set<size_t> &deleted,
                                }),
                 child_mut.end());
         }
+        //reattach , this replace node with child in parent_children vector
         *iter = child;
         child->parent = parent_node;
         deleted.insert((size_t)node);
@@ -189,7 +181,7 @@ MAT::Node *replace_with_internal_node(MAT::Node *to_replace,
     to_replace->parent = new_node;
     return new_node;
 }
-
+//given par_nuc and all_major_alleles in mut, output one of the major allele, preferably the parental allele
 static nuc_one_hot set_state(MAT::Mutation &mut) {
     nuc_one_hot state = mut.get_par_one_hot() & mut.get_all_major_allele();
     if (state) {
@@ -201,23 +193,34 @@ static nuc_one_hot set_state(MAT::Mutation &mut) {
     return state;
 }
 
+/**
+ * @brief add mutation originating from either the dst node, or moved src node, not both to the shared node
+    formed by splitting the branch
+ * @param[out] shared_node_mutations_out shared node mutation vector to append 
+ * @param[in] sibling_mut the non-parent allele from either sibling (dst) or new node(src)
+ * @param is_sibling whether it is the new node(src) (on right) or the sibling node (on left)
+ * @return whether the allele on sibling node cannot be shared with the new node
+ */
 static bool
 new_internal_single_node(MAT::Mutations_Collection &shared_node_mutations_out,
                          const MAT::Mutation &sibling_mut, bool is_sibling) {
     MAT::Mutation temp = sibling_mut;
     nuc_one_hot par_allele = sibling_mut.get_par_one_hot();
     nuc_one_hot sibling_nuc = sibling_mut.get_all_major_allele();
+    //set anxxilary state for temp
     get_new_mut_binary(temp, is_sibling ? sibling_nuc : par_allele,
                        is_sibling ? par_allele : sibling_nuc);
     assert(temp.get_par_one_hot() & temp.get_all_major_allele());
+    //as one of the child at shared node is in parental state at this loci, so it is always possible to follow parental state
     temp.set_mut_one_hot(temp.get_par_one_hot());
+    //append if necessary
     if (temp.get_par_one_hot() != temp.get_all_major_allele() ||
         temp.get_boundary1_one_hot()) {
         shared_node_mutations_out.push_back(temp);
     }
     return sibling_mut.is_valid();
 }
-
+//Filter away unnecessary mutation before adding
 static bool add_mut(const MAT::Mutation &to_add, nuc_one_hot par_nuc,
                     MAT::Mutations_Collection &out) {
     if (to_add.get_all_major_allele() != par_nuc ||
@@ -243,6 +246,7 @@ char merge_new_node_mutations(
     for (const auto &mut : new_node_mutations) {
         while (sibling_iter != sibling_end &&
                sibling_iter->get_position() < mut.get_position()) {
+            //unique to sibling node
             flags |= (new_internal_single_node(shared_node_mutations_out,
                                                *sibling_iter, true)
                       << SIBLING_UNIQUE_SHAMT);
@@ -251,27 +255,34 @@ char merge_new_node_mutations(
         }
         if (sibling_iter != sibling_end &&
             sibling_iter->get_position() == mut.get_position()) {
+            //sibling node and new node have mutation at the same loci
             shared_node_mutations_out.push_back(mut);
             auto &shared_node_output_mut = shared_node_mutations_out.back();
             nuc_one_hot sibling_mut = sibling_iter->get_all_major_allele();
+            //set anxuliary states of mut
             bool shared =
                 get_new_mut_binary(shared_node_output_mut, sibling_mut,
                                    mut.get_all_major_allele());
             flags |= (shared << HAVE_SHARED_SHAMT);
             flags |= ((!shared) << SIBLING_UNIQUE_SHAMT);
+            //set par_nuc and mut_nuc
             nuc_one_hot shared_state = set_state(shared_node_output_mut);
             shared_node_output_mut.set_par_mut(sibling_iter->get_par_one_hot(),
                                                shared_state);
+            //remove if this shared_node_mut is unnecessary
             if (shared_node_output_mut.get_par_one_hot() ==
                     shared_node_output_mut.get_all_major_allele() &&
                 (!shared_node_output_mut.get_boundary1_one_hot())) {
                 shared_node_mutations_out.mutations.pop_back();
             }
+            //update parent state of both sibling node and new node
             flags |= (add_mut(*sibling_iter, shared_state,
                               sibling_node_mutations_out)
                       << SIBLING_INCONSISTENT_SHAMT);
             flags |= (add_mut(mut, shared_state, new_node_mutations_out)
                       << NEW_NODE_INCONSISTENT_SHAMT);
+            //keep track of shared muts which make the mutation on the edge from shared node to sibling node unnecessary
+            //They need to merge back to sibling node if splitting the edge between dst and its parent is unnecessary
             if (sibling_iter->get_mut_one_hot() != shared_state) {
                 to_merge_if_children.push_back(mut);
                 to_merge_if_children.back().set_par_one_hot(
@@ -279,6 +290,7 @@ char merge_new_node_mutations(
             }
             sibling_iter++;
         } else {
+            //unique to new node, similar treatment as mutations unique to sibling node
             new_internal_single_node(shared_node_mutations_out, mut, false);
             if (mut.get_par_one_hot() != mut.get_all_major_allele() ||
                 mut.get_boundary1_one_hot()) {
@@ -287,6 +299,7 @@ char merge_new_node_mutations(
         }
     }
     while (sibling_iter != sibling_end) {
+        //mutation unique to sibling node
         flags |= (new_internal_single_node(shared_node_mutations_out,
                                            *sibling_iter, true)
                   << SIBLING_UNIQUE_SHAMT);
@@ -297,7 +310,7 @@ char merge_new_node_mutations(
 
     return flags;
 }
-
+//Set mutation vector of a node, with post processing boundary1_allele if that node only have one child
 void update_src_mutation(MAT::Node *src,
                          MAT::Mutations_Collection &this_unique) {
     if (src->children.size() <= 1) {
@@ -314,7 +327,9 @@ MAT::Node *add_as_sibling(MAT::Node *&src, MAT::Node *&dst,
                           MAT::Mutations_Collection &other_unique,
                           MAT::Mutations_Collection &common, MAT::Tree &tree,
                           char flag, std::vector<MAT::Node *> &nodes_to_clean) {
+    //split branch
     MAT::Node *new_node = replace_with_internal_node(dst, tree);
+    //set mutations
     new_node->mutations.swap(common);
     if (dst->is_leaf()) {
         other_unique.remove_boundary_only();
@@ -322,9 +337,7 @@ MAT::Node *add_as_sibling(MAT::Node *&src, MAT::Node *&dst,
     dst->mutations.swap(other_unique);
     new_node->children.push_back(src);
     src->parent = new_node;
-    // if (flag&(1<<NEW_NODE_INCONSISTENT_SHAMT)) {
-    // nodes_to_clean.push_back(src);
-    //}
+
     if (flag & (1 << SIBLING_INCONSISTENT_SHAMT)) {
         nodes_to_clean.push_back(dst);
     }
@@ -345,11 +358,14 @@ static MAT::Node *place_node_LCA(MAT::Node *&src, MAT::Node *parent,
                                           to_merge_if_children);
     bool have_shared = flags & (1 << HAVE_SHARED_SHAMT);
     if (!have_shared) {
+        //If there is no mutations shared between src_branch_node and src node, 
+        //do not split the edge, but and src directly as a child of LCA
         update_src_mutation(src, mutations);
         parent->children.push_back(src);
         src->parent = parent;
         return parent;
     } else {
+        //otherwise, they have shared mutation, split the branch
         update_src_mutation(src, this_unique);
         MAT::Node *new_node = add_as_sibling(src, sibling, other_unique, common,
                                              tree, flags, nodes_to_clean);
@@ -369,15 +385,19 @@ static MAT::Node *place_node(MAT::Node *&src, MAT::Node *dst, MAT::Tree &tree,
                                           to_merge_if_children);
     bool have_unique = flags & (1 << SIBLING_UNIQUE_SHAMT);
     if ((!have_unique) && (!dst->is_leaf())) {
+        //fix the src mutation vector if it will not split the dst branch
         this_unique.merge(to_merge_if_children,
                           MAT::Mutations_Collection::KEEP_OTHER);
     }
     update_src_mutation(src, this_unique);
     if ((!have_unique) && (!dst->is_leaf())) {
+        //add as children of dst directly, if dst share all 
+        //mutations with the moved src node from its parent node
         dst->children.push_back(src);
         src->parent = dst;
         return dst;
     } else {
+        //split branch
         MAT::Node *new_node = add_as_sibling(src, dst, other_unique, common,
                                              tree, flags, nodes_to_clean);
         return new_node->parent;
@@ -396,13 +416,16 @@ void move_node(MAT::Node *src, MAT::Node *dst,
     MAT::Mutations_Collection mutations;
     std::vector<MAT::Node *> dst_to_root_path;
     std::vector<MAT::Node *> src_to_root_path;
+    //find the path from src to dst again, and make sure dst didn't got moved under src by some previous moves
     if(!find_path_no_dfs(dst_to_root_path, src_to_root_path, src, dst)){return;}
+    //perserve ambiguous/boundary mutations of src
     for (const auto &mut : src->mutations) {
         if (mut.get_par_one_hot() != mut.get_all_major_allele() ||
             mut.get_boundary1_one_hot()) {
             mutations.push_back(mut);
         }
     }
+    //merge mutation up to src_branch_node
     for (size_t idx = 1; idx < src_to_root_path.size(); idx++) {
         mutations.merge(src_to_root_path[idx]->mutations,
                         MAT::Mutations_Collection::KEEP_SELF);
@@ -414,6 +437,7 @@ void move_node(MAT::Node *src, MAT::Node *dst,
 #endif
 
     if (!dst_to_root_path.empty()) {
+        //not moving to LCA,merge mutation down to parent of dst
         for (int idx = dst_to_root_path.size() - 1; idx > 0; idx--) {
             mutations.merge(dst_to_root_path[idx]->mutations,
                             MAT::Mutations_Collection::INVERT_MERGE);
@@ -424,25 +448,25 @@ void move_node(MAT::Node *src, MAT::Node *dst,
     }
     MAT::Node *src_parent = src->parent;
     auto &src_parent_children = src_parent->children;
+    //remove src
     auto iter =
         std::find(src_parent_children.begin(), src_parent_children.end(), src);
     src_parent_children.erase(iter);
+
     nodes_to_clean.push_back(src);
     src->changed=true;
     nodes_to_clean.push_back(dst);
     dst->changed=true;
+
     MAT::Node *dst_altered = dst;
-    /*if (altered_node.back() == dst) {
-        assert(dst_to_root_path.empty());
-        src->mutations.swap(mutations);
-        src->parent = dst;
-        dst->children.push_back(src);
-    } else*/ if (dst_to_root_path.empty()) {
+    //actually placing the node
+    if (dst_to_root_path.empty()) {
         dst_altered = place_node_LCA(src, dst, tree, mutations,
                                      src_to_root_path.back(), nodes_to_clean);
     } else {
         dst_altered = place_node(src, dst, tree, mutations, nodes_to_clean);
     }
+    //push nodes with altered children for backward pass
     altered_node.push_back(
         clean_up_after_remove(src_parent, deleted, nodes_to_clean,tree));
     altered_node.back()->changed=true;

@@ -11,14 +11,3 @@ struct Parsed_VCF_Line{
     //std::unordered_map<std::string, nuc_one_hot> *mutated;
     std::unordered_map<std::string, nuc_one_hot> mutated;
 };
-struct VCF_Reader{
-    static const int CHROM_IDX=0;
-    static const int POS_IDX=1;
-    static const int REF_IDX=3;
-    static const int ALT_IDX=4;
-    static const int SAMPLE_START_IDX=9;
-    boost::iostreams::filtering_istream& instream;
-    std::vector<std::string> header;
-    VCF_Reader(boost::iostreams::filtering_istream& instream);
-    Parsed_VCF_Line operator()(tbb::flow_control& )const;
-};

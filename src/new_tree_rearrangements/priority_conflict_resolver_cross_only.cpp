@@ -1,3 +1,4 @@
+//Most lenient conflict resolver, only block a move if it is going to cause loop, not used
 #include "priority_conflict_resolver.hpp"
 #include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
 #include "src/new_tree_rearrangements/tree_rearrangement_internal.hpp"

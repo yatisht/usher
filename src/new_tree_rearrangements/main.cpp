@@ -2,7 +2,9 @@
 #include "check_samples.hpp"
 #include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
 #include "tree_rearrangement_internal.hpp"
+#include <csignal>
 #include <cstddef>
+#include <tbb/task.h>
 #include <cstdio>
 #include <string>
 
@@ -11,16 +13,30 @@
 #include <boost/program_options.hpp> 
 #include <vector>
 #include <iostream>
+FILE* movalbe_src_log;
+bool interrupted;
+tbb::task_group_context search_context;
+void interrupt_handler(int){
+    search_context.cancel_group_execution();
+    interrupted=true;
+    fflush(movalbe_src_log);
+}
+
+void log_flush_handle(int){
+    fflush(movalbe_src_log);
+}
 namespace po = boost::program_options;
 namespace MAT = Mutation_Annotated_Tree;
-
+MAT::Node* get_LCA(MAT::Node* src,MAT::Node* dst);
 int main(int argc, char **argv) {
     std::string output_path;
     std::string input_pb_path;
+    std::string input_complete_pb_path;
     std::string input_nh_path;
     std::string input_vcf_path;
     std::string intermediate_pb_base_name;
-    int radius=10;
+    std::string profitable_src_log;
+    int radius;
     po::options_description desc{"Options"};
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
     uint32_t num_threads;
@@ -33,13 +49,18 @@ int main(int argc, char **argv) {
         ("load-mutation-annotated-tree,i", po::value<std::string>(&input_pb_path)->default_value(""), "Load mutation-annotated tree object")
         ("save-mutation-annotated-tree,o", po::value<std::string>(&output_path)->default_value(""), "Save output mutation-annotated tree object to the specified filename")
         ("save-intermediate-mutation-annotated-tree,m", po::value<std::string>(&intermediate_pb_base_name)->default_value(""), "Save output mutation-annotated tree object to the specified filename")
-        ("radius,r", po::value<uint32_t>()->default_value(10),
-         "Radius in which to restrict the SPR moves.");
-
+        ("radius,r", po::value<int32_t>(&radius)->default_value(10),
+         "Radius in which to restrict the SPR moves.")
+        ("profitable_src_log,s", po::value<std::string>(&profitable_src_log)->default_value("/dev/null"),
+         "The file to log from which node a profitable move can be found.")
+        ("ambi_protobuf,a", po::value<std::string>(&input_complete_pb_path)->default_value(""),
+         "The file to log from which node a profitable move can be found.");
         
     po::options_description all_options;
     all_options.add(desc);
-
+    interrupted=false;
+    signal(SIGINT,interrupt_handler);
+    signal(SIGUSR1, log_flush_handle);
     po::variables_map vm;
     try{
         po::store(po::command_line_parser(argc, argv).options(all_options).run(), vm);
@@ -56,44 +77,44 @@ int main(int argc, char **argv) {
 
     tbb::task_scheduler_init init(num_threads);
 
+    //Loading tree
     Original_State_t origin_states;
-    Mutation_Annotated_Tree::Tree t=(input_pb_path!="")?load_tree(input_pb_path, origin_states):load_vcf_nh_directly(input_nh_path, input_vcf_path, origin_states);
+    Mutation_Annotated_Tree::Tree t;
+    
     int iteration=0;
-    puts("Checkpoint initial tree.\n");
-    t.save_detailed_mutations(std::string(intermediate_pb_base_name).append(std::to_string(iteration++)).append(".pb"));
+    if (input_complete_pb_path!="") {
+        t.load_detatiled_mutations(input_complete_pb_path);
+    }else{
+        if (input_pb_path!="") {
+            t=load_tree(input_pb_path, origin_states);
+        }else {
+            t=load_vcf_nh_directly(input_nh_path, input_vcf_path, origin_states);
+        }
+        puts("Checkpoint initial tree.\n");
+        t.save_detailed_mutations(std::string(intermediate_pb_base_name).append(std::to_string(iteration++)).append(".pb"));
+    }
+    
+
     #ifndef NDEBUG
     Original_State_t origin_state_to_check(origin_states);
     check_samples(t.root, origin_state_to_check, &t);
     #endif
+
     size_t score_before = t.get_parsimony_score();
     size_t new_score = score_before;
     fprintf(stderr, "after state reassignment:%zu\n", score_before);
     int stalled = 0;
+
+    //Find nodes to search
     tbb::concurrent_vector<MAT::Node *> nodes_to_search;
     std::vector<MAT::Node *> bfs_ordered_nodes;
     bfs_ordered_nodes = t.breadth_first_expansion();
     size_t inner_loop_score_before = score_before;
-    /*std::vector<MAT::Node *> old_nodes = t.breadth_first_expansion();
-    tbb::parallel_for(tbb::blocked_range<size_t>(0,old_nodes.size()),[&old_nodes](const tbb::blocked_range<size_t>&r){
-        for (size_t idx=r.begin(); idx<r.end(); idx++) {
-            auto node=old_nodes[idx];
-            assert(node->is_root() || node->is_leaf() || node->children.size() > 1);
-            if (node->parent){
-            for(const auto mut:node->mutations){
-            auto& par_mutations=node->parent->mutations;
-            auto iter=par_mutations.find(mut.get_position());
-            if(iter!=par_mutations.end()){
-                assert(iter->get_par_one_hot()!=mut.get_mut_one_hot()||(!mut.is_valid()));
-            }
-        }}
-        }
-    });
-    MAT::Node* src=t.get_node("MT834209.1|USA/WA-S1536/2020|20-05-25");
-    MAT::Node* dst=t.get_node("6379");
-    MAT::Node* LCA=get_LCA(src, dst);
-    individual_move(src,dst,LCA);*/
-    FILE* log=fopen("profitable_src","w");
-    perror("");
+    movalbe_src_log=fopen(profitable_src_log.c_str(),"w");
+    if (!movalbe_src_log) {
+        perror(("Error writing to log file "+profitable_src_log).c_str());
+        movalbe_src_log=fopen("/dev/null", "w");
+    }
     bool isfirst=true;
     while(stalled<=1){
     bfs_ordered_nodes = t.breadth_first_expansion();
@@ -103,10 +124,14 @@ int main(int argc, char **argv) {
     if (nodes_to_search.empty()) {
         break;
     }
+    //Actual optimization loop
     while (!nodes_to_search.empty()) {
+        if (interrupted) {
+            break;
+        }
         bfs_ordered_nodes = t.breadth_first_expansion();
         new_score =
-            optimize_tree(bfs_ordered_nodes, nodes_to_search, t,radius,log
+            optimize_tree(bfs_ordered_nodes, nodes_to_search, t,radius,movalbe_src_log
             #ifndef NDEBUG
             , origin_states
             #endif
@@ -121,10 +146,9 @@ int main(int argc, char **argv) {
         }
 
     }
-        std::unordered_set<std::string> changed_nodes;
-        clean_tree(t, changed_nodes);
+        clean_tree(t);
     }
-    fclose(log);
+    fclose(movalbe_src_log);
     save_final_tree(t, origin_states, output_path);
     for(auto& pos:mutated_positions){
         delete pos.second;

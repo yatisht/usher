@@ -150,7 +150,7 @@ int get_parsimmony_score_only(MAT::Node *src, MAT::Node *dst, MAT::Node *LCA,con
         std::vector<uint8_t> boundary1_major_allele(
             new_bfs_ordered_nodes.size() + 8);
         MAT::Mutation mut(position);
-        const auto non_ref_muts = mutated_positions[mut];
+        const auto& non_ref_muts = mutated_positions[mut];
         FS_backward_pass(new_bfs_ordered_nodes, boundary1_major_allele,
                          *non_ref_muts, MAT::Mutation::refs[position]);
         std::vector<uint8_t> states_out(new_bfs_ordered_nodes.size());

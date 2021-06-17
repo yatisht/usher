@@ -10,7 +10,7 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
-
+//For recording which moves that have path crossing this node is pending to be applied, and its parsimony score improvement
 struct Conflict_Set{
     std::atomic<int> parsimony_score_change;
     std::vector<Profitable_Moves_ptr_t> moves;
@@ -27,7 +27,9 @@ struct Conflict_Resolver{
     Conflict_Resolver(size_t node_count,Deferred_Move_t& deferred_moves,FILE* log):potential_crosses(node_count),deferred_moves(deferred_moves),log(log){}
     bool check_single_move_no_conflict(Profitable_Moves_ptr_t& candidate_move)const;
     bool register_single_move_no_conflict(Profitable_Moves_ptr_t& candidate_move);
+    //enqueuing a move
     char operator()(std::vector<Profitable_Moves_ptr_t>& candidate_move);
+    //output non-conflicting moves
     void schedule_moves(std::vector<Profitable_Moves_ptr_t>& out);
 };
 

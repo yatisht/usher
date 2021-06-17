@@ -144,37 +144,6 @@ void Mutations_Collection::set_difference(const Mutations_Collection &other,
     assert(this_unique.size() + other_unique.size() + 2 * common.size() ==
            mutations.size() + other.mutations.size());
 }
-void Mutations_Collection::batch_find(Mutations_Collection &target) {
-    // yet another merge sort
-#ifdef DETAIL_DEBUG_MUTATION_SORTED
-    int last_pos_inserted = -1;
-#endif
-    auto target_iter = target.mutations.begin();
-    for (auto this_mutation : mutations) {
-        if (target_iter == target.mutations.end()) {
-            return;
-        }
-        while (target_iter->get_position() < this_mutation.get_position()) {
-            mutation_vector_check_order(target_iter->get_position());
-            target_iter++;
-            if (target_iter == target.mutations.end()) {
-                return;
-            }
-        }
-        if (this_mutation.get_position() < target_iter->get_position()) {
-            mutation_vector_check_order(this_mutation.get_position());
-        } else {
-            mutation_vector_check_order(this_mutation.get_position());
-            assert(this_mutation.get_position() == target_iter->get_position());
-            *target_iter = this_mutation;
-            target_iter++;
-        }
-    }
-    if (target_iter != target.mutations.end()) {
-        mutation_vector_check_order(target_iter->get_position());
-    }
-}
-
 Mutations_Collection::iterator Mutations_Collection::find_next(int pos) {
 #ifdef DETAIL_DEBUG_MUTATION_SORTED
     int lastPos = 0;

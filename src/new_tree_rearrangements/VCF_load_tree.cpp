@@ -3,6 +3,7 @@
 #include <string>
 #include "apply_move/apply_move.hpp"
 #include <tbb/task.h>
+//A variant of clean tree that can also clean nodes have only 1 children, but have valid mutation
 struct clean_up_internal_nodes_single_child_or_no_mutation:public tbb::task{
 MAT::Node* this_node;
 tbb::concurrent_vector<std::string>& changed_nodes;
@@ -23,23 +24,28 @@ tbb::task* execute() override{
     
     
     std::vector<MAT::Node *> &parent_children = this_node->parent->children;
+    //mutex to hold when modifying parent_children
     std::mutex& parent_mutex=node_mutexes[this_node->parent->dfs_index];
 
     if ((this_node->children.size()==1||((!this_node->is_leaf())&&this_node->no_valid_mutation()))) {
+        //detach this node
         parent_mutex.lock();
         auto iter = std::find(parent_children.begin(), parent_children.end(),
                               this_node);
         assert(iter != parent_children.end());
         parent_children.erase(iter);
         parent_mutex.unlock();
+        //prent have changed children
         changed_nodes.push_back(this_node->parent->identifier);
         for (MAT::Node *child : this_node_ori_children) {
             child->parent = this_node->parent;
             if (this_node_ori_children.size() == 1) {
+                //collapsing because it only have single children, need to merge mutations
                 if (merge_mutation_single_child(child, this_node->mutations)) {
                     node_with_inconsistent_state.push_back(child->identifier);
                 }
                 if (child->children.size() <= 1) {
+                    //fix boundary1_alleles of children with only one children
                     auto &child_mut = child->mutations;
                     for (auto &mut : child_mut) {
                         mut.set_boundary_one_hot(0xf &
@@ -54,6 +60,7 @@ tbb::task* execute() override{
                         child_mut.end());
                 }
             }
+            //promote original children
             parent_mutex.lock();
             parent_children.push_back(child);
             parent_mutex.unlock();
@@ -66,6 +73,7 @@ tbb::task* execute() override{
     bool spawned=false;
     this_node_ori_children.erase(std::remove_if(this_node_ori_children.begin(), this_node_ori_children.end(), [](MAT::Node* node){return node->is_leaf();}),this_node_ori_children.end());
     empty->set_ref_count(this_node_ori_children.size());
+    //spawn a new task for each children
     for (MAT::Node *child : this_node_ori_children) {
         empty->spawn(*new (empty->allocate_child())clean_up_internal_nodes_single_child_or_no_mutation(child,changed_nodes,node_with_inconsistent_state,removed_nodes,node_mutexes));
         spawned=true;
@@ -73,7 +81,7 @@ tbb::task* execute() override{
     return spawned?nullptr:empty;
 }
 };
-
+//Warpper for the preceding functor to clean tree
 static void clean_up_internal_nodes_single_child_or_no_mutation(MAT::Node* this_node,MAT::Tree& tree,std::unordered_set<std::string>& changed_nodes,std::unordered_set<std::string>& node_with_inconsistent_state){
     tbb::concurrent_vector<std::string> changed_nodes_rep;
     tbb::concurrent_vector<std::string> node_with_inconsistent_state_rep;
@@ -97,6 +105,7 @@ char get_major_allele(MAT::Node* node, int position){
         return iter->get_all_major_allele();
     }
 }
+//similar to clean tree, but can a more general node collapsing function
 static void clean_tree_load(MAT::Tree& t,std::unordered_set<std::string>& changed_nodes,Original_State_t& ori_state){
     std::unordered_set<std::string> node_with_inconsistent_states;
         clean_up_internal_nodes_single_child_or_no_mutation(t.root, t, changed_nodes,node_with_inconsistent_states);
@@ -151,18 +160,28 @@ char get_state(char* sample,int position){
 }
 MAT::Tree load_vcf_nh_directly(const std::string& nh_path,const std::string& vcf_path,Original_State_t& origin_states){
     MAT::Tree t=Mutation_Annotated_Tree::create_tree_from_newick(nh_path);
+    //load VCF
+    auto start=std::chrono::steady_clock::now();
     VCF_input(vcf_path.c_str(),t);
     puts("Finished loading from VCF\n");
+    auto vcf_load_end=std::chrono::steady_clock::now();
+    std::chrono::duration<double>  elpased_time =vcf_load_end-start;
+    fprintf(stderr, "load vcf took %f minutes\n",elpased_time.count()/60.0);
     std::unordered_set<std::string> changed_nodes;
     clean_tree_load(t, changed_nodes,origin_states);
     t.condense_leaves();
     check_samples(t.root, origin_states, &t);
-    //populate_mutated_pos(origin_states);
+    #if defined (DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT) || defined (CHECK_STATE_REASSIGN)
+    populate_mutated_pos(origin_states);
+    #endif
     changed_nodes.clear();
     printf("%zu condensed nodes\n",t.condensed_nodes.size());
     for(const auto &condensed:t.condensed_nodes){
         changed_nodes.insert(t.get_node(condensed.first)->parent->identifier);
     }
     clean_tree_load(t, changed_nodes,origin_states);
+    auto clean_tree_end=std::chrono::steady_clock::now();
+    elpased_time =clean_tree_end-vcf_load_end;
+    fprintf(stderr, "tree post processing took %f minutes\n",elpased_time.count()/60.0);
     return t;
 }
