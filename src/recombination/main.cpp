@@ -194,12 +194,6 @@ int main(int argc, char** argv) {
     fprintf(stderr, "Finding the branches with number of mutations equal to or exceeding %u.\n", branch_len);
     auto bfs = T.breadth_first_expansion();
 
-    for (auto n: bfs) {
-        if (!n->is_leaf()) {
-            fprintf(stdout, "%s\t%zu\n", n->identifier.c_str(), T.get_num_leaves(n));
-        }
-    }
-    
     tbb::concurrent_unordered_set<std::string> nodes_to_consider;
 
     if (samples_filename != "") {
