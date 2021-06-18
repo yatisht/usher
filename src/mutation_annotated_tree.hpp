@@ -14,6 +14,7 @@
 #include <tbb/scalable_allocator.h>
 #include <tbb/task_scheduler_init.h>
 #include <tbb/blocked_range.h>
+#include <tbb/task_group.h>
 #include <tbb/tbb.h>
 #include <tbb/mutex.h>
 #include "parsimony.pb.h"
@@ -134,6 +135,7 @@ namespace Mutation_Annotated_Tree {
             void condense_leaves(std::vector<std::string> = std::vector<std::string>());
             void uncondense_leaves();
             void collapse_tree();
+            void rotate_for_display();
     };
     
     std::string get_newick_string(const Tree& T, bool b1, bool b2, bool b3=false, bool b4=false);

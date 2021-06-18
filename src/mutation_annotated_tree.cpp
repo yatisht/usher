@@ -1162,6 +1162,29 @@ void Mutation_Annotated_Tree::Tree::collapse_tree() {
     }
 }
 
+void Mutation_Annotated_Tree::Tree::rotate_for_display() {
+    auto dfs = depth_first_expansion();
+
+    std::unordered_map<Node*, int> num_desc;
+
+    for (int i=int(dfs.size())-1; i>=0; i--) {
+        auto n = dfs[i];
+        int desc = 1;
+        for (auto child: n->children) {
+            desc += num_desc[child]; 
+        }
+        num_desc[n] = desc;
+    }
+
+    for (auto n: dfs) {
+        tbb::parallel_sort(n->children.begin(), n->children.end(),
+                [&num_desc](Node* n1, Node* n2) {
+                    return num_desc[n1] > num_desc[n2];
+                });
+    }
+}
+
+
 Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_tree_copy(const Mutation_Annotated_Tree::Tree& tree, const std::string& identifier) {
     TIMEIT();
     auto root = tree.root;
@@ -1381,6 +1404,9 @@ void Mutation_Annotated_Tree::get_random_single_subtree (Mutation_Annotated_Tree
 
     auto new_T = Mutation_Annotated_Tree::get_subtree(*T, leaves_to_keep);
 
+    // Rotate tree for display
+    new_T.rotate_for_display();
+
     // Write subtree to file
     auto subtree_filename = outdir + preid + "single-subtree.nh";
     fprintf(stderr, "Writing single subtree with %zu randomly added leaves to file %s.\n", subtree_size, subtree_filename.c_str());
@@ -1537,6 +1563,9 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (Mutation_Annotated_Tre
             }
                     
             auto new_T = Mutation_Annotated_Tree::get_subtree(*T, leaves_to_keep);
+
+            // Rotate tree for display
+            new_T.rotate_for_display();
 
             tbb::parallel_for (tbb::blocked_range<size_t>(i+1, samples.size(), 100),
                     [&](tbb::blocked_range<size_t> r) {
