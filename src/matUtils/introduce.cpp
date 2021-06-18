@@ -1,4 +1,5 @@
 #include "introduce.hpp"
+#include <boost/date_time/gregorian/gregorian.hpp>
 
 po::variables_map parse_introduce_command(po::parsed_options parsed) {
 
@@ -389,12 +390,49 @@ std::map<std::string, float> get_assignments(MAT::Tree* T, std::unordered_set<st
     return assignments;
 }
 
+boost::gregorian::date get_nearest_date(MAT::Tree* T, MAT::Node* n, std::set<std::string>* in_samples, std::map<std::string, std::string> datemeta = {}) {
+    boost::gregorian::date earliest = boost::gregorian::day_clock::universal_day();
+    for (auto l: T->get_leaves_ids(n->identifier)) {
+        if (in_samples->find(l) != in_samples->end()) {
+            if (datemeta.size() > 0) {
+                if (datemeta.find(l) != datemeta.end()) {
+                    auto leafdate = boost::gregorian::from_string(datemeta.find(l)->second);
+                    if (leafdate < earliest) {
+                        earliest = leafdate;
+                    }
+                }
+            } else {
+                std::string datend = l.substr(l.rfind("|")+1, std::string::npos);
+                if (datend.size() > 0) {
+                    boost::gregorian::date leafdate;
+                    try {
+                        if (datend.size() == 8) {
+                            leafdate = boost::gregorian::from_string("20"+datend);
+                        } else if (datend.size() == 10) {
+                            leafdate = boost::gregorian::from_string(datend);
+                        } else {
+                            continue;
+                        }
+                    } catch (const std::out_of_range& oor) {
+                        continue;
+                    }
+                    if (leafdate < earliest) {
+                        earliest = leafdate;
+                    }
+                }
+            }
+        }
+    }
+    return earliest;
+}
+
 std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, std::vector<std::string>> sample_regions, bool add_info, std::string clade_output, float min_origin_confidence, std::string dump_assignments, bool eval_uncertainty) {
     //for every region, independently assign IN/OUT states
     //and save these assignments into a map of maps
     //so we can check membership of introduction points in each of the other groups
     //this allows us to look for migrant flow between regions
     std::map<std::string, std::map<std::string, float>> region_assignments;
+    std::map<std::string, std::string> date_tracker;
     //TODO: This could be parallel for a significant speedup when dozens or hundreds of regions are being passed in
     //I also suspect I could use pointers for the assignment maps to make this more memory efficient
     for (auto ms: sample_regions) {
@@ -444,7 +482,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
     //now that we have all assignments sorted out, pass over it again
     //looking for introductions.
     std::vector<std::string> outstrs;
-    std::string header = "sample\tintroduction_node\tintro_confidence\tparent_confidence\tdistance";
+    std::string header = "sample\tintroduction_node\tintro_confidence\tparent_confidence\tdistance\toccurred_before";
     if (region_assignments.size() > 1) {
         header += "\tregion\torigins\torigins_confidence";
     }
@@ -462,12 +500,13 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
         std::string region = ra.first;
         auto assignments = ra.second;
         std::vector<std::string> samples = sample_regions[region];
+        std::set<std::string> sampleset (samples.begin(), samples.end());
         std::map<std::string, size_t> recorded_mc;
         std::map<std::string, float> recorded_ai;
         //its time to identify introductions. we're going to do this by iterating
         //over all of the leaves. For each sample, rsearch back until it hits a 0 assignment
         //then record the last encountered 1 assignment as the point of introduction
-        //int total_processed = 0;
+        int total_processed = 0;
         for (auto s: samples) {
             //timer.Start();
             //total_processed++;
@@ -475,7 +514,12 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
             std::string last_encountered = s;
             MAT::Node* last_node = NULL;
             float last_anc_state = 1;
-            size_t traversed = T->get_node(s)->mutations.size();
+            auto node = T->get_node(s);
+            // if (node == NULL) {
+                // fprintf(stderr, "WARNING: query sample %s not found in tree. continuing\n", s.c_str());
+                // continue;
+            // }
+            size_t traversed = node->mutations.size();
             for (auto a: T->rsearch(s,false)) {
                 float anc_state;
                 if (a->is_root()) {
@@ -580,8 +624,19 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                         }
                     }
                     std::stringstream ostr;
+                    std::string ldatestr;
+                    if (date_tracker.find(a->identifier) != date_tracker.end()) {
+                        ldatestr = date_tracker.find(a->identifier)->second;
+                    } else {
+                        // timer.Start();
+                        // fprintf(stderr, "Getting date for internal node %s\n", a->identifier.c_str());
+                        boost::gregorian::date ldate = get_nearest_date(T, a, &sampleset);
+                        ldatestr = boost::gregorian::to_simple_string(ldate);
+                        date_tracker[a->identifier] = ldatestr;
+                        // fprintf(stderr, "Date gotten in %ld msec\n", timer.Stop());
+                    }
                     if (region_assignments.size() == 1) {
-                        ostr << s << "\t" << last_encountered << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed << "\t" << intro_clades << "\t" << intro_mut_path;
+                        ostr << s << "\t" << last_encountered << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed << "\t" << ldatestr << "\t" << intro_clades << "\t" << intro_mut_path;
                         if (eval_uncertainty) {
                             ostr << "\t" << assignments.find(s)->second;
                         }
@@ -591,7 +646,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                             ostr << "\n";
                         }
                     } else {
-                        ostr << s << "\t" << last_encountered << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed << "\t" << region << "\t" << origins << "\t" << origins_cons.str() << "\t" << intro_clades << "\t" << intro_mut_path;
+                        ostr << s << "\t" << last_encountered << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed << "\t" << ldatestr << "\t" << region << "\t" << origins << "\t" << origins_cons.str() << "\t" << intro_clades << "\t" << intro_mut_path;
                         if (eval_uncertainty) {
                             ostr << "\t" << assignments.find(s)->second;
                         }
@@ -602,6 +657,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                         }
                     }
                     outstrs.push_back(ostr.str());
+                    total_processed++;
                     break;
                 } else {
                     last_encountered = a->identifier;
@@ -611,6 +667,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                 }
             }
         }
+        fprintf(stderr, "Region %s complete, %d samples processed.\n", region.c_str(), total_processed);
     }
     if (dump_assignments != "") {
         boost::filesystem::path path(dump_assignments);

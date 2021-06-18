@@ -10,6 +10,7 @@
 #include "boost/filesystem.hpp"
 #include "usher_graph.hpp"
 #include "parsimony.pb.h"
+#include "version.hpp"
 
 namespace po = boost::program_options;
 namespace MAT = Mutation_Annotated_Tree;
@@ -34,6 +35,8 @@ int main(int argc, char** argv) {
     bool print_uncondensed_tree = false;
     bool print_parsimony_scores = false;
     bool retain_original_branch_len = false;
+    bool no_add = false;
+    bool detailed_clades = false;
     size_t print_subtrees_size=0;
     size_t print_subtrees_single=0;
     po::options_description desc{"Options"};
@@ -70,7 +73,12 @@ int main(int argc, char** argv) {
          "Create a new tree up to this limit for each possibility of parsimony-optimal placement")
         ("retain-input-branch-lengths,l", po::bool_switch(&retain_original_branch_len), \
          "Retain the branch lengths from the input tree in out newick files instead of using number of mutations for the branch lengths.")
+        ("no-add,n", po::bool_switch(&no_add), \
+         "Do not add new samples to the tree")
+        ("detailed-clades,D", po::bool_switch(&detailed_clades), \
+         "In clades.txt, write a histogram of annotated clades and counts across all equally parsimonious placements")
         ("threads,T", po::value<uint32_t>(&num_threads)->default_value(num_cores), num_threads_message.c_str())
+        ("version", "Print version number")
         ("help,h", "Print help messages");
     
     po::options_description all_options;
@@ -82,12 +90,22 @@ int main(int argc, char** argv) {
         po::notify(vm);
     }
     catch(std::exception &e){
-        std::cerr << desc << std::endl;
-        // Return with error code 1 unless the user specifies help
-        if(vm.count("help"))
+        if (vm.count("version")) {
+            std::cout << "UShER (v" << PROJECT_VERSION << ")" << std::endl;
+        }
+        else {
+            std::cerr << "UShER (v" << PROJECT_VERSION << ")" << std::endl;
+            std::cerr << desc << std::endl;
+        }
+        // Return with error code 1 unless the user specifies help or version
+        if(vm.count("help") || vm.count("version"))
             return 0;
         else
             return 1;
+    }
+        
+    if (vm.count("version")) {
+        std::cout << "UShER (v" << PROJECT_VERSION << ")" << std::endl;
     }
 
     if (print_subtrees_size == 1) {
@@ -144,6 +162,11 @@ int main(int argc, char** argv) {
         }
     }
     */
+
+    if (no_add && (print_subtrees_size > 0 || print_subtrees_single)) {
+        std::cerr << "ERROR: Sorry, cannot output subtrees when -n/--no-add is specified.\n";
+        return 1;
+    }
 
     if (retain_original_branch_len) {
         fprintf(stderr, "Output newick files will retain branch lengths from the input tree (unspecified at branches modified during the placement).\n\n");
@@ -280,10 +303,8 @@ int main(int argc, char** argv) {
                       // If sample name not in tree, add it to missing_samples
                       if (bfs_idx.find(words[j]) == bfs_idx.end()) {
                         missing_samples.emplace_back(Missing_Sample(words[j]));
-//                        num_missing++;
                       }
                     }
-//                    missing_sample_mutations.resize(num_missing);
                     header_found = true;
                   }
                 }
@@ -894,6 +915,27 @@ int main(int argc, char** argv) {
                         }
                     }
 
+                    // Assign clades if maximum number of trees is 1
+                    if (max_trees == 1) {
+                        missing_samples[s].clade_assignments.clear();
+                        missing_samples[s].clade_assignments.resize(T->get_num_annotations());
+                        missing_samples[s].best_clade_assignment.clear();
+                        missing_samples[s].best_clade_assignment.resize(T->get_num_annotations());
+                        for (size_t c=0; c < T->get_num_annotations(); c++) {
+                            missing_samples[s].clade_assignments[c].resize(best_j_vec.size());
+                            //TODO: can be parallelized
+                            for (size_t k=0; k < best_j_vec.size(); k++) {
+                                bool include_self = !bfs[best_j_vec[k]]->is_leaf() && !node_has_unique[k];
+                                auto clade_assignment = T->get_clade_assignment(bfs[best_j_vec[k]], c, include_self);
+                                missing_samples[s].clade_assignments[c][k] = clade_assignment;
+                                if (k==0) {
+                                    missing_samples[s].best_clade_assignment[c] = clade_assignment;
+                                }
+                            }
+                            std::sort(missing_samples[s].clade_assignments[c].begin(), missing_samples[s].clade_assignments[c].end());
+                        }
+                    }
+
                     // Iterate over the number of parsimony-optimal placements
                     // for which a new tree will be created
                     for (size_t k = 0; k < num_best; k++) {
@@ -924,8 +966,8 @@ int main(int argc, char** argv) {
                             best_node = bfs[best_j];
                         }
                         
-                        // Ensure sample not already in the tree
-                        if (T->get_node(sample) == NULL) {
+                        // Add sample to tree unless --no-add or it is already in the tree
+                        if (!no_add && T->get_node(sample) == NULL) {
                             // Is placement as sibling
                             if (best_node->is_leaf() || best_node_has_unique) {
                                 std::string nid = std::to_string(++T->curr_internal_node);
@@ -1196,44 +1238,62 @@ int main(int argc, char** argv) {
             size_t num_annotations = T->get_num_annotations();
 
             if (num_annotations > 0) {
-                timer.Start();
+                    timer.Start();
 
-                auto annotations_filename = outdir + "/clades.txt";
-                if (num_trees > 1) {
-                    annotations_filename = outdir + "/clades" + std::to_string(t_idx+1) + ".txt"; 
-                    fprintf(stderr, "Writing clade annotations for tree %zu to file %s \n", (t_idx+1), annotations_filename.c_str());
-                }
-                else {
-                    fprintf(stderr, "Writing clade annotations to file %s \n", annotations_filename.c_str());
-                }
+                    auto annotations_filename = outdir + "/clades.txt";
+                    if (num_trees > 1) {
+                        annotations_filename = outdir + "/clades" + std::to_string(t_idx+1) + ".txt"; 
+                        fprintf(stderr, "Writing clade annotations for tree %zu to file %s \n", (t_idx+1), annotations_filename.c_str());
+                    }
+                    else {
+                        fprintf(stderr, "Writing clade annotations to file %s \n", annotations_filename.c_str());
+                    }
 
-                FILE* annotations_file = fopen(annotations_filename.c_str(), "w");
+                    FILE* annotations_file = fopen(annotations_filename.c_str(), "w");
 
-                for (size_t s=0; s<missing_samples.size(); s++) {
-                    auto sample = missing_samples[s].name;
-                    std::vector<std::string> sample_annotations(num_annotations, "UNDEFINED");
-                    for (auto anc: T->rsearch(sample, true)) {
-                        for (size_t k=0; k<num_annotations; k++) {
-                            //fprintf(stderr, "%zu %zu %zu\n", k, anc->annotations.size(), sample_annotations.size());
-                            if ((anc->clade_annotations[k] != "") && (sample_annotations[k] == "UNDEFINED")) {
-                                sample_annotations[k] = anc->clade_annotations[k];
+                    for (size_t s=0; s<missing_samples.size(); s++) {
+                        if (missing_samples[s].best_clade_assignment.size() == 0) {
+                            // Sample was not placed (e.g. exceeded max EPPs) so no clades assigned
+                            continue;
+                        }
+                        auto sample = missing_samples[s].name;
+                        
+                        fprintf(annotations_file, "%s\t", sample.c_str());
+                        for (size_t k=0; k< num_annotations; k++) {
+                            fprintf(annotations_file, "%s", missing_samples[s].best_clade_assignment[k].c_str());
+                            //TODO
+                            if (max_trees == 1 && detailed_clades) {
+                                fprintf(annotations_file, "*|");
+                                std::string curr_clade = "";
+                                int curr_count = 0;
+                                for (auto clade: missing_samples[s].clade_assignments[k]) {
+                                    if (clade == curr_clade) {
+                                        curr_count++;
+                                    }
+                                    else {
+                                        if (curr_count > 0) {
+                                            fprintf(annotations_file, "%s(%i/%zu),", curr_clade.c_str(), curr_count, 
+                                                    missing_samples[s].clade_assignments[k].size());
+                                        }
+                                        curr_clade = clade;
+                                        curr_count = 1;
+                                    }
+                                }
+                                if (curr_count > 0) {
+                                    fprintf(annotations_file, "%s(%i/%zu)", curr_clade.c_str(), curr_count, 
+                                            missing_samples[s].clade_assignments[k].size());
+                                }
+                            }
+                            if (k+1 < num_annotations) {
+                                fprintf(annotations_file, "\t");
                             }
                         }
+                        fprintf(annotations_file, "\n");
                     }
 
-                    fprintf(annotations_file, "%s\t", sample.c_str());
-                    for (size_t k=0; k< num_annotations; k++) {
-                        fprintf(annotations_file, "%s", sample_annotations[k].c_str());
-                        if (k+1 < num_annotations) {
-                            fprintf(annotations_file, "\t");
-                        }
-                    }
-                    fprintf(annotations_file, "\n");
-                }
-                
-                fclose(annotations_file);
+                    fclose(annotations_file);
 
-                fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+                    fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
             }
         }
     }

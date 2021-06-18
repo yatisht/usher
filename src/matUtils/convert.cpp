@@ -5,7 +5,7 @@
 using json = nlohmann::json;
 
 void write_vcf_header(std::ostream& vcf_file, std::vector<Mutation_Annotated_Tree::Node*> &dfs,
-                      bool print_genotypes) {
+                      bool print_genotypes, const std::set<std::string>* samples_to_use) {
     // Write minimal VCF header with sample names in same order that genotypes
     // will be printed out (DFS).
     //fprintf(vcf_file, "##fileformat=VCFv4.2\n");
@@ -16,7 +16,8 @@ void write_vcf_header(std::ostream& vcf_file, std::vector<Mutation_Annotated_Tre
         //fprintf(vcf_file, "\tFORMAT");
         vcf_file << "\tFORMAT";
         for (auto node: dfs) {
-            if (node->is_leaf()) {
+            if (samples_to_use->find(node->identifier) != samples_to_use->end()) {
+            //if (node->is_leaf()) {
                 //fprintf(vcf_file, "\t%s", node->identifier.c_str());
                 vcf_file << boost::format("\t%s") % node->identifier.c_str();
             }
@@ -24,17 +25,6 @@ void write_vcf_header(std::ostream& vcf_file, std::vector<Mutation_Annotated_Tre
     }
     vcf_file << "\n";
     //fputc('\n', vcf_file);
-}
-
-uint count_leaves(std::vector<Mutation_Annotated_Tree::Node*> &dfs) {
-    // Return the number of leaf nodes in dfs
-    uint count = 0;
-    for (auto node: dfs) {
-        if (node->is_leaf()) {
-            count++;
-        }
-    }
-    return count;
 }
 
 int8_t *new_gt_array(int size, int8_t ref) {
@@ -49,7 +39,7 @@ int8_t *new_gt_array(int size, int8_t ref) {
 uint r_add_genotypes(MAT::Node *node,
                      std::unordered_map<std::string, std::vector<int8_t *>> &chrom_pos_genotypes,
                      std::unordered_map<std::string, std::vector<int8_t>> &chrom_pos_ref,
-                     uint leaf_count, uint leaf_ix, std::vector<struct MAT::Mutation *> &mut_stack) {
+                     uint leaf_count, uint leaf_ix, std::vector<struct MAT::Mutation *> &mut_stack, const std::set<std::string>* samples_to_use) {
     // Traverse tree, adding leaf/sample genotypes for mutations annotated on path from root to node
     // to chrom_pos_genotypes (and reference allele to chrom_pos_ref).
     for (auto &mut: node->mutations) {
@@ -58,7 +48,8 @@ uint r_add_genotypes(MAT::Node *node,
       }
       mut_stack.push_back(&mut);
     }
-    if (node->is_leaf()) {
+    // if (node->is_leaf()) {
+    if (samples_to_use->find(node->identifier) != samples_to_use->end()) {
         // Store genotypes in this leaf's column for all mutations on the path from root to leaf
         for (auto mut: mut_stack) {
             std::string chrom = mut->chrom;
@@ -93,7 +84,7 @@ uint r_add_genotypes(MAT::Node *node,
     }
     for (auto child: node->children) {
         leaf_ix = r_add_genotypes(child, chrom_pos_genotypes, chrom_pos_ref, leaf_count, leaf_ix,
-                                  mut_stack);
+                                  mut_stack, samples_to_use);
     }
     for (auto mut: node->mutations) {
         mut_stack.pop_back();
@@ -243,15 +234,15 @@ struct Pos_Finder{
     }
 };
 
-void write_vcf_rows(std::ostream& vcf_file, MAT::Tree T, std::vector<MAT::Node*> &dfs, bool print_genotypes) {
+void write_vcf_rows(std::ostream& vcf_file, MAT::Tree T, bool print_genotypes, const std::set<std::string>* samples_to_include) {
     // Fill in a matrix of genomic positions and sample genotypes in the same order as the
     // sample names in the header, compute allele counts, and output VCF rows.
-    uint leaf_count = count_leaves(dfs);
+    uint leaf_count = samples_to_include->size();
     // The int8_t here is mutation_annotated_tree.hpp's binary encoding of IUPAC nucleotide bases.
     std::unordered_map<std::string, std::vector<int8_t *>> chrom_pos_genotypes;
     std::unordered_map<std::string, std::vector<int8_t>> chrom_pos_ref;
     std::vector<struct MAT::Mutation *> mut_stack;
-    r_add_genotypes(T.root, chrom_pos_genotypes, chrom_pos_ref, leaf_count, 0, mut_stack);
+    r_add_genotypes(T.root, chrom_pos_genotypes, chrom_pos_ref, leaf_count, 0, mut_stack, samples_to_include);
     // Write row of VCF for each variant in chrom_pos_genotypes[chrom]
     for (auto itr = chrom_pos_genotypes.begin();  itr != chrom_pos_genotypes.end();  ++itr) {
         std::string chrom = itr->first;
@@ -268,7 +259,14 @@ void write_vcf_rows(std::ostream& vcf_file, MAT::Tree T, std::vector<MAT::Node*>
     }
 }
 
-void make_vcf (MAT::Tree T, std::string vcf_filepath, bool no_genotypes) {
+void make_vcf (MAT::Tree T, std::string vcf_filepath, bool no_genotypes, std::vector<std::string> samples_vec) {
+    std::set<std::string> samples_to_include;
+    if (samples_vec.size() == 0) {
+        auto tv = T.get_leaves_ids();
+        samples_to_include.insert(tv.begin(),tv.end());
+    } else {
+        samples_to_include.insert(samples_vec.begin(), samples_vec.end());
+    }
     try {
         std::ofstream outfile(vcf_filepath, std::ios::out | std::ios::binary);
         boost::iostreams::filtering_streambuf<boost::iostreams::output> outbuf;
@@ -279,8 +277,8 @@ void make_vcf (MAT::Tree T, std::string vcf_filepath, bool no_genotypes) {
         std::ostream vcf_file(&outbuf);
         //FILE *vcf_file = fopen(vcf_filepath.c_str(), "w");
         std::vector<Mutation_Annotated_Tree::Node*> dfs = T.depth_first_expansion();
-        write_vcf_header(vcf_file, dfs, !no_genotypes);
-        write_vcf_rows(vcf_file, T, dfs, !no_genotypes);
+        write_vcf_header(vcf_file, dfs, !no_genotypes, &samples_to_include);
+        write_vcf_rows(vcf_file, T, !no_genotypes, &samples_to_include);
         boost::iostreams::close(outbuf);
         outfile.close();
         //fclose(vcf_file);
@@ -571,6 +569,11 @@ void get_minimum_subtrees(MAT::Tree* T, std::vector<std::string> samples, size_t
           /// get the nearby tree of size nearest_subtree_size
           std::vector<std::string> leaves_to_keep = get_nearby( T, samples[i], nearest_subtree_size ) ;
 
+          if ( leaves_to_keep.size() == 0 ) {
+              samples_we_have_seen.insert({samples[i],-1}) ;
+              continue ;
+          }
+
           /// record all samples seen
           for ( int s = 0 ; s < leaves_to_keep.size() ; s ++ ) {
               samples_we_have_seen.insert({leaves_to_keep[s],subtree_sample_sets.size()}) ;
@@ -603,6 +606,18 @@ void get_minimum_subtrees(MAT::Tree* T, std::vector<std::string> samples, size_t
     /// end TBB loop
     } ) ;
 
+    /// get the set of metadata fields in the requested samples
+    std::set<std::string> metafields ;
+    for ( int i = 0 ; i < samples.size() ; i ++ ) {
+        for (const auto& cmet: *catmeta) {
+            for (const auto& cmi: cmet) {
+                if (cmi.second.find(samples[i]) != cmi.second.end()) {
+                    metafields.insert(cmi.first) ;
+                }
+            }
+        }
+    }
+
     std::ofstream tracker (output_dir + "subtree-assignments.tsv");
     tracker << "samples";
     if (json_n != output_dir) {
@@ -611,8 +626,16 @@ void get_minimum_subtrees(MAT::Tree* T, std::vector<std::string> samples, size_t
     if (newick_n != output_dir) {
         tracker << "\t" << "newick_file";
     }
+
+    for ( const auto& m : metafields ) {
+        tracker << "\t" << m ;
+    }
+
     tracker << "\n";
     for (size_t i = 0; i < samples.size(); i++) {
+        if ( samples_we_have_seen[samples[i]] == -1 ) {
+            continue ;
+        }
         tracker << samples[i];
         if (json_n != output_dir) {
             std::string outf = json_n + "-subtree-" + std::to_string(samples_we_have_seen[samples[i]]) + ".json";
@@ -622,6 +645,26 @@ void get_minimum_subtrees(MAT::Tree* T, std::vector<std::string> samples, size_t
             std::string outf = newick_n + "-subtree-" + std::to_string(samples_we_have_seen[samples[i]]) + ".nw";
             tracker << "\t" << outf;
         }
+
+        /// now print all of the relevant metadata
+        /// get the set of metadata fields in the requested samples
+        for ( const auto& m : metafields ) {
+            bool print = false ;
+            for (const auto& cmet: *catmeta) {
+                for ( const auto& cmi: cmet ) {
+                    if ( cmi.first == m && cmi.second.find( samples[i] ) != cmi.second.end()  ) {
+                        if ( print == false ) {
+                            tracker << "\t" << cmi.second.at(samples[i]) ;
+                            print = true ;
+                        }
+                    }
+                }
+            }
+            if ( print == false ) {
+                tracker << "\tNA" ;
+            }
+        }
+
         tracker << "\n";
     }
     tracker.close();

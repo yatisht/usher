@@ -4,14 +4,14 @@ std::vector<MAT::Node*> get_common_nodes (std::vector<std::vector<MAT::Node*>> n
     //to identify common nodes, perform pairwise set intersections repeatedly for all path node vectors
     std::vector<MAT::Node*> common_nodes = nodepaths[0];
     //needs to be sorted for intersection. These are vectors of pointers, so there's not a problem with how to order them.
-    std::sort(common_nodes.begin(), common_nodes.end()); 
+    std::sort(common_nodes.begin(), common_nodes.end());
     for (size_t s=1; s<nodepaths.size(); s++) {
         std::vector<MAT::Node*> nextint;
         std::vector<MAT::Node*> next = nodepaths[s];
-        std::sort(next.begin(), next.end()); 
-        std::set_intersection(common_nodes.begin(), common_nodes.end(), next.begin(), next.end(), std::back_inserter(nextint)); 
+        std::sort(next.begin(), next.end());
+        std::set_intersection(common_nodes.begin(), common_nodes.end(), next.begin(), next.end(), std::back_inserter(nextint));
         //store the intersected vector and move to the next node path vector
-        common_nodes = nextint; 
+        common_nodes = nextint;
     }
     //the final vector is the set of nodes which existed in every path vector
     return common_nodes;
@@ -26,7 +26,7 @@ std::vector<float> get_all_distances(MAT::Node* target, std::vector<std::vector<
         for (size_t i=0;i<paths[p].size();i++) {
             if (paths[p][i]->identifier == target->identifier) {
                 //stop iterating when its reached the indicated common ancestor (remember, path is sorted nearest to root)
-                break; 
+                break;
             }
             tdist += paths[p][i]->mutations.size();
 
@@ -38,15 +38,15 @@ std::vector<float> get_all_distances(MAT::Node* target, std::vector<std::vector<
 }
 
 size_t get_neighborhood_size(std::vector<MAT::Node*> nodes, MAT::Tree* T) {
-    /* 
+    /*
     The basic concept behind neighborhood size is that it is the longest direct path
     (direct meaning without passing over the same connection twice)
-    between any two nodes in the input set. This is parallel to the concept of the 
-    complete-linkage cluster density value. 
+    between any two nodes in the input set. This is parallel to the concept of the
+    complete-linkage cluster density value.
 
     Obtaining this value requires two basic steps. First, the most recent common ancestor,
     which the longest traversible direct path must pass through, must be identified.
-    To do this, the set of all common ancestors for all nodes in the input set must be identified. 
+    To do this, the set of all common ancestors for all nodes in the input set must be identified.
     Then the total distances for each sample to each common ancestor must be tabulated; the
     most recent common ancestor is the one with the shortest total distance to all nodes in the input.
 
@@ -56,29 +56,29 @@ size_t get_neighborhood_size(std::vector<MAT::Node*> nodes, MAT::Tree* T) {
 
     This metric is useful because it is indicative of the distribution of placements across the tree
     when ran on the set of nodes for which a sample could be equally parsimoniously placed.
-    For example, let's say we have two samples with five equally parsimonious placements. 
-    The first sample has all five equally parsimonious placements in a small clade with a very recent common 
+    For example, let's say we have two samples with five equally parsimonious placements.
+    The first sample has all five equally parsimonious placements in a small clade with a very recent common
     ancestor. The second has two of these placements on a very different parts of the tree from the other three,
-    with the common ancestor back at the root. If you only look at the raw number of equally parsimonious placements, 
-    they look equally trustworthy, but its likely that you could believe that the first sample is properly placed 
+    with the common ancestor back at the root. If you only look at the raw number of equally parsimonious placements,
+    they look equally trustworthy, but its likely that you could believe that the first sample is properly placed
     somewhere in that small clade, while the second sample should be removed or not trusted at all.
-    The first of these two samples will have a small neighborhood size value 
-    while the second will have a large neighborhood size value. This metric thus complements the 
+    The first of these two samples will have a small neighborhood size value
+    while the second will have a large neighborhood size value. This metric thus complements the
     number of equally parsimonious placements when evaluating sample placement quality.
     */
 
     //first step for this is collecting the full paths back to the root for all nodes
-    assert (nodes.size() > 1); 
+    assert (nodes.size() > 1);
     std::vector<std::vector<MAT::Node*>> parentvecs;
     for (size_t s=0; s<nodes.size(); s++) {
-        if (!nodes[s]->is_root()){ 
+        if (!nodes[s]->is_root()){
             std::vector<MAT::Node*> npath;
             npath.emplace_back(nodes[s]); //include the node itself on the path so branch length is correctly accessed
             for (auto& it: T->rsearch(nodes[s]->identifier)) {
                 npath.emplace_back(it);
             }
             parentvecs.emplace_back(npath);
-        } else { 
+        } else {
             //if one of the epps sites is directly off the root, then this doesn't make much sense
             //instead, just construct a path of length 1 that contains the root node only
             std::vector<MAT::Node*> npath;
@@ -89,15 +89,15 @@ size_t get_neighborhood_size(std::vector<MAT::Node*> nodes, MAT::Tree* T) {
     //then we need to identify all common elements to all node vectors
     std::vector<MAT::Node*> common_nodes = get_common_nodes(parentvecs);
     //bare minimum this will always include the root. therefore it is always > 0
-    assert (common_nodes.size() > 0); 
+    assert (common_nodes.size() > 0);
     //then for all common nodes, we need to calculate the largest sum of paired distances for all samples to that specific common ancestor
     //the smallest of these largest sums is the best neighborhood size value
 
-    //the parsimony score is bigger than the biggest maximum limit on neighborhood size. 
+    //the parsimony score is bigger than the biggest maximum limit on neighborhood size.
     //This is basically just a big number to compare to
     //TODO: There's definitely a better way to bound this that doesn't involve as much adding.
     size_t best_size = T->get_parsimony_score();
-    
+
     for (size_t s=0; s<common_nodes.size(); s++) {
         //get the set of distances between each placement to this common ancestor with the path vectors
         std::vector<float> distances = get_all_distances(common_nodes[s], parentvecs);
@@ -115,7 +115,7 @@ size_t get_neighborhood_size(std::vector<MAT::Node*> nodes, MAT::Tree* T) {
         //I now have a value which is the longest path going between any two nodes in the placement set
         //which goes through this specific common ancestor
         //admittedly this is probably not the fastest way to do this
-        //I should be able to eliminate common ancestors which are directly ancestral 
+        //I should be able to eliminate common ancestors which are directly ancestral
         //to common ancestors between the same complete set without counting them up
         //but I'm focusing on results first here
         //assign this longest pair path value to best_size if its smaller than any we've seen for other common ancestors
@@ -124,7 +124,7 @@ size_t get_neighborhood_size(std::vector<MAT::Node*> nodes, MAT::Tree* T) {
             best_size = size_widest;
         }
     }
-    //at the end, we should be left with the proper neighborhood size value. 
+    //at the end, we should be left with the proper neighborhood size value.
     return best_size;
 }
 
@@ -138,18 +138,18 @@ std::vector<MAT::Node*> findEPPs (MAT::Tree* T, MAT::Node* node, size_t* nbest, 
     //if that code is ever refactored or updated in a way that significantly
     //affects efficiency or accuracy outside of the usher_mapper.cpp,
     //this code needs to be manually updated
-    
+
     //tracking positions is required to account for backmutation/overwriting along the path
     std::vector<int> anc_positions;
     std::vector<MAT::Mutation> ancestral_mutations;
     std::vector<MAT::Node*> best_placements;
     //first load in the current mutations
-    for (auto m: node->mutations){ 
+    for (auto m: node->mutations){
         if (m.is_masked() || (std::find(anc_positions.begin(), anc_positions.end(), m.position) == anc_positions.end())) {
             ancestral_mutations.emplace_back(m);
             if (!m.is_masked()) {
                 anc_positions.emplace_back(m.position);
-            }            
+            }
         }
     }
     //then load in ancestral mutations
@@ -168,11 +168,11 @@ std::vector<MAT::Node*> findEPPs (MAT::Tree* T, MAT::Node* node, size_t* nbest, 
         //this is where code copied from usher_main.cpp begins
         //comments included.
         auto dfs = T->depth_first_expansion();
-        size_t total_nodes = dfs.size();        
+        size_t total_nodes = dfs.size();
         // Stores the excess mutations to place the sample at each
         // node of the tree in DFS order. When placement is as a
         // child, it only contains parsimony-increasing mutations in
-        // the sample. When placement is as a sibling, it contains 
+        // the sample. When placement is as a sibling, it contains
         // parsimony-increasing mutations as well as the mutations
         // on the placed node in common with the new sample. Note
         // guaranteed to be corrrect only for optimal nodes since
@@ -180,9 +180,9 @@ std::vector<MAT::Node*> findEPPs (MAT::Tree* T, MAT::Node* node, size_t* nbest, 
         // nodes
         std::vector<std::vector<MAT::Mutation>> node_excess_mutations(total_nodes);
         // Stores the imputed mutations for ambiguous bases in the
-        // sampled in order to place the sample at each node of the 
-        // tree in DFS order. Again, guaranteed to be corrrect only 
-        // for pasrimony-optimal nodes 
+        // sampled in order to place the sample at each node of the
+        // tree in DFS order. Again, guaranteed to be corrrect only
+        // for pasrimony-optimal nodes
         std::vector<std::vector<MAT::Mutation>> node_imputed_mutations(total_nodes);
 
         // Stores the parsimony score to place the sample at each
@@ -194,7 +194,7 @@ std::vector<MAT::Node*> findEPPs (MAT::Tree* T, MAT::Node* node, size_t* nbest, 
         //int best_set_difference = 1e9;
         // TODO: currently number of root mutations is also added to
         // this value since it forces placement as child but this
-        // could be changed later 
+        // could be changed later
         int best_set_difference = ancestral_mutations.size() + T->root->mutations.size() + 1;
 
         size_t best_j = 0;
@@ -207,7 +207,7 @@ std::vector<MAT::Node*> findEPPs (MAT::Tree* T, MAT::Node* node, size_t* nbest, 
 
         // Parallel for loop to search for most parsimonious
         // placements. Real action happens within mapper2_body
-        auto grain_size = 400; 
+        auto grain_size = 400;
         tbb::parallel_for( tbb::blocked_range<size_t>(0, total_nodes, grain_size),
                 [&](tbb::blocked_range<size_t> r) {
                 for (size_t k=r.begin(); k<r.end(); ++k){
@@ -230,12 +230,12 @@ std::vector<MAT::Node*> findEPPs (MAT::Tree* T, MAT::Node* node, size_t* nbest, 
 
                         mapper2_body(inp, false);
                     }
-                }       
-                }); 
+                }
+                });
         //assign the result to the input pointer for epps
         *nbest = num_best;
         //if the num_best is big enough and if the bool is set, get the neighborhood size value and assign it
-        if (num_best > 1) { 
+        if (num_best > 1) {
             //for every index in best_j_vec, find the corresponding node from dfs
             for (size_t z=0; z<best_j_vec.size(); z++) {
                 auto nobj = dfs[best_j_vec[z]];
@@ -255,17 +255,17 @@ std::vector<MAT::Node*> findEPPs (MAT::Tree* T, MAT::Node* node, size_t* nbest, 
 
 void findEPPs_wrapper (MAT::Tree Tobj, std::string sample_file, std::string fepps, std::string flocs) {
     /*
-    The number of equally parsimonious placements (EPPs) is a placement uncertainty metric that 
+    The number of equally parsimonious placements (EPPs) is a placement uncertainty metric that
     indicates when a sample is ambiguous and could have been produced by more than one path
     from the root (e.g. multiple possible origins or explanations for the sample).
     About 85% of samples historically have a single unique placement (EPPs=1).
 
     This value is calculated as part of the standard Usher sample placement code. In order to get
     these values for a specific set of already-placed samples, we identify where each indicated sample
-    is placed on the tree, construct a virtual sample containing its associated set of mutations 
+    is placed on the tree, construct a virtual sample containing its associated set of mutations
     from the root, and run Usher's placement step, specifically blocking mapping of
-    the extracted sample to itself on the tree. The resulting values are recorded, and the set 
-    of EPP nodes can be used to calculate the complementary metric neighborhood size. 
+    the extracted sample to itself on the tree. The resulting values are recorded, and the set
+    of EPP nodes can be used to calculate the complementary metric neighborhood size.
     */
     timer.Start();
     std::ofstream eppfile;
@@ -280,11 +280,11 @@ void findEPPs_wrapper (MAT::Tree Tobj, std::string sample_file, std::string fepp
     }
 
     //mapper code wants a pointer.
-    MAT::Tree* T = &Tobj; 
+    MAT::Tree* T = &Tobj;
 
     std::vector<std::string> samples;
     //read in the samples files and get the nodes corresponding to each sample.
-    if (sample_file != "") { 
+    if (sample_file != "") {
         std::ifstream infile(sample_file);
         if (!infile) {
             fprintf(stderr, "ERROR: could not open the indicated sample file\n");
@@ -310,7 +310,7 @@ void findEPPs_wrapper (MAT::Tree Tobj, std::string sample_file, std::string fepp
             //fdfs.emplace_back(T->get_node(sample));
             samples.emplace_back(sample);
         }
-        fprintf(stderr, "Processing %ld samples\n", samples.size()); 
+        fprintf(stderr, "Processing %ld samples\n", samples.size());
     } else {
         fprintf(stderr, "WARNING: No sample file indicated; calculating for full tree\n");
         samples = T->get_leaves_ids();
@@ -318,8 +318,8 @@ void findEPPs_wrapper (MAT::Tree Tobj, std::string sample_file, std::string fepp
     //this loop is not a parallel for because its going to contain a parallel for.
     //this specific function would probably be better optimized if the outer was parallelized and the inner was not
     //but having the inner loop parallelized lets me use parallelization when calculating EPPs for very few or single samples in the future
-    
-    for (size_t s=0; s<samples.size(); s++){ 
+
+    for (size_t s=0; s<samples.size(); s++){
         //get the node object.
         auto node = T->get_node(samples[s]);
         size_t num_best;
@@ -366,7 +366,7 @@ std::vector<std::string> get_samples_epps (MAT::Tree* T, size_t max_epps, std::v
     return good_samples;
 }
 
-po::variables_map parse_uncertainty_command(po::parsed_options parsed) {    
+po::variables_map parse_uncertainty_command(po::parsed_options parsed) {
 
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
     std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
