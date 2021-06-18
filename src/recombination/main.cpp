@@ -193,6 +193,12 @@ int main(int argc, char** argv) {
     
     fprintf(stderr, "Finding the branches with number of mutations equal to or exceeding %u.\n", branch_len);
     auto bfs = T.breadth_first_expansion();
+
+    for (auto n: bfs) {
+        if (!n->is_leaf()) {
+            fprintf(stdout, "%s\t%zu\n", n->identifier.c_str(), T.get_num_leaves(n));
+        }
+    }
     
     tbb::concurrent_unordered_set<std::string> nodes_to_consider;
 
@@ -273,6 +279,17 @@ int main(int argc, char** argv) {
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     
     timer.Start();
+
+    std::unordered_map<MAT::Node*, int> num_leaves;
+
+    for (int i=int(bfs.size())-1; i>=0; i--) {
+        auto n = bfs[i];
+        int desc = 1;
+        for (auto child: n->children) {
+            desc += num_leaves[child];
+        }
+        num_leaves[n] = desc;
+    }
     
     size_t s = 0, e = nodes_to_consider.size();
     
@@ -329,7 +346,7 @@ int main(int argc, char** argv) {
         tbb::parallel_for( tbb::blocked_range<size_t>(0, total_nodes),
                 [&](tbb::blocked_range<size_t> r) {
                 for (size_t k=r.begin(); k<r.end(); ++k) {
-                if (T.get_num_leaves(bfs[k]) < num_descendants) {
+                if (num_leaves[bfs[k]] < num_descendants) {
                 continue;
                 }
 
@@ -408,7 +425,7 @@ int main(int argc, char** argv) {
 
                             for (size_t k=r.begin(); k<r.end(); ++k) {
                             size_t num_mut = 0;
-                            if (T.get_num_leaves(bfs[k]) < num_descendants) {
+                            if (num_leaves[bfs[k]] < num_descendants) {
                             continue;
                             }
                             // Is placement as sibling
@@ -485,7 +502,7 @@ int main(int argc, char** argv) {
                     tbb::parallel_for( tbb::blocked_range<size_t>(0, total_nodes),
                             [&](tbb::blocked_range<size_t> r) {
                             for (size_t k=r.begin(); k<r.end(); ++k) {
-                               if (T.get_num_leaves(bfs[k]) < num_descendants) {
+                               if (num_leaves[bfs[k]] < num_descendants) {
                                    continue;
                                }
                                

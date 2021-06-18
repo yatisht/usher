@@ -63,10 +63,10 @@ if __name__ == "__main__":
                 recomb_idx = 1
             if (words[num_words-1] == recomb):
                 recomb_idx = 2
-#        elif (header_found and ((int(words[num_words-3]) == 
-#                    int(words[num_words-2])) and (int(words[num_words-3]) == 
-#                                                  int(words[num_words-1])))):
-#                      continue
+        elif (header_found and ((int(words[num_words-3]) == 
+                    int(words[num_words-2])) and (int(words[num_words-3]) == 
+                                                  int(words[num_words-1])))):
+                      continue
         elif (header_found):
             if (int(words[num_words-3]) > 0):
                 x1.append(int(words[1]))
