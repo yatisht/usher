@@ -129,5 +129,5 @@ find_nodes_to_move(const std::vector<MAT::Node *> &bfs_ordered_nodes,
         }
     });
     std::chrono::duration<double> elapsed_seconds = std::chrono::steady_clock::now()-start;
-    fprintf(stderr, "Took %f s to find nodes to move",elapsed_seconds.count());
+    fprintf(stderr, "Took %f s to find nodes to move\n",elapsed_seconds.count());
 }

@@ -205,6 +205,6 @@ void save_final_tree(MAT::Tree &t, Original_State_t& origin_states,
                           }
                       });
     fix_condensed_nodes(&t);
-    fprintf(stderr, "%zu condensed_nodes",t.condensed_nodes.size());
+    fprintf(stderr, "%zu condensed_nodes\n",t.condensed_nodes.size());
     Mutation_Annotated_Tree::save_mutation_annotated_tree(t, output_path);
 }

@@ -306,7 +306,7 @@ static void FS_forward_pass(
                   states, node_idx, parent_state,try_similar);
     }
 }
-#ifdef CHECK_STATE_REASSIGN
+#if defined CHECK_STATE_REASSIGN || defined DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
 static nuc_one_hot get_state_only(uint8_t boundary1_majority_allele,nuc_one_hot parent_allele){
     nuc_one_hot majority_allele=boundary1_majority_allele&0xf;
     nuc_one_hot this_state=majority_allele&parent_allele;

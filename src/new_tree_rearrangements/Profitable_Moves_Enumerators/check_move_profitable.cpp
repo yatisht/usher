@@ -1,5 +1,6 @@
 #include "src/new_tree_rearrangements/Profitable_Moves_Enumerators/Profitable_Moves_Enumerators.hpp"
 #include "process_each_node.hpp"
+#include <cstdio>
 #include <unordered_set>
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
 static void check_LCA(MAT::Node* src, MAT::Node* dst,MAT::Node* LCA_to_check){
@@ -20,7 +21,7 @@ bool dst_branch(const MAT::Node *LCA,
            const Mutation_Count_Change_Collection &mutations,
            int &parsimony_score_change,
            std::vector<MAT::Node *> &node_stack_from_dst, MAT::Node *this_node,
-           Mutation_Count_Change_Collection &parent_added
+           Mutation_Count_Change_Collection &parent_added,bool& early_stop,int src_side_max_improvement
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
            ,std::vector<Mutation_Count_Change_Collection> &debug_from_dst
 #endif
@@ -83,7 +84,7 @@ MAT::Node *check_move_profitable_LCA(
     std::vector<Mutation_Count_Change_Collection>& debug_above_LCA
 #endif
 ) ;
-
+extern unsigned int early_stop_saving;
 /**
  * @brief Calculate Parsimony score change of this individual move without applying it
  * @param src
@@ -118,11 +119,12 @@ int check_move_profitable(
     std::vector<MAT::Node *> node_stack_from_dst({});
 
     assert(dst);
+    bool early_stop=false;
     Mutation_Count_Change_Collection dst_added;
     //Going up from dst node to LCA node to adjust state assignment
     if (LCA != dst) {
         if(!dst_branch(LCA, mutations, parsimony_score_change,
-                  node_stack_from_dst, dst, dst_added
+                  node_stack_from_dst, dst, dst_added,early_stop,src->parent==LCA?src->mutations.size():0
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
 , debug_from_dst
 #endif
@@ -150,6 +152,13 @@ int check_move_profitable(
     assert(parsimony_score_change == ref_score);
 #endif
     assert((dst==LCA&&node_stack_above_LCA[0]==LCA)||node_stack_from_dst[0]==dst);
+    if (early_stop) {
+        if (parsimony_score_change<0) {
+            fprintf(stderr, "early stop will miss %s to %s of change %d\n",src->identifier.c_str(),dst->identifier.c_str(),parsimony_score_change);
+        }else {
+            early_stop_saving++;
+        }
+    }
     output_result(src, dst, LCA, parsimony_score_change, output,
               node_stack_from_src, node_stack_from_dst, node_stack_above_LCA);
     return parsimony_score_change;

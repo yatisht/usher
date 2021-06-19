@@ -13,7 +13,9 @@
 #include <boost/program_options.hpp> 
 #include <vector>
 #include <iostream>
+MAT::Node* get_LCA(MAT::Node* src,MAT::Node* dst);
 FILE* movalbe_src_log;
+int early_stop_saving;
 bool interrupted;
 tbb::task_group_context search_context;
 void interrupt_handler(int){
@@ -41,7 +43,7 @@ int main(int argc, char **argv) {
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
     uint32_t num_threads;
     std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
-
+    early_stop_saving=0;
     desc.add_options()
         ("vcf,v", po::value<std::string>(&input_vcf_path)->default_value(""), "Input VCF file (in uncompressed or gzip-compressed .gz format) [REQUIRED]")
         ("tree,t", po::value<std::string>(&input_nh_path)->default_value(""), "Input tree file")
@@ -96,19 +98,30 @@ int main(int argc, char **argv) {
     
 
     #ifndef NDEBUG
-    Original_State_t origin_state_to_check(origin_states);
-    check_samples(t.root, origin_state_to_check, &t);
+    //Original_State_t origin_state_to_check(origin_states);
+    //check_samples(t.root, origin_state_to_check, &t);
     #endif
-
-    size_t score_before = t.get_parsimony_score();
-    size_t new_score = score_before;
-    fprintf(stderr, "after state reassignment:%zu\n", score_before);
+    size_t new_score;
+    size_t score_before;
+    /*score_before = t.get_parsimony_score();
+    new_score = score_before;
+    fprintf(stderr, "after state reassignment:%zu\n", score_before);*/
     int stalled = 0;
 
+    //t.breadth_first_expansion();
+    //t.depth_first_expansion();
+    //populate_mutated_pos(origin_state_to_check);
+    auto src=t.get_node("37308");
+    auto dst=t.get_node("37313");
+    output_t out;
+    individual_move(src, dst, get_LCA(src,dst), out);
+    //find_profitable_moves(src, out, 8);
     //Find nodes to search
     tbb::concurrent_vector<MAT::Node *> nodes_to_search;
     std::vector<MAT::Node *> bfs_ordered_nodes;
     bfs_ordered_nodes = t.breadth_first_expansion();
+    apply_moves(out.moves, t, bfs_ordered_nodes, nodes_to_search);
+    fprintf(stderr, "%zu",t.get_parsimony_score());
     size_t inner_loop_score_before = score_before;
     movalbe_src_log=fopen(profitable_src_log.c_str(),"w");
     if (!movalbe_src_log) {
@@ -154,4 +167,5 @@ int main(int argc, char **argv) {
         delete pos.second;
     }
     t.delete_nodes();
+    fprintf(stderr, "early stop savings:%d\n",early_stop_saving);
 }

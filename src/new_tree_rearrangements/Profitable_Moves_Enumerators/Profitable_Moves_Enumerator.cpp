@@ -58,6 +58,7 @@ merge_mutation_LCA_to_dst(MAT::Node *child,
         child_mutation_iter++;
     }
 }
+//basically the same as such subtree, and is called by it, but it explore subtree rooted at 'root' for dst
 static void search_subtree_not_LCA(
     MAT::Node *root, MAT::Node *LCA, MAT::Node *src,
     const Mutation_Count_Change_Collection& mutations,
@@ -72,6 +73,7 @@ static void search_subtree_not_LCA(
     if(!(root->children.size()==1&&root->children[0]->is_leaf())&&radius>0){
         Mutation_Count_Change_Collection child_mutations;
         merge_mutation_LCA_to_dst(root, mutations, child_mutations);
+        //Haven't exhausted hops, recurse down to explore more dsts
     for (MAT::Node *child : root->children) {
             search_subtree_not_LCA(child, LCA, src, child_mutations,
                            profitable_moves, root_mutations_altered,radius-1,
@@ -81,6 +83,7 @@ static void search_subtree_not_LCA(
 #endif
             );
     }}
+    //as root is not LCA, don't need to worry about a node is moved under its original parent again
             check_move_profitable(
             src, root, LCA, mutations, root_mutations_altered,
             parsimony_score_change_from_removal,profitable_moves, node_stack_from_src
@@ -89,14 +92,32 @@ static void search_subtree_not_LCA(
 #endif
         );
 }
-
+/**
+ * @brief Find most profitable dst to move src to, under the subtree rooted at LCA
+ * @param LCA
+ * @param src
+ * @param mutations  Mutations moved src needs to maintain its state if moved as child of LCA
+ * @param profitable_moves output
+ * @param src_branch_mutations_altered change in Fitch set of src_branch_node from removal of src 
+ * @param radius number of hops left to go down the tree
+ * @param parsimony_score_change_from_removal
+ * @return (void)
+ */
 void search_subtree(
-    MAT::Node *LCA, MAT::Node *src,Mutation_Count_Change_Collection mutations,output_t &profitable_moves,const Mutation_Count_Change_Collection &src_branch_mutations_altered,int radius,int parsimony_score_change_from_removal,const std::vector<MAT::Node *> &node_stack_from_src
+    MAT::Node *LCA, MAT::Node *src,
+    const Mutation_Count_Change_Collection &mutations,
+    output_t &profitable_moves,
+    const Mutation_Count_Change_Collection &src_branch_mutations_altered,
+    int radius, int parsimony_score_change_from_removal,
+    const std::vector<MAT::Node *> &node_stack_from_src
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-    ,const std::vector<Mutation_Count_Change_Collection> &debug_from_src,MAT::Tree* tree
+    ,
+    const std::vector<Mutation_Count_Change_Collection> &debug_from_src,
+    MAT::Tree *tree
 #endif
 ) {
     if (src->parent!=LCA) {
+            //moving src to LCA, if src's parent was not originally LCA 
             check_move_profitable(
             src, LCA, LCA, mutations, src_branch_mutations_altered,
             parsimony_score_change_from_removal,profitable_moves, node_stack_from_src
@@ -105,6 +126,7 @@ void search_subtree(
 #endif
         );
     }
+    //Avoid moving a node to its descendents.
     MAT::Node* exclude=node_stack_from_src.empty()?src:node_stack_from_src.back();
     if(!(LCA->children.size()==1&&LCA->children[0]->is_leaf())&&radius>0){
     for (MAT::Node *child : LCA->children) {
@@ -118,9 +140,7 @@ void search_subtree(
             );
         }
     }}
-
 }
-
 
 static void
 merge_mutation_src_to_LCA(const MAT::Node *root,
@@ -269,7 +289,7 @@ MAT::Node *root = src->parent;
         dst_path.push_back(root);
         root=root->parent;
     }
-    for (int i=dst_path.size()-1; i>=0; i--) {
+    for (int i=dst_path.size()-1; i>0; i--) {
         Mutation_Count_Change_Collection child_mutations;
         merge_mutation_LCA_to_dst(dst_path[i], mutations, child_mutations);
         mutations=std::move(child_mutations);

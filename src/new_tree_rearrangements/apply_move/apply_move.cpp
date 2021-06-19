@@ -119,7 +119,7 @@ void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t,
         fflush(log);
 #endif
 #endif
-        //Prilimary move perserving state of all nodes
+        //Prelimary move perserving state of all nodes
         move_node(move->src, move->get_dst(), altered_node, t,
                   deleted_node_ptrs, nodes_to_clean);
         /*std::unordered_set<std::string> to_check(samples);

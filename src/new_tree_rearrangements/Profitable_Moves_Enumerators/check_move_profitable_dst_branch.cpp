@@ -27,7 +27,7 @@ bool dst_branch(const MAT::Node *LCA,
            const Mutation_Count_Change_Collection &mutations,
            int &parsimony_score_change,
            std::vector<MAT::Node *> &node_stack_from_dst, MAT::Node *this_node,
-           Mutation_Count_Change_Collection &parent_added
+           Mutation_Count_Change_Collection &parent_added,bool& early_stop,int src_side_max_improvement
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
            ,std::vector<Mutation_Count_Change_Collection> &debug_from_dst
 #endif
@@ -45,9 +45,23 @@ bool dst_branch(const MAT::Node *LCA,
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
     debug_from_dst.push_back(parent_added);
 #endif
-
+    early_stop=false;
     //Going up until LCA to calculate change in major allele state of nodes from dst to LCA, and number of mutations on corresponding edges
     while (this_node != LCA) {
+        //When altering the state of nodes on dst branch, only incrementing the number of 
+        //state a child can have will reduce parsimony score, so use the number of incrementing
+        //mutation count change as a upper bound of improvement possible as going up dst nodes
+        auto parsimony_score_lower_bound=parsimony_score_change-src_side_max_improvement;
+        if (parsimony_score_lower_bound>0) {
+            for(const auto &mut_count_change:parent_added){
+                if (mut_count_change.get_incremented()) {
+                    parsimony_score_lower_bound--;
+                }
+            }
+            if (parsimony_score_lower_bound>0) {
+                early_stop=true;
+            }
+        }
         Mutation_Count_Change_Collection parent_of_parent_added;
         get_intermediate_nodes_mutations(
                 this_node, node_stack_from_dst.back(), parent_added,

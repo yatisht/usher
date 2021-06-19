@@ -32,7 +32,7 @@ static void added_no_match(const Mutation_Count_Change &mutation_to_add,
     /
  src
  * @param src_branch_node the immediate child of LCA that is on path from src to LCA
- * @param dst_mutations the mutation needed to perserve state of src if it is moved under the src_branch_node
+ * @param dst_mutations the mutation needed to perserve state of src if it is moved under the LCA (as sibling of src_branch_node)
  * @param src_branch_node_mutations_altered change in fitch set of src_branch_node just from removal of src
  * @param out the change in fitch set of the node formed from spliting the branch between LCA and src_branch_node to the original state of src_branch_node
  * @param parsimony_score_change 
