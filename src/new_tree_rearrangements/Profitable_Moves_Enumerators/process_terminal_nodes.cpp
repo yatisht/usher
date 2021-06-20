@@ -56,7 +56,7 @@ struct get_parsimony_score_from_add {
 
 bool get_parsimony_score_change_from_add(
     MAT::Node *node,
-    const Mutation_Count_Change_Collection &children_added_mutations,
+    const range<Mutation_Count_Change> &children_added_mutations,
     Mutation_Count_Change_Collection &parent_added_mutations,
     int &parsimony_score_change) {
     bool have_not_shared = false;

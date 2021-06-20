@@ -106,7 +106,7 @@ char get_major_allele(MAT::Node* node, int position){
     }
 }
 //similar to clean tree, but can a more general node collapsing function
-static void clean_tree_load(MAT::Tree& t,std::unordered_set<std::string>& changed_nodes,Original_State_t& ori_state){
+static void clean_tree_load(MAT::Tree& t,std::unordered_set<std::string>& changed_nodes){
     std::unordered_set<std::string> node_with_inconsistent_states;
         clean_up_internal_nodes_single_child_or_no_mutation(t.root, t, changed_nodes,node_with_inconsistent_states);
         //check_samples(t.root, ori_state, &t);
@@ -166,11 +166,13 @@ MAT::Tree load_vcf_nh_directly(const std::string& nh_path,const std::string& vcf
     puts("Finished loading from VCF\n");
     auto vcf_load_end=std::chrono::steady_clock::now();
     std::chrono::duration<double>  elpased_time =vcf_load_end-start;
-    fprintf(stderr, "load vcf took %f minutes\n",elpased_time.count()/60.0);
+    fprintf(stderr, "\nload vcf took %f minutes\n",elpased_time.count()/60.0);
     std::unordered_set<std::string> changed_nodes;
-    clean_tree_load(t, changed_nodes,origin_states);
+    clean_tree_load(t, changed_nodes);
     t.condense_leaves();
+    #ifndef NDEBUG
     check_samples(t.root, origin_states, &t);
+    #endif
     #if defined (DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT) || defined (CHECK_STATE_REASSIGN)
     populate_mutated_pos(origin_states);
     #endif
@@ -179,7 +181,7 @@ MAT::Tree load_vcf_nh_directly(const std::string& nh_path,const std::string& vcf
     for(const auto &condensed:t.condensed_nodes){
         changed_nodes.insert(t.get_node(condensed.first)->parent->identifier);
     }
-    clean_tree_load(t, changed_nodes,origin_states);
+    clean_tree_load(t, changed_nodes);
     auto clean_tree_end=std::chrono::steady_clock::now();
     elpased_time =clean_tree_end-vcf_load_end;
     fprintf(stderr, "tree post processing took %f minutes\n",elpased_time.count()/60.0);

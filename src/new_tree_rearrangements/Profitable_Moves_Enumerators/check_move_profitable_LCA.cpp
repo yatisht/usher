@@ -38,7 +38,7 @@ static void added_no_match(const Mutation_Count_Change &mutation_to_add,
  * @param parsimony_score_change 
  * @return whether there are mutations that src_branch_node have but the src node have, if not it is better to split between src_branch_node and its descendent, rather than here.
  */
-static bool LCA_place_mezzanine(
+bool LCA_place_mezzanine(
     MAT::Node *src_branch_node,
     const Mutation_Count_Change_Collection &dst_mutations,
     const Mutation_Count_Change_Collection &src_branch_node_mutations_altered,
@@ -100,7 +100,34 @@ static bool LCA_place_mezzanine(
     }
         return have_not_shared;
 }
-
+void check_parsimony_score_change_above_LCA(MAT::Node *LCA, int &parsimony_score_change,
+               Mutation_Count_Change_Collection &parent_added,
+               const std::vector<MAT::Node *> &node_stack_from_src,
+               std::vector<MAT::Node *> &node_stack_above_LCA,
+               Mutation_Count_Change_Collection &parent_of_parent_added,
+               MAT::Node *ancestor) {
+    while (ancestor && (!parent_added.empty())) {
+        parent_of_parent_added.clear();
+        get_intermediate_nodes_mutations(
+            ancestor,
+            node_stack_above_LCA.empty() ? node_stack_from_src.back()
+                                         : node_stack_above_LCA.back(),
+            parent_added, parent_of_parent_added, parsimony_score_change);
+        node_stack_above_LCA.push_back(ancestor);
+        parent_added.swap(parent_of_parent_added);
+        ancestor = ancestor->parent;
+    }
+    // Hit root
+    if (!ancestor) {
+        for (auto &a : parent_added) {
+            parsimony_score_change += a.get_default_change_internal();
+        }
+        ancestor = node_stack_above_LCA.back();
+    }
+    if (node_stack_above_LCA.empty()) {
+        node_stack_above_LCA.push_back(LCA);
+    }
+}
 /**
  * @brief Calculate parsimony score change due to state changes of nodes above LCA
  * @param src
@@ -116,55 +143,3 @@ static bool LCA_place_mezzanine(
  * @param debug_above_LCA
  * @return The highest node had their Fitch set changed
  */
-MAT::Node *check_move_profitable_LCA(
-    MAT::Node *src, MAT::Node *dst, MAT::Node *LCA,
-    const Mutation_Count_Change_Collection &mutations,
-    const Mutation_Count_Change_Collection &root_mutations_altered,
-    int& parsimony_score_change,
-    const std::vector<MAT::Node *> &node_stack_from_dst,
-    Mutation_Count_Change_Collection &parent_added,
-    const std::vector<MAT::Node *>& node_stack_from_src,
-    std::vector<MAT::Node *>& node_stack_above_LCA
-#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-    ,
-    std::vector<Mutation_Count_Change_Collection>& debug_above_LCA
-#endif
-) {
-    Mutation_Count_Change_Collection parent_of_parent_added;
-    MAT::Node *ancestor = LCA;
-    if (dst==LCA) {
-        if(!LCA_place_mezzanine(node_stack_from_src.back(), mutations, root_mutations_altered, parent_of_parent_added, parsimony_score_change)){
-            return nullptr;
-        }
-        //No need to go to parent, the node from branch splitting is the actual LCA
-    }else{
-        bool is_src_terminal = src->parent == LCA;
-        if ((!(root_mutations_altered.empty() && parent_added.empty())) ||
-            is_src_terminal ) {
-                get_LCA_mutation(LCA, is_src_terminal?src:node_stack_from_src.back(), is_src_terminal, root_mutations_altered, parent_added, parent_of_parent_added, parsimony_score_change);
-        }
-        node_stack_above_LCA.push_back(LCA);
-        ancestor = LCA->parent;
-    }
-    parent_added = std::move(parent_of_parent_added);
-    //Go up the tree until there is no change to fitch set
-    while (ancestor && (!parent_added.empty())) {
-        get_intermediate_nodes_mutations(ancestor,node_stack_above_LCA.empty()?node_stack_from_src.back():node_stack_above_LCA.back(), parent_added,
-                                         parent_of_parent_added,
-                                         parsimony_score_change);
-        node_stack_above_LCA.push_back(ancestor);
-        parent_added = std::move(parent_of_parent_added);
-        ancestor = ancestor->parent;
-    }
-    //Hit root
-    if (!ancestor) {
-        for (auto &a : parent_added) {
-            parsimony_score_change += a.get_default_change_internal();
-        }
-        ancestor=node_stack_above_LCA.back();
-    }
-    if (node_stack_above_LCA.empty()) {
-        node_stack_above_LCA.push_back(LCA);
-    }
-    return ancestor;
-}

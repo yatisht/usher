@@ -24,7 +24,7 @@ static void add_remaining_dst_to_LCA_nodes(MAT::Node *cur, const MAT::Node *LCA,
  * @return Whether it is more profitable to insert on the edge between this_node->parent and this_node or this_node->parent->parent and this_node->parent 
  */
 bool dst_branch(const MAT::Node *LCA,
-           const Mutation_Count_Change_Collection &mutations,
+           const range<Mutation_Count_Change> &mutations,
            int &parsimony_score_change,
            std::vector<MAT::Node *> &node_stack_from_dst, MAT::Node *this_node,
            Mutation_Count_Change_Collection &parent_added,bool& early_stop,int src_side_max_improvement
@@ -32,6 +32,7 @@ bool dst_branch(const MAT::Node *LCA,
            ,std::vector<Mutation_Count_Change_Collection> &debug_from_dst
 #endif
            ) {
+    parent_added.reserve(mutations.size());
     //Change in major alleles set of this_node, needed to update major alleles set of parent of this_node
     //Push dst to dst->LCA node stack
     node_stack_from_dst.push_back(this_node);
@@ -47,7 +48,11 @@ bool dst_branch(const MAT::Node *LCA,
 #endif
     early_stop=false;
     //Going up until LCA to calculate change in major allele state of nodes from dst to LCA, and number of mutations on corresponding edges
+    Mutation_Count_Change_Collection parent_of_parent_added;
+    //Number of allele count change will only decrease as going up the tree (each change need a change in allele count change among children to be triggered)
+    parent_of_parent_added.reserve(parent_added.size());
     while (this_node != LCA) {
+        parent_of_parent_added.clear();
         //When altering the state of nodes on dst branch, only incrementing the number of 
         //state a child can have will reduce parsimony score, so use the number of incrementing
         //mutation count change as a upper bound of improvement possible as going up dst nodes
@@ -59,10 +64,9 @@ bool dst_branch(const MAT::Node *LCA,
                 }
             }
             if (parsimony_score_lower_bound>0) {
-                early_stop=true;
+                return false;
             }
         }
-        Mutation_Count_Change_Collection parent_of_parent_added;
         get_intermediate_nodes_mutations(
                 this_node, node_stack_from_dst.back(), parent_added,
                 parent_of_parent_added, parsimony_score_change
@@ -72,7 +76,7 @@ bool dst_branch(const MAT::Node *LCA,
         assert(node_stack_from_dst.empty()||node_stack_from_dst.back()!=this_node);
         node_stack_from_dst.push_back(this_node);
         //In next iteration, major allele set change of this_node become the change in count of major allele state among children of its parent 
-        parent_added = std::move(parent_of_parent_added);
+        parent_added.swap(parent_of_parent_added);
         //If the major allele state of this_node didn't change, nor should its ancestors, so no need to go up anymore, just complete the node stack
         if (parent_added.empty()) {
             add_remaining_dst_to_LCA_nodes(this_node->parent, LCA, node_stack_from_dst);

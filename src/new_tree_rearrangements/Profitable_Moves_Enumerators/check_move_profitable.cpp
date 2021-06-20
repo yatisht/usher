@@ -1,5 +1,6 @@
 #include "src/new_tree_rearrangements/Profitable_Moves_Enumerators/Profitable_Moves_Enumerators.hpp"
 #include "process_each_node.hpp"
+#include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
 #include <cstdio>
 #include <unordered_set>
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
@@ -18,7 +19,7 @@ static void check_LCA(MAT::Node* src, MAT::Node* dst,MAT::Node* LCA_to_check){
 #endif
 
 bool dst_branch(const MAT::Node *LCA,
-           const Mutation_Count_Change_Collection &mutations,
+           const range<Mutation_Count_Change> &mutations,
            int &parsimony_score_change,
            std::vector<MAT::Node *> &node_stack_from_dst, MAT::Node *this_node,
            Mutation_Count_Change_Collection &parent_added,bool& early_stop,int src_side_max_improvement
@@ -70,20 +71,18 @@ void output_result(MAT::Node *&src, MAT::Node *&dst, MAT::Node *&LCA,
     }
 }
 int get_parsimmony_score_only(MAT::Node *src, MAT::Node *dst, MAT::Node *LCA,const MAT::Tree* ori_tree);
-MAT::Node *check_move_profitable_LCA(
-    MAT::Node *src, MAT::Node *dst, MAT::Node *LCA,
-    const Mutation_Count_Change_Collection &mutations,
-    const Mutation_Count_Change_Collection &root_mutations_altered,
-    int& parsimony_score_change,
-    const std::vector<MAT::Node *> &node_stack_from_dst,
-    Mutation_Count_Change_Collection &parent_added,
-    const std::vector<MAT::Node *>& node_stack_from_src,
-    std::vector<MAT::Node *>& node_stack_above_LCA
-#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-,
-    std::vector<Mutation_Count_Change_Collection>& debug_above_LCA
-#endif
+bool LCA_place_mezzanine(
+    MAT::Node *src_branch_node,
+    const Mutation_Count_Change_Collection &dst_mutations,
+    const Mutation_Count_Change_Collection &src_branch_node_mutations_altered,
+    Mutation_Count_Change_Collection &out, int &parsimony_score_change
 ) ;
+void check_parsimony_score_change_above_LCA(MAT::Node *LCA, int &parsimony_score_change,
+               Mutation_Count_Change_Collection &parent_added,
+               const std::vector<MAT::Node *> &node_stack_from_src,
+               std::vector<MAT::Node *> &node_stack_above_LCA,
+               Mutation_Count_Change_Collection &parent_of_parent_added,
+               MAT::Node *ancestor);
 extern unsigned int early_stop_saving;
 /**
  * @brief Calculate Parsimony score change of this individual move without applying it
@@ -98,9 +97,9 @@ extern unsigned int early_stop_saving;
  * @param output Most profitable moves from this src node
  * @return The highest node had their Fitch set changed
  */
-int check_move_profitable(
+int check_move_profitable_dst_not_LCA(
     MAT::Node *src, MAT::Node *dst, MAT::Node *LCA,
-    const Mutation_Count_Change_Collection &mutations,
+    const range<Mutation_Count_Change>  &mutations,
     const Mutation_Count_Change_Collection &root_mutations_altered,
     int parsimony_score_change, output_t &output,
     const std::vector<MAT::Node *> node_stack_from_src
@@ -122,7 +121,6 @@ int check_move_profitable(
     bool early_stop=false;
     Mutation_Count_Change_Collection dst_added;
     //Going up from dst node to LCA node to adjust state assignment
-    if (LCA != dst) {
         if(!dst_branch(LCA, mutations, parsimony_score_change,
                   node_stack_from_dst, dst, dst_added,early_stop,src->parent==LCA?src->mutations.size():0
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
@@ -131,35 +129,69 @@ int check_move_profitable(
                   )){
                       return 1;
         }
-    }
 
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
     std::vector<Mutation_Count_Change_Collection> debug_above_LCA;
 #endif
     std::vector<MAT::Node *> node_stack_above_LCA;
+    Mutation_Count_Change_Collection parent_of_parent_added;
+    parent_of_parent_added.reserve(mutations.size()+root_mutations_altered.size());
     //Adjust LCA node and above
-    MAT::Node* ancestor=check_move_profitable_LCA(src, dst, LCA, mutations, root_mutations_altered, parsimony_score_change, node_stack_from_dst, dst_added, node_stack_from_src, node_stack_above_LCA
-#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-     ,debug_above_LCA
-#endif
-    );
-    if(!ancestor){
-        return 1;
+    
+    bool is_src_terminal = src->parent == LCA;
+    if ((!(root_mutations_altered.empty() && dst_added.empty())) ||
+        is_src_terminal ) {
+            get_LCA_mutation(LCA, is_src_terminal?src:node_stack_from_src.back(), is_src_terminal, root_mutations_altered, dst_added, parent_of_parent_added, parsimony_score_change);
     }
+    node_stack_above_LCA.push_back(LCA);
+    dst_added.swap(parent_of_parent_added);
+    check_parsimony_score_change_above_LCA(LCA, parsimony_score_change, dst_added, node_stack_from_src,
+        node_stack_above_LCA, parent_of_parent_added, LCA->parent);
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
     //fprintf(stderr, "LCA idx: %zu",LCA_a->bfs_index);
     auto ref_score=get_parsimmony_score_only(src,dst,LCA,tree);
     assert(parsimony_score_change == ref_score);
 #endif
     assert((dst==LCA&&node_stack_above_LCA[0]==LCA)||node_stack_from_dst[0]==dst);
-    if (early_stop) {
-        if (parsimony_score_change<0) {
-            fprintf(stderr, "early stop will miss %s to %s of change %d\n",src->identifier.c_str(),dst->identifier.c_str(),parsimony_score_change);
-        }else {
-            early_stop_saving++;
-        }
-    }
     output_result(src, dst, LCA, parsimony_score_change, output,
               node_stack_from_src, node_stack_from_dst, node_stack_above_LCA);
+    return parsimony_score_change;
+}
+
+int check_move_profitable_LCA(
+    MAT::Node *src, MAT::Node *LCA,
+    const Mutation_Count_Change_Collection &mutations,
+    const Mutation_Count_Change_Collection &root_mutations_altered,
+    int parsimony_score_change,
+    const std::vector<MAT::Node *> &node_stack_from_src,
+     output_t &output
+#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
+    ,
+    const std::vector<Mutation_Count_Change_Collection> &debug_above_LCA,
+    const MAT::Tree* tree
+#endif
+) {
+    std::vector<MAT::Node *> node_stack_above_LCA;
+    Mutation_Count_Change_Collection parent_of_parent_added;
+    parent_of_parent_added.reserve(mutations.size()+root_mutations_altered.size());
+    if(!LCA_place_mezzanine(node_stack_from_src.back(), mutations, root_mutations_altered, parent_of_parent_added, parsimony_score_change)){
+        return 1;
+    }
+    //No need to go to parent, the node from branch splitting is the actual LCA
+    Mutation_Count_Change_Collection parent_added;
+    parent_added.reserve(parent_of_parent_added.size());
+    parent_added .swap(parent_of_parent_added);
+    //Go up the tree until there is no change to fitch set
+    check_parsimony_score_change_above_LCA(LCA, parsimony_score_change, parent_added, node_stack_from_src,
+              node_stack_above_LCA, parent_of_parent_added, LCA);
+
+    #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
+    //fprintf(stderr, "LCA idx: %zu",LCA_a->bfs_index);
+    auto ref_score=get_parsimmony_score_only(src,LCA,LCA,tree);
+    assert(parsimony_score_change == ref_score);
+    #endif
+    std::vector<MAT::Node*> ignored;
+    output_result(src, LCA, LCA, parsimony_score_change, output,
+              node_stack_from_src, ignored, node_stack_above_LCA);
     return parsimony_score_change;
 }

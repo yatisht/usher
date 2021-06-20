@@ -238,8 +238,7 @@ char merge_new_node_mutations(
     const MAT::Mutations_Collection &sibling_node_mutations,
     MAT::Mutations_Collection &shared_node_mutations_out,
     MAT::Mutations_Collection &sibling_node_mutations_out,
-    MAT::Mutations_Collection &new_node_mutations_out,
-    MAT::Mutations_Collection &to_merge_if_children) {
+    MAT::Mutations_Collection &new_node_mutations_out) {
     char flags = 0;
     auto sibling_iter = sibling_node_mutations.begin();
     auto sibling_end = sibling_node_mutations.end();
@@ -283,11 +282,6 @@ char merge_new_node_mutations(
                       << NEW_NODE_INCONSISTENT_SHAMT);
             //keep track of shared muts which make the mutation on the edge from shared node to sibling node unnecessary
             //They need to merge back to sibling node if splitting the edge between dst and its parent is unnecessary
-            if (sibling_iter->get_mut_one_hot() != shared_state) {
-                to_merge_if_children.push_back(mut);
-                to_merge_if_children.back().set_par_one_hot(
-                    sibling_iter->get_mut_one_hot());
-            }
             sibling_iter++;
         } else {
             //unique to new node, similar treatment as mutations unique to sibling node
@@ -352,25 +346,13 @@ static MAT::Node *place_node_LCA(MAT::Node *&src, MAT::Node *parent,
     MAT::Mutations_Collection this_unique;
     MAT::Mutations_Collection other_unique;
     MAT::Mutations_Collection common;
-    MAT::Mutations_Collection to_merge_if_children;
     auto flags = merge_new_node_mutations(mutations, sibling->mutations, common,
-                                          other_unique, this_unique,
-                                          to_merge_if_children);
-    bool have_shared = flags & (1 << HAVE_SHARED_SHAMT);
-    if (!have_shared) {
-        //If there is no mutations shared between src_branch_node and src node, 
-        //do not split the edge, but and src directly as a child of LCA
-        update_src_mutation(src, mutations);
-        parent->children.push_back(src);
-        src->parent = parent;
-        return parent;
-    } else {
+                                          other_unique, this_unique);
         //otherwise, they have shared mutation, split the branch
         update_src_mutation(src, this_unique);
         MAT::Node *new_node = add_as_sibling(src, sibling, other_unique, common,
                                              tree, flags, nodes_to_clean);
         return new_node->parent;
-    }
 }
 
 static MAT::Node *place_node(MAT::Node *&src, MAT::Node *dst, MAT::Tree &tree,
@@ -379,29 +361,13 @@ static MAT::Node *place_node(MAT::Node *&src, MAT::Node *dst, MAT::Tree &tree,
     MAT::Mutations_Collection this_unique;
     MAT::Mutations_Collection other_unique;
     MAT::Mutations_Collection common;
-    MAT::Mutations_Collection to_merge_if_children;
     auto flags = merge_new_node_mutations(mutations, dst->mutations, common,
-                                          other_unique, this_unique,
-                                          to_merge_if_children);
-    bool have_unique = flags & (1 << SIBLING_UNIQUE_SHAMT);
-    if ((!have_unique) && (!dst->is_leaf())) {
-        //fix the src mutation vector if it will not split the dst branch
-        this_unique.merge(to_merge_if_children,
-                          MAT::Mutations_Collection::KEEP_OTHER);
-    }
+                                          other_unique, this_unique);
     update_src_mutation(src, this_unique);
-    if ((!have_unique) && (!dst->is_leaf())) {
-        //add as children of dst directly, if dst share all 
-        //mutations with the moved src node from its parent node
-        dst->children.push_back(src);
-        src->parent = dst;
-        return dst;
-    } else {
         //split branch
         MAT::Node *new_node = add_as_sibling(src, dst, other_unique, common,
                                              tree, flags, nodes_to_clean);
         return new_node->parent;
-    }
 }
 
 void move_node(MAT::Node *src, MAT::Node *dst,

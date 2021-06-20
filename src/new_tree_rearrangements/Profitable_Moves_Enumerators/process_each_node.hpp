@@ -8,20 +8,17 @@ template <typename Functor> class merge_func {
     typedef typename Functor::T1 T1;
     typedef typename Functor::T2 T2;
     //Process arg2 elements after arg1 elements are exhausted
-    void process_rest_of_t2(range<T2> &T2_iter, Functor functor,
+    void process_rest_of_t2(range<typename T2::value_type> &T2_iter, Functor functor,
                             ignore_T2 tag) {}
-    void process_rest_of_t2(range<T2> &T2_iter, Functor functor, use_T2 tag) {
+    void process_rest_of_t2(range<typename T2::value_type> &T2_iter, Functor functor, use_T2 tag) {
         while (T2_iter) {
             functor.T2_only(*T2_iter);
             T2_iter++;
         }
     }
 
-  public:
-    void operator()(const T1 &arg1, const T2 &arg2, Functor &functor) {
-        range<T2> T2_iter(arg2);
-        for (const auto &ele : arg1) {
-            //consume arg2 element smaller than arg1
+    void process_arg1(const typename T1::value_type& ele,range<typename T2::value_type>& T2_iter, Functor &functor){
+                    //consume arg2 element smaller than arg1
             while (T2_iter && T2_iter->get_position() < ele.get_position()) {
                 functor.T2_only(*T2_iter);
                 T2_iter++;
@@ -34,6 +31,19 @@ template <typename Functor> class merge_func {
                 //arg2>arg1
                 functor.T1_only(ele);
             }
+    }
+  public:
+    void operator()(const T1 &arg1, const T2 &arg2, Functor &functor) {
+        range<typename T2::value_type> T2_iter(arg2);
+        for (const auto &ele : arg1) {
+            process_arg1(ele, T2_iter, functor);
+        }
+        process_rest_of_t2(T2_iter, functor, typename Functor::T2_useful());
+    }
+    void operator()(range<typename T1::value_type> arg1, const T2 &arg2, Functor &functor) {
+        range<typename T2::value_type> T2_iter(arg2);
+        for (;arg1;arg1++) {
+            process_arg1(*arg1, T2_iter, functor);
         }
         process_rest_of_t2(T2_iter, functor, typename Functor::T2_useful());
     }
@@ -68,7 +78,7 @@ void get_intermediate_nodes_mutations(
  */
 bool get_parsimony_score_change_from_add(
     MAT::Node *node,
-    const Mutation_Count_Change_Collection &children_added_mutations,
+    const range<Mutation_Count_Change> &children_added_mutations,
     Mutation_Count_Change_Collection &parent_added_mutations,
     int &parsimony_score_change);
 //Similar to the functions above, but for effect of removing src node on fitch set of its parent,

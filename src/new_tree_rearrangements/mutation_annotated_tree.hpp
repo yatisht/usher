@@ -260,6 +260,9 @@ namespace Mutation_Annotated_Tree {
         Mutation& back(){
             return mutations.back();
         }
+        const Mutation* data() const{
+            return mutations.data();
+        }
         iterator begin()  {
             return mutations.begin();
         }
@@ -307,6 +310,7 @@ namespace Mutation_Annotated_Tree {
             }
             return result;
         }
+        int count_valid_mutations()const;
         iterator find(const Mutation& mut) {
             return find(mut.get_position());
         }

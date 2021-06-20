@@ -165,6 +165,15 @@ Mutations_Collection::iterator Mutations_Collection::find_next(int pos) {
 }
 
 
+int Mutation_Annotated_Tree::Mutations_Collection::count_valid_mutations() const{
+    int count=0;
+    for(const auto & mut:mutations){
+        if (mut.is_valid()) {
+            count++;
+        }
+    }
+    return count;
+}
 void Mutation_Annotated_Tree::Mutations_Collection::remove_invalid(){
     std::vector<Mutation_Annotated_Tree::Mutation> out;
     out.reserve(mutations.size());

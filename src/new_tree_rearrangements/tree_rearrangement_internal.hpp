@@ -42,11 +42,6 @@ struct output_t{
     std::vector<Profitable_Moves_ptr_t> moves;
     output_t():score_change(-1){}
 };
-void find_profitable_moves(Mutation_Annotated_Tree::Node *src, output_t &out,int radius
-#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-,MAT::Tree* tree
-#endif
-);
 int individual_move(Mutation_Annotated_Tree::Node* src,Mutation_Annotated_Tree::Node* dst,Mutation_Annotated_Tree::Node* LCA,output_t& out
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
 ,MAT::Tree* tree

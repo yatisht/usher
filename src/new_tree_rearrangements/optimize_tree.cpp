@@ -13,6 +13,14 @@
 #include <thread>
 #include <condition_variable>
 #include <unistd.h>
+#include "Profitable_Moves_Enumerators/Profitable_Moves_Enumerators.hpp"
+void find_profitable_moves(MAT::Node *src, output_t &out,int radius,
+    stack_allocator<Mutation_Count_Change>& allocator
+#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
+,MAT::Tree* tree
+#endif
+);
+thread_local stack_allocator<Mutation_Count_Change> FIFO_allocator;
 extern tbb::task_group_context search_context;
 MAT::Node* get_LCA(MAT::Node* src,MAT::Node* dst){
     while (src!=dst) {
@@ -104,13 +112,18 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
 ,&t
 #endif
                        ](tbb::blocked_range<size_t> r) {
+                        stack_allocator<Mutation_Count_Change>& this_thread_FIFO_allocator=FIFO_allocator;
                           for (size_t i = r.begin(); i < r.end(); i++) {
+                              if (search_context.is_group_execution_cancelled()) {
+                                  break;
+                              }
                               output_t out;
-                              find_profitable_moves(nodes_to_search[i], out, radius
+                              find_profitable_moves(nodes_to_search[i], out, radius,this_thread_FIFO_allocator
                               #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
 ,&t
 #endif
                               );
+                               assert(this_thread_FIFO_allocator.empty());
                               if (!out.moves.empty()) {
                                   //resolve conflicts
                                   deferred_nodes.push_back(
@@ -129,7 +142,7 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
     }
     auto searh_end=std::chrono::steady_clock::now();
     std::chrono::duration<double> elpased_time =searh_end-search_start;
-    fprintf(stderr, "Search took %f minutes\n",elpased_time.count()/60);
+    fprintf(stderr, "\nSearch took %f minutes\n",elpased_time.count()/60);
     //apply moves
     std::vector<Profitable_Moves_ptr_t> all_moves;
     resolver.schedule_moves(all_moves);
@@ -140,7 +153,7 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
     );
     auto apply_end=std::chrono::steady_clock::now();
     elpased_time =apply_end-searh_end;
-    fprintf(stderr, "apply moves took %f minutes\n",elpased_time.count());
+    fprintf(stderr, "apply moves took %f s\n",elpased_time.count());
     //recycle conflicting moves
     while (!deferred_moves.empty()) {
         bfs_ordered_nodes=t.breadth_first_expansion();
@@ -180,7 +193,7 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
     }
     auto recycle_end=std::chrono::steady_clock::now();
     elpased_time =recycle_end-apply_end;
-    fprintf(stderr, "recycling moves took %f minutes\n",elpased_time.count());
+    fprintf(stderr, "\nrecycling moves took %f s\n",elpased_time.count());
     #ifndef NDEBUG
     check_samples(t.root, origin_states, &t);
     #endif

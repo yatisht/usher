@@ -6,6 +6,8 @@
 #include <iterator>
 #include <utility>
 #include <vector>
+#include "../stack_allocator.hpp"
+
 namespace MAT = Mutation_Annotated_Tree;
 //Class for recording change in major allele set
 class Mutation_Count_Change {
@@ -106,20 +108,22 @@ class Mutation_Count_Change {
 static bool operator<(const MAT::Mutation &lhs, const Mutation_Count_Change &rhs) {
     return lhs.get_position() < rhs.get_position();
 }
+typedef std::vector<Mutation_Count_Change,stack_allocator<Mutation_Count_Change>> Mutation_Count_Change_Collection_FIFO;
 
 typedef std::vector<Mutation_Count_Change> Mutation_Count_Change_Collection;
 //convience class for tracking iterator and its end position
-template <typename T> class range {
-    typedef typename T::const_iterator const_iterator;
-    const_iterator curr;
-    const const_iterator end;
+template <typename value_type> class range {
+    const value_type* curr;
+    const value_type* const end;
 
   public:
-    range(const T &container) : curr(container.begin()), end(container.end()) {}
+    template<typename T>
+    range(const T &container) : curr(container.data()), end(container.data()+container.size()) {}
     operator bool() const { return curr != end; }
-    const_iterator operator->() { return curr; }
-    const typename T::value_type &operator*() { return *curr; }
+    const value_type* operator->() { return curr; }
+    const value_type &operator*() { return *curr; }
     void operator++() { curr++; }
     void operator++(int) { curr++; }
+    size_t size()const{ return end-curr;}
 };
 #endif

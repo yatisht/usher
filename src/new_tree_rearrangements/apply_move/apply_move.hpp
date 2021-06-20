@@ -51,8 +51,7 @@ char merge_new_node_mutations(
     const MAT::Mutations_Collection &sibling_node_mutations,
     MAT::Mutations_Collection &shared_node_mutations_out,
     MAT::Mutations_Collection &sibling_node_mutations_out,
-    MAT::Mutations_Collection &new_node_mutations_out,
-    MAT::Mutations_Collection &to_merge_if_children);
+    MAT::Mutations_Collection &new_node_mutations_out);
 //insert a node between to_replace and its parent, then return it
 MAT::Node *replace_with_internal_node(MAT::Node *to_replace,
                                              MAT::Tree &tree);

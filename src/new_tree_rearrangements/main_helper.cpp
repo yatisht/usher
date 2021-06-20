@@ -3,11 +3,13 @@
 #include "Fitch_Sankoff.hpp"
 #include "src/new_tree_rearrangements/Twice_Bloom_Filter.hpp"
 #include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
 #include <unordered_set>
+#include <random>
 namespace MAT=Mutation_Annotated_Tree;
 //add a root above current root, so nodes can move above the current node
 void add_root(MAT::Tree *tree) {
@@ -95,7 +97,8 @@ find_nodes_to_move(const std::vector<MAT::Node *> &bfs_ordered_nodes,
     auto start=std::chrono::steady_clock::now();
     find_nodes_with_recurrent_mutations(bfs_ordered_nodes,
                                         nodes_with_recurrent_mutations);
-
+    std::minstd_rand g(std::chrono::steady_clock::now().time_since_epoch().count());
+    std::shuffle(nodes_with_recurrent_mutations.begin(), nodes_with_recurrent_mutations.end(), g);
     std::unordered_set<size_t> pushed_nodes;
     pushed_nodes.reserve(nodes_with_recurrent_mutations.size()*4);
     std::vector<MAT::Node*> first_pass_nodes;

@@ -204,7 +204,7 @@ template <typename Functor> class process_LCA {
     // Sensitive loci at LCA node, but have no explicit change in src or dst,
     // only useful for removing src, when the mut_nuc (a major allele) is
     // decremented
-    void LCA_no_match(int end_pos, range<MAT::Mutations_Collection> &LCA_mut,
+    void LCA_no_match(int end_pos, range<MAT::Mutation> &LCA_mut,
                       Functor &functor) {
         while (LCA_mut && LCA_mut->get_position() < end_pos) {
             functor.LCA_no_match(*LCA_mut);
@@ -213,9 +213,9 @@ template <typename Functor> class process_LCA {
     }
     // Basically the same as above, but add tag for translating to noop if it is
     // not removing src_branch_node
-    void LCA_no_match_remaining(range<MAT::Mutations_Collection> &LCA_mut,
+    void LCA_no_match_remaining(range<MAT::Mutation> &LCA_mut,
                                 Functor &functor, ignore_remaining_LCA tag) {}
-    void LCA_no_match_remaining(range<MAT::Mutations_Collection> &LCA_mut,
+    void LCA_no_match_remaining(range<MAT::Mutation> &LCA_mut,
                                 Functor &functor, use_remaining_LCA tag) {
         while (LCA_mut) {
             functor.LCA_no_match(*LCA_mut);
@@ -224,8 +224,8 @@ template <typename Functor> class process_LCA {
     }
     // process change on dst branch node before a change in src branch node is
     // encountered
-    void LCA_dst(range<MAT::Mutations_Collection> &LCA_mut,
-                 range<Mutation_Count_Change_Collection> &dst_add_count_iter,
+    void LCA_dst(range<MAT::Mutation> &LCA_mut,
+                 range<Mutation_Count_Change> &dst_add_count_iter,
                  int end_pos, Functor &functor) {
 
         while (dst_add_count_iter &&
@@ -245,7 +245,7 @@ template <typename Functor> class process_LCA {
     // process src_branch_node fitch set change that coincide with a sensitive
     // loci at LCA
     void
-    LCA_src_match(range<Mutation_Count_Change_Collection> &dst_add_count_iter,
+    LCA_src_match(range<Mutation_Count_Change> &dst_add_count_iter,
                   const Mutation_Count_Change &src_count_change,
                   const MAT::Mutation &LCA_mutation, Functor &functor) {
         if (dst_add_count_iter && dst_add_count_iter->get_position() ==
@@ -273,8 +273,8 @@ template <typename Functor> class process_LCA {
     // to process src branch change
     template <typename Tag_t>
     void proc_src(const Mutation_Count_Change &src_count_change,
-                  range<MAT::Mutations_Collection> &LCA_mut,
-                  range<Mutation_Count_Change_Collection> &dst_add_count_iter,
+                  range<MAT::Mutation> &LCA_mut,
+                  range<Mutation_Count_Change> &dst_add_count_iter,
                   Functor &functor, Tag_t tag) {
         // process fitch set change on dst branch node before this changed
         // allele from src branch node
@@ -304,8 +304,8 @@ template <typename Functor> class process_LCA {
     // removed,where all its major alleles are removed
     template <typename Tag_t>
     void iter_src(const Mutation_Count_Change_Collection &from_src_remove,
-                  range<MAT::Mutations_Collection> &LCA_mut,
-                  range<Mutation_Count_Change_Collection> &dst_add_count_iter,
+                  range<MAT::Mutation> &LCA_mut,
+                  range<Mutation_Count_Change> &dst_add_count_iter,
                   Functor &functor, Tag_t tag) {
         for (const Mutation_Count_Change &src_count_change : from_src_remove) {
             proc_src(src_count_change, LCA_mut, dst_add_count_iter, functor,
@@ -315,8 +315,8 @@ template <typename Functor> class process_LCA {
     // for when src branch node is not removed
     template <typename Tag_t>
     void iter_src(const MAT::Mutations_Collection &from_src_remove,
-                  range<MAT::Mutations_Collection> &LCA_mut,
-                  range<Mutation_Count_Change_Collection> &dst_add_count_iter,
+                  range<MAT::Mutation> &LCA_mut,
+                  range<Mutation_Count_Change> &dst_add_count_iter,
                   Functor &functor, Tag_t tag) {
         for (const MAT::Mutation &src_mut : from_src_remove) {
             Mutation_Count_Change src_count_change(
@@ -336,8 +336,8 @@ template <typename Functor> class process_LCA {
         int &parsimony_score_change) {
         Functor functor(LCA, src_branch, LCA_parent_mutation_count_change_out,
                         parsimony_score_change);
-        range<MAT::Mutations_Collection> LCA_mut(LCA->mutations);
-        range<Mutation_Count_Change_Collection> dst_add_count_iter(
+        range<MAT::Mutation> LCA_mut(LCA->mutations);
+        range<Mutation_Count_Change> dst_add_count_iter(
             from_dst_add);
         iter_src(from_src_remove, LCA_mut, dst_add_count_iter, functor,
                  typename Functor::remaining_LCA_useful());

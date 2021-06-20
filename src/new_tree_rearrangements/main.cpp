@@ -19,6 +19,7 @@ int early_stop_saving;
 bool interrupted;
 tbb::task_group_context search_context;
 void interrupt_handler(int){
+    fputs("interrupted\n", stderr);
     search_context.cancel_group_execution();
     interrupted=true;
     fflush(movalbe_src_log);
@@ -96,32 +97,38 @@ int main(int argc, char **argv) {
         t.save_detailed_mutations(std::string(intermediate_pb_base_name).append(std::to_string(iteration++)).append(".pb"));
     }
     
-
-    #ifndef NDEBUG
-    //Original_State_t origin_state_to_check(origin_states);
-    //check_samples(t.root, origin_state_to_check, &t);
-    #endif
     size_t new_score;
     size_t score_before;
-    /*score_before = t.get_parsimony_score();
-    new_score = score_before;
-    fprintf(stderr, "after state reassignment:%zu\n", score_before);*/
     int stalled = 0;
 
-    //t.breadth_first_expansion();
-    //t.depth_first_expansion();
-    //populate_mutated_pos(origin_state_to_check);
+    #ifndef NDEBUG
+    Original_State_t origin_state_to_check(origin_states);
+    check_samples(t.root, origin_state_to_check, &t);
+    #endif
+
+    score_before = t.get_parsimony_score();
+    new_score = score_before;
+    fprintf(stderr, "after state reassignment:%zu\n", score_before);
+
+/*    t.breadth_first_expansion();
+    t.depth_first_expansion();
+    populate_mutated_pos(origin_state_to_check);
+    clean_tree(t);
+    fprintf(stderr, "nodes %zu\n",t.all_nodes.size());
     auto src=t.get_node("37308");
     auto dst=t.get_node("37313");
     output_t out;
     individual_move(src, dst, get_LCA(src,dst), out);
     //find_profitable_moves(src, out, 8);
     //Find nodes to search
+    */
     tbb::concurrent_vector<MAT::Node *> nodes_to_search;
     std::vector<MAT::Node *> bfs_ordered_nodes;
     bfs_ordered_nodes = t.breadth_first_expansion();
-    apply_moves(out.moves, t, bfs_ordered_nodes, nodes_to_search);
-    fprintf(stderr, "%zu",t.get_parsimony_score());
+    /*apply_moves(out.moves, t, bfs_ordered_nodes, nodes_to_search);
+    fprintf(stderr, "%zu,nodes %zu\n",t.get_parsimony_score(),t.all_nodes.size());
+    clean_tree(t);
+    fprintf(stderr, "%zu,nodes %zu\n",t.get_parsimony_score(),t.all_nodes.size());*/
     size_t inner_loop_score_before = score_before;
     movalbe_src_log=fopen(profitable_src_log.c_str(),"w");
     if (!movalbe_src_log) {
@@ -130,6 +137,9 @@ int main(int argc, char **argv) {
     }
     bool isfirst=true;
     while(stalled<=1){
+    if (interrupted) {
+        break;
+    }
     bfs_ordered_nodes = t.breadth_first_expansion();
     find_nodes_to_move(bfs_ordered_nodes, nodes_to_search,isfirst,radius);
     isfirst=false;
