@@ -686,10 +686,14 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
             growthv.emplace_back(gv);
             cgm[gv].emplace_back(cs.first);
         }
+        assert (growthv.size() == clusters.size());
         //sort by default goes from smallest to largest
         //I want to rank by largest to smallest, so this is reversed.
+        //tiebreaker ordering has to do with the order of samples encountered.
         std::sort(growthv.begin(), growthv.end());
         std::reverse(growthv.begin(), growthv.end());
+        auto rm = std::unique(growthv.begin(), growthv.end());
+        growthv.erase(rm, growthv.end());
         for (size_t i = 0; i < growthv.size(); i++) {
             float gv = growthv[i];
             for (auto cid: cgm[gv]) {
