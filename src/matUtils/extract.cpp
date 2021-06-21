@@ -31,6 +31,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
         "Pass a text file of sample IDs and a number of the number of context samples, formatted as sample_file.txt:k.")
         ("set-size,z", po::value<size_t>()->default_value(0),
         "Automatically add or remove samples at random from the selected sample set until it is the indicated size.")
+        ("get-internal-descendents,I", po::value<std::string>()->default_value(""),
+        "Select the set of samples descended from the indicated internal node.")
         ("get-representative,r", po::bool_switch(),
         "Automatically select two representative samples per clade in the tree after other selection steps and prune all other samples.")
         ("prune,p", po::bool_switch(),
@@ -104,6 +106,7 @@ void extract_main (po::parsed_options parsed) {
     std::string clade_choice = vm["clade"].as<std::string>();
     std::string mutation_choice = vm["mutation"].as<std::string>();
     std::string match_choice = vm["match"].as<std::string>();
+    std::string internal_choice = vm["get-internal-descendents"].as<std::string>();
     int max_parsimony = vm["max-parsimony"].as<int>();
     int max_branch = vm["max-branch-length"].as<int>();
     size_t max_epps = vm["max-epps"].as<size_t>();
@@ -199,6 +202,14 @@ void extract_main (po::parsed_options parsed) {
             samples = nk_samples;
         } else {
             samples = sample_intersect(samples, nk_samples);
+        }
+    }
+    if (internal_choice != "") {
+        auto ic_samples = T.get_leaves_ids(internal_choice);
+        if (samples.size() == 0) {
+            samples = ic_samples;
+        } else {
+            samples = sample_intersect(samples, ic_samples);
         }
     }
     if (clade_choice != "") {
