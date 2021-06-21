@@ -57,7 +57,7 @@ int main(int argc, char **argv) {
         ("profitable_src_log,s", po::value<std::string>(&profitable_src_log)->default_value("/dev/null"),
          "The file to log from which node a profitable move can be found.")
         ("ambi_protobuf,a", po::value<std::string>(&input_complete_pb_path)->default_value(""),
-         "The file to log from which node a profitable move can be found.");
+         "Continue from intermediate protobuf");
         
     po::options_description all_options;
     all_options.add(desc);
