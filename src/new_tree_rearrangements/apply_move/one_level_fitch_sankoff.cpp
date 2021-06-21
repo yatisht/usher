@@ -1,6 +1,7 @@
 #include "apply_move.hpp"
 #include "src/new_tree_rearrangements/Fitch_Sankoff.hpp"
 #include <cstddef>
+#include <array>
 typedef MAT::Mutations_Collection::const_iterator mut_iter;
 //Clas tracking how many non-parent major allele there are among direct children of a node
 struct Allele_Count_t {
