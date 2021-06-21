@@ -682,7 +682,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
             // fprintf(stderr, "Date gotten in %ld msec\n", timer.Stop());
             float gv;
             boost::gregorian::days diff(ldates.second - ldates.first);
-            gv = static_cast<float>(cs.second.size()) / static_cast<float>(diff.days()+1);
+            gv = static_cast<float>(cs.second.size()) / static_cast<float>((int)(diff.days()/7)+1);
             growthv.emplace_back(gv);
             cgm[gv].emplace_back(cs.first);
         }
