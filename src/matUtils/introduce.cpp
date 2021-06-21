@@ -694,6 +694,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
         std::reverse(growthv.begin(), growthv.end());
         auto rm = std::unique(growthv.begin(), growthv.end());
         growthv.erase(rm, growthv.end());
+        size_t rankr = 0;
         for (size_t i = 0; i < growthv.size(); i++) {
             float gv = growthv[i];
             for (auto cid: cgm[gv]) {
@@ -710,12 +711,13 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                 }
                 
                 //yes, I'm iterating over this multiple times. Nothing is ever easy.
+                rankr++;
                 for (auto ss: clusters[cid]) {
                     std::stringstream cout;
                     //in order, first seven columns are
                     //sample id, cluster id, cluster rank, cluster growth score, earliest date, latest date, cluster size
                     //then the rest are the by-sample information (path, distance of this specific sample, yadda yadda)
-                    cout << ss.first << "\t" << cid << "\t" << i << "\t" << gv << "\t" << date_tracker[cid] << "\t" << clusters[cid].size() << "\t" << span << "\t" << ss.second;
+                    cout << ss.first << "\t" << cid << "\t" << rankr << "\t" << gv << "\t" << date_tracker[cid] << "\t" << clusters[cid].size() << "\t" << span << "\t" << ss.second;
                     outstrs.push_back(cout.str());
                 }
             }
