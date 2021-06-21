@@ -8,24 +8,24 @@
     po::variables_map vm;
     po::options_description merge_desc("merge options");
     merge_desc.add_options()
-        ("input-mat-1,i1", po::value<std::string>()->required(),
+        ("input-mat-1,ione", po::value<std::string>()->required(),
          "Input mutation-annotated tree file [REQUIRED]. If only this argument is set, print the count of samples and nodes in the tree.")
-        ("input-mat-2,i2", po::value<std::string>()->required(),
+        ("input-mat-2,itwo", po::value<std::string>()->required(),
          "Input mutation-annotated tree file [REQUIRED]. If only this argument is set, print the count of samples and nodes in the tree.")
         ("output-mat,o", po::value<std::string>()->required(),
-        "Write output files to the target directory. Default is current directory.")
+        "Write output files to the target directory. Default is current directory.");
     std::vector<std::string> opts = po::collect_unrecognized(parsed.options, po::include_positional);
     opts.erase(opts.begin());
 
     // Run the parser, with try/catch for help
     try{
         po::store(po::command_line_parser(opts)
-                  .options(conv_desc)
+                  .options(merge_desc)
                   .run(), vm);
         po::notify(vm);
     }
     catch(std::exception &e){
-        std::cerr << conv_desc << std::endl;
+        std::cerr << merge_desc << std::endl;
         // Return with error code 1 unless the user specifies help
         if (vm.count("help"))
             exit(0);
@@ -37,39 +37,45 @@
 
 bool consistent(MAT::Tree A, MAT::Tree B){
     //vectors of all leaves in both input trees
-    auto A_leaves = A->get_leaves();
-    auto B_leaves = B->get_leaves();
+    std::vector<std::string> A_leaves = A.get_leaves_ids();
+    std::vector<std::string> B_leaves = B.get_leaves_ids();
     //creates a vector of common_leaves between two input trees
-    std::vector<auto> common_leaves;
-    set_intersection(A_leaves.begin(),B_leaves.end(),B_leaves.begin(),B_leaves.end(), std::back_inserter(common_leaves));
+    std::vector<std::string> common_leaves(std::max(A_leaves.size(), B_leaves.size()));
+    set_intersection(A_leaves.begin(),A_leaves.end(),B_leaves.begin(),B_leaves.end(), std::back_inserter(common_leaves));
     //creates two subtrees using the common_leaves
-    auto Asub = get_subtree(A, common_leaves);
-    auto Bsub = get_subtree(B, common_leaves);
+    auto Asub = MAT::get_subtree(A, common_leaves);
+    auto Bsub = MAT::get_subtree(B, common_leaves);
     
     auto Adfs = Asub.depth_first_expansion();
     auto Bdfs = Bsub.depth_first_expansion();
-    //rotate tree
+
     if (Adfs.size() != Bdfs.size()){
         return false;
     }
+    
     for (int i = 0; i < Adfs.size(); i++){
-        if ((Adfs[i].is_leave())){
-            if (Bdfs[i].is_leave()){
-                if (Adfs[i]->mutations == Bdfs[i]->mutations){
-                    return true;
-                }
-                else{
-                    return false;
-                }
-            }
-            else{
+        for (int x = 0; x< Adfs[i]->mutations.size(); x++){
+            MAT::Mutation mut1 = Adfs[i]->mutations[x];
+            MAT::Mutation mut2 = Bdfs[i]->mutations[x];
+            if (mut1.position != mut2.position){
                 return false;
             }
+            else if (mut1.ref_nuc != mut2.ref_nuc){
+                return false;
+            }
+            else if (mut1.mut_nuc != mut2.mut_nuc){
+                return false;
+            }
+            else{
+                return true;
+            }
         }
+    }
 
 }
+
 void merge_main(po::parsed_options parsed) {
-    po::variables_map vm = parse_mask_command(parsed);
+    po::variables_map vm = parse_merge_command(parsed);
     std::string mat1_filename = vm["input-mat-1"].as<std::string>();
     std::string mat2_filename = vm["input-mat-2"].as<std::string>();
     std::string output_filename = vm["output-mat"].as<std::string>();
@@ -86,9 +92,13 @@ void merge_main(po::parsed_options parsed) {
       mat2.uncondense_leaves();
     }
     if (consistent(mat1, mat2)==false){
+        std::cout<<"false";
         return;
     }
-    if (mat1.get_num_leaves() > mat2.get_num_leaves()){
+    else{
+         std::cout<<"true";
+    }
+  /**  if (mat1.get_num_leaves() > mat2.get_num_leaves()){
         baseMat = mat1;
         otherMat = mat2;
     }
@@ -97,12 +107,12 @@ void merge_main(po::parsed_options parsed) {
         otherMat = mat1;
     }
 
-    auto new_samples = setdiff(otherMat->get_leaves(), baseMat->get_leaves());
+    auto new_samples = setdiff(otherMat.get_leaves(), baseMat.get_leaves());
     auto expand = baseMat.breadth_first_expansion();
     for (auto x : new_samples){
         auto ancestors = rsearch(x->identifier, true);
         auto curr = expand[0];
-        auto diff_mutations;
+        vector<auto> diff_mutations;
         for (auto y : ancestors){
             for (z : curr->children){
                if (z->mutations == y->mutations){
@@ -116,6 +126,6 @@ void merge_main(po::parsed_options parsed) {
         }
         baseMat->create_node(x->identifier, curr->identifier, 0);
         x->mutations = diff_mutations;
-    }
+    }**/
 
 }
