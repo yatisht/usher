@@ -1092,31 +1092,41 @@ void Mutation_Annotated_Tree::Tree::condense_leaves(std::vector<std::string> mis
 }
 
 void Mutation_Annotated_Tree::Tree::uncondense_leaves() {
-    tbb::mutex tbb_lock;
     static tbb::affinity_partitioner ap;
+    tbb::reader_writer_lock tbb_rw_lock;
     tbb::parallel_for(tbb::blocked_range<size_t>(0, condensed_nodes.size()),
             [&](tbb::blocked_range<size_t> r) {
             for (size_t it = r.begin(); it < r.end(); it++) {
                 auto cn = condensed_nodes.begin();
                 std::advance(cn, it);
 
-                tbb_lock.lock();
+                tbb_rw_lock.lock_read();
                 auto n = get_node(cn->first);
-                tbb_lock.unlock();
+                tbb_rw_lock.unlock();
                 auto par = (n->parent != NULL) ? n->parent : n;
 
                 size_t num_samples = cn->second.size();
 
                 if (num_samples > 0) {
-                    tbb_lock.lock();
-                    rename_node(n->identifier, cn->second[0]);
-                    tbb_lock.unlock();
+                    tbb_rw_lock.lock();
+                    all_nodes.erase(n->identifier);
+                    all_nodes[cn->second[0]] = n;
+                    tbb_rw_lock.unlock();
+                    
+                    n->identifier = cn->second[0];
                 }
 
                 for (size_t s = 1; s < num_samples; s++) {
-                    tbb_lock.lock();
-                    auto new_n = create_node(cn->second[s], par, n->branch_length);
-                    tbb_lock.unlock();
+                    Node* new_n = new Node(cn->second[s], par, n->branch_length);
+                    size_t num_annotations = get_num_annotations();
+                    for (size_t k=0; k < num_annotations; k++) {
+                        new_n->clade_annotations.emplace_back("");
+                    }
+                    tbb_rw_lock.lock();
+                    all_nodes[cn->second[s]] = new_n;
+                    tbb_rw_lock.unlock();
+                    
+                    par->children.push_back(new_n);
                     for (auto m: n->mutations) {
                         new_n->add_mutation(m.copy());
                     }
@@ -1151,6 +1161,29 @@ void Mutation_Annotated_Tree::Tree::collapse_tree() {
         }
     }
 }
+
+void Mutation_Annotated_Tree::Tree::rotate_for_display() {
+    auto dfs = depth_first_expansion();
+
+    std::unordered_map<Node*, int> num_desc;
+
+    for (int i=int(dfs.size())-1; i>=0; i--) {
+        auto n = dfs[i];
+        int desc = 1;
+        for (auto child: n->children) {
+            desc += num_desc[child]; 
+        }
+        num_desc[n] = desc;
+    }
+
+    for (auto n: dfs) {
+        tbb::parallel_sort(n->children.begin(), n->children.end(),
+                [&num_desc](Node* n1, Node* n2) {
+                    return num_desc[n1] > num_desc[n2];
+                });
+    }
+}
+
 
 Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_tree_copy(const Mutation_Annotated_Tree::Tree& tree, const std::string& identifier) {
     TIMEIT();
@@ -1371,6 +1404,9 @@ void Mutation_Annotated_Tree::get_random_single_subtree (Mutation_Annotated_Tree
 
     auto new_T = Mutation_Annotated_Tree::get_subtree(*T, leaves_to_keep);
 
+    // Rotate tree for display
+    new_T.rotate_for_display();
+
     // Write subtree to file
     auto subtree_filename = outdir + preid + "single-subtree.nh";
     fprintf(stderr, "Writing single subtree with %zu randomly added leaves to file %s.\n", subtree_size, subtree_filename.c_str());
@@ -1527,6 +1563,9 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (Mutation_Annotated_Tre
             }
                     
             auto new_T = Mutation_Annotated_Tree::get_subtree(*T, leaves_to_keep);
+
+            // Rotate tree for display
+            new_T.rotate_for_display();
 
             tbb::parallel_for (tbb::blocked_range<size_t>(i+1, samples.size(), 100),
                     [&](tbb::blocked_range<size_t> r) {

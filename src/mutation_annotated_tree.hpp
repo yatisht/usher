@@ -14,7 +14,9 @@
 #include <tbb/scalable_allocator.h>
 #include <tbb/task_scheduler_init.h>
 #include <tbb/blocked_range.h>
+#include <tbb/task_group.h>
 #include <tbb/tbb.h>
+#include <tbb/mutex.h>
 #include "parsimony.pb.h"
 #include "Instrumentor.h"
 
@@ -105,8 +107,6 @@ namespace Mutation_Annotated_Tree {
                 all_nodes.clear();
             }
 
-            Tree (Node* n);
-
             Node* root;
             tbb::concurrent_unordered_map<std::string, std::vector<std::string>> condensed_nodes;
             tbb::concurrent_unordered_set<std::string> condensed_leaves;
@@ -135,6 +135,7 @@ namespace Mutation_Annotated_Tree {
             void condense_leaves(std::vector<std::string> = std::vector<std::string>());
             void uncondense_leaves();
             void collapse_tree();
+            void rotate_for_display();
     };
     
     std::string get_newick_string(const Tree& T, bool b1, bool b2, bool b3=false, bool b4=false);
