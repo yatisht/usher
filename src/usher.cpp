@@ -659,7 +659,7 @@ int main(int argc, char** argv) {
 
             fprintf(stderr, "Adding missing samples to the tree.\n");  
         }
-
+        
         // Traverse in sorted sample order
         for (size_t idx=0; idx<indexes.size(); idx++) {
 
@@ -732,10 +732,10 @@ int main(int argc, char** argv) {
                 
                 std::vector<bool> node_has_unique(total_nodes, false);
                 std::vector<size_t> best_j_vec;
+                best_j_vec.emplace_back(0);
                 
                 size_t num_best = 1;
                 MAT::Node* best_node = T->root;
-                best_j_vec.emplace_back(0);
 
                 // Parallel for loop to search for most parsimonious
                 // placements. Real action happens within mapper2_body
@@ -763,11 +763,45 @@ int main(int argc, char** argv) {
                         inp.best_j_vec = &best_j_vec;
                         inp.node_has_unique = &(node_has_unique);
 
-                        mapper2_body(inp, print_parsimony_scores);
+                        mapper2_body(inp, print_parsimony_scores, false);
                         }       
                         }, ap); 
 
                 if (!print_parsimony_scores) {
+                    best_set_difference += 1;
+                    
+                    auto tmp_vec = std::vector<size_t>(best_j_vec.begin(), best_j_vec.end());
+                    
+                    num_best = 0;
+                    best_j_vec.clear();
+
+                    // Parallel for loop to search for most parsimonious
+                    // placements. Real action happens within mapper2_body
+                    tbb::parallel_for( tbb::blocked_range<size_t>(0, tmp_vec.size()),
+                            [&](tbb::blocked_range<size_t> r) {
+                            for (size_t l=r.begin(); l<r.end(); ++l){
+                            auto k = best_j_vec[l]; 
+                            mapper2_input inp;
+                            inp.T = T;
+                            inp.node = bfs[k];
+                            inp.missing_sample_mutations = &missing_samples[s].mutations;
+                            inp.excess_mutations = &node_excess_mutations[k];
+                            inp.imputed_mutations = &node_imputed_mutations[k];
+                            inp.best_node_num_leaves = &best_node_num_leaves;
+                            inp.best_set_difference = &best_set_difference;
+                            inp.best_node = &best_node;
+                            inp.best_j =  &best_j;
+                            inp.num_best = &num_best;
+                            inp.j = k;
+                            inp.has_unique = &best_node_has_unique;
+
+                            inp.best_j_vec = &best_j_vec;
+                            inp.node_has_unique = &(node_has_unique);
+
+                            mapper2_body(inp, false);
+                            }       
+                            }, ap); 
+
                     fprintf(stderr, "Current tree size (#nodes): %zu\tSample name: %s\tParsimony score: %d\tNumber of parsimony-optimal placements: %zu\n", total_nodes, sample.c_str(), \
                             best_set_difference, num_best);
                     // Prints a warning message if 2 or more

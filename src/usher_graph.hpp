@@ -102,4 +102,4 @@ struct mapper2_input {
     }
 };
 
-void mapper2_body(mapper2_input& inp, bool compute_parsimony_scores);
+void mapper2_body(mapper2_input& inp, bool compute_parsimony_scores, bool compute_vecs = true);

@@ -1003,10 +1003,12 @@ std::vector<Mutation_Annotated_Tree::Node*> Mutation_Annotated_Tree::Tree::bread
 
     std::queue<Node*> remaining_nodes;
     remaining_nodes.push(node);
+    
     while (remaining_nodes.size() > 0) {
         Node* curr_node = remaining_nodes.front();
         traversal.push_back(curr_node);
         remaining_nodes.pop();
+        
         for (auto c: curr_node->children) {
             remaining_nodes.push(c);
         }
