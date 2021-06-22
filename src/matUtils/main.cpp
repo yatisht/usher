@@ -3,6 +3,7 @@
 #include "summary.hpp"
 #include "extract.hpp"
 #include "introduce.hpp"
+#include "merge.hpp"
 
 Timer timer; 
 
