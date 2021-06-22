@@ -780,7 +780,7 @@ int main(int argc, char** argv) {
                     tbb::parallel_for( tbb::blocked_range<size_t>(0, tmp_vec.size()),
                             [&](tbb::blocked_range<size_t> r) {
                             for (size_t l=r.begin(); l<r.end(); ++l){
-                            auto k = best_j_vec[l]; 
+                            auto k = tmp_vec[l]; 
                             mapper2_input inp;
                             inp.T = T;
                             inp.node = bfs[k];
