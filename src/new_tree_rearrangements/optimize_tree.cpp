@@ -63,8 +63,8 @@ static void print_progress(
         double seconds_left = elpased_time.count() *
                               (total_nodes - checked_nodes_temp) /
                               checked_nodes_temp;
-        printf("checked %d nodes, estimate %f min left,found %zu nodes "
-               "profitable\r",
+        printf("\rchecked %d nodes, estimate %f min left,found %zu nodes "
+               "profitable",
                checked_nodes_temp, seconds_left / 60, deferred_nodes->size());
         if (seconds_left < 60) {
             break;
@@ -160,7 +160,7 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
         {Deferred_Move_t deferred_moves_next;
         static FILE* ignored=fopen("/dev/null", "w");
         Conflict_Resolver resolver(bfs_ordered_nodes.size(),deferred_moves_next,ignored);
-    printf("recycling conflicting moves, %zu left\r",deferred_moves.size());
+    printf("\rrecycling conflicting moves, %zu left",deferred_moves.size());
         tbb::parallel_for(tbb::blocked_range<size_t>(0,deferred_moves.size()),[&deferred_moves,&resolver,&t](const tbb::blocked_range<size_t>& r){
             for (size_t i=r.begin(); i<r.end(); i++) {
                 MAT::Node* src=t.get_node(deferred_moves[i].first);

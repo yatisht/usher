@@ -4,6 +4,7 @@
 #include "tree_rearrangement_internal.hpp"
 #include <csignal>
 #include <cstddef>
+#include <cstdlib>
 #include <tbb/task.h>
 #include <cstdio>
 #include <string>
@@ -65,6 +66,10 @@ int main(int argc, char **argv) {
     signal(SIGINT,interrupt_handler);
     signal(SIGUSR1, log_flush_handle);
     po::variables_map vm;
+    if (argc==1) {
+        std::cerr << desc << std::endl;
+        return EXIT_FAILURE;
+    }
     try{
         po::store(po::command_line_parser(argc, argv).options(all_options).run(), vm);
         po::notify(vm);
