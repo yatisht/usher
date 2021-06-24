@@ -185,9 +185,12 @@ static void reassign_states(MAT::Tree& t, Original_State_t& origin_states){
 }
 //load from usher compatible pb
 Mutation_Annotated_Tree::Tree load_tree(const std::string& path,Original_State_t& origin_states){
+    fputs("Start loading protobuf\n",stderr);
     Mutation_Annotated_Tree::Tree t =
         Mutation_Annotated_Tree::load_mutation_annotated_tree(path);
+    fputs("Finished loading protobuf, start reassigning states\n",stderr);
     reassign_states(t, origin_states);
+    fputs("Finished reassigning states\n",stderr);
     fprintf(stderr, "original score:%zu\n", t.get_parsimony_score());
     return t;
 }

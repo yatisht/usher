@@ -93,9 +93,7 @@ size_t Mutation_Annotated_Tree::Tree::get_parsimony_score() {
 }
 
 void Mutation_Annotated_Tree::Tree::uncondense_leaves() {
-    for (size_t it = 0; it < condensed_nodes.size(); it++) {
-        auto cn = condensed_nodes.begin();
-        std::advance(cn, it);
+    for (auto cn = condensed_nodes.begin(); cn != condensed_nodes.end(); cn++) {
 
         auto n = get_node(cn->first);
         auto par = (n->parent != NULL) ? n->parent : n;

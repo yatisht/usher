@@ -168,6 +168,7 @@ struct Load_Subtree_pararllel : public tbb::task {
 //main load function
 void Mutation_Annotated_Tree::Tree::load_detatiled_mutations(
     const std::string &path) {
+    fputs("Loading intermediate protobuf\n",stderr);
     int fd = open(path.c_str(), O_RDONLY);
     struct stat stat_buf;
     fstat(fd, &stat_buf);
@@ -181,4 +182,5 @@ void Mutation_Annotated_Tree::Tree::load_detatiled_mutations(
     for (auto node : dfs_nodes) {
         all_nodes.emplace(node->identifier,node);
     }
+    fputs("Finished loading intermediate protobuf\n",stderr);
 }
