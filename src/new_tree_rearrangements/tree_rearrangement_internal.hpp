@@ -1,11 +1,14 @@
 #include "mutation_annotated_tree.hpp"
 #include <vector>
+#include <condition_variable>
 #include "check_samples.hpp"
 #pragma once
 namespace MAT = Mutation_Annotated_Tree;
 extern std::unordered_map<MAT::Mutation, std::unordered_map<std::string, nuc_one_hot>*,Mutation_Pos_Only_Hash,
                        Mutation_Pos_Only_Comparator>
         mutated_positions;
+extern std::condition_variable progress_bar_cv;
+extern bool timed_print_progress;
 struct Profitable_Moves{
     int score_change;
     MAT::Node* src;
@@ -48,7 +51,7 @@ int individual_move(Mutation_Annotated_Tree::Node* src,Mutation_Annotated_Tree::
 #endif
 );
 Mutation_Annotated_Tree::Tree load_tree(const std::string& path,Original_State_t& origin_states);
-Mutation_Annotated_Tree::Tree load_vcf_nh_directly(const std::string& nh_path,const std::string& vcf_path,Original_State_t& origin_states);
+void load_vcf_nh_directly( MAT::Tree& t,const std::string& vcf_path,Original_State_t& origin_states);
 void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t,
                  std::vector<MAT::Node *> &bfs_ordered_nodes,
                  tbb::concurrent_vector<MAT::Node *> &to_filter
@@ -65,7 +68,7 @@ void VCF_input(const char * name,MAT::Tree& tree);
 
 size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
               tbb::concurrent_vector<MAT::Node *> &nodes_to_search,
-              MAT::Tree &t,int radius,FILE* log
+              MAT::Tree &t,int radius,FILE* log,size_t max_queued_moves
               #ifndef NDEBUG
               , Original_State_t origin_states
             #endif

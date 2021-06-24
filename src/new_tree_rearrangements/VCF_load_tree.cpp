@@ -158,12 +158,11 @@ char get_state(char* sample,int position){
         }
     }
 }
-MAT::Tree load_vcf_nh_directly(const std::string& nh_path,const std::string& vcf_path,Original_State_t& origin_states){
-    MAT::Tree t=Mutation_Annotated_Tree::create_tree_from_newick(nh_path);
+void load_vcf_nh_directly( MAT::Tree& t,const std::string& vcf_path,Original_State_t& origin_states){
     //load VCF
     auto start=std::chrono::steady_clock::now();
     VCF_input(vcf_path.c_str(),t);
-    puts("Finished loading from VCF\n");
+    fputs("Finished loading from VCF and state assignment\n",stderr);
     auto vcf_load_end=std::chrono::steady_clock::now();
     std::chrono::duration<double>  elpased_time =vcf_load_end-start;
     fprintf(stderr, "\nload vcf took %f minutes\n",elpased_time.count()/60.0);
@@ -185,5 +184,4 @@ MAT::Tree load_vcf_nh_directly(const std::string& nh_path,const std::string& vcf
     auto clean_tree_end=std::chrono::steady_clock::now();
     elpased_time =clean_tree_end-vcf_load_end;
     fprintf(stderr, "tree post processing took %f minutes\n",elpased_time.count()/60.0);
-    return t;
 }

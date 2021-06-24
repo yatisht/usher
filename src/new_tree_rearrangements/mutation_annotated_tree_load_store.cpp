@@ -2,6 +2,7 @@
 #include <boost/iostreams/filtering_stream.hpp>
 #include <fstream>
 #include <cstdio>
+#include <fcntl.h>
 #include <iostream>
 #include <boost/iostreams/filter/gzip.hpp>
 #include "parsimony.pb.h"
@@ -10,6 +11,10 @@
 #include <sstream>
 #include "tbb/parallel_for.h"
 #include <queue>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <sys/mman.h>
+#include <google/protobuf/io/coded_stream.h>
 #include <string>
 std::vector<int8_t> Mutation_Annotated_Tree::get_nuc_vec_from_id (int8_t nuc_id) {
     return get_nuc_vec(get_nuc(nuc_id));
@@ -326,13 +331,16 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
 
     Parsimony::data data;
 
-    std::ifstream inpfile(filename, std::ios::in | std::ios::binary);
-    if (!inpfile) {
-        fprintf(stderr, "ERROR: Could not load the mutation-annotated tree object from file: %s!\n", filename.c_str());
-        exit(1);
-    }
-    data.ParseFromIstream(&inpfile);
-    inpfile.close();
+    struct stat stat_buf;
+    stat(filename.c_str(),&stat_buf);
+    size_t file_size=stat_buf.st_size;
+    auto fd=open(filename.c_str(), O_RDONLY);
+    uint8_t* maped_file=(uint8_t*)mmap(nullptr, file_size, PROT_READ, MAP_SHARED,fd , 0);
+    close(fd);
+    google::protobuf::io::CodedInputStream input(maped_file,file_size);
+    input.SetTotalBytesLimit(file_size*4, file_size*4);
+    data.ParseFromCodedStream(&input);
+    munmap(maped_file, file_size);
     //check if the pb has a metadata field
     bool hasmeta = (data.metadata_size()>0);
     if (!hasmeta) {

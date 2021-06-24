@@ -1,11 +1,16 @@
 #include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
+#include "src/new_tree_rearrangements/tree_rearrangement_internal.hpp"
 #include "zlib.h"
 #include "tbb/concurrent_queue.h"
 #include "tbb/flow_graph.h"
+#include <atomic>
 #include <cctype>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 #include "import_vcf.hpp"
 #include "Fitch_Sankoff.hpp"
@@ -151,18 +156,36 @@ static int read_header(gzFile* fd,std::vector<std::string>& out){
     }
     return header_len;
 }
-
+std::atomic<size_t> assigned_count;
 struct Assign_State{
     const std::vector<Mutation_Annotated_Tree::Node *>& bfs_ordered_nodes;
     std::vector<tbb::concurrent_vector<Mutation_Annotated_Tree::Mutation>> &output;
     void operator()(const Parsed_VCF_Line* vcf_line)const{
         Fitch_Sankoff_Whole_Tree(bfs_ordered_nodes,vcf_line->mutation,vcf_line->mutated,output);
-        printf("\rassigned %d",vcf_line->mutation.get_position());
+        assigned_count.fetch_add(1,std::memory_order_relaxed);
         delete vcf_line;
     }
 };
+void print_progress(std::atomic<bool>* done,std::mutex* done_mutex){
+    while (true) {
+        {
+            std::unique_lock<std::mutex> lk(*done_mutex);
+            if (timed_print_progress) {
+                progress_bar_cv.wait_for(lk,std::chrono::seconds(1));
+
+            }else {
+                progress_bar_cv.wait(lk);
+            }
+            if (done->load()) {
+                return;
+            }
+        }
+        fprintf(stderr,"\rAssigned %zu locus",assigned_count.load(std::memory_order_relaxed));
+    }
+}
 #define CHUNK_SIZ 10
 void VCF_input(const char * name,MAT::Tree& tree){
+    assigned_count=0;
     std::vector<std::string> fields;
     //open file set increase buffer size
     gzFile fd=gzopen(name, "r");
@@ -174,7 +197,9 @@ void VCF_input(const char * name,MAT::Tree& tree){
 
     unsigned int header_size=read_header(&fd, fields);
     tbb::flow::graph input_graph;
-
+    std::atomic<bool> done(false);
+    std::mutex done_mutex;
+    std::thread progress_meter(print_progress,&done,&done_mutex);
     decompressor_node_t decompressor(input_graph,1,Decompressor{&fd,CHUNK_SIZ*header_size,2*header_size});
     line_parser_t parser(input_graph,tbb::flow::unlimited,line_parser{fields});
     tbb::flow::make_edge(tbb::flow::output_port<1>(parser),decompressor);
@@ -196,6 +221,8 @@ void VCF_input(const char * name,MAT::Tree& tree){
     }
     input_graph.wait_for_all();
     gzclose(fd);
+    done=true;
+    progress_bar_cv.notify_all();
     //Filling mutation vector
     tbb::affinity_partitioner ap;
         tbb::parallel_for(
@@ -208,4 +235,5 @@ void VCF_input(const char * name,MAT::Tree& tree){
             }
         },
     ap);
+    progress_meter.join();
 }

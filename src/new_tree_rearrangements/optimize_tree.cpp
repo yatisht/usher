@@ -11,7 +11,6 @@
 #include <tbb/partitioner.h>
 #include <tbb/task.h>
 #include <thread>
-#include <condition_variable>
 #include <unistd.h>
 #include "Profitable_Moves_Enumerators/Profitable_Moves_Enumerators.hpp"
 void find_profitable_moves(MAT::Node *src, output_t &out,int radius,
@@ -55,33 +54,40 @@ static void print_progress(
         start_time,
     size_t total_nodes,
     const tbb::concurrent_vector<MAT::Node *> *deferred_nodes,
-    bool *done,std::mutex* done_mutex,std::condition_variable* done_cv) {
+    bool *done,std::mutex* done_mutex,size_t max_queued_moves) {
     while (true) {
-    int checked_nodes_temp = checked_nodes->load(std::memory_order_relaxed);
+        {
+            std::unique_lock<std::mutex> done_lock(*done_mutex);
+            //I want it to print every second, but it somehow managed to print every minute...
+            if (timed_print_progress) {
+                progress_bar_cv.wait_for(done_lock,std::chrono::seconds(1));
+            }else {
+                progress_bar_cv.wait(done_lock);
+            }
+            if (*done) {
+                return;
+            }
+        }
+        if (deferred_nodes->size()>max_queued_moves) {
+            return;
+        }
+        int checked_nodes_temp = checked_nodes->load(std::memory_order_relaxed);
         std::chrono::duration<double> elpased_time =
             std::chrono::steady_clock::now() - start_time;
         double seconds_left = elpased_time.count() *
                               (total_nodes - checked_nodes_temp) /
                               checked_nodes_temp;
-        printf("\rchecked %d nodes, estimate %f min left,found %zu nodes "
+        fprintf(stderr,"\rchecked %d nodes, estimate %f min left,found %zu nodes "
                "profitable",
                checked_nodes_temp, seconds_left / 60, deferred_nodes->size());
         if (seconds_left < 60) {
             break;
         }
-        {
-            std::unique_lock<std::mutex> done_lock(*done_mutex);
-            //I want it to print every second, but it somehow managed to print every minute...
-            done_cv->wait_for(done_lock,std::chrono::seconds(1));
-            if (*done) {
-                return;
-            }
-        }
     }
 }
 size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
               tbb::concurrent_vector<MAT::Node *> &nodes_to_search,
-              MAT::Tree &t,int radius,FILE* log
+              MAT::Tree &t,int radius,FILE* log,size_t max_queued_moves
               #ifndef NDEBUG
               , Original_State_t origin_states
             #endif
@@ -100,14 +106,14 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
     std::atomic<int> checked_nodes(0);
     bool done=false;
     std::mutex done_mutex;
-    std::condition_variable done_cv;
     auto search_start= std::chrono::steady_clock::now();
-    std::thread progress_meter(print_progress,&checked_nodes,search_start, nodes_to_search.size(), &deferred_nodes,&done,&done_mutex,&done_cv);
+    std::thread progress_meter(print_progress,&checked_nodes,search_start, nodes_to_search.size(), &deferred_nodes,&done,&done_mutex,max_queued_moves);
+    puts("Start searching for profitable moves\n");
     //Actual search of profitable moves
     output_t out;
     tbb::parallel_for(tbb::blocked_range<size_t>(0, nodes_to_search.size()),
                       [&nodes_to_search, &resolver,
-                       &deferred_nodes,radius,&checked_nodes
+                       &deferred_nodes,radius,&checked_nodes,max_queued_moves
                               #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
 ,&t
 #endif
@@ -117,6 +123,7 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
                               if (search_context.is_group_execution_cancelled()) {
                                   break;
                               }
+                              if(deferred_nodes.size()<max_queued_moves){
                               output_t out;
                               find_profitable_moves(nodes_to_search[i], out, radius,this_thread_FIFO_allocator
                               #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
@@ -131,6 +138,9 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
                                   resolver(out.moves);
                               }
                               checked_nodes.fetch_add(1,std::memory_order_relaxed);
+                              }else{
+                                  deferred_nodes.push_back(nodes_to_search[i]);
+                              }
                           }
                       },search_context);
     {
@@ -138,12 +148,13 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
         std::unique_lock<std::mutex> done_lock(done_mutex);
         done=true;
         done_lock.unlock();
-        done_cv.notify_all();
+        progress_bar_cv.notify_all();
     }
     auto searh_end=std::chrono::steady_clock::now();
     std::chrono::duration<double> elpased_time =searh_end-search_start;
     fprintf(stderr, "\nSearch took %f minutes\n",elpased_time.count()/60);
     //apply moves
+    puts("Start searching for applying moves\n");
     std::vector<Profitable_Moves_ptr_t> all_moves;
     resolver.schedule_moves(all_moves);
     apply_moves(all_moves, t, bfs_ordered_nodes, deferred_nodes
@@ -155,6 +166,7 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
     elpased_time =apply_end-searh_end;
     fprintf(stderr, "apply moves took %f s\n",elpased_time.count());
     //recycle conflicting moves
+    puts("Start recycling conflicting moves\n");
     while (!deferred_moves.empty()) {
         bfs_ordered_nodes=t.breadth_first_expansion();
         {Deferred_Move_t deferred_moves_next;
