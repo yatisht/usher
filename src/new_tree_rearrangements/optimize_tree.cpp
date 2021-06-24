@@ -108,7 +108,7 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
     std::mutex done_mutex;
     auto search_start= std::chrono::steady_clock::now();
     std::thread progress_meter(print_progress,&checked_nodes,search_start, nodes_to_search.size(), &deferred_nodes,&done,&done_mutex,max_queued_moves);
-    puts("Start searching for profitable moves\n");
+    puts("\nStart searching for profitable moves\n");
     //Actual search of profitable moves
     output_t out;
     tbb::parallel_for(tbb::blocked_range<size_t>(0, nodes_to_search.size()),
@@ -154,7 +154,7 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
     std::chrono::duration<double> elpased_time =searh_end-search_start;
     fprintf(stderr, "\nSearch took %f minutes\n",elpased_time.count()/60);
     //apply moves
-    puts("Start searching for applying moves\n");
+    puts("Start applying moves\n");
     std::vector<Profitable_Moves_ptr_t> all_moves;
     resolver.schedule_moves(all_moves);
     apply_moves(all_moves, t, bfs_ordered_nodes, deferred_nodes
