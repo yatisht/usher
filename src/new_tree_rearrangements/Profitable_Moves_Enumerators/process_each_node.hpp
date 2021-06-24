@@ -8,9 +8,9 @@ template <typename Functor> class merge_func {
     typedef typename Functor::T1 T1;
     typedef typename Functor::T2 T2;
     //Process arg2 elements after arg1 elements are exhausted
-    void process_rest_of_t2(range<typename T2::value_type> &T2_iter, Functor functor,
+    void process_rest_of_t2(range<typename T2::value_type> &T2_iter, Functor& functor,
                             ignore_T2 tag) {}
-    void process_rest_of_t2(range<typename T2::value_type> &T2_iter, Functor functor, use_T2 tag) {
+    void process_rest_of_t2(range<typename T2::value_type> &T2_iter, Functor& functor, use_T2 tag) {
         while (T2_iter) {
             functor.T2_only(*T2_iter);
             T2_iter++;
@@ -86,11 +86,33 @@ bool get_parsimony_score_change_from_add(
 void get_parent_altered_remove(
     Mutation_Count_Change_Collection &parent_mutation_count_change_out,
     const MAT::Node *src, int &parent_parsimony_score_change);
-//Helper function for adding Fitch set change from original state of a loci and changed state of a loci
-int register_change_from_new_state(Mutation_Count_Change_Collection &out,int new_mut_count,
-                            const MAT::Mutation &pos,nuc_one_hot new_state);
 
-int get_new_major_allele_binary_node(nuc_one_hot left_child,nuc_one_hot right_child,nuc_one_hot& major_allele_out);
+static int get_new_major_allele_binary_node(nuc_one_hot left_child,
+                                     nuc_one_hot right_child,
+                                     nuc_one_hot &major_allele_out) {
+    major_allele_out = left_child & right_child;
+    if (!major_allele_out) {
+        major_allele_out = left_child | right_child;
+        return 1;
+    }
+    return 0;
+}
+//Helper function for adding Fitch set change from original state of a loci and changed state of a loci
+static int register_change_from_new_state(Mutation_Count_Change_Collection &out,
+                                   int new_mut_count, const MAT::Mutation &pos,
+                                   nuc_one_hot new_state) {
+    if (new_state != pos.get_all_major_allele()) {
+        nuc_one_hot incremented_allele =
+            new_state & (~pos.get_all_major_allele());
+        nuc_one_hot decremented_allele =
+            pos.get_all_major_allele() & (~new_state);
+        out.emplace_back(pos,decremented_allele, incremented_allele,
+                              new_state);
+    }
+    int old_mutation_count =
+        !(pos.get_left_child_state() & pos.get_right_child_state());
+    return new_mut_count - old_mutation_count;
+}
 //Specialization of get_parent_altered_remove for nodes with only 2 children
 void get_child_removed_binary_node(
     Mutation_Count_Change_Collection &parent_mutation_count_change_out,

@@ -61,32 +61,6 @@ struct intermediate_mut_functor_one_children {
                                            parent_parsimony_score_change);
     }
 };
-int get_new_major_allele_binary_node(nuc_one_hot left_child,
-                                     nuc_one_hot right_child,
-                                     nuc_one_hot &major_allele_out) {
-    major_allele_out = left_child & right_child;
-    if (!major_allele_out) {
-        major_allele_out = left_child | right_child;
-        return 1;
-    }
-    return 0;
-}
-
-int register_change_from_new_state(Mutation_Count_Change_Collection &out,
-                                   int new_mut_count, const MAT::Mutation &pos,
-                                   nuc_one_hot new_state) {
-    if (new_state != pos.get_all_major_allele()) {
-        nuc_one_hot incremented_allele =
-            new_state & (~pos.get_all_major_allele());
-        nuc_one_hot decremented_allele =
-            pos.get_all_major_allele() & (~new_state);
-        out.emplace_back(pos,decremented_allele, incremented_allele,
-                              new_state);
-    }
-    int old_mutation_count =
-        !(pos.get_left_child_state() & pos.get_right_child_state());
-    return new_mut_count - old_mutation_count;
-}
 //Specialization for nodes with two children, they are most common kind of nodes
 struct get_two_child_intermediate_node_mutations {
     Mutation_Count_Change_Collection &parent_node_mutation_count_change;

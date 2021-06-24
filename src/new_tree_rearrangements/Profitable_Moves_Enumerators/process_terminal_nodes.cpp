@@ -7,11 +7,11 @@ struct get_parsimony_score_from_add {
     typedef MAT::Mutations_Collection T2;
     typedef use_T2 T2_useful;
     Mutation_Count_Change_Collection &parent_added_mutations;
-    int &parsimony_score_change;
+    int parsimony_score_change;
     bool &have_not_shared;
     get_parsimony_score_from_add(
         Mutation_Count_Change_Collection &parent_node_mutation_count_change,
-        int &parent_parsimony_score_change, bool &have_not_shared)
+        int parent_parsimony_score_change, bool &have_not_shared)
         : parent_added_mutations(parent_node_mutation_count_change),
           parsimony_score_change(parent_parsimony_score_change),
           have_not_shared(have_not_shared) {}
@@ -62,6 +62,7 @@ bool get_parsimony_score_change_from_add(
     bool have_not_shared = false;
     get_parsimony_score_from_add functor(parent_added_mutations,parsimony_score_change,have_not_shared);
     merge_func<get_parsimony_score_from_add>()(children_added_mutations,node->mutations,functor);
+    parsimony_score_change=functor.parsimony_score_change;
     return have_not_shared;
 }
 //Functor for removing src from a non-binary node

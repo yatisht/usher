@@ -36,7 +36,11 @@ class nuc_2bit{
 class nuc_one_hot{
     uint8_t nuc;
     public:
-    nuc_one_hot():nuc(0xff){}
+    nuc_one_hot(){
+        #ifndef NDEBUG
+            nuc=0xff;
+        #endif
+    }
 
     nuc_one_hot(uint8_t nuc,bool skip_check=false):nuc(nuc){
         assert(!(nuc&0xf0)||skip_check);
