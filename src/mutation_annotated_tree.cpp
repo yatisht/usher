@@ -1,8 +1,13 @@
 #include "mutation_annotated_tree.hpp"
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
+#include <fcntl.h>
+#include <google/protobuf/io/coded_stream.h>
 #include <iomanip>
 #include <iostream>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 // Uses one-hot encoding if base is unambiguous
 // A:1,C:2,G:4,T:8
@@ -454,15 +459,14 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
 
     Parsimony::data data;
 
+    // Boost library used to stream the contents of the input protobuf file in
+    // uncompressed or compressed .gz format
+    if (filename.find(".gz\0") != std::string::npos) {
     std::ifstream inpfile(filename, std::ios::in | std::ios::binary);
     if (!inpfile) {
         fprintf(stderr, "ERROR: Could not load the mutation-annotated tree object from file: %s!\n", filename.c_str());
         exit(1);
     }
-
-    // Boost library used to stream the contents of the input protobuf file in
-    // uncompressed or compressed .gz format
-    if (filename.find(".gz\0") != std::string::npos) {
         boost::iostreams::filtering_istream instream;
         try {
             instream.push(boost::iostreams::gzip_decompressor());
@@ -476,8 +480,16 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
         inpfile.close();
     }
     else {
-        data.ParseFromIstream(&inpfile);
-        inpfile.close();
+        struct stat stat_buf;
+        stat(filename.c_str(),&stat_buf);
+        size_t file_size=stat_buf.st_size;
+        auto fd=open(filename.c_str(), O_RDONLY);
+        uint8_t* maped_file=(uint8_t*)mmap(nullptr, file_size, PROT_READ, MAP_SHARED,fd , 0);
+        close(fd);
+        google::protobuf::io::CodedInputStream input(maped_file,file_size);
+        input.SetTotalBytesLimit(file_size*4, file_size*4);
+        data.ParseFromCodedStream(&input);
+        munmap(maped_file, file_size);
     }
 
     //check if the pb has a metadata field

@@ -1,0 +1,23 @@
+syntax = "proto3";                                                                                                                                                                                              
+package Mutation_Detailed;
+
+message detailed_mutation {
+    int32 position = 1;
+    fixed32 other_fields = 2;
+}
+
+message node {
+    repeated detailed_mutation node_mutations = 1;
+    string identifier = 2;
+    repeated int64 children_offsets =3;
+    repeated int32 children_lengths =4;
+    repeated string condensed_nodes =5;
+}
+
+message meta {
+    repeated int32 ref_nuc=1;
+    int64 internal_nodes_count=2;
+    repeated string chromosomes=3;
+    int64 root_offset=4;
+    int64 root_length=5;
+}
