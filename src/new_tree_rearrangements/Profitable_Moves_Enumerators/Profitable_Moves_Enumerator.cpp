@@ -93,6 +93,15 @@ static void search_subtree_not_LCA(
     if(!(root->children.size()==1&&root->children[0]->is_leaf())&&radius>0){
         Mutation_Count_Change_Collection_FIFO child_mutations(allocator);
         merge_mutation_LCA_to_dst(root, mutations, child_mutations);
+        //as root is not LCA, don't need to worry about a node is moved under its original parent again
+        //Pre-order, search when mutation vector of dst is slightly more likely to be hot
+        check_move_profitable_dst_not_LCA(
+            src, root, LCA, mutations, root_mutations_altered,
+            parsimony_score_change_from_removal,profitable_moves, node_stack_from_src
+#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
+            ,debug_from_src,tree
+#endif
+        );
         //Haven't exhausted hops, recurse down to explore more dsts
     for (MAT::Node *child : root->children) {
             search_subtree_not_LCA(child, LCA, src, child_mutations,
@@ -103,14 +112,7 @@ static void search_subtree_not_LCA(
 #endif
             );
     }}
-    //as root is not LCA, don't need to worry about a node is moved under its original parent again
-            check_move_profitable_dst_not_LCA(
-            src, root, LCA, mutations, root_mutations_altered,
-            parsimony_score_change_from_removal,profitable_moves, node_stack_from_src
-#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-            ,debug_from_src,tree
-#endif
-        );
+
 }
 /**
  * @brief Find most profitable dst to move src to, under the subtree rooted at LCA

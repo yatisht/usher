@@ -92,7 +92,7 @@ static void check_changed_neighbor(int radius, MAT::Node* root, MAT::Node* exclu
 //find src node to search
 void
 find_nodes_to_move(const std::vector<MAT::Node *> &bfs_ordered_nodes,
-                   tbb::concurrent_vector<MAT::Node*> &output,bool is_first,int radius) {
+                   tbb::concurrent_vector<MAT::Node*> &output,tbb::concurrent_vector<MAT::Node*> &filtered_nodes,bool is_first,int radius) {
     std::vector<MAT::Node *> nodes_with_recurrent_mutations;
     auto start=std::chrono::steady_clock::now();
     find_nodes_with_recurrent_mutations(bfs_ordered_nodes,
@@ -116,7 +116,7 @@ find_nodes_to_move(const std::vector<MAT::Node *> &bfs_ordered_nodes,
     }
     fprintf(stderr, "First pass nodes: %zu \n",first_pass_nodes.size());
     output.reserve(first_pass_nodes.size());
-    tbb::parallel_for(tbb::blocked_range<size_t>(0,first_pass_nodes.size()),[&first_pass_nodes,is_first,radius,&output](const tbb::blocked_range<size_t>& r){
+    tbb::parallel_for(tbb::blocked_range<size_t>(0,first_pass_nodes.size()),[&first_pass_nodes,is_first,radius,&output,&filtered_nodes](const tbb::blocked_range<size_t>& r){
         for (size_t idx=r.begin(); idx<r.end(); idx++) {
             auto node=first_pass_nodes[idx];
             std::unordered_set<int> pos;
@@ -128,6 +128,8 @@ find_nodes_to_move(const std::vector<MAT::Node *> &bfs_ordered_nodes,
             check_changed_neighbor(radius, node, nullptr, found, is_first, pos);
             if (found) {
                 output.push_back(node);
+            }else {
+                filtered_nodes.push_back(node);
             }
         }
     });

@@ -27,7 +27,7 @@ bool dst_branch(const MAT::Node *LCA,
            const range<Mutation_Count_Change> &mutations,
            int &parsimony_score_change,
            std::vector<MAT::Node *> &node_stack_from_dst, MAT::Node *this_node,
-           Mutation_Count_Change_Collection &parent_added,bool& early_stop,int src_side_max_improvement
+           Mutation_Count_Change_Collection &parent_added,int src_side_max_improvement
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
            ,std::vector<Mutation_Count_Change_Collection> &debug_from_dst
 #endif
@@ -46,7 +46,6 @@ bool dst_branch(const MAT::Node *LCA,
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
     debug_from_dst.push_back(parent_added);
 #endif
-    early_stop=false;
     //Going up until LCA to calculate change in major allele state of nodes from dst to LCA, and number of mutations on corresponding edges
     Mutation_Count_Change_Collection parent_of_parent_added;
     //Number of allele count change will only decrease as going up the tree (each change need a change in allele count change among children to be triggered)

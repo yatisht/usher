@@ -237,7 +237,8 @@ int main(int argc, char **argv) {
     }
     bfs_ordered_nodes = t.breadth_first_expansion();
     fputs("Start Finding nodes to move \n",stderr);
-    find_nodes_to_move(bfs_ordered_nodes, nodes_to_search,isfirst,radius);
+    tbb::concurrent_vector<MAT::Node*> filtered_nodes;
+    find_nodes_to_move(bfs_ordered_nodes, nodes_to_search,filtered_nodes,isfirst,radius);
     isfirst=false;
     fprintf(stderr,"%zu nodes to search\n",nodes_to_search.size());
     if (nodes_to_search.empty()) {
@@ -264,6 +265,9 @@ int main(int argc, char **argv) {
         }
         if (new_score >= inner_loop_score_before) {
             stalled++;
+            nodes_to_search.swap(filtered_nodes);
+            filtered_nodes.clear();
+            fputs("Search among filtered nodes.\n", stderr);
         } else {
             inner_loop_score_before = new_score;
             stalled = 0;

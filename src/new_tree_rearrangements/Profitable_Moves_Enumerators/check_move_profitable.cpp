@@ -22,7 +22,7 @@ bool dst_branch(const MAT::Node *LCA,
            const range<Mutation_Count_Change> &mutations,
            int &parsimony_score_change,
            std::vector<MAT::Node *> &node_stack_from_dst, MAT::Node *this_node,
-           Mutation_Count_Change_Collection &parent_added,bool& early_stop,int src_side_max_improvement
+           Mutation_Count_Change_Collection &parent_added,int src_side_max_improvement
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
            ,std::vector<Mutation_Count_Change_Collection> &debug_from_dst
 #endif
@@ -118,11 +118,10 @@ int check_move_profitable_dst_not_LCA(
     std::vector<MAT::Node *> node_stack_from_dst({});
 
     assert(dst);
-    bool early_stop=false;
     Mutation_Count_Change_Collection dst_added;
     //Going up from dst node to LCA node to adjust state assignment
         if(!dst_branch(LCA, mutations, parsimony_score_change,
-                  node_stack_from_dst, dst, dst_added,early_stop,src->parent==LCA?src->mutations.size():0
+                  node_stack_from_dst, dst, dst_added,src->parent==LCA?src->mutations.size():0
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
 , debug_from_dst
 #endif
