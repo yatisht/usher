@@ -166,7 +166,7 @@ struct line_parser {
                     }
                     line_in++;
                 }
-                if (allele_idx>=(allele_translated.size()+1)||allele_idx<0) {
+                if (allele_idx>=(int)(allele_translated.size()+1)||allele_idx<0) {
                     out[index_translate[field_idx-SAMPLE_START_IDX]]=0xf;
                 }else {
                     out[index_translate[field_idx-SAMPLE_START_IDX]]=allele_translated[allele_idx];
