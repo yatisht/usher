@@ -559,7 +559,7 @@ void get_minimum_subtrees(MAT::Tree* T, std::vector<std::string> samples, size_t
     /// record trees here
     std::vector<std::vector<std::string> > subtree_sample_sets ;
 
-      for ( int i = 0 ; i < samples.size() ; i ++ ) {
+      for ( size_t i = 0 ; i < samples.size() ; i ++ ) {
 
           auto check_sample = samples_we_have_seen.find( samples[i] ) ;
           if ( check_sample != samples_we_have_seen.end() ) {
@@ -575,7 +575,7 @@ void get_minimum_subtrees(MAT::Tree* T, std::vector<std::string> samples, size_t
           }
 
           /// record all samples seen
-          for ( int s = 0 ; s < leaves_to_keep.size() ; s ++ ) {
+          for ( size_t s = 0 ; s < leaves_to_keep.size() ; s ++ ) {
               samples_we_have_seen.insert({leaves_to_keep[s],subtree_sample_sets.size()}) ;
           }
 
@@ -608,7 +608,7 @@ void get_minimum_subtrees(MAT::Tree* T, std::vector<std::string> samples, size_t
 
     /// get the set of metadata fields in the requested samples
     std::set<std::string> metafields ;
-    for ( int i = 0 ; i < samples.size() ; i ++ ) {
+    for ( size_t i = 0 ; i < samples.size() ; i ++ ) {
         for (const auto& cmet: *catmeta) {
             for (const auto& cmi: cmet) {
                 if (cmi.second.find(samples[i]) != cmi.second.end()) {

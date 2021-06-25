@@ -143,7 +143,8 @@ void extract_main (po::parsed_options parsed) {
     //check that at least one of the output filenames (things which take dir_prefix)
     //are set before proceeding.
     std::vector<std::string> outs = {sample_path_filename, clade_path_filename, all_path_filename, tree_filename, vcf_filename, output_mat_filename, json_filename, used_sample_filename};
-    if (!std::any_of(outs.begin(), outs.end(), [=](std::string f){return f != dir_prefix;})) {
+    if (!std::any_of(outs.begin(), outs.end(), [=](std::string f){return f != dir_prefix;}) &&
+        usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         if (nearest_k_batch_file == "") {
             fprintf(stderr, "ERROR: No output files requested!\n");
             exit(1);
