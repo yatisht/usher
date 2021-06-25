@@ -491,7 +491,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
     //now that we have all assignments sorted out, pass over it again
     //looking for introductions.
     std::vector<std::string> outstrs;
-    std::string header = "sample\tintroduction_node\tintroduction_rank\tgrowth_score\tearliest_date\tlatest_date\tcluster_size\tcluster_span\tintro_confidence\tparent_confidence\tdistance";
+    std::string header = "sample\tintroduction_node\tintroduction_rank\tgrowth_score\tearliest_date\tlatest_date\tcluster_size\tcluster_span\tintro_confidence\tparent_confidence\tdistance\torigin_gap";
     if (region_assignments.size() > 1) {
         header += "\tregion\torigins\torigins_confidence";
     }
@@ -635,7 +635,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                     }
                     std::stringstream ostr;
                     if (region_assignments.size() == 1) {
-                        ostr << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed << "\t" << intro_clades << "\t" << intro_mut_path;
+                        ostr << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed << "\t" << a->mutations.size() << "\t" << intro_clades << "\t" << intro_mut_path;
                         if (eval_uncertainty) {
                             ostr << "\t" << assignments.find(s)->second;
                         }
@@ -645,7 +645,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                             ostr << "\n";
                         }
                     } else {
-                        ostr << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed << "\t" << region << "\t" << origins << "\t" << origins_cons.str() << "\t" << intro_clades << "\t" << intro_mut_path;
+                        ostr << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed << "\t" << a->mutations.size() << "\t" << region << "\t" << origins << "\t" << origins_cons.str() << "\t" << intro_clades << "\t" << intro_mut_path;
                         if (eval_uncertainty) {
                             ostr << "\t" << assignments.find(s)->second;
                         }
@@ -717,7 +717,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                     //in order, first seven columns are
                     //sample id, cluster id, cluster rank, cluster growth score, earliest date, latest date, cluster size
                     //then the rest are the by-sample information (path, distance of this specific sample, yadda yadda)
-                    cout << ss.first << "\t" << cid << "\t" << rankr << "\t" << gv << "\t" << date_tracker[cid] << "\t" << clusters[cid].size() << "\t" << span << "\t" << ss.second;
+                    cout << ss.first << "\t" << cid << "\t" << rankr << "\t" << gv << "\t" << date_tracker[cid] << "\t" << clusters[cid].size() << "\t" << span << ss.second;
                     outstrs.push_back(cout.str());
                 }
             }
