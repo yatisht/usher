@@ -703,9 +703,22 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                 for (auto ss: clusters[cid]) {
                     cs.push_back(ss.first);
                 }
-                size_t span;
+                size_t span = 0;
                 if (cs.size() > 1) {
-                    span = MAT::get_subtree(*T,cs).get_parsimony_score();
+                    //span = MAT::get_subtree(*T,cs).get_parsimony_score();
+                    std::set<std::string> ancm;
+                    for (auto s: cs) {
+                        for (auto a: T->rsearch(s, true)) {
+                            if (a->identifier == cid) {
+                                break;
+                            } else if (ancm.find(a->identifier) == ancm.end()) {
+                                span += a->mutations.size();
+                                ancm.insert(a->identifier);
+                            } else {
+                                break;
+                            }
+                        }
+                    }
                 } else {
                     span = T->get_node(cs[0])->mutations.size();
                 }
