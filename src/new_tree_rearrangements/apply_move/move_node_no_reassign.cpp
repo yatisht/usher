@@ -429,6 +429,7 @@ void move_node(MAT::Node *src, MAT::Node *dst,
     if (dst_to_root_path.empty()) {
         dst_altered = place_node_LCA(src, dst, tree, mutations,
                                      src_to_root_path.back(), nodes_to_clean);
+        src_to_root_path.back()->changed=true;
     } else {
         dst_altered = place_node(src, dst, tree, mutations, nodes_to_clean);
     }

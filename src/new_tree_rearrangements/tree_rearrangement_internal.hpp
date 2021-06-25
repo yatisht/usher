@@ -62,7 +62,7 @@ void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t,
 );
 void fix_condensed_nodes(MAT::Tree *tree) ;
 void find_nodes_to_move(const std::vector<MAT::Node *> &bfs_ordered_nodes,
-                   tbb::concurrent_vector<MAT::Node*> &output,tbb::concurrent_vector<MAT::Node*> &filtered_nodes,bool is_first,int radius) ;
+                   tbb::concurrent_vector<MAT::Node*> &output,bool is_first,int radius) ;
                    void add_root(MAT::Tree *tree) ;
 void VCF_input(const char * name,MAT::Tree& tree);
 

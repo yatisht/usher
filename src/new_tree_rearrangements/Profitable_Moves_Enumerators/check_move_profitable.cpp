@@ -28,7 +28,7 @@ bool dst_branch(const MAT::Node *LCA,
 #endif
            );
 
-void output_result(MAT::Node *&src, MAT::Node *&dst, MAT::Node *&LCA,
+void output_result(MAT::Node *src, MAT::Node *dst, MAT::Node *LCA,
                int &parsimony_score_change, output_t &output,
                const std::vector<MAT::Node *> &node_stack_from_src,
                std::vector<MAT::Node *> &node_stack_from_dst,
@@ -102,7 +102,7 @@ int check_move_profitable_dst_not_LCA(
     const range<Mutation_Count_Change>  &mutations,
     const Mutation_Count_Change_Collection &root_mutations_altered,
     int parsimony_score_change, output_t &output,
-    const std::vector<MAT::Node *> node_stack_from_src
+    const std::vector<MAT::Node *>& node_stack_from_src
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
     ,
     const std::vector<Mutation_Count_Change_Collection> debug_from_src,

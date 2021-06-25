@@ -1,6 +1,6 @@
 
 cmake_minimum_required (VERSION 3.8) 
-
+cmake_policy(SET CMP0069 NEW)
 project(usher)
 
 execute_process(COMMAND git describe --tags --abbrev=0 OUTPUT_VARIABLE VERSION)
@@ -12,8 +12,10 @@ set(usher_VERSION "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}")
 configure_file(src/version.hpp.in version.hpp)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -msse4.1 -std=c++11 -Wall -g -Wno-unused-function -Wno-deprecated-declarations")
-#
-set(CMAKE_CXX_FLAGS_DEBUG "-O0 -DDEBUG_PARSIMONY_SCORE_CHANGE_CORRECT")
+#-DDEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
+set(CMAKE_CXX_FLAGS_DEBUG "-O0 ")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-DNDEBUG -O3 ")
+set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O3")
 set(CMAKE_INCLUDE_CURRENT_DIR ON) 
 
 if(DEFINED Protobuf_PATH) 
@@ -117,7 +119,13 @@ else()
         ${PROTO_SRCS}
         ${PROTO_HDRS}
         )
-        
+       
+    add_executable(get_sample_count
+        src/mutation_annotated_tree.cpp
+        src/new_tree_rearrangements/get_sample_count.cpp
+        ${PROTO_SRCS}
+        ${PROTO_HDRS}
+        )
     add_executable(tree_rearrange_new
         src/new_tree_rearrangements/mutation_annotated_tree.cpp
         src/new_tree_rearrangements/mutation_annotated_tree_node.cpp
@@ -160,10 +168,11 @@ else(SAVE_PROFILE)
     endif(DEBUG)
 endif(SAVE_PROFILE)
 
-
+#set_property(TARGET tree_rearrange_new PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 TARGET_LINK_LIBRARIES(compareVCF PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(tree_rearrange_new PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 
+TARGET_LINK_LIBRARIES(get_sample_count PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(usher PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 target_include_directories(usher PUBLIC "${PROJECT_BINARY_DIR}")
 

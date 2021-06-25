@@ -36,6 +36,7 @@ static void clean_up_internal_nodes(MAT::Node* this_node,MAT::Tree& tree,std::un
     std::vector<MAT::Node *> this_node_ori_children = this_node->children;
     if (this_node->parent&&(((!this_node->is_leaf())&&no_valid_mut(this_node)))) {
         //Remove this node
+        this_node->parent->changed=true;
         auto iter = std::find(parent_children.begin(), parent_children.end(),
                               this_node);
         assert(iter != parent_children.end());
@@ -47,6 +48,7 @@ static void clean_up_internal_nodes(MAT::Node* this_node,MAT::Tree& tree,std::un
         tree.all_nodes.erase(this_node->identifier);
         //promote all its children, no need to change their mutation vector, as this_node assumed to have no valid mutations
         for (MAT::Node *child : this_node_ori_children) {
+            child->changed=true;
             child->parent = this_node->parent;
             parent_children.push_back(child);
         }
@@ -73,7 +75,8 @@ void clean_tree(MAT::Tree& t){
         auto node=t.get_node(node_str);
         for_reassign.push_back(node);
     }
-    fprintf(stderr, "%zu nodes cleaned\n",for_reassign.size());
+    auto cleaned_count=for_reassign.size();
+    fprintf(stderr, "%zu nodes cleaned\n",cleaned_count);
     t.depth_first_expansion();
     if(!for_reassign.empty()){
         std::vector<Altered_Node_t> nodes_with_changed_states_out;
@@ -96,6 +99,9 @@ void clean_tree(MAT::Tree& t){
 #ifdef CHECK_STATE_REASSIGN
     compare_mutation_tree(t, new_tree);
 #endif
+    if (cleaned_count) {
+        clean_tree(t);
+    }
 }
 
 void populate_mutated_pos(const Original_State_t& origin_state){
@@ -160,14 +166,17 @@ static void reassign_states(MAT::Tree& t, Original_State_t& origin_states){
     std::vector<tbb::concurrent_vector<Mutation_Annotated_Tree::Mutation>>
         output(bfs_ordered_nodes.size());
     //get mutation vector
+    std::vector<backward_pass_range> child_idx_range;
+    std::vector<forward_pass_range> parent_idx;
+    Fitch_Sankoff_prep(bfs_ordered_nodes,child_idx_range, parent_idx);
     tbb::parallel_for_each(
         mutated_positions.begin(), mutated_positions.end(),
-        [&bfs_ordered_nodes, &output](
+        [&output,&child_idx_range,&parent_idx](
             const std::pair<MAT::Mutation,
                             std::unordered_map<std::string, nuc_one_hot> *>
                 &pos) {
             std::unordered_map<std::string, nuc_one_hot> *mutated = pos.second;
-            Fitch_Sankoff_Whole_Tree(bfs_ordered_nodes, pos.first, *mutated,
+            Fitch_Sankoff_Whole_Tree(child_idx_range,parent_idx, pos.first, *mutated,
                                      output);
         });
     tbb::affinity_partitioner ap;
