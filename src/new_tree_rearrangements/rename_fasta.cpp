@@ -1,5 +1,4 @@
 #include "parsimony.pb.h"
-#include <bits/types/FILE.h>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
