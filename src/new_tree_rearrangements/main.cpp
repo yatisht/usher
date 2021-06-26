@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <cstdlib>
 #include <ctime>
+#include <tbb/concurrent_vector.h>
 #include <tbb/task.h>
 #include <cstdio>
 #include <fcntl.h>
@@ -86,13 +87,14 @@ int main(int argc, char **argv) {
         ("ambi_protobuf,a", po::value<std::string>(&input_complete_pb_path)->default_value(""),
          "Continue from intermediate protobuf")
         ("max_queued_moves,q",po::value<size_t>(&max_queued_moves)->default_value(1000),"Maximium number of profitable moves found before applying these moves")
-        ("do-not-write-intermediate-files,n","Do not write intermediate files.");
+        ("do-not-write-intermediate-files,n","Do not write intermediate files.")
+        ("exhaustive_mode,e","Search every non-root node as source node.");
         
     po::options_description all_options;
     all_options.add(desc);
     interrupted=false;
     signal(SIGUSR2,interrupt_handler);
-    //signal(SIGUSR1, log_flush_handle);
+    signal(SIGUSR1, log_flush_handle);
     po::variables_map vm;
     if (argc==1) {
         std::cerr << desc << std::endl;
@@ -112,20 +114,24 @@ int main(int argc, char **argv) {
     }
     //std::string cwd=get_current_dir_name();
     no_write_intermediate=vm.count("do-not-write-intermediate-files");
+    bool search_all_nodes=vm.count("exhaustive_mode");
         try{
-        auto output_path_dir_name=boost::filesystem::path(output_path).parent_path();
-        boost::filesystem::create_directories(output_path_dir_name);
-        errno=0;
-        auto fd=open(output_path.c_str(),O_WRONLY|O_CREAT|O_TRUNC,S_IRUSR|S_IWUSR);
-        if (fd==-1) {
-            perror(("Cannot create output file"+output_path).c_str());
-            exit(EXIT_FAILURE);
-        }else {
-            close(fd);
+        auto output_path_dir_name=boost::filesystem::system_complete(output_path).parent_path();
+        if(!boost::filesystem::exists(output_path_dir_name)){
+            boost::filesystem::create_directories(output_path_dir_name);
         }
+        errno=0;
     } catch(const boost::filesystem::filesystem_error& ex){
         std::cerr<<"Cannot create parent directory of output path\n";
         std::cerr<<ex.what()<<std::endl;
+        exit(EXIT_FAILURE);
+    }
+    auto fd=open(output_path.c_str(),O_WRONLY|O_CREAT|O_TRUNC,S_IRUSR|S_IWUSR);
+    if (fd==-1) {
+        perror(("Cannot create output file"+output_path).c_str());
+        exit(EXIT_FAILURE);
+    }else {
+        close(fd);
     }
 
     if (intermediate_pb_base_name==""&&(!no_write_intermediate)) {
@@ -178,6 +184,11 @@ int main(int argc, char **argv) {
     fprintf(stderr, "Will stop search and apply all moves found when %zu moves are found\n",max_queued_moves);
     fprintf(stderr,"Run kill -s SIGUSR2 %d to apply all the move found immediately, then output and exit.\n",pid);
     fprintf(stderr,"Using %d threads. \n",num_threads);
+    if (search_all_nodes) {
+        fprintf(stderr, "Exhaustive mode: Consider move all nodes.\n");
+    }else {
+        fprintf(stderr, "Will only consider nodes carrying mutations that occured more than twice anywhere in the tree.\n");
+    }
     tbb::task_scheduler_init init(num_threads);
 
     //Loading tree
@@ -224,25 +235,9 @@ int main(int argc, char **argv) {
     new_score = score_before;
     fprintf(stderr, "after state reassignment:%zu\n", score_before);
 
-/*    t.breadth_first_expansion();
-    t.depth_first_expansion();
-    populate_mutated_pos(origin_state_to_check);
-    clean_tree(t);
-    fprintf(stderr, "nodes %zu\n",t.all_nodes.size());
-    auto src=t.get_node("37308");
-    auto dst=t.get_node("37313");
-    output_t out;
-    individual_move(src, dst, get_LCA(src,dst), out);
-    //find_profitable_moves(src, out, 8);
-    //Find nodes to search
-    */
     tbb::concurrent_vector<MAT::Node *> nodes_to_search;
     std::vector<MAT::Node *> bfs_ordered_nodes;
     bfs_ordered_nodes = t.breadth_first_expansion();
-    /*apply_moves(out.moves, t, bfs_ordered_nodes, nodes_to_search);
-    fprintf(stderr, "%zu,nodes %zu\n",t.get_parsimony_score(),t.all_nodes.size());
-    clean_tree(t);
-    fprintf(stderr, "%zu,nodes %zu\n",t.get_parsimony_score(),t.all_nodes.size());*/
     movalbe_src_log=fopen(profitable_src_log.c_str(),"w");
     if (!movalbe_src_log) {
         perror(("Error writing to log file "+profitable_src_log).c_str());
@@ -254,8 +249,12 @@ int main(int argc, char **argv) {
         break;
     }
     bfs_ordered_nodes = t.breadth_first_expansion();
-    fputs("Start Finding nodes to move \n",stderr);
-    find_nodes_to_move(bfs_ordered_nodes, nodes_to_search,isfirst,radius);
+    if (search_all_nodes) {
+        nodes_to_search=tbb::concurrent_vector<MAT::Node*>(bfs_ordered_nodes.begin(),bfs_ordered_nodes.end());
+    }else{
+        fputs("Start Finding nodes to move \n",stderr);
+        find_nodes_to_move(bfs_ordered_nodes, nodes_to_search,isfirst,radius);
+    }
     isfirst=false;
     fprintf(stderr,"%zu nodes to search\n",nodes_to_search.size());
     if (nodes_to_search.empty()) {

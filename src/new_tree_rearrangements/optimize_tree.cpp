@@ -107,7 +107,7 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
     std::mutex done_mutex;
     auto search_start= std::chrono::steady_clock::now();
     std::thread progress_meter(print_progress,&checked_nodes,search_start, nodes_to_search.size(), &deferred_nodes,&done,&done_mutex,max_queued_moves);
-    puts("Start searching for profitable moves");
+    fputs("Start searching for profitable moves\n",stderr);
     //Actual search of profitable moves
     output_t out;
     tbb::parallel_for(tbb::blocked_range<size_t>(0, nodes_to_search.size()),
@@ -153,7 +153,7 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
     std::chrono::duration<double> elpased_time =searh_end-search_start;
     fprintf(stderr, "Search took %f minutes\n",elpased_time.count()/60);
     //apply moves
-    puts("Start applying moves");
+    fputs("Start applying moves\n",stderr);
     std::vector<Profitable_Moves_ptr_t> all_moves;
     resolver.schedule_moves(all_moves);
     apply_moves(all_moves, t, bfs_ordered_nodes, deferred_nodes
@@ -165,14 +165,14 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
     elpased_time =apply_end-searh_end;
     fprintf(stderr, "apply moves took %f s\n",elpased_time.count());
     //recycle conflicting moves
-    puts("Start recycling conflicting moves");
+    fputs("Start recycling conflicting moves\n",stderr);
     while (!deferred_moves.empty()) {
         bfs_ordered_nodes=t.breadth_first_expansion();
         {Deferred_Move_t deferred_moves_next;
         static FILE* ignored=fopen("/dev/null", "w");
         Conflict_Resolver resolver(bfs_ordered_nodes.size(),deferred_moves_next,ignored);
         if (timed_print_progress) {
-            printf("\rrecycling conflicting moves, %zu left",deferred_moves.size());
+            fprintf(stderr,"\rrecycling conflicting moves, %zu left",deferred_moves.size());
         }
         tbb::parallel_for(tbb::blocked_range<size_t>(0,deferred_moves.size()),[&deferred_moves,&resolver,&t](const tbb::blocked_range<size_t>& r){
             for (size_t i=r.begin(); i<r.end(); i++) {

@@ -140,7 +140,7 @@ namespace Mutation_Annotated_Tree {
             return child_muts&0xf;
         }
 
-        const uint8_t get_chromIdx()const{
+        uint8_t get_chromIdx()const{
             return chrom_idx;
         }
 
