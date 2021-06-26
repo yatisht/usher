@@ -11,7 +11,7 @@ int check_move_profitable_dst_not_LCA(
     const range<Mutation_Count_Change>  &mutations,
     const Mutation_Count_Change_Collection &root_mutations_altered,
     int parsimony_score_change, output_t &output,
-    const std::vector<MAT::Node *> node_stack_from_src
+    const std::vector<MAT::Node *>& node_stack_from_src
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
     ,
     const std::vector<Mutation_Count_Change_Collection> debug_from_src,
@@ -93,6 +93,15 @@ static void search_subtree_not_LCA(
     if(!(root->children.size()==1&&root->children[0]->is_leaf())&&radius>0){
         Mutation_Count_Change_Collection_FIFO child_mutations(allocator);
         merge_mutation_LCA_to_dst(root, mutations, child_mutations);
+        //as root is not LCA, don't need to worry about a node is moved under its original parent again
+        //Pre-order, search when mutation vector of dst is slightly more likely to be hot
+        check_move_profitable_dst_not_LCA(
+            src, root, LCA, mutations, root_mutations_altered,
+            parsimony_score_change_from_removal,profitable_moves, node_stack_from_src
+#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
+            ,debug_from_src,tree
+#endif
+        );
         //Haven't exhausted hops, recurse down to explore more dsts
     for (MAT::Node *child : root->children) {
             search_subtree_not_LCA(child, LCA, src, child_mutations,
@@ -103,14 +112,7 @@ static void search_subtree_not_LCA(
 #endif
             );
     }}
-    //as root is not LCA, don't need to worry about a node is moved under its original parent again
-            check_move_profitable_dst_not_LCA(
-            src, root, LCA, mutations, root_mutations_altered,
-            parsimony_score_change_from_removal,profitable_moves, node_stack_from_src
-#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-            ,debug_from_src,tree
-#endif
-        );
+
 }
 /**
  * @brief Find most profitable dst to move src to, under the subtree rooted at LCA
@@ -235,7 +237,7 @@ void find_profitable_moves(MAT::Node *src, output_t &out,int radius,
     {
         search_subtree(root, src, mutations, out,
                        Mutation_Count_Change_Collection(),radius, 0,
-                       std::vector<MAT::Node *>({}),allocator
+                       node_stack,allocator
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
                        ,std::vector<Mutation_Count_Change_Collection>(),tree
                        #endif
@@ -252,7 +254,7 @@ void find_profitable_moves(MAT::Node *src, output_t &out,int radius,
     while (root&&radius) {
         search_subtree(root, src, mutations, out,
                        alter_mutations,radius, parsimony_score_change,
-                       std::vector<MAT::Node *>(node_stack),allocator
+                       node_stack,allocator
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
                        ,
                        std::vector<Mutation_Count_Change_Collection>(debug),tree
