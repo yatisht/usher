@@ -844,10 +844,14 @@ std::vector<Mutation_Annotated_Tree::Node*> Mutation_Annotated_Tree::Tree::rsear
         return ancestors;
     }    
     if (include_self) {
-        ancestors.push_back(node);
+        ancestors.reserve(node->level+1);
+        ancestors.emplace_back(node);
+    }
+    else {
+        ancestors.reserve(node->level);
     }
     while (node->parent != NULL) {
-        ancestors.push_back(node->parent);
+        ancestors.emplace_back(node->parent);
         node = node->parent;
     }
     return ancestors;
