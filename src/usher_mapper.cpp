@@ -177,8 +177,8 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores, bool comp
     // during the parallel search to place the same at some node in the tree
     int best_set_difference = *input.best_set_difference;
 
-    std::vector<int> anc_positions;
     std::vector<MAT::Mutation> ancestral_mutations;
+    std::vector<MAT::Mutation> tmp_ancestral_mutations;
 
     // if node has some unique mutations not in new sample, placement should be
     // done as a sibling
@@ -222,8 +222,7 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores, bool comp
                             m.par_nuc = m1.par_nuc;
                             m.mut_nuc = anc_nuc;
 
-                            ancestral_mutations.emplace_back(m);
-                            anc_positions.emplace_back(m1.position);
+                            tmp_ancestral_mutations.emplace_back(m);
                             assert((m.mut_nuc & (m.mut_nuc-1)) == 0);
                             if (compute_vecs) {
                                 (*input.excess_mutations).emplace_back(m);
@@ -252,8 +251,7 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores, bool comp
                     m.par_nuc = m1.par_nuc;
                     m.mut_nuc = anc_nuc;
 
-                    ancestral_mutations.emplace_back(m);
-                    anc_positions.emplace_back(m1.position);
+                    tmp_ancestral_mutations.emplace_back(m);
                     assert((m.mut_nuc & (m.mut_nuc-1)) == 0);
                     if (compute_vecs) {
                         (*input.excess_mutations).emplace_back(m);
@@ -269,27 +267,38 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores, bool comp
     }
     else {
         for (auto m: input.node->mutations) {
-            ancestral_mutations.emplace_back(m);
-            anc_positions.emplace_back(m.position);
+            tmp_ancestral_mutations.emplace_back(m);
         }
     }
 
     // Add ancestral mutations to ancestral mutations. When multiple mutations
     // at same position are found in the path leading from the root to the
     // current node, add only the most recent mutation to the vector
-    for (auto n: input.T->rsearch(input.node->identifier)) {
-        for (auto m: n->mutations) {
-            if (m.is_masked() || (std::find(anc_positions.begin(), anc_positions.end(), m.position) == anc_positions.end())) {
-                ancestral_mutations.emplace_back(m);
+    //for (auto n: input.T->rsearch(input.node->identifier)) {
+    {
+        auto n = input.node;
+        while (n->parent != NULL) {
+            n = n->parent;
+            for (auto m: n->mutations) {
                 if (!m.is_masked()) {
-                    anc_positions.emplace_back(m.position);
+                    //||
+                    //(std::find(anc_positions.begin(), anc_positions.end(), m.position) == anc_positions.end())) {
+                    //(anc_positions.find(m.position) == anc_positions.end())) {
+                    tmp_ancestral_mutations.emplace_back(m);
                 }
             }
         }
     }
 
     // sort by position. This helps speed up the search
-    std::sort(ancestral_mutations.begin(), ancestral_mutations.end());
+    std::stable_sort(tmp_ancestral_mutations.begin(), tmp_ancestral_mutations.end());
+
+
+    for (size_t i=0; i<tmp_ancestral_mutations.size(); i++) {
+        if ((i==0) || (tmp_ancestral_mutations[i].position != tmp_ancestral_mutations[i-1].position)){
+            ancestral_mutations.emplace_back(tmp_ancestral_mutations[i]);
+        }
+    }
 
     // Iterate over missing sample mutations
     for (auto m1: (*input.missing_sample_mutations)) {
