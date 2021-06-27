@@ -1,8 +1,13 @@
 #include "mutation_annotated_tree.hpp"
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
+#include <fcntl.h>
+#include <google/protobuf/io/coded_stream.h>
 #include <iomanip>
 #include <iostream>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 // Uses one-hot encoding if base is unambiguous
 // A:1,C:2,G:4,T:8
@@ -454,15 +459,14 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
 
     Parsimony::data data;
 
+    // Boost library used to stream the contents of the input protobuf file in
+    // uncompressed or compressed .gz format
+    if (filename.find(".gz\0") != std::string::npos) {
     std::ifstream inpfile(filename, std::ios::in | std::ios::binary);
     if (!inpfile) {
         fprintf(stderr, "ERROR: Could not load the mutation-annotated tree object from file: %s!\n", filename.c_str());
         exit(1);
     }
-
-    // Boost library used to stream the contents of the input protobuf file in
-    // uncompressed or compressed .gz format
-    if (filename.find(".gz\0") != std::string::npos) {
         boost::iostreams::filtering_istream instream;
         try {
             instream.push(boost::iostreams::gzip_decompressor());
@@ -476,8 +480,16 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
         inpfile.close();
     }
     else {
-        data.ParseFromIstream(&inpfile);
-        inpfile.close();
+        struct stat stat_buf;
+        stat(filename.c_str(),&stat_buf);
+        size_t file_size=stat_buf.st_size;
+        auto fd=open(filename.c_str(), O_RDONLY);
+        uint8_t* maped_file=(uint8_t*)mmap(nullptr, file_size, PROT_READ, MAP_SHARED,fd , 0);
+        close(fd);
+        google::protobuf::io::CodedInputStream input(maped_file,file_size);
+        input.SetTotalBytesLimit(file_size*4, file_size*4);
+        data.ParseFromCodedStream(&input);
+        munmap(maped_file, file_size);
     }
 
     //check if the pb has a metadata field
@@ -1007,10 +1019,12 @@ std::vector<Mutation_Annotated_Tree::Node*> Mutation_Annotated_Tree::Tree::bread
 
     std::queue<Node*> remaining_nodes;
     remaining_nodes.push(node);
+    
     while (remaining_nodes.size() > 0) {
         Node* curr_node = remaining_nodes.front();
         traversal.push_back(curr_node);
         remaining_nodes.pop();
+        
         for (auto c: curr_node->children) {
             remaining_nodes.push(c);
         }
@@ -1096,26 +1110,16 @@ void Mutation_Annotated_Tree::Tree::condense_leaves(std::vector<std::string> mis
 }
 
 void Mutation_Annotated_Tree::Tree::uncondense_leaves() {
-    static tbb::affinity_partitioner ap;
-    tbb::reader_writer_lock tbb_rw_lock;
-    tbb::parallel_for(tbb::blocked_range<size_t>(0, condensed_nodes.size()),
-            [&](tbb::blocked_range<size_t> r) {
-            for (size_t it = r.begin(); it < r.end(); it++) {
-                auto cn = condensed_nodes.begin();
-                std::advance(cn, it);
-
-                tbb_rw_lock.lock_read();
+            for (auto cn = condensed_nodes.begin(); cn!=condensed_nodes.end(); cn++) {
+                
                 auto n = get_node(cn->first);
-                tbb_rw_lock.unlock();
                 auto par = (n->parent != NULL) ? n->parent : n;
 
                 size_t num_samples = cn->second.size();
 
                 if (num_samples > 0) {
-                    tbb_rw_lock.lock();
                     all_nodes.erase(n->identifier);
                     all_nodes[cn->second[0]] = n;
-                    tbb_rw_lock.unlock();
                     
                     n->identifier = cn->second[0];
                 }
@@ -1126,17 +1130,14 @@ void Mutation_Annotated_Tree::Tree::uncondense_leaves() {
                     for (size_t k=0; k < num_annotations; k++) {
                         new_n->clade_annotations.emplace_back("");
                     }
-                    tbb_rw_lock.lock();
                     all_nodes[cn->second[s]] = new_n;
-                    tbb_rw_lock.unlock();
                     
                     par->children.push_back(new_n);
                     for (auto m: n->mutations) {
                         new_n->add_mutation(m.copy());
                     }
                 }
-            }
-        }, ap);
+	    }
     condensed_nodes.clear();
     condensed_leaves.clear();
 }

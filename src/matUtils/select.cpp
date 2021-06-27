@@ -350,6 +350,7 @@ std::vector<std::string> fill_random_samples(MAT::Tree* T, std::vector<std::stri
     //expand the current sample selection with random samples until it is the indicated size.
     //alternatively, prune random samples from the selection until it is the indicated size, as necessary.
     std::set<std::string> choices;
+    std::srand(std::time(nullptr));
     fprintf(stderr, "Selected sample set is %ld samples with %ld requested subtree size; ", current_samples.size(), target_size);
     if (current_samples.size() > target_size) {
         fprintf(stderr, "removing random samples\n");

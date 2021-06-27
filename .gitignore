@@ -5,3 +5,12 @@ scripts/__pycache__
 cmake-3*
 oneTBB-*
 protobuf-*
+outdir
+testout
+.gdb_history
+testout
+test_data
+.vscode
+.cache
+*.pb
+a.out

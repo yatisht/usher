@@ -1,4 +1,5 @@
 #include "introduce.hpp"
+#include "select.hpp"
 #include <boost/date_time/gregorian/gregorian.hpp>
 
 po::variables_map parse_introduce_command(po::parsed_options parsed) {
@@ -17,6 +18,8 @@ po::variables_map parse_introduce_command(po::parsed_options parsed) {
         "Set to calculate additional phylogenetic trait association statistics for whole regions and individual introductions. WARNING: Adds significantly to runtime.")
         ("clade-regions,c", po::value<std::string>()->default_value(""),
         "Set to optionally record, for each clade root in the tree, the support for that clade root being IN each region in the input, as a tsv with the indicated name.")
+        ("date-metadata,M", po::value<std::string>()->default_value(""),
+        "Pass a TSV or CSV containing a 'date' column to use for date information. If not used, date will be inferred from the sample name where possible.")
         ("output,o", po::value<std::string>()->required(),
         "Name of the file to save the introduction information to.")
         ("origin-confidence,C", po::value<float>()->default_value(0.5),
@@ -390,8 +393,9 @@ std::map<std::string, float> get_assignments(MAT::Tree* T, std::unordered_set<st
     return assignments;
 }
 
-boost::gregorian::date get_nearest_date(MAT::Tree* T, MAT::Node* n, std::set<std::string>* in_samples, std::map<std::string, std::string> datemeta = {}) {
+std::pair<boost::gregorian::date,boost::gregorian::date> get_nearest_date(MAT::Tree* T, MAT::Node* n, std::set<std::string>* in_samples, std::map<std::string, std::string> datemeta = {}) {
     boost::gregorian::date earliest = boost::gregorian::day_clock::universal_day();
+    boost::gregorian::date latest = boost::gregorian::date(2019,11,30);
     for (auto l: T->get_leaves_ids(n->identifier)) {
         if (in_samples->find(l) != in_samples->end()) {
             if (datemeta.size() > 0) {
@@ -399,6 +403,9 @@ boost::gregorian::date get_nearest_date(MAT::Tree* T, MAT::Node* n, std::set<std
                     auto leafdate = boost::gregorian::from_string(datemeta.find(l)->second);
                     if (leafdate < earliest) {
                         earliest = leafdate;
+                    }
+                    if (leafdate > latest) {
+                        latest = leafdate;
                     }
                 }
             } else {
@@ -419,20 +426,22 @@ boost::gregorian::date get_nearest_date(MAT::Tree* T, MAT::Node* n, std::set<std
                     if (leafdate < earliest) {
                         earliest = leafdate;
                     }
+                    if (leafdate > latest) {
+                        latest = leafdate;
+                    }
                 }
             }
         }
     }
-    return earliest;
+    return std::pair<boost::gregorian::date,boost::gregorian::date> (earliest,latest);
 }
 
-std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, std::vector<std::string>> sample_regions, bool add_info, std::string clade_output, float min_origin_confidence, std::string dump_assignments, bool eval_uncertainty) {
+std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, std::vector<std::string>> sample_regions, bool add_info, std::string clade_output, float min_origin_confidence, std::string dump_assignments, bool eval_uncertainty, std::map<std::string, std::string> datemeta = {}) {
     //for every region, independently assign IN/OUT states
     //and save these assignments into a map of maps
     //so we can check membership of introduction points in each of the other groups
     //this allows us to look for migrant flow between regions
     std::map<std::string, std::map<std::string, float>> region_assignments;
-    std::map<std::string, std::string> date_tracker;
     //TODO: This could be parallel for a significant speedup when dozens or hundreds of regions are being passed in
     //I also suspect I could use pointers for the assignment maps to make this more memory efficient
     for (auto ms: sample_regions) {
@@ -482,7 +491,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
     //now that we have all assignments sorted out, pass over it again
     //looking for introductions.
     std::vector<std::string> outstrs;
-    std::string header = "sample\tintroduction_node\tintro_confidence\tparent_confidence\tdistance\toccurred_before";
+    std::string header = "sample\tintroduction_node\tintroduction_rank\tgrowth_score\tearliest_date\tlatest_date\tcluster_size\tcluster_span\tintro_confidence\tparent_confidence\tdistance";
     if (region_assignments.size() > 1) {
         header += "\tregion\torigins\torigins_confidence";
     }
@@ -503,6 +512,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
         std::set<std::string> sampleset (samples.begin(), samples.end());
         std::map<std::string, size_t> recorded_mc;
         std::map<std::string, float> recorded_ai;
+        std::map<std::string,std::map<std::string,std::string>> clusters;
         //its time to identify introductions. we're going to do this by iterating
         //over all of the leaves. For each sample, rsearch back until it hits a 0 assignment
         //then record the last encountered 1 assignment as the point of introduction
@@ -624,19 +634,8 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                         }
                     }
                     std::stringstream ostr;
-                    std::string ldatestr;
-                    if (date_tracker.find(a->identifier) != date_tracker.end()) {
-                        ldatestr = date_tracker.find(a->identifier)->second;
-                    } else {
-                        // timer.Start();
-                        // fprintf(stderr, "Getting date for internal node %s\n", a->identifier.c_str());
-                        boost::gregorian::date ldate = get_nearest_date(T, a, &sampleset);
-                        ldatestr = boost::gregorian::to_simple_string(ldate);
-                        date_tracker[a->identifier] = ldatestr;
-                        // fprintf(stderr, "Date gotten in %ld msec\n", timer.Stop());
-                    }
                     if (region_assignments.size() == 1) {
-                        ostr << s << "\t" << last_encountered << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed << "\t" << ldatestr << "\t" << intro_clades << "\t" << intro_mut_path;
+                        ostr << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed << "\t" << intro_clades << "\t" << intro_mut_path;
                         if (eval_uncertainty) {
                             ostr << "\t" << assignments.find(s)->second;
                         }
@@ -646,7 +645,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                             ostr << "\n";
                         }
                     } else {
-                        ostr << s << "\t" << last_encountered << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed << "\t" << ldatestr << "\t" << region << "\t" << origins << "\t" << origins_cons.str() << "\t" << intro_clades << "\t" << intro_mut_path;
+                        ostr << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed << "\t" << region << "\t" << origins << "\t" << origins_cons.str() << "\t" << intro_clades << "\t" << intro_mut_path;
                         if (eval_uncertainty) {
                             ostr << "\t" << assignments.find(s)->second;
                         }
@@ -656,7 +655,9 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                             ostr << "\n";
                         }
                     }
-                    outstrs.push_back(ostr.str());
+
+                    //outstrs.push_back(ostr.str());
+                    clusters[last_encountered][s] = ostr.str();
                     total_processed++;
                     break;
                 } else {
@@ -667,6 +668,60 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                 }
             }
         }
+        std::vector<float> growthv;
+        std::map<float,std::vector<std::string>> cgm;
+        std::map<std::string, std::string> date_tracker;
+        for (auto cs: clusters) {
+            std::string ldatestr;
+            // timer.Start();
+            // fprintf(stderr, "Getting date for internal node %s\n", a->identifier.c_str());
+            MAT::Node* nn = T->get_node(cs.first);
+            std::pair<boost::gregorian::date,boost::gregorian::date> ldates = get_nearest_date(T, nn, &sampleset, datemeta);
+            ldatestr = boost::gregorian::to_simple_string(ldates.first) + "\t" + boost::gregorian::to_simple_string(ldates.second);
+            date_tracker[cs.first] = ldatestr;
+            // fprintf(stderr, "Date gotten in %ld msec\n", timer.Stop());
+            float gv;
+            boost::gregorian::days diff(ldates.second - ldates.first);
+            gv = static_cast<float>(cs.second.size()) / static_cast<float>((int)(diff.days()/7)+1);
+            growthv.emplace_back(gv);
+            cgm[gv].emplace_back(cs.first);
+        }
+        assert (growthv.size() == clusters.size());
+        //sort by default goes from smallest to largest
+        //I want to rank by largest to smallest, so this is reversed.
+        //tiebreaker ordering has to do with the order of samples encountered.
+        std::sort(growthv.begin(), growthv.end());
+        std::reverse(growthv.begin(), growthv.end());
+        auto rm = std::unique(growthv.begin(), growthv.end());
+        growthv.erase(rm, growthv.end());
+        size_t rankr = 0;
+        for (size_t i = 0; i < growthv.size(); i++) {
+            float gv = growthv[i];
+            for (auto cid: cgm[gv]) {
+                //calculate the total span of branch lengths across this cluster.
+                std::vector<std::string> cs;
+                for (auto ss: clusters[cid]) {
+                    cs.push_back(ss.first);
+                }
+                size_t span;
+                if (cs.size() > 1) {
+                    span = MAT::get_subtree(*T,cs).get_parsimony_score();
+                } else {
+                    span = T->get_node(cs[0])->mutations.size();
+                }
+                
+                //yes, I'm iterating over this multiple times. Nothing is ever easy.
+                rankr++;
+                for (auto ss: clusters[cid]) {
+                    std::stringstream cout;
+                    //in order, first seven columns are
+                    //sample id, cluster id, cluster rank, cluster growth score, earliest date, latest date, cluster size
+                    //then the rest are the by-sample information (path, distance of this specific sample, yadda yadda)
+                    cout << ss.first << "\t" << cid << "\t" << rankr << "\t" << gv << "\t" << date_tracker[cid] << "\t" << clusters[cid].size() << "\t" << span << "\t" << ss.second;
+                    outstrs.push_back(cout.str());
+                }
+            }
+        }   
         fprintf(stderr, "Region %s complete, %d samples processed.\n", region.c_str(), total_processed);
     }
     if (dump_assignments != "") {
@@ -695,6 +750,7 @@ void introduce_main(po::parsed_options parsed) {
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string samples_filename = vm["population-samples"].as<std::string>();
     std::string clade_regions = vm["clade-regions"].as<std::string>();
+    std::string metafile = vm["date-metadata"].as<std::string>();
     bool add_info = vm["additional-info"].as<bool>();
     std::string output_file = vm["output"].as<std::string>();
     std::string dump_assignments = vm["dump-assignments"].as<std::string>();
@@ -709,7 +765,21 @@ void introduce_main(po::parsed_options parsed) {
       T.uncondense_leaves();
     }
     auto region_map = read_two_column(samples_filename);
-    auto outstrings = find_introductions(&T, region_map, add_info, clade_regions, moconf, dump_assignments, leafconf);
+    std::map<std::string,std::string> datemeta = {};
+    if (metafile.size() > 0) {
+        std::set<std::string> samples;
+        for (auto kv: region_map) {
+            samples.insert(kv.second.begin(), kv.second.end());
+        }
+        auto metad = read_metafile(metafile, samples);
+        if (metad.find("date") != metad.end()) {
+            datemeta = metad["date"];
+        } else {
+            fprintf(stderr, "ERROR: Metadata file does not contain required column 'date'; exiting\n");
+            exit(1);
+        }
+    }
+    auto outstrings = find_introductions(&T, region_map, add_info, clade_regions, moconf, dump_assignments, leafconf, datemeta);
 
     std::ofstream of;
     of.open(output_file);
