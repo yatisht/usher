@@ -19,7 +19,7 @@ nuc_one_hot increment_mutation_count(Mutation_Count_Change_Collection &out,
                          const Mutation_Count_Change& change_in,int& score_change) ;
 
 nuc_one_hot decrement_increment_mutation_count(
-    const MAT::Mutation &parent_mutation, Mutation_Count_Change change_in,
+    const MAT::Mutation &parent_mutation, const Mutation_Count_Change &change_in,
     Mutation_Count_Change_Collection &parent_node_mutation_count_change,
     int &score_change);
 

@@ -2,7 +2,7 @@ sudo -E apt update
 sudo -E apt-get --yes install build-essential \
  wget cmake  libboost-all-dev \
  libprotoc-dev libprotoc-dev protobuf-compiler \
- mafft rsync
+ mafft rsync libtbb-dev
 
 #download and install TBB
 wget https://github.com/oneapi-src/oneTBB/archive/2019_U9.tar.gz 

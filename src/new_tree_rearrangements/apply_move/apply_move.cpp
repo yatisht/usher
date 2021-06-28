@@ -20,6 +20,7 @@ void clean_up_src_states(MAT::Node *src,
         nuc_one_hot old_state = mut.get_mut_one_hot();
         //Change state if it can now follow parent state, and the old state is inconsistent
         if (new_state && old_state != new_state) {
+            src->changed=true;
             //have_change = true;
             mut.set_mut_one_hot(new_state);
             changed_state.emplace_back(mut, old_state);
