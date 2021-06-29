@@ -521,15 +521,18 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
             //timer.Start();
             //total_processed++;
             //everything in this vector is going to be considered 1 (IN) this region
+            // fprintf(stderr, "DEBUG: Processing sample %s\n", s.c_str());
             std::string last_encountered = s;
             MAT::Node* last_node = NULL;
             float last_anc_state = 1;
+            // fprintf(stderr, "DEBUG: Checking if sample is in tree\n");
             auto node = T->get_node(s);
-            // if (node == NULL) {
-                // fprintf(stderr, "WARNING: query sample %s not found in tree. continuing\n", s.c_str());
-                // continue;
-            // }
+            if (node == NULL) {
+                fprintf(stderr, "WARNING: query sample %s not found in tree. continuing\n", s.c_str());
+                continue;
+            }
             size_t traversed = node->mutations.size();
+            // fprintf(stderr, "DEBUG: Sample information collected, has %ld mutations\n", traversed);
             for (auto a: T->rsearch(s,false)) {
                 float anc_state;
                 if (a->is_root()) {
@@ -538,6 +541,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                     anc_state = 0;
                 } else {
                     //every node should be in assignments at this point.
+                    // fprintf(stderr, "DEBUG: checking ancestor %s\n", a->identifier.c_str());
                     anc_state = assignments.find(a->identifier)->second;
                 }
                 if (anc_state < min_origin_confidence) {
@@ -668,6 +672,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                 }
             }
         }
+        // fprintf(stderr, "DEBUG: Sample data processed\n");
         std::vector<float> growthv;
         std::map<float,std::vector<std::string>> cgm;
         std::map<std::string, std::string> date_tracker;
@@ -686,6 +691,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
             growthv.emplace_back(gv);
             cgm[gv].emplace_back(cs.first);
         }
+        // fprintf(stderr, "DEBUG: Dates and growth scores handled\n");
         assert (growthv.size() == clusters.size());
         //sort by default goes from smallest to largest
         //I want to rank by largest to smallest, so this is reversed.
@@ -722,7 +728,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                 } else {
                     span = T->get_node(cs[0])->mutations.size();
                 }
-                
+                // fprintf(stderr, "DEBUG: Cluster span evaluated\n");
                 //yes, I'm iterating over this multiple times. Nothing is ever easy.
                 rankr++;
                 for (auto ss: clusters[cid]) {
