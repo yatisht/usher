@@ -211,13 +211,19 @@ void write_roho_table(MAT::Tree& T, std::string roho_file) {
     fprintf(stderr, "Calculating and writing RoHo values to output %s\n", roho_file.c_str());
     std::ofstream rhfile;
     rhfile.open(roho_file);
-    rhfile << "mutation\tparent_node\toccurrence_node\toffspring_with\toffspring_without\n";
+    rhfile << "mutation\tparent_node\tchild_count\toccurrence_node\toffspring_with\toffspring_without\n";
     for (auto n: T.depth_first_expansion()) {
         //candidate mutations maps each mutation to its child where it occurred
         //child counter maps the number of offspring of a given child
         //together, they store the results we need.
         std::map<std::string,std::string> candidate_mutations;
         std::map<std::string,size_t> child_counter;
+        // //temporary check, let's try skipping nodes with >2 children and see what that does.
+        // //there are four alternatives 1. drop these occurrences (lose a lot of tree) 2. pick one at random to compare 3. pick biggest to compare 4. compare to the mean of the others
+        // if (n->children.size() > 2) {
+        //     continue;
+        // }
+
         //step one: collect all potential candidate nodes.
         for (auto c: n->children) {
             if (!c->is_leaf()) {
@@ -265,16 +271,18 @@ void write_roho_table(MAT::Tree& T, std::string roho_file) {
         }
         //step 3: actually record the results.
         for (auto ms: candidate_mutations) {
+            size_t non_c = 0;
             size_t sum_non = 0;
             size_t sum_wit = 0;
             for (auto cs: child_counter) {
                 if (cs.first != ms.second) {
                     sum_non += cs.second;
+                    non_c++;
                 } else {
                     sum_wit += cs.second;
                 }
             }
-            rhfile << ms.first << "\t" << n->identifier << "\t" << ms.second << "\t" << sum_wit << "\t" << sum_non << "\n";
+            rhfile << ms.first << "\t" << n->identifier << "\t" << n->children.size() << "\t" << ms.second << "\t" << sum_wit << "\t" << sum_non/non_c << "\n";
         }
     }
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
