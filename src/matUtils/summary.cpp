@@ -21,6 +21,8 @@ po::variables_map parse_summary_command(po::parsed_options parsed) {
         "Write a tsv listing all mutations in the tree and their occurrence count.")
         ("aberrant,a", po::value<std::string>()->default_value(""),
         "Write a tsv listing duplicate samples and internal nodes with no mutations and/or branch length 0.")
+        ("calculate-roho,R", po::value<std::string>()->default_value(""),
+        "Write a tsv containing the distribution of ROHO values calculated for all homoplasic mutations.")
         ("get-all,A", po::bool_switch(),
         "Use default filenames (samples.txt, clades.txt, etc) and save all summary tables to the output directory.")
         ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
@@ -195,6 +197,90 @@ void write_sample_clades_table (MAT::Tree& T, std::string sample_clades) {
     scfile.close();
 }
 
+void write_roho_table(MAT::Tree& T, std::string roho_file) {
+    /*
+    RoHo is a metric used for SARS-CoV-2 genetic analysis described in van Dorp et al 2021 (doi: 10.1038/s41467-020-19818-2)
+    Essentially it is the proportion of offspring of a parent node which have a mutation vs do not have a mutation of interest
+    It is 1 when the mutation is irrelevant to growth, with a significant amount of stochasticity to it
+    meaning homoplasy is required to replicate and give statistical significance.
+
+    This function calculates these ROHO values for every mutation which occurs across the entire tree, including single occurrences, where 
+    possible, to allow for downstream analysis.
+    */
+    timer.Start();
+    fprintf(stderr, "Calculating and writing RoHo values to output %s\n", roho_file.c_str());
+    std::ofstream rhfile;
+    rhfile.open(roho_file);
+    rhfile << "mutation\tparent_node\toccurrence_node\toffspring_with\toffspring_without\n";
+    for (auto n: T.depth_first_expansion()) {
+        //candidate mutations maps each mutation to its child where it occurred
+        //child counter maps the number of offspring of a given child
+        //together, they store the results we need.
+        std::map<std::string,std::string> candidate_mutations;
+        std::map<std::string,size_t> child_counter;
+        //step one: collect all potential candidate nodes.
+        for (auto c: n->children) {
+            if (!c->is_leaf()) {
+                //mutations occurring on any non-leaf child are potentially valid RoHo targets for this node.
+                for (auto m: c->mutations) {
+                    //candidate_mutations.insert(m.get_string());
+                    //assumption each mutation only occurs for one child. This is a good assumption, as if its broken, the tree is malformed.
+                    candidate_mutations[m.get_string()] = c->identifier;
+                }
+            }
+        }
+        if (candidate_mutations.size() == 0) {
+            continue;
+        }
+        //step two: remove candidates who do not 1. have at least two offspring associated with them 2. do not recur secondarily at any point after this parent
+        for (auto c: n->children) {
+            if (c->is_leaf()) {
+                continue;
+            }
+            size_t cc = 0;
+            for (auto dn: T.depth_first_expansion(c)) {
+                if (dn->identifier == c->identifier) {
+                    continue;
+                }
+                if (dn->is_leaf()) {
+                    cc++;
+                }
+                for (auto m: dn->mutations) {
+                    candidate_mutations.erase(m.get_string());
+                    // auto find = candidate_mutations.get(m.get_string());
+                    // if (find != candidate_mutations.end()) {
+                    //     //remove mutations which recur secondarily at any point in the descendents from consideration.
+                    //     candidate_mutations.erase(find);
+                    // }
+                }
+            }
+            //don't bother recording values of 0 or 1.
+            if (cc > 1) {
+                child_counter[c->identifier] = cc;
+            }
+        }
+        //we need at least one valid candidate and at least two non-leaf children to continue.
+        if ((candidate_mutations.size() == 0) || (child_counter.size() <= 1)) {
+            continue;
+        }
+        //step 3: actually record the results.
+        for (auto ms: candidate_mutations) {
+            size_t sum_non = 0;
+            size_t sum_wit = 0;
+            for (auto cs: child_counter) {
+                if (cs.first != ms.second) {
+                    sum_non += cs.second;
+                } else {
+                    sum_wit += cs.second;
+                }
+            }
+            rhfile << ms.first << "\t" << n->identifier << "\t" << ms.second << "\t" << sum_wit << "\t" << sum_non << "\n";
+        }
+    }
+    fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+    rhfile.close();
+}
+
 void summary_main(po::parsed_options parsed) {
     po::variables_map vm = parse_summary_command(parsed);
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
@@ -214,6 +300,7 @@ void summary_main(po::parsed_options parsed) {
     std::string sample_clades = dir_prefix + vm["sample-clades"].as<std::string>();
     std::string mutations = dir_prefix + vm["mutations"].as<std::string>();
     std::string aberrant = dir_prefix + vm["aberrant"].as<std::string>();
+    std::string roho = dir_prefix + vm["calculate-roho"].as<std::string>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
     bool get_all = vm["get-all"].as<bool>();
     if (get_all) {
@@ -256,6 +343,10 @@ void summary_main(po::parsed_options parsed) {
     }
     if (sample_clades != dir_prefix) {
         write_sample_clades_table(T, sample_clades);
+        no_print = false;
+    }
+    if (roho != dir_prefix) {
+        write_roho_table(T, roho);
         no_print = false;
     }
         
