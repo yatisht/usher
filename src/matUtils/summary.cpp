@@ -225,9 +225,11 @@ void write_roho_table(MAT::Tree& T, std::string roho_file) {
         // }
 
         //step one: collect all potential candidate nodes.
+        size_t ccheck = 0;
         for (auto c: n->children) {
             if (!c->is_leaf()) {
                 //mutations occurring on any non-leaf child are potentially valid RoHo targets for this node.
+                ccheck++;
                 for (auto m: c->mutations) {
                     //candidate_mutations.insert(m.get_string());
                     //assumption each mutation only occurs for one child. This is a good assumption, as if its broken, the tree is malformed.
@@ -282,7 +284,7 @@ void write_roho_table(MAT::Tree& T, std::string roho_file) {
                     sum_wit += cs.second;
                 }
             }
-            rhfile << ms.first << "\t" << n->identifier << "\t" << n->children.size() << "\t" << ms.second << "\t" << sum_wit << "\t" << sum_non/non_c << "\n";
+            rhfile << ms.first << "\t" << n->identifier << "\t" << ccheck << "\t" << ms.second << "\t" << sum_wit << "\t" << static_cast<float>(sum_non/non_c) << "\n";
         }
     }
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
