@@ -98,6 +98,12 @@ struct Recomb_Node {
     int node_parsimony;
     int parsimony;
     char is_sibling;
+    Recomb_Node() {
+        name = "";
+        node_parsimony = -1;
+        parsimony = -1;
+        is_sibling = false;
+    }
     Recomb_Node(std::string n, int np, int p, char s) : name(n), node_parsimony(np), parsimony(p), is_sibling(s)
     {}
     inline bool operator< (const Recomb_Node& n) const {
@@ -285,6 +291,12 @@ int main(int argc, char** argv) {
     
     fprintf(stderr, "Running placement individually for %zu branches to identify potential recombination events.\n", e-s);
 
+    std::unordered_map<MAT::Node*, size_t> tree_num_leaves;
+
+    for (auto n: bfs) {
+        tree_num_leaves[n] = T.get_num_leaves(n);
+    }
+
     size_t num_done = 0;
     for (size_t idx = s; idx < e; idx++) {
         auto nid_to_consider = nodes_to_consider_vec[idx];
@@ -329,7 +341,7 @@ int main(int argc, char** argv) {
         tbb::parallel_for( tbb::blocked_range<size_t>(0, total_nodes),
                 [&](tbb::blocked_range<size_t> r) {
                 for (size_t k=r.begin(); k<r.end(); ++k) {
-                if (T.get_num_leaves(bfs[k]) < num_descendants) {
+                if (tree_num_leaves[bfs[k]] < num_descendants) {
                 continue;
                 }
 
@@ -364,8 +376,11 @@ int main(int argc, char** argv) {
 
         std::vector<Recomb_Interval> valid_pairs;
         bool has_recomb = false;
+
+        size_t at = 0;
         for (size_t i = 0; i<num_mutations; i++) {
             for (size_t j=i; j<num_mutations; j++) {
+                fprintf(stderr, "\r%zu/%zu", ++at, num_mutations*(1+num_mutations)/2);
                 Pruned_Sample donor("donor");
                 Pruned_Sample acceptor("acceptor");
 
@@ -408,7 +423,7 @@ int main(int argc, char** argv) {
 
                             for (size_t k=r.begin(); k<r.end(); ++k) {
                             size_t num_mut = 0;
-                            if (T.get_num_leaves(bfs[k]) < num_descendants) {
+                            if ((tree_num_leaves[bfs[k]] < num_descendants) || (T.is_ancestor(nid_to_consider,bfs[k]->identifier))) {
                             continue;
                             }
                             // Is placement as sibling
@@ -485,7 +500,7 @@ int main(int argc, char** argv) {
                     tbb::parallel_for( tbb::blocked_range<size_t>(0, total_nodes),
                             [&](tbb::blocked_range<size_t> r) {
                             for (size_t k=r.begin(); k<r.end(); ++k) {
-                               if (T.get_num_leaves(bfs[k]) < num_descendants) {
+                               if ((tree_num_leaves[bfs[k]] < num_descendants) || (T.is_ancestor(nid_to_consider,bfs[k]->identifier))) {
                                    continue;
                                }
                                
@@ -557,20 +572,37 @@ int main(int argc, char** argv) {
                         }, ap);
                 }
                 
-                std::sort (donor_nodes.begin(), donor_nodes.end());
-                std::sort (acceptor_nodes.begin(), acceptor_nodes.end());
+                tbb::parallel_sort (donor_nodes.begin(), donor_nodes.end());
+                tbb::parallel_sort (acceptor_nodes.begin(), acceptor_nodes.end());
+
+
+                if (donor_nodes.size() > 1000) {
+                    donor_nodes.resize(1000);
+                }
+                
+                if (acceptor_nodes.size() > 1000) {
+                    acceptor_nodes.resize(1000);
+                }
+
 
                 // to print any pair of breakpoint interval exactly once for
                 // multiple donor-acceptor pairs
                 bool has_printed = false;
+
                 for (auto d: donor_nodes) {
+                    if (T.is_ancestor(nid_to_consider,d.name)) {
+                        continue;
+                    }
                     for (auto a:acceptor_nodes) {
+                        if (T.is_ancestor(nid_to_consider,a.name)) {
+                           continue;
+                        }
                         // Ensure donor and acceptor are not the same and
                         // neither of them is a descendant of the recombinant
                         // node total parsimony is less than the maximum allowed
                         if ((d.name!=a.name) && (d.name!=nid_to_consider) && (a.name!=nid_to_consider) && 
-                                (!T.is_ancestor(nid_to_consider,d.name)) && (!T.is_ancestor(nid_to_consider,a.name)) 
-                                && (orig_parsimony >= d.parsimony + a.parsimony + parsimony_improvement)) {
+                                //(!T.is_ancestor(nid_to_consider,d.name)) && (!T.is_ancestor(nid_to_consider,a.name)) && 
+                                (orig_parsimony >= d.parsimony + a.parsimony + parsimony_improvement)) {
                             Pruned_Sample donor("curr-donor");
                             donor.sample_mutations.clear();
                             acceptor.sample_mutations.clear();
@@ -631,7 +663,9 @@ int main(int argc, char** argv) {
                                 }
                             }
 
+                            //tbb_lock.lock();
                             valid_pairs.push_back(Recomb_Interval(d, a, start_range_low, start_range_high, end_range_low, end_range_high));
+                            //tbb_lock.unlock();
 
                             has_recomb = true;
                             has_printed = true;
@@ -642,9 +676,9 @@ int main(int argc, char** argv) {
                         break;
                     }
                 }
-
             }
         }
+        fprintf(stderr, "\n");
 
         valid_pairs = combine_intervals(valid_pairs);
         //print combined pairs 
