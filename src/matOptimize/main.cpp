@@ -370,22 +370,15 @@ int main(int argc, char** argv) {
                 total+=d.second.size();
             }
             tbb::mutex tbb_lock;
-            tbb::parallel_for(tbb::blocked_range<size_t>(0, pos_to_nid.size()),
-                    [&](tbb::blocked_range<size_t> r) {
-                    for (size_t it = r.begin(); it < r.end(); it++) {
+            for (size_t it = 0; it < pos_to_nid.size(); it++) {
                     auto cn = pos_to_nid.begin();
                     std::advance(cn, it);
                     size_t num_elem = cn->second.size();
                     for (size_t i=0; i<num_elem; i++) {
-                    __sync_fetch_and_add(&at, 1);
-                    tbb_lock.lock();
-                    fprintf(stderr, "\r%zu/%zu", at, total); 
-//                    if (std::find(profitable_nodes.begin(), profitable_nodes.end(), 
-//                                Profitable_Node(cn->second[i],0)) != profitable_nodes.end()) {
-//                            tbb_lock.unlock();
-//                            continue;
-//                    }
-                    tbb_lock.unlock();
+                    //__sync_fetch_and_add(&at, 1);
+                    //tbb_lock.lock();
+                    fprintf(stderr, "\r%zu/%zu", ++at, total); 
+                    //tbb_lock.unlock();
                     auto n = T.get_node(cn->second[i]);
                     if (n->level < 2) {
                         continue;
@@ -393,16 +386,18 @@ int main(int argc, char** argv) {
 
                     for (auto m: n->mutations) {
                         if (nid_has_changed[n->identifier] && (m.ref_nuc == m.mut_nuc)) {
-                            tbb_lock.lock();
+                            //tbb_lock.lock();
                             profitable_nodes.emplace_back(Profitable_Node(n->identifier, 0));
-                            tbb_lock.unlock();
+                            //tbb_lock.unlock();
                         }
                     }
 
                     int max_profit = 0;
 
                     //bool has_inserted = false;
-                    for (size_t j=0; j<num_elem; j++) {
+                    tbb::parallel_for(tbb::blocked_range<size_t>(0, num_elem),
+                        [&](tbb::blocked_range<size_t> r) {
+                        for (size_t j = r.begin(); j < r.end(); j++) {
                         auto n2 = T.get_node(cn->second[j]);
                         if (n == n2) {
                             continue;
@@ -465,21 +460,25 @@ int main(int argc, char** argv) {
                            
                            int profit = n->mutations.size() - best_set_difference;
                            if (profit > max_profit) {
-                               max_profit = profit;
+                               tbb_lock.lock();
+                               if (profit > max_profit) {
+                                   max_profit = profit;
+                               }
+                               tbb_lock.unlock();
                            }
 
                         }
                     }
+                    }, ap);
                     
                     if (max_profit > 0) {
-                        tbb_lock.lock();
+                        //tbb_lock.lock();
                         profitable_nodes.emplace_back(Profitable_Node(n->identifier, max_profit));
                         //profitable_nodes.emplace_back(Profitable_Node(n2->identifier, max_profit));
-                        tbb_lock.unlock();
+                        //tbb_lock.unlock();
                     }
                     }
-                    }
-                    }, ap);
+            }
             fprintf(stderr, "\n"); 
 
         }
