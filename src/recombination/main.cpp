@@ -199,7 +199,7 @@ int main(int argc, char** argv) {
     
     fprintf(stderr, "Finding the branches with number of mutations equal to or exceeding %u.\n", branch_len);
     auto bfs = T.breadth_first_expansion();
-    
+
     tbb::concurrent_unordered_set<std::string> nodes_to_consider;
 
     if (samples_filename != "") {
@@ -279,6 +279,17 @@ int main(int argc, char** argv) {
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     
     timer.Start();
+
+    std::unordered_map<MAT::Node*, size_t> tree_num_leaves;
+
+    for (int i=int(bfs.size())-1; i>=0; i--) {
+        auto n = bfs[i];
+        size_t desc = 1;
+        for (auto child: n->children) {
+            desc += tree_num_leaves[child];
+        }
+        tree_num_leaves[n] = desc;
+    }
     
     size_t s = 0, e = nodes_to_consider.size();
     
@@ -290,12 +301,6 @@ int main(int argc, char** argv) {
     }
     
     fprintf(stderr, "Running placement individually for %zu branches to identify potential recombination events.\n", e-s);
-
-    std::unordered_map<MAT::Node*, size_t> tree_num_leaves;
-
-    for (auto n: bfs) {
-        tree_num_leaves[n] = T.get_num_leaves(n);
-    }
 
     size_t num_done = 0;
     for (size_t idx = s; idx < e; idx++) {
