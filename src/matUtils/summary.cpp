@@ -212,7 +212,7 @@ void write_roho_table(MAT::Tree& T, std::string roho_file) {
     std::ofstream rhfile;
     rhfile.open(roho_file);
     // rhfile << "mutation\tparent_node\tchild_count\toccurrence_node\toffspring_with\tmedian_offspring_without\tmean_offspring_without\tbranch_length_with\tbranch_length_without\n";
-    rhfile << "mutation\tparent_node\tchild_count\toccurrence_node\toffspring_with\tmedian_offspring_without\n";
+    rhfile << "mutation\tparent_node\tchild_count\toccurrence_node\toffspring_with\tmedian_offspring_without\tsingle_roho\n";
     for (auto n: T.depth_first_expansion()) {
         //candidate mutations maps each mutation to its child where it occurred
         //child counter maps the number of offspring of a given child
@@ -314,7 +314,7 @@ void write_roho_table(MAT::Tree& T, std::string roho_file) {
             //     }
             // }
             //rhfile << ms.first << "\t" << n->identifier << "\t" << ccheck << "\t" << ms.second << "\t" << sum_wit << "\t" << med_non << "\t" << mean_non << "\t" << sum_witblc << "\t" << sum_nonblc/non_blc << "\n";
-            rhfile << ms.first << "\t" << n->identifier << "\t" << ccheck << "\t" << ms.second << "\t" << sum_wit << "\t" << med_non << "\n";
+            rhfile << ms.first << "\t" << n->identifier << "\t" << ccheck << "\t" << ms.second << "\t" << sum_wit << "\t" << med_non << "\t" << (sum_wit/med_non) << "\n";
         }
     }
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
