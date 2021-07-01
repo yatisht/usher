@@ -211,7 +211,8 @@ void write_roho_table(MAT::Tree& T, std::string roho_file) {
     fprintf(stderr, "Calculating and writing RoHo values to output %s\n", roho_file.c_str());
     std::ofstream rhfile;
     rhfile.open(roho_file);
-    rhfile << "mutation\tparent_node\tchild_count\toccurrence_node\toffspring_with\toffspring_without\n";
+    // rhfile << "mutation\tparent_node\tchild_count\toccurrence_node\toffspring_with\tmedian_offspring_without\tmean_offspring_without\tbranch_length_with\tbranch_length_without\n";
+    rhfile << "mutation\tparent_node\tchild_count\toccurrence_node\toffspring_with\tmedian_offspring_without\n";
     for (auto n: T.depth_first_expansion()) {
         //candidate mutations maps each mutation to its child where it occurred
         //child counter maps the number of offspring of a given child
@@ -226,10 +227,13 @@ void write_roho_table(MAT::Tree& T, std::string roho_file) {
 
         //step one: collect all potential candidate nodes.
         size_t ccheck = 0;
+        std::map<std::string,size_t> blentracker;
+
         for (auto c: n->children) {
             if (!c->is_leaf()) {
                 //mutations occurring on any non-leaf child are potentially valid RoHo targets for this node.
                 ccheck++;
+                blentracker[c->identifier] = c->mutations.size();
                 for (auto m: c->mutations) {
                     //candidate_mutations.insert(m.get_string());
                     //assumption each mutation only occurs for one child. This is a good assumption, as if its broken, the tree is malformed.
@@ -273,18 +277,44 @@ void write_roho_table(MAT::Tree& T, std::string roho_file) {
         }
         //step 3: actually record the results.
         for (auto ms: candidate_mutations) {
-            size_t non_c = 0;
-            size_t sum_non = 0;
+            //size_t non_c = 0;
+            //size_t sum_non = 0;
+            std::vector<size_t> all_non;
             size_t sum_wit = 0;
             for (auto cs: child_counter) {
                 if (cs.first != ms.second) {
-                    sum_non += cs.second;
-                    non_c++;
+                    all_non.push_back(cs.second);
+                    //sum_non += cs.second;
+                    //non_c++;
                 } else {
                     sum_wit += cs.second;
                 }
             }
-            rhfile << ms.first << "\t" << n->identifier << "\t" << ccheck << "\t" << ms.second << "\t" << sum_wit << "\t" << static_cast<float>(sum_non/non_c) << "\n";
+            float med_non;
+            std::sort(all_non.begin(), all_non.end());
+            if (all_non.size() %2 == 0){
+                med_non = (all_non[all_non.size()/2-1] + all_non[all_non.size()/2]) / 2;
+            } else {
+                med_non = all_non[all_non.size()/2];
+            }
+            // float mean_non = 0;
+            // for (auto nv: all_non) {
+                // mean_non += nv;
+            // }
+            // mean_non = mean_non / all_non.size();
+            // size_t non_blc = 0;
+            // size_t sum_nonblc = 0;
+            // size_t sum_witblc = 0;
+            // for (auto bs: blentracker) {
+            //     if (bs.first != ms.second) {
+            //         sum_nonblc += bs.second;
+            //         non_blc++;
+            //     } else {
+            //         sum_witblc += bs.second;
+            //     }
+            // }
+            //rhfile << ms.first << "\t" << n->identifier << "\t" << ccheck << "\t" << ms.second << "\t" << sum_wit << "\t" << med_non << "\t" << mean_non << "\t" << sum_witblc << "\t" << sum_nonblc/non_blc << "\n";
+            rhfile << ms.first << "\t" << n->identifier << "\t" << ccheck << "\t" << ms.second << "\t" << sum_wit << "\t" << med_non << "\n";
         }
     }
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
