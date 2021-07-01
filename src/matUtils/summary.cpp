@@ -351,6 +351,7 @@ void summary_main(po::parsed_options parsed) {
         mutations = dir_prefix + "mutations.tsv";
         aberrant = dir_prefix + "aberrant.tsv";
         sample_clades = dir_prefix + "sample-clades.tsv";
+        roho = dir_prefix + "roho-values.tsv";
     }
     tbb::task_scheduler_init init(num_threads);
 
