@@ -17,12 +17,20 @@ State_Change_Collection merge(const State_Change_Collection &in1,
         in1_iter++;
         assert(in2.begin()->position != NEW_MARK);
     } else {
-        assert(in2.begin()->position == NEW_MARK);
+        if(in2.begin()->position != NEW_MARK){
+            if (in1_iter->position == NEW_SRC_MARK) {
+                in1_new = true;
+                in1_iter++;
+                assert(in2.begin()->position != NEW_SRC_MARK);
+            }else {
+                assert(in2.begin()->position==NEW_SRC_MARK);
+            }
+        }
     }
 
     for (const auto &in2_change : in2) {
         //skip the marker
-        if (in2_change.position==NEW_MARK) {
+        if (in2_change.position==NEW_MARK||in2_change.position==NEW_SRC_MARK) {
             continue;
         }
         while (in1_iter != in1_end &&
@@ -178,7 +186,7 @@ void set_state_from_parent(MAT::Node *node,
     MAT::Mutations_Collection new_mut;
     auto iter = parent_altered.begin();
     auto end = parent_altered.end();
-    if (iter->position == NEW_MARK) {
+    if (iter->position == NEW_MARK||iter->position ==NEW_SRC_MARK) {
         iter++;
     }
 #ifdef CHECK_STATE_REASSIGN

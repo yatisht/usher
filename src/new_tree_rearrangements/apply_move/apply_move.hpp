@@ -2,6 +2,7 @@
 #include "src/new_tree_rearrangements/tree_rearrangement_internal.hpp"
 //mark a state change collection is produced by merging in forward pass
 #define NEW_MARK -2
+#define NEW_SRC_MARK -3
 //Represent a change in parent state
 struct state_change {
     int position;
@@ -9,6 +10,7 @@ struct state_change {
     uint8_t old_state;
     uint8_t new_state;
     state_change() : position(NEW_MARK) {}
+    state_change(int pos) : position(pos) {}
     state_change(const MAT::Mutation &in, uint8_t old_state)
         : old_state(old_state) {
         position = in.get_position();

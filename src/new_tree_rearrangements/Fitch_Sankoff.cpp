@@ -194,7 +194,7 @@ void FS_backward_pass(const std::vector<backward_pass_range>& child_idx_range, s
             #endif
             set_state_from_cnt(nuc_count, boundary1_major_allele[node_idx]);
         }
-        assert(boundary1_major_allele[node_idx]&0xf);
+        //assert(boundary1_major_allele[node_idx]&0xf);
     }
 }
 //add mutation for non-binary nodes
@@ -222,13 +222,13 @@ static nuc_one_hot set_state(const forward_pass_range & this_range,uint8_t bound
     nuc_one_hot major_allele(boundary1_major_allele&0xf);
 
     nuc_one_hot boundary1_allele=boundary1_major_allele>>4;
-    assert(major_allele&this_state);
+    //assert(major_allele&this_state);
     //add if have allele whose count is exactly one less than major allele count,unless it only have one children to save memory, or major allele count is not the same as parent allele
     if (major_allele.is_ambiguous()||(boundary1_allele)||need_add) {
         MAT::Mutation to_add(base);
         to_add.set_par_mut(par_state, this_state);
         if (this_range.child_size<=1) {
-            assert(!boundary1_allele);
+            //assert(!boundary1_allele);
             boundary1_allele=(~major_allele)&0xf;
         }
         to_add.set_auxillary(major_allele,boundary1_allele);

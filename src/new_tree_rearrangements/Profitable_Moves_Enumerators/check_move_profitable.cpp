@@ -32,15 +32,18 @@ void output_result(MAT::Node *src, MAT::Node *dst, MAT::Node *LCA,
                int &parsimony_score_change, output_t &output,
                const std::vector<MAT::Node *> &node_stack_from_src,
                std::vector<MAT::Node *> &node_stack_from_dst,
-               std::vector<MAT::Node *> &node_stack_above_LCA) {
+               std::vector<MAT::Node *> &node_stack_above_LCA,int radius_left) {
     if (parsimony_score_change <= output.score_change) {
-        if (parsimony_score_change < output.score_change) {
+        if (parsimony_score_change < output.score_change||
+            ( parsimony_score_change == output.score_change&&
+                radius_left>output.radius_left)) {
             output.score_change = parsimony_score_change;
             for (auto t : output.moves) {
                 delete t;
             }
             output.moves.clear();
         }
+        output.radius_left=radius_left;
         Profitable_Moves_ptr_t new_move = new Profitable_Moves;
         new_move->score_change = parsimony_score_change;
         new_move->src_to_LCA = std::move(node_stack_from_src);
@@ -102,7 +105,7 @@ int check_move_profitable_dst_not_LCA(
     const range<Mutation_Count_Change>  &mutations,
     const Mutation_Count_Change_Collection &root_mutations_altered,
     int parsimony_score_change, output_t &output,
-    const std::vector<MAT::Node *>& node_stack_from_src
+    const std::vector<MAT::Node *>& node_stack_from_src,int radius
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
     ,
     const std::vector<Mutation_Count_Change_Collection> debug_from_src,
@@ -153,7 +156,7 @@ int check_move_profitable_dst_not_LCA(
 #endif
     assert((dst==LCA&&node_stack_above_LCA[0]==LCA)||node_stack_from_dst[0]==dst);
     output_result(src, dst, LCA, parsimony_score_change, output,
-              node_stack_from_src, node_stack_from_dst, node_stack_above_LCA);
+              node_stack_from_src, node_stack_from_dst, node_stack_above_LCA,radius);
     return parsimony_score_change;
 }
 
@@ -163,7 +166,7 @@ int check_move_profitable_LCA(
     const Mutation_Count_Change_Collection &root_mutations_altered,
     int parsimony_score_change,
     const std::vector<MAT::Node *> &node_stack_from_src,
-     output_t &output
+     output_t &output,int radius
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
     ,
     const std::vector<Mutation_Count_Change_Collection> &debug_above_LCA,
@@ -191,6 +194,6 @@ int check_move_profitable_LCA(
     #endif
     std::vector<MAT::Node*> ignored;
     output_result(src, LCA, LCA, parsimony_score_change, output,
-              node_stack_from_src, ignored, node_stack_above_LCA);
+              node_stack_from_src, ignored, node_stack_above_LCA,radius);
     return parsimony_score_change;
 }

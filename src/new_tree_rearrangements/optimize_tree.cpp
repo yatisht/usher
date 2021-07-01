@@ -165,6 +165,8 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
     elpased_time =apply_end-searh_end;
     fprintf(stderr, "apply moves took %f s\n",elpased_time.count());
     //recycle conflicting moves
+    int init_deferred=deferred_moves.size();
+    int recycled=0;
     fputs("Start recycling conflicting moves\n",stderr);
     while (!deferred_moves.empty()) {
         bfs_ordered_nodes=t.breadth_first_expansion();
@@ -196,6 +198,7 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
         });
         all_moves.clear();
         resolver.schedule_moves(all_moves);
+        recycled+=all_moves.size();
     apply_moves(all_moves, t, bfs_ordered_nodes, deferred_nodes
 #ifdef CHECK_STATE_REASSIGN
     ,origin_states
@@ -211,6 +214,7 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
     #endif
     nodes_to_search = std::move(deferred_nodes);
     progress_meter.join();
+    fprintf(stderr, "recycled %f of conflicting moves \n",(double)recycled/(double)init_deferred);
     fprintf(stderr, "recycling moves took %f s\n",elpased_time.count());
     return t.get_parsimony_score();
 }

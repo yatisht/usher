@@ -42,8 +42,9 @@ struct Profitable_Moves{
 typedef Profitable_Moves* Profitable_Moves_ptr_t;
 struct output_t{
     int score_change;
+    int radius_left;
     std::vector<Profitable_Moves_ptr_t> moves;
-    output_t():score_change(-1){}
+    output_t():score_change(-1),radius_left(-1){}
 };
 int individual_move(Mutation_Annotated_Tree::Node* src,Mutation_Annotated_Tree::Node* dst,Mutation_Annotated_Tree::Node* LCA,output_t& out
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT

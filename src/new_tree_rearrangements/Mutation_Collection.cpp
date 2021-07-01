@@ -44,7 +44,7 @@ void Mutations_Collection::merge_out(const Mutations_Collection &other,
         } else {
             mutation_vector_check_order(this_mutation.get_position());
 
-            assert(this_mutation.get_position() == other_iter->get_position());
+            //assert(this_mutation.get_position() == other_iter->get_position());
             switch (keep_self) {
             case NO_DUPLICATE:
                 assert(false);

@@ -71,7 +71,7 @@ struct line_parser{
             parsed_line=new Parsed_VCF_Line{MAT::Mutation(chromosome,pos, 0, 0, 1,
                       MAT::get_nuc_id(*line_in))};
             line_in++;
-            assert(*line_in=='\t');
+            //assert(*line_in=='\t');
             line_in++;
             //ALT
             while (*line_in!='\t') {
@@ -80,7 +80,7 @@ struct line_parser{
                 if(*line_in==','){
                     line_in++;
                 }else{
-                    assert(*line_in=='\t');
+                    //assert(*line_in=='\t');
                 }
             }
             line_in++;
@@ -117,7 +117,7 @@ struct line_parser{
                 field_idx++;
                 line_in++;
             }
-            assert(field_idx==header.size());
+            //assert(field_idx==header.size());
             std::get<0>(out).try_put(parsed_line);
         }
         std::get<1>(out).try_put(start);
