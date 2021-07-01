@@ -5,10 +5,12 @@
 #include <boost/filesystem/operations.hpp>
 #include <boost/filesystem/path.hpp>
 #include <boost/program_options/value_semantic.hpp>
+#include <chrono>
 #include <csignal>
 #include <cstddef>
 #include <cstdlib>
 #include <ctime>
+#include <limits>
 #include <tbb/concurrent_vector.h>
 #include <tbb/task.h>
 #include <cstdio>
@@ -22,6 +24,10 @@
 #include <boost/program_options.hpp> 
 #include <vector>
 #include <iostream>
+std::chrono::time_point<std::chrono::steady_clock> last_save_time;
+bool no_write_intermediate;
+size_t max_queued_moves;
+std::chrono::steady_clock::duration save_period;
 MAT::Node* get_LCA(MAT::Node* src,MAT::Node* dst);
 FILE* movalbe_src_log;
 bool interrupted;
@@ -67,12 +73,11 @@ int main(int argc, char **argv) {
     std::string intermediate_pb_base_name;
     std::string profitable_src_log;
     int radius;
-    size_t max_queued_moves;
+    unsigned int minutes_between_save;
     po::options_description desc{"Options"};
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
     uint32_t num_threads;
     std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
-    bool no_write_intermediate;
     desc.add_options()
         ("vcf,v", po::value<std::string>(&input_vcf_path)->default_value(""), "Input VCF file (in uncompressed or gzip-compressed .gz format) ")
         ("tree,t", po::value<std::string>(&input_nh_path)->default_value(""), "Input tree file")
@@ -82,11 +87,12 @@ int main(int argc, char **argv) {
         ("save-intermediate-mutation-annotated-tree,m", po::value<std::string>(&intermediate_pb_base_name)->default_value(""), "Save intermediate mutation-annotated tree object to the specified filename")
         ("radius,r", po::value<int32_t>(&radius)->default_value(10),
          "Radius in which to restrict the SPR moves.")
-        ("profitable_src_log,s", po::value<std::string>(&profitable_src_log)->default_value("/dev/null"),
+        ("profitable_src_log,S", po::value<std::string>(&profitable_src_log)->default_value("/dev/null"),
          "The file to log from which node a profitable move can be found.")
         ("ambi_protobuf,a", po::value<std::string>(&input_complete_pb_path)->default_value(""),
          "Continue from intermediate protobuf")
         ("max_queued_moves,q",po::value<size_t>(&max_queued_moves)->default_value(1000),"Maximium number of profitable moves found before applying these moves")
+        ("minutes_between_save,s",po::value<unsigned int>(&minutes_between_save)->default_value(10),"Maximium number of profitable moves found before applying these moves")
         ("do-not-write-intermediate-files,n","Do not write intermediate files.")
         ("exhaustive_mode,e","Search every non-root node as source node.");
         
@@ -181,7 +187,17 @@ int main(int argc, char **argv) {
         fprintf(stderr,"Run kill -s SIGUSR1 %d to print progress\n",pid);
     }
     fprintf(stderr,"Will consider SPR moves within a radius of %d. \n",radius);
-    fprintf(stderr, "Will stop search and apply all moves found when %zu moves are found\n",max_queued_moves);
+    if (max_queued_moves) {
+        fprintf(stderr, "Will stop search and apply all moves found when %zu moves are found\n",max_queued_moves);    
+    }else {
+        max_queued_moves=std::numeric_limits<decltype(max_queued_moves)>::max();
+    }
+    if (minutes_between_save) {
+        fprintf(stderr, "Will save intermediate result every %d minutes\n",minutes_between_save);
+        save_period=std::chrono::minutes(minutes_between_save);    
+    }else{
+        save_period=save_period.max();
+    }
     fprintf(stderr,"Run kill -s SIGUSR2 %d to apply all the move found immediately, then output and exit.\n",pid);
     fprintf(stderr,"Using %d threads. \n",num_threads);
     if (search_all_nodes) {
@@ -222,6 +238,7 @@ int main(int argc, char **argv) {
             fputs("Finished checkpointing initial tree.\n",stderr);
         }
     }
+    last_save_time=std::chrono::steady_clock::now();
     size_t new_score;
     size_t score_before;
     int stalled = 0;
@@ -267,17 +284,18 @@ int main(int argc, char **argv) {
         }
         bfs_ordered_nodes = t.breadth_first_expansion();
         new_score =
-            optimize_tree(bfs_ordered_nodes, nodes_to_search, t,radius,movalbe_src_log,max_queued_moves
+            optimize_tree(bfs_ordered_nodes, nodes_to_search, t,radius,movalbe_src_log
             #ifndef NDEBUG
             , origin_states
             #endif
             );
         fprintf(stderr, "after optimizing:%zu\n\n", new_score);
-        if(!no_write_intermediate){
+        if(!no_write_intermediate&&std::chrono::steady_clock::now()-last_save_time>save_period){
             intermediate_writing=intermediate_template;
             make_output_path(intermediate_writing);
             t.save_detailed_mutations(intermediate_writing);
             rename(intermediate_writing.c_str(), intermediate_pb_base_name.c_str());
+            last_save_time=std::chrono::steady_clock::now();
         }
     }
         if (new_score >= score_before) {

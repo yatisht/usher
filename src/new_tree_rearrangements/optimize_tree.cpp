@@ -54,7 +54,7 @@ static void print_progress(
         start_time,
     size_t total_nodes,
     const tbb::concurrent_vector<MAT::Node *> *deferred_nodes,
-    bool *done,std::mutex* done_mutex,size_t max_queued_moves) {
+    bool *done,std::mutex* done_mutex) {
     while (true) {
         {
             if (*done) {
@@ -68,7 +68,7 @@ static void print_progress(
                 progress_bar_cv.wait(done_lock);
             }
         }
-        if (deferred_nodes->size()>max_queued_moves||*done) {
+        if (*done) {
             return;
         }
         int checked_nodes_temp = checked_nodes->load(std::memory_order_relaxed);
@@ -87,7 +87,7 @@ static void print_progress(
 }
 size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
               tbb::concurrent_vector<MAT::Node *> &nodes_to_search,
-              MAT::Tree &t,int radius,FILE* log,size_t max_queued_moves
+              MAT::Tree &t,int radius,FILE* log
               #ifndef NDEBUG
               , Original_State_t origin_states
             #endif
@@ -106,13 +106,13 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
     bool done=false;
     std::mutex done_mutex;
     auto search_start= std::chrono::steady_clock::now();
-    std::thread progress_meter(print_progress,&checked_nodes,search_start, nodes_to_search.size(), &deferred_nodes,&done,&done_mutex,max_queued_moves);
+    std::thread progress_meter(print_progress,&checked_nodes,search_start, nodes_to_search.size(), &deferred_nodes,&done,&done_mutex);
     fputs("Start searching for profitable moves\n",stderr);
     //Actual search of profitable moves
     output_t out;
     tbb::parallel_for(tbb::blocked_range<size_t>(0, nodes_to_search.size()),
                       [&nodes_to_search, &resolver,
-                       &deferred_nodes,radius,&checked_nodes,max_queued_moves
+                       &deferred_nodes,radius,&checked_nodes
                               #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
 ,&t
 #endif
@@ -122,7 +122,7 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
                               if (search_context.is_group_execution_cancelled()) {
                                   break;
                               }
-                              if(deferred_nodes.size()<max_queued_moves){
+                              if((deferred_nodes.size()&&std::chrono::steady_clock::now()-last_save_time<save_period)||deferred_nodes.size()>max_queued_moves){
                               output_t out;
                               find_profitable_moves(nodes_to_search[i], out, radius,this_thread_FIFO_allocator
                               #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT

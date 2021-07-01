@@ -1,8 +1,13 @@
 #include "mutation_annotated_tree.hpp"
+#include <chrono>
 #include <vector>
 #include <condition_variable>
 #include "check_samples.hpp"
 #pragma once
+extern std::chrono::time_point<std::chrono::steady_clock> last_save_time;
+extern bool no_write_intermediate;
+extern size_t max_queued_moves;
+extern std::chrono::steady_clock::duration save_period;
 namespace MAT = Mutation_Annotated_Tree;
 extern std::unordered_map<MAT::Mutation, std::unordered_map<std::string, nuc_one_hot>*,Mutation_Pos_Only_Hash,
                        Mutation_Pos_Only_Comparator>
@@ -69,7 +74,7 @@ void VCF_input(const char * name,MAT::Tree& tree);
 
 size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
               tbb::concurrent_vector<MAT::Node *> &nodes_to_search,
-              MAT::Tree &t,int radius,FILE* log,size_t max_queued_moves
+              MAT::Tree &t,int radius,FILE* log
               #ifndef NDEBUG
               , Original_State_t origin_states
             #endif
