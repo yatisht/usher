@@ -1,6 +1,7 @@
 #include "process_each_node.hpp"
 #include "src/new_tree_rearrangements/Profitable_Moves_Enumerators/Profitable_Moves_Enumerators.hpp"
 #include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
+#include <algorithm>
 #include <cstdio>
 #include <unordered_set>
 #include <utility>
@@ -211,6 +212,11 @@ static void init_mutation_change(MAT::Node* src, Mutation_Count_Change_Collectio
         }
     }
 }
+struct Profitable_Move_Comparator{
+    bool operator()(const Profitable_Moves_ptr_t& lhs,const Profitable_Moves_ptr_t& rhs)const{
+        return lhs->radius_left>rhs->radius_left;
+    }
+};
 void find_profitable_moves(MAT::Node *src, output_t &out,int radius,
     stack_allocator<Mutation_Count_Change>& allocator
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
@@ -271,6 +277,7 @@ void find_profitable_moves(MAT::Node *src, output_t &out,int radius,
         root = root->parent;
         radius--;
     }
+    std::sort(out.moves.begin(),out.moves.end(),Profitable_Move_Comparator());
 }
 int individual_move(MAT::Node* src,MAT::Node* dst,MAT::Node* LCA,output_t& out
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT

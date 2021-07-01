@@ -290,12 +290,14 @@ int main(int argc, char **argv) {
             #endif
             );
         fprintf(stderr, "after optimizing:%zu\n\n", new_score);
+        auto save_start=std::chrono::steady_clock::now();
         if(!no_write_intermediate&&std::chrono::steady_clock::now()-last_save_time>save_period){
             intermediate_writing=intermediate_template;
             make_output_path(intermediate_writing);
             t.save_detailed_mutations(intermediate_writing);
             rename(intermediate_writing.c_str(), intermediate_pb_base_name.c_str());
             last_save_time=std::chrono::steady_clock::now();
+            fprintf(stderr, "Took %ld second to save intermediate protobuf\n",std::chrono::duration_cast<std::chrono::seconds>(last_save_time-save_start).count());
         }
     }
         if (new_score >= score_before) {

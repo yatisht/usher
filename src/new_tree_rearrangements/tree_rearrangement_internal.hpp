@@ -21,6 +21,7 @@ struct Profitable_Moves{
     std::vector<MAT::Node*> dst_to_LCA;
     MAT::Node* LCA;
     bool new_node;
+    int radius_left;
     Profitable_Moves():score_change(0){}
     Profitable_Moves(MAT::Node* src, MAT::Node* dst){
         score_change=-1;

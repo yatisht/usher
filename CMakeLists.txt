@@ -13,7 +13,7 @@ configure_file(src/version.hpp.in version.hpp)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -msse4.1 -std=c++11 -Wall -g -Wno-unused-function -Wno-deprecated-declarations")
 #-DDEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-set(CMAKE_CXX_FLAGS_DEBUG "-O0 ")
+set(CMAKE_CXX_FLAGS_DEBUG "-O3 ")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-DNDEBUG -O3 ")
 set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O3")
 set(CMAKE_INCLUDE_CURRENT_DIR ON) 
