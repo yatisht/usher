@@ -223,7 +223,7 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores, bool comp
                             m.mut_nuc = anc_nuc;
 
                             ancestral_mutations.emplace_back(m);
-                            anc_positions.emplace_back(m1.position);
+                            anc_positions.emplace_back(m.position);
                             assert((m.mut_nuc & (m.mut_nuc-1)) == 0);
                             if (compute_vecs) {
                                 (*input.excess_mutations).emplace_back(m);
@@ -253,7 +253,7 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores, bool comp
                     m.mut_nuc = anc_nuc;
 
                     ancestral_mutations.emplace_back(m);
-                    anc_positions.emplace_back(m1.position);
+                    anc_positions.emplace_back(m.position);
                     assert((m.mut_nuc & (m.mut_nuc-1)) == 0);
                     if (compute_vecs) {
                         (*input.excess_mutations).emplace_back(m);
@@ -277,11 +277,14 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores, bool comp
     // Add ancestral mutations to ancestral mutations. When multiple mutations
     // at same position are found in the path leading from the root to the
     // current node, add only the most recent mutation to the vector
-    for (auto n: input.T->rsearch(input.node->identifier)) {
-        for (auto m: n->mutations) {
-            if (m.is_masked() || (std::find(anc_positions.begin(), anc_positions.end(), m.position) == anc_positions.end())) {
-                ancestral_mutations.emplace_back(m);
-                if (!m.is_masked()) {
+    //for (auto n: input.T->rsearch(input.node->identifier)) {
+    {
+        auto n = input.node;
+        while (n->parent != NULL) {
+            n = n->parent;
+            for (auto m: n->mutations) {
+                if (!m.is_masked() && (std::find(anc_positions.begin(), anc_positions.end(), m.position) == anc_positions.end())) {
+                    ancestral_mutations.emplace_back(m);
                     anc_positions.emplace_back(m.position);
                 }
             }
