@@ -314,7 +314,7 @@ void write_roho_table(MAT::Tree& T, std::string roho_file) {
             //     }
             // }
             //rhfile << ms.first << "\t" << n->identifier << "\t" << ccheck << "\t" << ms.second << "\t" << sum_wit << "\t" << med_non << "\t" << mean_non << "\t" << sum_witblc << "\t" << sum_nonblc/non_blc << "\n";
-            rhfile << ms.first << "\t" << n->identifier << "\t" << ccheck << "\t" << ms.second << "\t" << sum_wit << "\t" << med_non << "\t" << (sum_wit/med_non) << "\n";
+            rhfile << ms.first << "\t" << n->identifier << "\t" << ccheck << "\t" << ms.second << "\t" << sum_wit << "\t" << med_non << "\t" << std::log10(sum_wit/med_non) << "\n";
         }
     }
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
