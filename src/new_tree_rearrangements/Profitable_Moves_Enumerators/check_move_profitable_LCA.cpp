@@ -7,8 +7,7 @@ static void added_no_match(const Mutation_Count_Change &mutation_to_add,
                            Mutation_Count_Change_Collection &out,
                            int &parsimony_score_change,
                            MAT::Node *src_branch_node) {
-    assert(mutation_to_add.get_par_state() ==
-           get_parent_state(src_branch_node, mutation_to_add.get_position()));
+    //assert(mutation_to_add.get_par_state() ==get_parent_state(src_branch_node, mutation_to_add.get_position()));
     nuc_one_hot major_allele =
         mutation_to_add.get_par_state() & mutation_to_add.get_incremented();
     if (!major_allele) {
@@ -60,7 +59,7 @@ bool LCA_place_mezzanine(
         while (added_iter < added_end &&
                added_iter->get_position() < m.get_position()) {
             added_no_match(*added_iter, out, parsimony_score_change, src_branch_node);
-            assert(added_iter < added_end );
+            //assert(added_iter < added_end );
             added_iter++;
         }
 
@@ -84,7 +83,7 @@ bool LCA_place_mezzanine(
                     new_major_allele=added_iter->get_incremented()|major_allele;
                     score_change++;
                 }
-            assert(added_iter < added_end );
+            //assert(added_iter < added_end );
             added_iter++;
         }else {
             //The newly added node follow LCA like the src_branch_node

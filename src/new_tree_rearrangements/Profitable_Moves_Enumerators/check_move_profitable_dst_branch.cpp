@@ -6,7 +6,7 @@ static void add_remaining_dst_to_LCA_nodes(MAT::Node *cur, const MAT::Node *LCA,
                          std::vector<MAT::Node *> &dst_stack
 ) {
     while (cur != LCA) {
-        assert(dst_stack.empty()||dst_stack.back()!=cur);
+        //assert(dst_stack.empty()||dst_stack.back()!=cur);
         dst_stack.push_back(cur);
         cur = cur->parent;
     }
@@ -72,7 +72,7 @@ bool dst_branch(const MAT::Node *LCA,
             );
 
         //add current node dst->LCA node stack
-        assert(node_stack_from_dst.empty()||node_stack_from_dst.back()!=this_node);
+        //assert(node_stack_from_dst.empty()||node_stack_from_dst.back()!=this_node);
         node_stack_from_dst.push_back(this_node);
         //In next iteration, major allele set change of this_node become the change in count of major allele state among children of its parent 
         parent_added.swap(parent_of_parent_added);

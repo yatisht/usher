@@ -53,14 +53,16 @@ class Mutation_Count_Change {
         was_valid=valid;
     }
     int get_position() const { return position; }
-    nuc_one_hot get_decremented() const { assert(decremented_allele!=0xff); return decremented_allele; }
-    nuc_one_hot get_incremented() const { assert(incremented_allele!=0xff); return incremented_allele; }
+    nuc_one_hot get_decremented() const { //assert(decremented_allele!=0xff); 
+    return decremented_allele; }
+    nuc_one_hot get_incremented() const { //assert(incremented_allele!=0xff); 
+    return incremented_allele; }
     nuc_one_hot get_ori_state() const{return ori_state;}
     void set_change(nuc_one_hot decremented, nuc_one_hot incremented,nuc_one_hot new_state,bool nocheck=false) {
         decremented_allele = decremented;
         incremented_allele = incremented;
         this->new_state=new_state;
-        assert(nocheck||new_state==((ori_state|incremented)&(~decremented)));
+        //assert(nocheck||new_state==((ori_state|incremented)&(~decremented)));
     }
     void set_ori_state(nuc_one_hot ori_state){
         this->ori_state=ori_state;
@@ -75,12 +77,12 @@ class Mutation_Count_Change {
     int get_default_change_internal()const {
         if(par_state&incremented_allele){
             //able to follow major allele
-            assert(was_valid);
+            //assert(was_valid);
             return -1;
         }
         if(par_state&decremented_allele){
             //no longer able to follow major allele
-            assert(!was_valid);
+            //assert(!was_valid);
             return 1;
         }
         return 0;

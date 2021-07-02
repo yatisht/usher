@@ -161,7 +161,7 @@ nuc_one_hot decrement_increment_mutation_count(
         // this is adding to a minor allele while removing a major
         // allele
         if (boundary1_state & incremented || major_allele_not_decremented) {
-            assert(!major_allele_incremented);
+            //assert(!major_allele_incremented);
             // tied alleles not decremented (no action needed)
             // and boundary 1 allele incremented (need to be incremented in
             // parent of parent counts) become new major allele

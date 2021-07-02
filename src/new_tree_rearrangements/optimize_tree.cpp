@@ -122,7 +122,7 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
                               if (search_context.is_group_execution_cancelled()) {
                                   break;
                               }
-                              if((deferred_nodes.size()&&std::chrono::steady_clock::now()-last_save_time<save_period)||deferred_nodes.size()<max_queued_moves){
+                              if(((!deferred_nodes.size())||(std::chrono::steady_clock::now()-last_save_time)<save_period)&&deferred_nodes.size()<max_queued_moves){
                               output_t out;
                               find_profitable_moves(nodes_to_search[i], out, radius,this_thread_FIFO_allocator
                               #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT

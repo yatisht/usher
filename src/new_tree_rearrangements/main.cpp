@@ -72,6 +72,7 @@ int main(int argc, char **argv) {
     std::string input_vcf_path;
     std::string intermediate_pb_base_name;
     std::string profitable_src_log;
+    unsigned int max_optimize_hours;
     int radius;
     unsigned int minutes_between_save;
     po::options_description desc{"Options"};
@@ -94,7 +95,8 @@ int main(int argc, char **argv) {
         ("max_queued_moves,q",po::value<size_t>(&max_queued_moves)->default_value(1000),"Maximium number of profitable moves found before applying these moves")
         ("minutes_between_save,s",po::value<unsigned int>(&minutes_between_save)->default_value(10),"Maximium number of profitable moves found before applying these moves")
         ("do-not-write-intermediate-files,n","Do not write intermediate files.")
-        ("exhaustive_mode,e","Search every non-root node as source node.");
+        ("exhaustive_mode,e","Search every non-root node as source node.")
+        ("max-hours,M",po::value(&max_optimize_hours)->default_value(0),"Maximium number of hours to run");
         
     po::options_description all_options;
     all_options.add(desc);
@@ -205,6 +207,8 @@ int main(int argc, char **argv) {
     }else {
         fprintf(stderr, "Will only consider nodes carrying mutations that occured more than twice anywhere in the tree.\n");
     }
+    std::chrono::steady_clock::duration max_optimize_duration=std::chrono::hours(max_optimize_hours);
+    auto start_time=std::chrono::steady_clock::now();
     tbb::task_scheduler_init init(num_threads);
 
     //Loading tree
@@ -291,13 +295,16 @@ int main(int argc, char **argv) {
             );
         fprintf(stderr, "after optimizing:%zu\n\n", new_score);
         auto save_start=std::chrono::steady_clock::now();
-        if(!no_write_intermediate&&std::chrono::steady_clock::now()-last_save_time>save_period){
+        if(std::chrono::steady_clock::now()-last_save_time>=save_period){
+        if(!no_write_intermediate){
             intermediate_writing=intermediate_template;
             make_output_path(intermediate_writing);
             t.save_detailed_mutations(intermediate_writing);
             rename(intermediate_writing.c_str(), intermediate_pb_base_name.c_str());
             last_save_time=std::chrono::steady_clock::now();
             fprintf(stderr, "Took %ld second to save intermediate protobuf\n",std::chrono::duration_cast<std::chrono::seconds>(last_save_time-save_start).count());
+        }
+            last_save_time=std::chrono::steady_clock::now();
         }
     }
         if (new_score >= score_before) {
@@ -307,6 +314,10 @@ int main(int argc, char **argv) {
             stalled = 0;
         }
         clean_tree(t);
+        if (max_optimize_hours&&(std::chrono::steady_clock::now()-start_time>max_optimize_duration)) {
+            interrupted=true;
+            break;
+        }
     }
     fprintf(stderr, "Final Parsimony score %zu\n",t.get_parsimony_score());
     fclose(movalbe_src_log);

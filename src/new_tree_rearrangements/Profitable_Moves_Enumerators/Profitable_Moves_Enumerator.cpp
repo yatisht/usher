@@ -313,7 +313,7 @@ MAT::Node *root = src->parent;
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
         debug.push_back(new_alter_mutations);
 #endif
-        assert(node_stack_from_src.back()!=root);
+        //assert(node_stack_from_src.back()!=root);
         node_stack_from_src.push_back(root);
         merge_mutation_src_to_LCA(root, mutations);
         root_mutations_altered = std::move(new_alter_mutations);

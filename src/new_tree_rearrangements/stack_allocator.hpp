@@ -25,9 +25,9 @@ struct stack_allocator:private std::allocator<T>{
         T* start_addr;
         T* storage_end;
         T* allocated_end;
-        #ifndef NDEBUG
+        /*#ifndef NDEBUG
         std::vector<T*> last_allocate_ptr;
-        #endif
+        #endif*/
         allocator_state(){
             start_addr=(T*) mmap(0,ALLOC_LEN,PROT_READ|PROT_WRITE,MAP_SHARED|MAP_ANONYMOUS,-1,0);
             storage_end=(T*) ((char*) start_addr+ALLOC_LEN);
@@ -42,17 +42,17 @@ struct stack_allocator:private std::allocator<T>{
         T* allocate(size_t n){
             auto to_return=state->allocated_end;
             state->allocated_end+=n;
-#ifndef NDEBUG
+/*#ifndef NDEBUG
             state->last_allocate_ptr.push_back(to_return);
-#endif
+#endif*/
             return to_return;
         }
         void deallocate(T* p,size_t n){
-#ifndef NDEBUG
+/*#ifndef NDEBUG
             assert(p==state->last_allocate_ptr.back());
             assert(p+n==state->allocated_end);
             state->last_allocate_ptr.pop_back();
-#endif
+#endif*/
             state->allocated_end-=n;
         }
         bool empty()const{
