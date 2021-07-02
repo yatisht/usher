@@ -227,39 +227,6 @@ std::vector<std::string> get_nearby (MAT::Tree* T, std::string sample_id, int nu
     //assert (leaves_to_keep.size() == static_cast<size_t>(number_to_get));
     return leaves_to_keep;
 }
-    //by far the simplest way to do this is to get_leaves_ids and subset out a distance around the index
-    //increment the number to get by 1.
-    // number_to_get++;
-    // //trying the set of leaves in breadth-first search order
-    // std::vector<std::string> all_leaves;
-    // for (auto n: T.depth_first_expansion()) {
-    //     if (n->is_leaf()) {
-    //         all_leaves.push_back(n->identifier);
-    //     }
-    // }
-    // auto target = std::find(all_leaves.begin(), all_leaves.end(), sample_id);
-    // if (target == all_leaves.cend()) {
-    //     fprintf(stderr, "ERROR: Indicated sample does not exist in the tree!\n");
-    //     exit(1);
-    // } else if (all_leaves.size() < static_cast<size_t>(number_to_get)) {
-    //     fprintf(stderr, "ERROR: Not enough samples in tree to get neighborhood subtree of requested size!\n");
-    //     exit(1);
-    // }
-    // // int tindex = std::distance(all_leaves.begin(), target);
-    // int subset_start = tindex - (number_to_get/2);
-    // int subset_end = tindex + (number_to_get/2);
-    // if (subset_start < 0) {
-    //     subset_start = 0;
-    //     subset_end = number_to_get;
-    // } else if (static_cast<size_t>(subset_end) >= all_leaves.size()) {
-    //     subset_start = all_leaves.size() - number_to_get - 1;
-    //     subset_end = all_leaves.size() - 1;
-    // }
-    // //fprintf(stderr, "Start index is %d\n", subset_start);
-    // //fprintf(stderr, "Stop index is %d\n", subset_end);
-    // std::vector<std::string> neighborhood_leaves(all_leaves.begin() + subset_start, all_leaves.begin() + subset_end);
-    // return neighborhood_leaves;
-// }
 
 std::vector<std::string> get_short_steppers(MAT::Tree* T, std::vector<std::string> samples_to_check, int max_mutations) {
     //for each sample in samples_to_check, this function rsearches along that samples history in the tree
@@ -322,10 +289,7 @@ std::map<std::string,std::map<std::string,std::string>> read_metafile(std::strin
             //std::cerr << keys[0].c_str() << ',' << keys[1].c_str() << "\n";
         } else {
             for (size_t i=1; i < words.size(); i++) {
-                //std::cerr << words[i];
-//                if (samples_to_use.find(words[0]) != samples_to_use.end()) {
-                    metamap[keys[i]][words[0]] = words[i];
-//                }
+                metamap[keys[i]][words[0]] = words[i];
             }
         }
     }
