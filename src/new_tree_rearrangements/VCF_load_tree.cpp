@@ -178,6 +178,9 @@ void load_vcf_nh_directly( MAT::Tree& t,const std::string& vcf_path,Original_Sta
     changed_nodes.clear();
     printf("%zu condensed nodes\n",t.condensed_nodes.size());
     for(const auto &condensed:t.condensed_nodes){
+        if (!t.get_node(condensed.first)) {
+            fprintf(stderr, "Couldn't find %s \n",condensed.first.c_str());
+        }
         changed_nodes.insert(t.get_node(condensed.first)->parent->identifier);
     }
     clean_tree_load(t, changed_nodes);

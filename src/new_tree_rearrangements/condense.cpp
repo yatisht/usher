@@ -1,6 +1,7 @@
 #include "mutation_annotated_tree.hpp"
 #include "tbb/task.h"
 #include <atomic>
+#include <cstdio>
 //find mutated alleles shared by both of the input
 static void intersect_allele(const Mutation_Annotated_Tree::Mutations_Collection& in1, const Mutation_Annotated_Tree::Mutations_Collection& in2, Mutation_Annotated_Tree::Mutations_Collection& out){
     if (in1.empty()||in2.empty()) {
@@ -131,7 +132,13 @@ void Mutation_Annotated_Tree::Tree::condense_leaves(std::vector<std::string> mis
         Mutation_Annotated_Tree::Node* ori_node=get_node(condensed.second[0]);
         //update all node, as the first condensed children is replaced with resulting condensed node in place, 
         //can get the pointer to condensed node with the name of first condensed children
-        all_nodes.emplace(ori_node->identifier,ori_node);
+        auto emplcr_result=all_nodes.emplace(ori_node->identifier,ori_node);
+        if (!emplcr_result.second) {
+            fprintf(stderr, "Duplicated condensed node : %s\n",emplcr_result.first->first.c_str());
+            if (emplcr_result.first->first!=emplcr_result.first->second->identifier) {
+                fprintf(stderr, "Duplicated condensed node label mismatch, label on node : %s\n",emplcr_result.first->second->identifier.c_str());
+            }
+        }
         for(auto node_id:condensed.second){
             assert(condensed_nodes.count(node_id)==0);
             all_nodes.erase(node_id);
