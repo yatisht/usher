@@ -25,7 +25,7 @@ message node_metadata {
 
 message data {
     string newick = 1; // Newick tree string. May contain distances, but note that these may be distinct from distances as calculated with UShER
-    repeated mutation_list node_mutations = 2; // Mutations_list object for each in each node of this tree, in the order that nodes are encountered in a depth-first search
+    repeated mutation_list node_mutations = 2; // Mutations_list object for each node of this tree, in the order that nodes are encountered in a depth-first search of the tree in the newick string
     repeated condensed_node condensed_nodes = 3; // A dictionary-like object mapping names in the newick tree to a larger set of identical nodes that have been collapsed into this single node
     repeated node_metadata metadata = 4; // Clade annotations on a per-node basis, in the order that nodes are encountered in a depth-first search
 }
