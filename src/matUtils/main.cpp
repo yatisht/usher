@@ -3,6 +3,7 @@
 #include "summary.hpp"
 #include "extract.hpp"
 #include "introduce.hpp"
+#include "merge.hpp"
 
 Timer timer; 
 
@@ -46,6 +47,8 @@ int main (int argc, char** argv) {
         mask_main(parsed); 
     } else if (cmd == "uncertainty") {
         uncertainty_main(parsed);
+    } else if (cmd == "merge"){
+        merge_main(parsed); 
     } else if (cmd == "summary") {
         summary_main(parsed);
     } else if (cmd == "introduce") {
