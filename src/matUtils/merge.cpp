@@ -1,4 +1,4 @@
- //Load mat files
+  //Load mat files
  //uncondense leaves
  #include "merge.hpp"
  po::variables_map parse_merge_command(po::parsed_options parsed) {
@@ -8,12 +8,14 @@
     po::variables_map vm;
     po::options_description merge_desc("merge options");
     merge_desc.add_options()
-        ("input-mat-1,ione", po::value<std::string>()->required(),
+        ("input-mat-1", po::value<std::string>()->required(),
          "Input mutation-annotated tree file [REQUIRED]. If only this argument is set, print the count of samples and nodes in the tree.")
-        ("input-mat-2,itwo", po::value<std::string>()->required(),
+        ("input-mat-2", po::value<std::string>()->required(),
          "Input mutation-annotated tree file [REQUIRED]. If only this argument is set, print the count of samples and nodes in the tree.")
         ("output-mat,o", po::value<std::string>()->required(),
-        "Write output files to the target directory. Default is current directory.");
+        "Write output files to the target directory. Default is current directory.")
+        ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str());
+       
     std::vector<std::string> opts = po::collect_unrecognized(parsed.options, po::include_positional);
     opts.erase(opts.begin());
 
@@ -45,18 +47,33 @@ bool consistent(MAT::Tree A, MAT::Tree B){
     //creates two subtrees using the common_leaves
     auto Asub = MAT::get_subtree(A, common_leaves);
     auto Bsub = MAT::get_subtree(B, common_leaves);
-    
     auto Adfs = Asub.depth_first_expansion();
     auto Bdfs = Bsub.depth_first_expansion();
 
     if (Adfs.size() != Bdfs.size()){
         return false;
     }
-    
-    for (int i = 0; i < Adfs.size(); i++){
-        for (int x = 0; x< Adfs[i]->mutations.size(); x++){
-            MAT::Mutation mut1 = Adfs[i]->mutations[x];
-            MAT::Mutation mut2 = Bdfs[i]->mutations[x];
+    bool verify = true;
+    static tbb::affinity_partitioner ap;
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, Adfs.size()),
+            [&](tbb::blocked_range<size_t> r){
+                    for (size_t k=r.begin(); k<r.end(); ++k){
+                        verify = chelper(Adfs[k], Bdfs[k]);
+                        if (verify == false){
+                            return false;
+                        }
+                    }
+            }, ap); 
+    return true;
+}
+
+bool chelper(MAT::Node* a, MAT::Node* b){
+    if (a->mutations.size() != b->mutations.size()){
+        return false;
+    }
+    for (int x = 0; x< a->mutations.size(); x++){
+            MAT::Mutation mut1 = a->mutations[x];
+            MAT::Mutation mut2 = b->mutations[x];
             if (mut1.position != mut2.position){
                 return false;
             }
@@ -69,9 +86,7 @@ bool consistent(MAT::Tree A, MAT::Tree B){
             else{
                 return true;
             }
-        }
     }
-
 }
 
 void merge_main(po::parsed_options parsed) {
@@ -79,7 +94,9 @@ void merge_main(po::parsed_options parsed) {
     std::string mat1_filename = vm["input-mat-1"].as<std::string>();
     std::string mat2_filename = vm["input-mat-2"].as<std::string>();
     std::string output_filename = vm["output-mat"].as<std::string>();
+    uint32_t num_threads = vm["threads"].as<uint32_t>();
 
+    tbb::task_scheduler_init init(num_threads);
     MAT::Tree mat1 = MAT::load_mutation_annotated_tree(mat1_filename);
     MAT::Tree mat2 = MAT::load_mutation_annotated_tree(mat2_filename);
     MAT::Tree baseMat;
@@ -96,9 +113,10 @@ void merge_main(po::parsed_options parsed) {
         return;
     }
     else{
-         std::cout<<"true";
+        std::cout<<"true";
     }
-  /**  if (mat1.get_num_leaves() > mat2.get_num_leaves()){
+    
+   if (mat1.get_num_leaves() > mat2.get_num_leaves()){
         baseMat = mat1;
         otherMat = mat2;
     }
@@ -106,26 +124,49 @@ void merge_main(po::parsed_options parsed) {
         baseMat = mat2;
         otherMat = mat1;
     }
+    MAT::Tree finalMat = get_tree_copy(baseMat);
+    std::vector<std::string> new_samples;
+    auto otherLeaves = otherMat.get_leaves_ids();
+    auto baseLeaves = baseMat.get_leaves_ids();
+    sort( otherLeaves.begin(), otherLeaves.end() );
+    sort( baseLeaves.begin(), baseLeaves.end() );
 
-    auto new_samples = setdiff(otherMat.get_leaves(), baseMat.get_leaves());
+    //insert set
+    std::set_difference(otherLeaves.begin(), otherLeaves.end(), baseLeaves.begin(), baseLeaves.end(), std::back_inserter(new_samples));
     auto expand = baseMat.breadth_first_expansion();
+    //for every new sample, walk dopwn baseMat starting at the root
     for (auto x : new_samples){
-        auto ancestors = rsearch(x->identifier, true);
+        auto ancestors = otherMat.rsearch(x, true);
         auto curr = expand[0];
-        vector<auto> diff_mutations;
+        std::vector<MAT::Mutation> diff_mutations;
         for (auto y : ancestors){
-            for (z : curr->children){
-               if (z->mutations == y->mutations){
+            //go through currents children and see if one of them matches the mutations
+            for (auto z : curr->children){
+               if (chelper(z,y)==true){
                    curr = z;
+                   break;
                }  
                else{
-                   diff_mutations = setdiff(z->mutations, y->mutations);
-                   break;
+                   std::vector<MAT::Mutation> tempdiff;
+                   auto a = z->mutations;
+                   auto b = y->mutations;
+                   std::set_difference(a.begin(), a.end(), b.begin(), b.end(), std::back_inserter(tempdiff));
+                   if (diff_mutations.size()>0){
+                       if (tempdiff.size()<diff_mutations.size()){
+                           diff_mutations = tempdiff;
+                       }
+                   }
+                   if (diff_mutations.size() == 0){
+                       diff_mutations = tempdiff;
+                   }
                }  
             }
         }
-        baseMat->create_node(x->identifier, curr->identifier, 0);
-        x->mutations = diff_mutations;
-    }**/
-
+        finalMat.create_node(x, curr->identifier, -1);
+        MAT::Node* add = finalMat.get_node(x);
+        add->mutations = diff_mutations;
+    }
+    finalMat.condense_leaves();
+    MAT::save_mutation_annotated_tree(finalMat, output_filename);
+    
 }
