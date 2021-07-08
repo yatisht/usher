@@ -16,7 +16,7 @@
 #include <cstdio>
 #include <fcntl.h>
 #include <string>
-
+#include <tbb/scalable_allocator.h>
 #include <tbb/task_scheduler_init.h>
 #include <unistd.h>
 #include <sys/stat.h>
@@ -233,6 +233,7 @@ int main(int argc, char **argv) {
         } else {
             t = load_tree(input_pb_path, origin_states);
         }
+    //scalable_allocation_command(TBBMALLOC_CLEAN_ALL_BUFFERS,0);
         if(!no_write_intermediate){
             fputs("Checkpoint initial tree.\n",stderr);
             intermediate_writing=intermediate_template;

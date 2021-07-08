@@ -404,6 +404,7 @@ namespace Mutation_Annotated_Tree {
                 std::vector<Mutation> mutations;
                 mutations.reserve(size);
                 for(;begin<end;begin++){
+                    assert(begin->get_position()>0);
                     if (retain_invalid||begin->is_valid()) {
                         mutations.push_back(*begin);
                     }

@@ -3,12 +3,13 @@
 #include "src/new_tree_rearrangements/tree_rearrangement_internal.hpp"
 #include <cstdio>
 #include <string>
+#include <tbb/concurrent_unordered_set.h>
 #include <tbb/task.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
-#undef NDEBUG
+#define NDEBUG
 #include <cassert>
 //add mutation m to parent_mutations, which represent the mutation of a node relative to root, 
 //or update major allele if already present
@@ -69,11 +70,12 @@ struct insert_samples_worker:public tbb::task {
 //functor for checking state of all leaves
 struct check_samples_worker:public tbb::task{
     const Mutation_Annotated_Tree::Node *root;
-                                 Mutation_Set parent_mutations;
-                                 const Original_State_t &samples;
+    Mutation_Set parent_mutations;
+    const Original_State_t &samples;
+    tbb::concurrent_unordered_set<std::string>& visited_samples;
 check_samples_worker(Mutation_Annotated_Tree::Node *root,
                                  const Mutation_Set& parent_mutations,
-                                 const Original_State_t &samples):root(root),parent_mutations(parent_mutations),samples(samples){}
+                                 const Original_State_t &samples,tbb::concurrent_unordered_set<std::string>& visited_samples):root(root),parent_mutations(parent_mutations),samples(samples),visited_samples(visited_samples){}
 tbb::task* execute() override{
     tbb::empty_task* empty=new(allocate_continuation()) tbb::empty_task();
     empty->set_ref_count(root->children.size());
@@ -118,13 +120,13 @@ tbb::task* execute() override{
                         
             }
 
-            //samples.erase(iter);
+            visited_samples.insert(iter->first);
         }
         return empty;
     }
     for (auto child : root->children) {
         assert(child->parent==root);
-        empty->spawn(*new (empty->allocate_child())check_samples_worker(child, parent_mutations, samples));
+        empty->spawn(*new (empty->allocate_child())check_samples_worker(child, parent_mutations, samples,visited_samples));
     }
     return nullptr;
 }
@@ -137,11 +139,17 @@ void check_samples(Mutation_Annotated_Tree::Node *root,
         tbb::task::spawn_root_and_wait(*new(tbb::task::allocate_root()) 
         insert_samples_worker(root, mutations, samples));
     } else {
-        tbb::task::spawn_root_and_wait(*new(tbb::task::allocate_root())check_samples_worker(root, mutations, samples));
-        /*for (auto s : samples) {
-            fprintf(stderr, "[ERROR] Missing Sample %s \n",
+        tbb::concurrent_unordered_set<std::string> visited_sample;
+        tbb::task::spawn_root_and_wait(*new(tbb::task::allocate_root())check_samples_worker(root, mutations, samples,visited_sample));
+        bool have_missed=false;
+        for (auto s : samples) {
+            if (!visited_sample.count(s.first)) {
+                fprintf(stderr, "[ERROR] Missing Sample %s \n",
                     s.first.c_str());
-        }*/
+                have_missed=true;
+            }
+        }
+        assert(!have_missed);
         fputs("checked\n", stderr);
     }
 }

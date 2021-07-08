@@ -159,9 +159,6 @@ static void reassign_states(MAT::Tree& t, Original_State_t& origin_states){
     std::unordered_set<std::string> ignored;
     std::unordered_set<std::string> ignored2;
     clean_up_internal_nodes(t.root,t,ignored,ignored2);
-    if (t.root->children.size()>1) {
-        add_root(&t);
-    }
     bfs_ordered_nodes = t.breadth_first_expansion();
     std::vector<tbb::concurrent_vector<Mutation_Annotated_Tree::Mutation>>
         output(bfs_ordered_nodes.size());
@@ -171,12 +168,19 @@ static void reassign_states(MAT::Tree& t, Original_State_t& origin_states){
     Fitch_Sankoff_prep(bfs_ordered_nodes,child_idx_range, parent_idx);
     tbb::parallel_for_each(
         mutated_positions.begin(), mutated_positions.end(),
-        [&output,&child_idx_range,&parent_idx](
+        [&output,&child_idx_range,&parent_idx,&t](
             const std::pair<MAT::Mutation,
                             std::unordered_map<std::string, nuc_one_hot> *>
                 &pos) {
             std::unordered_map<std::string, nuc_one_hot> *mutated = pos.second;
-            Fitch_Sankoff_Whole_Tree(child_idx_range,parent_idx, pos.first, *mutated,
+            std::vector<std::pair<long,nuc_one_hot>> mutated_nodes_idx;
+            mutated_nodes_idx.emplace_back(0,0xf);
+            mutated_nodes_idx.reserve(mutated->size());
+            for (const auto& mutated_node : *mutated) {
+                mutated_nodes_idx.emplace_back(t.get_node(mutated_node.first)->bfs_index,mutated_node.second);
+            }
+            std::sort(mutated_nodes_idx.begin(),mutated_nodes_idx.end());
+            Fitch_Sankoff_Whole_Tree(child_idx_range,parent_idx, pos.first, mutated_nodes_idx,
                                      output);
         });
     tbb::affinity_partitioner ap;

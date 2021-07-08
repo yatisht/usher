@@ -122,8 +122,8 @@ template <typename value_type> class range {
     template<typename T>
     range(const T &container) : curr(container.data()), end(container.data()+container.size()) {}
     operator bool() const { return curr != end; }
-    const value_type* operator->() { return curr; }
-    const value_type &operator*() { return *curr; }
+    const value_type* operator->() const { return curr; }
+    const value_type &operator*() const { return *curr; }
     void operator++() { curr++; }
     void operator++(int) { curr++; }
     size_t size()const{ return end-curr;}
