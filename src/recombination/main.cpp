@@ -395,7 +395,8 @@ int main(int argc, char** argv) {
                 int start_range_high = pruned_sample.sample_mutations[i].position;
                 int start_range_low = (i>=1) ? pruned_sample.sample_mutations[i-1].position : 0;
 
-                int end_range_high = pruned_sample.sample_mutations[j].position;
+                //int end_range_high = pruned_sample.sample_mutations[j].position;
+                int end_range_high = 1e9;
                 int end_range_low = (j>=1) ? pruned_sample.sample_mutations[j-1].position : 0;
                 
                 //int end_range_low = pruned_sample.sample_mutations[j].position; 
