@@ -5,18 +5,20 @@ project(usher)
 
 execute_process(COMMAND git describe --tags --abbrev=0 OUTPUT_VARIABLE VERSION)
 if ("${VERSION}" STREQUAL "")
-    #Hack for getting the right version in conda/release folders
+    #Hack for getting the right version in conda/release folders 
     execute_process(COMMAND basename "${CMAKE_SOURCE_DIR}" OUTPUT_VARIABLE DIRNAME)
-    string(REGEX REPLACE "^usher-([0-9]+)\\..*" "\\1" VERSION_MAJOR "${DIRNAME}")
-    string(REGEX REPLACE "^usher-[0-9]+\\.([0-9]+).*" "\\1" VERSION_MINOR "${DIRNAME}")
-    string(REGEX REPLACE "^usher-[0-9]+\\.[0-9]+\\.([0-9]+).*" "\\1" VERSION_PATCH "${DIRNAME}")
+    string(REGEX REPLACE "^usher-*([0-9]+)\\..*" "\\1" VERSION_MAJOR "${DIRNAME}")
+    string(REGEX REPLACE "^usher-*[0-9]+\\.([0-9]+).*" "\\1" VERSION_MINOR "${DIRNAME}")
+    string(REGEX REPLACE "^usher-*[0-9]+\\.[0-9]+\\.([0-9]+).*" "\\1" VERSION_PATCH "${DIRNAME}")
+    if (NOT "${VERSION_PATCH}" STREQUAL "")
+        set(usher_VERSION "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}")
+    endif()
 else()
     string(REGEX REPLACE "^v([0-9]+)\\..*" "\\1" VERSION_MAJOR "${VERSION}")
     string(REGEX REPLACE "^v[0-9]+\\.([0-9]+).*" "\\1" VERSION_MINOR "${VERSION}")
     string(REGEX REPLACE "^v[0-9]+\\.[0-9]+\\.([0-9]+).*" "\\1" VERSION_PATCH "${VERSION}")
+    set(usher_VERSION "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}")
 endif()
-set(usher_VERSION "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}")
-message (STATUS "${usher_VERSION}")
 
 configure_file(src/version.hpp.in version.hpp)
 
