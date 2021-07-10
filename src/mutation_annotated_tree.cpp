@@ -312,7 +312,8 @@ void Mutation_Annotated_Tree::string_split (std::string const& s, char delim, st
     TIMEIT();
     size_t start_pos = 0, end_pos = 0;
     while ((end_pos = s.find(delim, start_pos)) != std::string::npos) {
-        if ((end_pos == start_pos) || end_pos >= s.length()) {
+        // if ((end_pos == start_pos) || end_pos >= s.length()) {
+        if (end_pos >= s.length()) {
             break;
         }
         words.emplace_back(s.substr(start_pos, end_pos-start_pos));
@@ -322,7 +323,6 @@ void Mutation_Annotated_Tree::string_split (std::string const& s, char delim, st
     if (last != "") {
         words.push_back(std::move(last));
     }
-    
 }
 
 // Split string into words (delimited by space, tabs etc.)
