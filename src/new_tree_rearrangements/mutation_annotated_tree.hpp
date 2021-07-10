@@ -409,7 +409,6 @@ namespace Mutation_Annotated_Tree {
                         mutations.push_back(*begin);
                     }
                 }
-                mutations.shrink_to_fit();
                 this->mutations.refill(mutations);
             }
             Node* add_child(Node* new_child,Mutation_Annotated_Tree::Tree* tree);

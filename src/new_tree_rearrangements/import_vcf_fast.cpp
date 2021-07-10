@@ -27,10 +27,10 @@ struct Decompressor{
     size_t init_read_size;
     size_t cont_read_size;
     bool operator()(char*& buf) const{
-        buf=new char[init_read_size+cont_read_size];
         if (gzeof(*fd)) {
             return false;
         }
+        buf=new char[init_read_size+cont_read_size];
         int read_size=gzread(*fd, buf, init_read_size);
         if (read_size<0) {
             int z_errnum = 0;
@@ -259,5 +259,10 @@ void VCF_input(const char * name,MAT::Tree& tree){
             }
         },
     ap);
+    size_t total_mutation_size=0;
+    for(const auto node:bfs_ordered_nodes){
+	    total_mutation_size+=node->mutations.size();
+    }
+    fprintf(stderr,"Total mutation size %zu \n", total_mutation_size);
     progress_meter.join();
 }

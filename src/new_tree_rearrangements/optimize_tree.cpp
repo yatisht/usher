@@ -19,7 +19,7 @@ void find_profitable_moves(MAT::Node *src, output_t &out,int radius,
 ,MAT::Tree* tree
 #endif
 );
-thread_local stack_allocator<Mutation_Count_Change> FIFO_allocator;
+thread_local allocator_state<Mutation_Count_Change> FIFO_allocator_state;
 extern tbb::task_group_context search_context;
 MAT::Node* get_LCA(MAT::Node* src,MAT::Node* dst){
     while (src!=dst) {
@@ -117,7 +117,7 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
 ,&t
 #endif
                        ](tbb::blocked_range<size_t> r) {
-                        stack_allocator<Mutation_Count_Change>& this_thread_FIFO_allocator=FIFO_allocator;
+                        stack_allocator<Mutation_Count_Change> this_thread_FIFO_allocator(FIFO_allocator_state);
                           for (size_t i = r.begin(); i < r.end(); i++) {
                               if (search_context.is_group_execution_cancelled()) {
                                   break;
