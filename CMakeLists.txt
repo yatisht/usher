@@ -3,6 +3,7 @@ cmake_minimum_required (VERSION 3.8)
 cmake_policy(SET CMP0069 NEW)
 project(usher)
 
+set(usher_VERSION "?.?.?")
 execute_process(COMMAND git describe --tags --abbrev=0 OUTPUT_VARIABLE VERSION)
 if ("${VERSION}" STREQUAL "")
     #Hack for getting the right version in conda/release folders 
@@ -21,6 +22,7 @@ else()
         set(usher_VERSION "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}")
     endif()
 endif()
+message(STATUS "${usher_VERSION}")
 
 configure_file(src/version.hpp.in version.hpp)
 
