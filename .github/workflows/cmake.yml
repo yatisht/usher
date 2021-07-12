@@ -21,7 +21,8 @@ jobs:
         ./build/usher --help
         ./build/matUtils --help
         command -v mafft
-        git describe --tags --abbrev=0 >version.txt
+        ver=$(git ls-remote --tags https://github.com/yatisht/usher | tail -1| cut -f2)
+        echo $ver >version.txt
       working-directory: ./
   
   ubuntu-20-04:
