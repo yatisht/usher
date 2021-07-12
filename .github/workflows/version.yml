@@ -1,6 +1,7 @@
 name: build
 
 on: 
+  deployment:
   pull_request:
   push:
     branches: 
@@ -9,7 +10,6 @@ on:
     types: [published,unpublished,created,prereleased,released,edited]
     branches: 
       - master
-      - version-test 
 
 env:
   BUILD_TYPE: Release
