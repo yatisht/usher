@@ -1,7 +1,6 @@
 name: build
 
 on: 
-  deployment:
   pull_request:
   push:
     branches: 
