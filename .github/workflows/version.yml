@@ -1,6 +1,9 @@
 name: build
 
-on: 
+on:
+  push:
+    tags:
+      - '*'
   release:
     types: [published,unpublished,created,prereleased,released,edited]
     branches: 
