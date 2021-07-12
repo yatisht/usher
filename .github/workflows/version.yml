@@ -1,10 +1,6 @@
 name: build
 
 on: 
-  pull_request:
-  push:
-    branches: 
-      - master
   release:
     types: [published,unpublished,created,prereleased,released,edited]
     branches: 
