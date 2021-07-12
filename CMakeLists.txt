@@ -3,7 +3,7 @@ cmake_minimum_required (VERSION 3.8)
 cmake_policy(SET CMP0069 NEW)
 project(usher)
 
-set(usher_VERSION "?.?.?")
+set(usher_VERSION "0.3.3")
 execute_process(COMMAND git describe --tags --abbrev=0 OUTPUT_VARIABLE VERSION)
 if ("${VERSION}" STREQUAL "")
     #Hack for getting the right version in conda/release folders 
