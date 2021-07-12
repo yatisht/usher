@@ -491,7 +491,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
     //now that we have all assignments sorted out, pass over it again
     //looking for introductions.
     std::vector<std::string> outstrs;
-    std::string header = "sample\tintroduction_node\tintroduction_rank\tgrowth_score\tearliest_date\tlatest_date\tcluster_size\tcluster_span\tintro_confidence\tparent_confidence\tdistance";
+    std::string header = "sample\tintroduction_node\tintroduction_rank\tgrowth_score\tearliest_date\tlatest_date\tcluster_size\tcluster_span\tintro_confidence\tparent_confidence\tdistance\torigin_gap";
     if (region_assignments.size() > 1) {
         header += "\tregion\torigins\torigins_confidence";
     }
@@ -521,15 +521,18 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
             //timer.Start();
             //total_processed++;
             //everything in this vector is going to be considered 1 (IN) this region
+            // fprintf(stderr, "DEBUG: Processing sample %s\n", s.c_str());
             std::string last_encountered = s;
             MAT::Node* last_node = NULL;
             float last_anc_state = 1;
+            // fprintf(stderr, "DEBUG: Checking if sample is in tree\n");
             auto node = T->get_node(s);
-            // if (node == NULL) {
-                // fprintf(stderr, "WARNING: query sample %s not found in tree. continuing\n", s.c_str());
-                // continue;
-            // }
+            if (node == NULL) {
+                fprintf(stderr, "WARNING: query sample %s not found in tree. continuing\n", s.c_str());
+                continue;
+            }
             size_t traversed = node->mutations.size();
+            // fprintf(stderr, "DEBUG: Sample information collected, has %ld mutations\n", traversed);
             for (auto a: T->rsearch(s,false)) {
                 float anc_state;
                 if (a->is_root()) {
@@ -538,6 +541,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                     anc_state = 0;
                 } else {
                     //every node should be in assignments at this point.
+                    // fprintf(stderr, "DEBUG: checking ancestor %s\n", a->identifier.c_str());
                     anc_state = assignments.find(a->identifier)->second;
                 }
                 if (anc_state < min_origin_confidence) {
@@ -635,7 +639,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                     }
                     std::stringstream ostr;
                     if (region_assignments.size() == 1) {
-                        ostr << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed << "\t" << intro_clades << "\t" << intro_mut_path;
+                        ostr << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed << "\t" << a->mutations.size() << "\t" << intro_clades << "\t" << intro_mut_path;
                         if (eval_uncertainty) {
                             ostr << "\t" << assignments.find(s)->second;
                         }
@@ -645,7 +649,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                             ostr << "\n";
                         }
                     } else {
-                        ostr << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed << "\t" << region << "\t" << origins << "\t" << origins_cons.str() << "\t" << intro_clades << "\t" << intro_mut_path;
+                        ostr << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed << "\t" << a->mutations.size() << "\t" << region << "\t" << origins << "\t" << origins_cons.str() << "\t" << intro_clades << "\t" << intro_mut_path;
                         if (eval_uncertainty) {
                             ostr << "\t" << assignments.find(s)->second;
                         }
@@ -668,6 +672,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                 }
             }
         }
+        // fprintf(stderr, "DEBUG: Sample data processed\n");
         std::vector<float> growthv;
         std::map<float,std::vector<std::string>> cgm;
         std::map<std::string, std::string> date_tracker;
@@ -686,6 +691,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
             growthv.emplace_back(gv);
             cgm[gv].emplace_back(cs.first);
         }
+        // fprintf(stderr, "DEBUG: Dates and growth scores handled\n");
         assert (growthv.size() == clusters.size());
         //sort by default goes from smallest to largest
         //I want to rank by largest to smallest, so this is reversed.
@@ -703,13 +709,26 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                 for (auto ss: clusters[cid]) {
                     cs.push_back(ss.first);
                 }
-                size_t span;
+                size_t span = 0;
                 if (cs.size() > 1) {
-                    span = MAT::get_subtree(*T,cs).get_parsimony_score();
+                    //span = MAT::get_subtree(*T,cs).get_parsimony_score();
+                    std::set<std::string> ancm;
+                    for (auto s: cs) {
+                        for (auto a: T->rsearch(s, true)) {
+                            if (a->identifier == cid) {
+                                break;
+                            } else if (ancm.find(a->identifier) == ancm.end()) {
+                                span += a->mutations.size();
+                                ancm.insert(a->identifier);
+                            } else {
+                                break;
+                            }
+                        }
+                    }
                 } else {
                     span = T->get_node(cs[0])->mutations.size();
                 }
-                
+                // fprintf(stderr, "DEBUG: Cluster span evaluated\n");
                 //yes, I'm iterating over this multiple times. Nothing is ever easy.
                 rankr++;
                 for (auto ss: clusters[cid]) {
@@ -717,7 +736,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                     //in order, first seven columns are
                     //sample id, cluster id, cluster rank, cluster growth score, earliest date, latest date, cluster size
                     //then the rest are the by-sample information (path, distance of this specific sample, yadda yadda)
-                    cout << ss.first << "\t" << cid << "\t" << rankr << "\t" << gv << "\t" << date_tracker[cid] << "\t" << clusters[cid].size() << "\t" << span << "\t" << ss.second;
+                    cout << ss.first << "\t" << cid << "\t" << rankr << "\t" << gv << "\t" << date_tracker[cid] << "\t" << clusters[cid].size() << "\t" << span << ss.second;
                     outstrs.push_back(cout.str());
                 }
             }
