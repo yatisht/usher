@@ -1,0 +1,27 @@
+name: build
+
+on: 
+  release:
+    types: [published,unpublished,created,prereleased,released,edited]
+    branches: 
+      - master
+      - version-test 
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  macOS-latest:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+      with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+    - name: update-version
+      run: |
+        ver=$(git ls-remote --tags https://github.com/yatisht/usher | tail -1| cut -f2)
+        basename $ver >version.txt
+      working-directory: ./
+    - uses: EndBug/add-and-commit@v7
+      with:
+          default_author: github_actions
