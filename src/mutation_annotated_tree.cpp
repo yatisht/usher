@@ -484,6 +484,10 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
         stat(filename.c_str(),&stat_buf);
         size_t file_size=stat_buf.st_size;
         auto fd=open(filename.c_str(), O_RDONLY);
+        if (fd < 0) {
+            fprintf(stderr, "ERROR: can't open file %s\n", filename.c_str());
+            exit(1);
+        }
         uint8_t* maped_file=(uint8_t*)mmap(nullptr, file_size, PROT_READ, MAP_SHARED,fd , 0);
         close(fd);
         google::protobuf::io::CodedInputStream input(maped_file,file_size);
