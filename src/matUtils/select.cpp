@@ -1,4 +1,5 @@
 #include "select.hpp"
+#include <random>
 /*
 Functions in this module take a variety of arguments, usually including a MAT
 and return a set of samples as a std::vector<std::string>
@@ -110,7 +111,7 @@ std::vector<std::string> get_parsimony_samples (MAT::Tree* T, int max_parsimony)
     return good_samples;
 }
 
-std::vector<std::string> get_clade_representatives(MAT::Tree* T) {
+std::vector<std::string> get_clade_representatives(MAT::Tree* T, size_t samples_per_clade) {
     timer.Start();
     fprintf(stderr, "Selecting clade representative samples...");
     //get a pair of representative leaves for every clade currently annotated in the tree
@@ -121,12 +122,14 @@ std::vector<std::string> get_clade_representatives(MAT::Tree* T) {
     //depth first search down the first child until a sample is encountered, record the name
     //then depth first search down the second child until a sample is encountered, record that name
     //and add both samples to the representative output
-    std::vector<std::string> rep_samples;
+    std::unordered_set<std::string> rep_samples;
     //expand and identify clades seen
     std::unordered_set<std::string> clades_seen;
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
 
-    auto dfs = T->breadth_first_expansion();
-    for (auto n: dfs) {
+    auto bfs = T->breadth_first_expansion();
+    for (auto n: bfs) {
         std::string curpath;
         for (auto ann: n->clade_annotations) {
             if (ann != "") {
@@ -134,25 +137,24 @@ std::vector<std::string> get_clade_representatives(MAT::Tree* T) {
                 //the first time any new annotation is encountered in an expansion, its the root of that lineage
                 if (clades_seen.find(ann) == clades_seen.end()) {
                     clades_seen.insert(ann);
-                    //this should always be true
-                    assert (n->children.size() > 1);
-                    //search down the first child
-                    auto first_dfs = T->depth_first_expansion(n->children[0]);
-                    for (auto sn: first_dfs) {
-                        //pick a sample which hasn't already been selected to represent some other clade
-                        //since clades are nested (is this the correct way to handle this?)
-                        if (sn->is_leaf() && std::find(rep_samples.begin(), rep_samples.end(), sn->identifier) == rep_samples.end()) {
-                            //when a sample is found, grab it and break
-                            rep_samples.push_back(sn->identifier);
-                            break;
-                        }
-                    }
-                    //and the second
-                    auto second_dfs = T->depth_first_expansion(n->children[1]);
-                    for (auto sn: second_dfs) {
-                        if (sn->is_leaf() && std::find(rep_samples.begin(), rep_samples.end(), sn->identifier) == rep_samples.end()) {
-                            rep_samples.push_back(sn->identifier);
-                            break;
+                    std::vector<std::string> leaf_ids = T->get_leaves_ids(n->identifier);
+                    if (leaf_ids.size() <= samples_per_clade) {
+                        // Add all leaves
+                        rep_samples.insert(leaf_ids.begin(), leaf_ids.end());
+                    } else {
+                        // Randomly select leaves; keep trying if a leaf has already been selected,
+                        // but don't keep trying forever in case there just aren't enough
+                        // unselected leaves.
+                        size_t added = 0, already_selected = 0;
+                        std::uniform_int_distribution<> distrib(0, leaf_ids.size() - 1);
+                        while (added < samples_per_clade && already_selected < samples_per_clade) {
+                            int ix = distrib(gen);
+                            if (rep_samples.find(leaf_ids[ix]) == rep_samples.end()) {
+                                rep_samples.insert(leaf_ids[ix]);
+                                added++;
+                            } else {
+                                already_selected++;
+                            }
                         }
                     }
                     //there may be cases where a clade iterates all the way through and every sample which could represent it is already
@@ -166,7 +168,10 @@ std::vector<std::string> get_clade_representatives(MAT::Tree* T) {
     fprintf(stderr, "%ld samples chosen to represent ", rep_samples.size());
     fprintf(stderr, "%ld unique clades\n", clades_seen.size());
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
-    return rep_samples;
+    std::vector<std::string> rep_sample_vec;
+    rep_sample_vec.reserve(rep_samples.size());
+    rep_sample_vec.insert(rep_sample_vec.end(), rep_samples.begin(), rep_samples.end());
+    return rep_sample_vec;
 }
 
 std::vector<std::string> sample_intersect (std::vector<std::string> samples, std::vector<std::string> nsamples) {

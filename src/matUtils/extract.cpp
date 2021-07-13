@@ -33,8 +33,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
         "Automatically add or remove samples at random from the selected sample set until it is the indicated size.")
         ("get-internal-descendents,I", po::value<std::string>()->default_value(""),
         "Select the set of samples descended from the indicated internal node.")
-        ("get-representative,r", po::bool_switch(),
-        "Automatically select two representative samples per clade in the tree after other selection steps and prune all other samples.")
+        ("get-representative,r", po::value<size_t>()->default_value(0),
+        "Automatically select the indicated number of representative samples per clade in the tree after other selection steps and prune all other samples (minimum 2).")
         ("prune,p", po::bool_switch(),
         "Remove the selected samples instead of keeping them in the output files.")
         ("resolve-polytomies,R", po::bool_switch(),
@@ -111,7 +111,7 @@ void extract_main (po::parsed_options parsed) {
     int max_branch = vm["max-branch-length"].as<int>();
     size_t max_epps = vm["max-epps"].as<size_t>();
     bool prune_samples = vm["prune"].as<bool>();
-    bool get_representative = vm["get-representative"].as<bool>();
+    size_t get_representative = vm["get-representative"].as<size_t>();
     bool resolve_polytomies = vm["resolve-polytomies"].as<bool>();
     bool retain_branch = vm["retain-branch-length"].as<bool>();
     std::string dir_prefix = vm["output-directory"].as<std::string>();
@@ -429,9 +429,13 @@ void extract_main (po::parsed_options parsed) {
     //TODO: there should be a better way to integrate this information that doesn't involve multiple steps of filtering
     //its basically just that the selection of two samples is very dependent on the other samples which were valid
     //add a valid samples vector argument to the clade representatives function and check membership before selection, maybe
-    if (get_representative) {
+    if (get_representative > 0) {
+        if (get_representative < 2) {
+          fprintf(stderr, "ERROR: value of --get-representative must be at least 2.\n");
+          exit(1);
+        }
         //fprintf(stderr, "Filtering again to a clade representative tree...\n");
-        auto rep_samples = get_clade_representatives(&subtree);
+        auto rep_samples = get_clade_representatives(&subtree, get_representative);
         //run filter master again
         subtree = filter_master(subtree, rep_samples, false, true);
         //overwrite samples with new subset
