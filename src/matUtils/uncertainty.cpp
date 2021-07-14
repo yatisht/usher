@@ -382,6 +382,8 @@ po::variables_map parse_uncertainty_command(po::parsed_options parsed) {
         "Name for an Auspice-compatible tsv file output of equally parsimonious placements and neighborhood sizes for input samples.")
         ("record-placements,o", po::value<std::string>()->default_value(""),
         "Name for an Auspice-compatible two-column tsv which records potential parents for each sample in the query set.")
+        ("dropout-mutations,d", po::value<std::string>()->default_value(""),
+        "Name a file to calculate and save mutations which may be associated with primer dropout.")
         ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
         ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
@@ -407,6 +409,106 @@ po::variables_map parse_uncertainty_command(po::parsed_options parsed) {
     return vm;
 }
 
+double fisher_test(unsigned a, unsigned b, unsigned c, unsigned d) {
+        //based on https://github.com/usuyama/fisher_exact_test/blob/master/fisher.hpp
+		unsigned N = a + b + c + d;
+		unsigned r = a + c;
+		unsigned n = c + d;
+		unsigned max_for_k;
+        if (r < n) {
+            max_for_k = r;
+        } else {
+            max_for_k = n;
+        }
+		unsigned min_for_k;
+        if (0 >= int(r+n-N)) {
+            min_for_k = unsigned(0);
+        } else {
+            min_for_k = unsigned(int(r+n-N));
+        }
+		boost::math::hypergeometric_distribution<> hgd(r, n, N);	
+		double cutoff = boost::math::pdf(hgd, c);
+		double tmp_p = 0.0;
+		for(int k = min_for_k;k < max_for_k + 1;k++) {
+				double p = boost::math::pdf(hgd, k);
+				if(p <= cutoff) tmp_p += p;
+		}
+		return tmp_p;
+}
+
+std::map<std::string,size_t> get_mutation_count(MAT::Tree* T, MAT::Node* A = NULL) {
+    std::map<std::string,size_t> mcm;
+    for (auto n: T->depth_first_expansion(A)) {
+        for (auto m: n->mutations) {
+            if (mcm.find(m.get_string()) == mcm.end()) {
+                mcm[m.get_string()] = 1;
+            } else {
+                mcm[m.get_string()]++;
+            }
+        }
+    }
+    return mcm;
+}
+
+void check_for_droppers(MAT::Tree* T, std::string outf) {
+    timer.Start();
+    std::ofstream outfile (outf);
+    outfile << "mutation\tbranch\tpvalue\n";
+    std::map<std::string,double> pvals;
+    std::map<std::string,std::string> nodetrack;
+    //first, get the overall mutation map for the global tree.
+    auto gmap = get_mutation_count(T);
+    size_t global_parsimony_score = 0;
+    for (auto kv: gmap) {
+        global_parsimony_score += kv.second;
+    }
+    fprintf(stderr, "DEBUG: Global parsimony score recorded as %ld\n", global_parsimony_score);
+    fprintf(stderr, "DEBUG: Initiating branch checks\n");
+    for (auto n: T->depth_first_expansion()) {
+        //timer.Start();
+        //for each split point, get the subtree and the mutation count of that subtree.
+        auto lmap = get_mutation_count(T,n);
+        size_t local_parsimony_score = 0;
+        for (auto kv: lmap) {
+            local_parsimony_score += kv.second;
+        }
+        if (local_parsimony_score < 50) {
+            //totally arbitrary cutoff. No clue how important this will be.
+            continue;
+        }
+        //do a fisher's exact test on the counts of this mutation vs the total parsimony score of the outside vs the inside
+        //for each mutation in lmap.
+        for (auto kv: lmap) {
+            if (kv.second < 10) {
+                //more arbitrary cutoffs.
+                continue;
+            }
+            //fprintf(stderr,"DEBUG: Checking branch mutation that passes filters\n");
+            auto pv = fisher_test(kv.second, local_parsimony_score, gmap[kv.first]-kv.second, global_parsimony_score-local_parsimony_score);
+            if (pv < 0.05) {
+                if (pv < float(1e-100)) {
+                    fprintf(stderr, "DEBUG: Potential strong outlier detected\n");
+                    std::cerr << kv.first << "\t" << n->identifier << "\t" << pv << "\n";
+                    std::cerr << kv.second << "\t" << gmap[kv.first]-kv.second << "\t" << (float)(kv.second/(gmap[kv.first]-kv.second+1)) << "\t" << local_parsimony_score << "\t" << global_parsimony_score-local_parsimony_score << "\t" << (float)(local_parsimony_score/(global_parsimony_score-local_parsimony_score+1)) <<"\n";
+                }
+                if (pvals.find(kv.first) == pvals.end()) {
+                    pvals[kv.first] = pv;
+                    nodetrack[kv.first] = n->identifier;
+                } else if (pv < pvals[kv.first]) {
+                    pvals[kv.first] = pv;
+                    nodetrack[kv.first] = n->identifier;
+                }
+                // outfile << kv.first << "\t" << n->identifier << "\t" << pv << "\n";
+            }
+        }
+        //fprintf(stderr, "DEBUG: Completed branch in %ld msec\n", timer.Stop());
+    }
+    for (auto kv: pvals) {
+        outfile << kv.first << "\t" << nodetrack[kv.first] << "\t" << pvals[kv.first] << "\n";
+    }
+    fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+}
+
 void uncertainty_main(po::parsed_options parsed) {
     //the uncertainty command, for now, produces Nextstrain Auspice-compatible TSV files for visualization
     //TODO: Add option to produce a metadata-annotated JSON directly from the MAT
@@ -415,6 +517,7 @@ void uncertainty_main(po::parsed_options parsed) {
     std::string sample_file = vm["samples"].as<std::string>();
     std::string fepps = vm["find-epps"].as<std::string>();
     std::string flocs = vm["record-placements"].as<std::string>();
+    std::string dropmuts = vm["dropout-mutations"].as<std::string>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
 
     tbb::task_scheduler_init init(num_threads);
@@ -425,6 +528,12 @@ void uncertainty_main(po::parsed_options parsed) {
     if (T.condensed_nodes.size() > 0) {
       T.uncondense_leaves();
     }
-    fprintf(stderr, "Calculating placement uncertainty\n");
-    findEPPs_wrapper(T, sample_file, fepps, flocs);
+    if (dropmuts != "") {
+        fprintf(stderr, "Identifying primer-dropout associated mutations.\n");
+        check_for_droppers(&T, dropmuts);
+    }
+    if (sample_file != "") {
+        fprintf(stderr, "Calculating placement uncertainty\n");
+        findEPPs_wrapper(T, sample_file, fepps, flocs);    
+    }
 }
