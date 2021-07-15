@@ -453,9 +453,11 @@ std::map<std::string,size_t> get_mutation_count(MAT::Tree* T, MAT::Node* A = NUL
 void check_for_droppers(MAT::Tree* T, std::string outf) {
     timer.Start();
     std::ofstream outfile (outf);
-    outfile << "mutation\tbranch\tpvalue\n";
+    outfile << "mutation\tbranch\tpvalue\toccurrences_in\toccurrences_out\tsplit_size\n";
     std::map<std::string,double> pvals;
     std::map<std::string,std::string> nodetrack;
+    std::map<std::string,size_t> ocintrack;
+    std::map<std::string,size_t> splitstrack;
     //first, get the overall mutation map for the global tree.
     auto gmap = get_mutation_count(T);
     size_t global_parsimony_score = 0;
@@ -494,9 +496,13 @@ void check_for_droppers(MAT::Tree* T, std::string outf) {
                 if (pvals.find(kv.first) == pvals.end()) {
                     pvals[kv.first] = pv;
                     nodetrack[kv.first] = n->identifier;
+                    ocintrack[kv.first] = kv.second;
+                    splitstrack[kv.first] = local_parsimony_score;
                 } else if (pv < pvals[kv.first]) {
                     pvals[kv.first] = pv;
                     nodetrack[kv.first] = n->identifier;
+                    ocintrack[kv.first] = kv.second;
+                    splitstrack[kv.first] = local_parsimony_score;
                 }
                 // outfile << kv.first << "\t" << n->identifier << "\t" << pv << "\n";
             }
@@ -504,7 +510,7 @@ void check_for_droppers(MAT::Tree* T, std::string outf) {
         //fprintf(stderr, "DEBUG: Completed branch in %ld msec\n", timer.Stop());
     }
     for (auto kv: pvals) {
-        outfile << kv.first << "\t" << nodetrack[kv.first] << "\t" << pvals[kv.first] << "\n";
+        outfile << kv.first << "\t" << nodetrack[kv.first] << "\t" << pvals[kv.first] << "\t" << ocintrack[kv.first] << "\t" << gmap[kv.first] - ocintrack[kv.first] << "\t" << splitstrack[kv.first] << "\n";
     }
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 }
