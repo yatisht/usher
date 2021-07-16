@@ -92,9 +92,6 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
               ) {
     fprintf(stderr, "%zu nodes to search \n", nodes_to_search.size());
     fprintf(stderr, "Node size: %zu\n", bfs_ordered_nodes.size());
-    for(auto node:bfs_ordered_nodes){
-        node->changed=false;
-    }
     //for resolving conflicting moves
     tbb::concurrent_vector<MAT::Node *> deferred_nodes;
     Deferred_Move_t deferred_moves;

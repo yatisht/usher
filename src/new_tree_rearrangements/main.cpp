@@ -278,11 +278,14 @@ int main(int argc, char **argv) {
     }
     isfirst=false;
     fprintf(stderr,"%zu nodes to search\n",nodes_to_search.size());
+    for(auto node:bfs_ordered_nodes){
+        node->changed=false;
+    }
     if (nodes_to_search.empty()) {
         break;
     }
     //Actual optimization loop
-    while (!nodes_to_search.empty()) {
+    while (nodes_to_search.size()>100) {
         if (interrupted) {
             break;
         }
