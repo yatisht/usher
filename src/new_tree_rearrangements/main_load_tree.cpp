@@ -3,6 +3,9 @@
 #include <cstdio>
 #include <iostream>
 #include <string>
+#include <tbb/blocked_range.h>
+#include <tbb/concurrent_unordered_map.h>
+#include <tbb/concurrent_vector.h>
 #include <tbb/pipeline.h>
 #include "tbb/parallel_for_each.h"
 #include <tbb/parallel_for.h>
@@ -105,83 +108,66 @@ void clean_tree(MAT::Tree& t){
 }
 
 void populate_mutated_pos(const Original_State_t& origin_state){
-    //global lock for pos_mutexes and mutated_positions
-    tbb::queuing_rw_mutex insert_lock;
-    //mutex for each mutation_set at each position
-    std::unordered_map<int,std::mutex*> pos_mutexes;
-    tbb::parallel_for_each(origin_state.begin(),origin_state.end(),[&insert_lock,&pos_mutexes](const std::pair<std::string, Mutation_Set>& sample_mutations){
+    tbb::parallel_for_each(origin_state.begin(),origin_state.end(),[](const std::pair<std::string, Mutation_Set>& sample_mutations){
         for (const MAT::Mutation &m : sample_mutations.second) {
             //reader lock to find this position if it is already inserted
-            tbb::queuing_rw_mutex::scoped_lock pos_lock(insert_lock,false);
             auto iter=mutated_positions.find(m);
-            std::unordered_map<std::string, nuc_one_hot>* samples;
-            std::mutex* sample_mutex;
+            tbb::concurrent_unordered_map<std::string, nuc_one_hot>* samples;
             if (iter==mutated_positions.end()) {
                 //not found, need to insert, with writer lock
-                samples=new std::unordered_map<std::string, nuc_one_hot>;
-                pos_lock.upgrade_to_writer();
+                samples=new tbb::concurrent_unordered_map<std::string, nuc_one_hot>;
                 auto emplace_result=mutated_positions.emplace(m,samples);
                 if (!emplace_result.second) {
                     delete samples;
                     samples=emplace_result.first->second;
                 }
-                //also insert the mutex for that position
-                sample_mutex=new std::mutex();
-                auto samp_mutex_iter=pos_mutexes.emplace(m.get_position(),sample_mutex);
-                if (!samp_mutex_iter.second) {
-                    delete sample_mutex;
-                }
-                sample_mutex=samp_mutex_iter.first->second;
-                pos_lock.release();
             }else {
                 samples=iter->second;
-                sample_mutex=pos_mutexes[m.get_position()];
-                pos_lock.release();
             }
             //add sample to mutation mapping
-            sample_mutex->lock();
             samples->emplace(sample_mutations.first,
                                  m.get_all_major_allele());
-            sample_mutex->unlock();
         }
     });
     //clean up all mutexes
-    for(auto m:pos_mutexes){
-        delete m.second;
-    }
 }
 //Use Full fitch sankoff to reassign state from scratch
 static void reassign_states(MAT::Tree& t, Original_State_t& origin_states){
     auto bfs_ordered_nodes = t.breadth_first_expansion();
 
     check_samples(t.root, origin_states, &t);
-    populate_mutated_pos(origin_states);
     std::unordered_set<std::string> ignored;
     std::unordered_set<std::string> ignored2;
     clean_up_internal_nodes(t.root,t,ignored,ignored2);
+    //populate_mutated_pos(origin_states);
     bfs_ordered_nodes = t.breadth_first_expansion();
     std::vector<tbb::concurrent_vector<Mutation_Annotated_Tree::Mutation>>
         output(bfs_ordered_nodes.size());
     //get mutation vector
     std::vector<backward_pass_range> child_idx_range;
     std::vector<forward_pass_range> parent_idx;
+    std::vector<std::pair<MAT::Mutation,tbb::concurrent_vector<std::pair<size_t,char>>>> pos_mutated(MAT::Mutation::refs.size());
+    tbb::parallel_for_each(origin_states.begin(),origin_states.end(),[&pos_mutated,t](const std::pair<std::string, Mutation_Set>& sample_mutations){
+        for (const MAT::Mutation &m : sample_mutations.second) {
+            pos_mutated[m.get_position()].first=m;
+            pos_mutated[m.get_position()].second.emplace_back(t.get_node(sample_mutations.first)->bfs_index,m.get_all_major_allele());
+        }
+    });
     Fitch_Sankoff_prep(bfs_ordered_nodes,child_idx_range, parent_idx);
-    tbb::parallel_for_each(
-        mutated_positions.begin(), mutated_positions.end(),
-        [&output,&child_idx_range,&parent_idx,&t](
-            const std::pair<MAT::Mutation,
-                            std::unordered_map<std::string, nuc_one_hot> *>
-                &pos) {
-            std::unordered_map<std::string, nuc_one_hot> *mutated = pos.second;
-            std::vector<std::pair<long,nuc_one_hot>> mutated_nodes_idx;
-            mutated_nodes_idx.emplace_back(0,0xf);
-            mutated_nodes_idx.reserve(mutated->size());
-            for (const auto& mutated_node : *mutated) {
-                mutated_nodes_idx.emplace_back(t.get_node(mutated_node.first)->bfs_index,mutated_node.second);
-            }
-            std::sort(mutated_nodes_idx.begin(),mutated_nodes_idx.end());
-            Fitch_Sankoff_Whole_Tree(child_idx_range,parent_idx, pos.first, mutated_nodes_idx,
+    tbb::parallel_for(
+        tbb::blocked_range<size_t>(0,pos_mutated.size()),
+        [&output,&child_idx_range,&parent_idx,&pos_mutated](const tbb::blocked_range<size_t>& in) {
+            for (size_t idx=in.begin(); idx<in.end(); idx++) {
+                if (pos_mutated[idx].second.empty()) {
+                    continue;
+                }
+                std::vector<std::pair<long,nuc_one_hot>> mutated_nodes_idx(pos_mutated[idx].second.begin(),pos_mutated[idx].second.end());
+                std::sort(mutated_nodes_idx.begin(),mutated_nodes_idx.end(),mutated_t_comparator());
+                mutated_nodes_idx.emplace_back(0,0xf);
+                Fitch_Sankoff_Whole_Tree(child_idx_range,parent_idx, pos_mutated[idx].first, mutated_nodes_idx,
                                      output);
+    
+            }
         });
     tbb::affinity_partitioner ap;
     //sort and fill

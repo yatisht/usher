@@ -1,5 +1,6 @@
 #include "mutation_annotated_tree.hpp"
 #include <chrono>
+#include <tbb/concurrent_unordered_map.h>
 #include <vector>
 #include <condition_variable>
 #include "check_samples.hpp"
@@ -9,7 +10,7 @@ extern bool no_write_intermediate;
 extern size_t max_queued_moves;
 extern std::chrono::steady_clock::duration save_period;
 namespace MAT = Mutation_Annotated_Tree;
-extern std::unordered_map<MAT::Mutation, std::unordered_map<std::string, nuc_one_hot>*,Mutation_Pos_Only_Hash,
+extern tbb::concurrent_unordered_map<MAT::Mutation, tbb::concurrent_unordered_map<std::string, nuc_one_hot>*,Mutation_Pos_Only_Hash,
                        Mutation_Pos_Only_Comparator>
         mutated_positions;
 extern std::condition_variable progress_bar_cv;

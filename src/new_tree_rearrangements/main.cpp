@@ -249,8 +249,7 @@ int main(int argc, char **argv) {
     int stalled = 0;
 
     #ifndef NDEBUG
-    Original_State_t origin_state_to_check(origin_states);
-    check_samples(t.root, origin_state_to_check, &t);
+    check_samples(t.root, origin_states, &t);
     #endif
 
     score_before = t.get_parsimony_score();

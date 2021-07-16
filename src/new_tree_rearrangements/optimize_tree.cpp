@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <mutex>
 #include <tbb/blocked_range.h>
+#include <tbb/concurrent_unordered_map.h>
 #include <tbb/concurrent_vector.h>
 #include <tbb/parallel_for.h>
 #include <tbb/partitioner.h>
@@ -80,9 +81,6 @@ static void print_progress(
         fprintf(stderr,"\rchecked %d nodes, estimate %f min left,found %zu nodes "
                "profitable",
                checked_nodes_temp, seconds_left / 60, deferred_nodes->size());
-        if (seconds_left < 60) {
-            break;
-        }
     }
 }
 size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
@@ -218,8 +216,8 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
     fprintf(stderr, "recycling moves took %f s\n",elpased_time.count());
     return t.get_parsimony_score();
 }
-std::unordered_map<MAT::Mutation,
-                   std::unordered_map<std::string, nuc_one_hot> *,
+tbb::concurrent_unordered_map<MAT::Mutation,
+                   tbb::concurrent_unordered_map<std::string, nuc_one_hot> *,
                    Mutation_Pos_Only_Hash, Mutation_Pos_Only_Comparator>
     mutated_positions;
 void save_final_tree(MAT::Tree &t, Original_State_t& origin_states,
