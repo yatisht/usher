@@ -3,11 +3,15 @@ cmake_minimum_required (VERSION 3.8)
 cmake_policy(SET CMP0069 NEW)
 project(usher)
 
-execute_process(COMMAND git describe --tags --abbrev=0 OUTPUT_VARIABLE VERSION)
+set(usher_VERSION "?.?.?")
+execute_process(COMMAND head -n1 ${CMAKE_SOURCE_DIR}/version.txt OUTPUT_VARIABLE VERSION)
 string(REGEX REPLACE "^v([0-9]+)\\..*" "\\1" VERSION_MAJOR "${VERSION}")
 string(REGEX REPLACE "^v[0-9]+\\.([0-9]+).*" "\\1" VERSION_MINOR "${VERSION}")
 string(REGEX REPLACE "^v[0-9]+\\.[0-9]+\\.([0-9]+).*" "\\1" VERSION_PATCH "${VERSION}")
-set(usher_VERSION "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}")
+if ("${VERSION_PATCH}" MATCHES "[0-9]+")
+    set(usher_VERSION "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}")
+endif()
+message(STATUS "${usher_VERSION}")
 
 configure_file(src/version.hpp.in version.hpp)
 
