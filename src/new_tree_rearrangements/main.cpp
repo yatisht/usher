@@ -285,7 +285,7 @@ int main(int argc, char **argv) {
         break;
     }
     //Actual optimization loop
-    while (nodes_to_search.size()>100) {
+    while (!nodes_to_search.empty()) {
         if (interrupted) {
             break;
         }
