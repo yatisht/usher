@@ -876,7 +876,7 @@ std::vector<Mutation_Annotated_Tree::Node*> Mutation_Annotated_Tree::Tree::rsear
 std::string Mutation_Annotated_Tree::Tree::get_clade_assignment (const Node* n, int clade_id, bool include_self) const {
     assert ((size_t)clade_id < get_num_annotations());
     for (auto anc: rsearch(n->identifier, include_self)) {
-        if (anc->clade_annotations[clade_id] != "") {
+      if ((int)anc->clade_annotations.size() > clade_id && anc->clade_annotations[clade_id] != "") {
             return anc->clade_annotations[clade_id];
         }
     }
