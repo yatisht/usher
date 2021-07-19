@@ -154,6 +154,7 @@ void write_aberrant_table(MAT::Tree& T, std::string filename) {
     std::ofstream badfile;
     badfile.open(filename);
     badfile << "NodeID\tIssue\n";
+    size_t num_annotations = T.get_num_annotations();
     std::set<std::string> dup_tracker;
     auto dfs = T.depth_first_expansion();
     for (auto n: dfs) {
@@ -164,6 +165,10 @@ void write_aberrant_table(MAT::Tree& T, std::string filename) {
         }
         if (n->mutations.size() == 0 && !n->is_leaf() && !n->is_root()) {
             badfile << n->identifier << "\tinternal-no-mutations\n";
+        }
+        if (num_annotations != n->clade_annotations.size()) {
+            badfile << n->identifier << "\tclade-annotations (" << n->clade_annotations.size() <<
+              " not " << num_annotations << ")\n";
         }
     }
 }
