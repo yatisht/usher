@@ -1,6 +1,6 @@
-#include "src/new_tree_rearrangements/Profitable_Moves_Enumerators/Profitable_Moves_Enumerators.hpp"
+#include "src/matOptimize/Profitable_Moves_Enumerators/Profitable_Moves_Enumerators.hpp"
 #include "process_each_node.hpp"
-#include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
+#include "src/matOptimize/mutation_annotated_tree.hpp"
 #include <cstdio>
 #include <unordered_set>
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT

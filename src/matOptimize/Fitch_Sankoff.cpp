@@ -1,5 +1,5 @@
 #include "Fitch_Sankoff.hpp"
-#include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
+#include "src/matOptimize/mutation_annotated_tree.hpp"
 #include <algorithm>
 #include <cstddef>
 #include <cstdio>

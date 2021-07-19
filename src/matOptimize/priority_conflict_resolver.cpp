@@ -1,7 +1,7 @@
 //If the path of 2 moves intersect, they are considered conflicting
 #include "priority_conflict_resolver.hpp"
-#include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
-#include "src/new_tree_rearrangements/tree_rearrangement_internal.hpp"
+#include "src/matOptimize/mutation_annotated_tree.hpp"
+#include "src/matOptimize/tree_rearrangement_internal.hpp"
 #include <algorithm>
 #include <atomic>
 #include <cstdio>

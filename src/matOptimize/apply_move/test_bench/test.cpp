@@ -1,7 +1,7 @@
-#include "src/new_tree_rearrangements/check_samples.hpp"
-#include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
-#include "src/new_tree_rearrangements/tree_rearrangement_internal.hpp"
-#include "src/new_tree_rearrangements/priority_conflict_resolver.hpp"
+#include "src/matOptimize/check_samples.hpp"
+#include "src/matOptimize/mutation_annotated_tree.hpp"
+#include "src/matOptimize/tree_rearrangement_internal.hpp"
+#include "src/matOptimize/priority_conflict_resolver.hpp"
 #include <cstddef>
 #include <cstdio>
 #include "tbb/parallel_for_each.h"

@@ -1,6 +1,6 @@
 #include "process_each_node.hpp"
 #include "process_individual_mutation.hpp"
-#include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
+#include "src/matOptimize/mutation_annotated_tree.hpp"
 #include <cstdio>
 #include <vector>
 //Functor for general intermediate node

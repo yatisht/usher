@@ -1,6 +1,6 @@
 #include "check_samples.hpp"
 #include "mutation_annotated_tree.hpp"
-#include "src/new_tree_rearrangements/tree_rearrangement_internal.hpp"
+#include "src/matOptimize/tree_rearrangement_internal.hpp"
 #include <cstdio>
 #include <string>
 #include <tbb/concurrent_unordered_set.h>

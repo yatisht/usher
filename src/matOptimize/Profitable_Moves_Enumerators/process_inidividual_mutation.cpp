@@ -1,5 +1,5 @@
 #include "Profitable_Moves_Enumerators.hpp"
-#include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
+#include "src/matOptimize/mutation_annotated_tree.hpp"
 static void register_change(Mutation_Count_Change_Collection &out,
                             const MAT::Mutation &pos,
                             nuc_one_hot decremented_allele,

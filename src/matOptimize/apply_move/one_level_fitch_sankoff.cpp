@@ -1,5 +1,5 @@
 #include "apply_move.hpp"
-#include "src/new_tree_rearrangements/Fitch_Sankoff.hpp"
+#include "src/matOptimize/Fitch_Sankoff.hpp"
 #include <cstddef>
 #include <array>
 typedef MAT::Mutations_Collection::const_iterator mut_iter;

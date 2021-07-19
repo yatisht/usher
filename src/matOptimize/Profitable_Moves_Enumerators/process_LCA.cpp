@@ -1,7 +1,7 @@
 #include "process_each_node.hpp"
 #include "process_individual_mutation.hpp"
-#include "src/new_tree_rearrangements/Profitable_Moves_Enumerators/Profitable_Moves_Enumerators.hpp"
-#include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
+#include "src/matOptimize/Profitable_Moves_Enumerators/Profitable_Moves_Enumerators.hpp"
+#include "src/matOptimize/mutation_annotated_tree.hpp"
 #include <climits>
 #include <cstdio>
 struct ignore_remaining_LCA {};

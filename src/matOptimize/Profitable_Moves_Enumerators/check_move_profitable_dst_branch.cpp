@@ -1,5 +1,5 @@
 #include "process_each_node.hpp"
-#include "src/new_tree_rearrangements/Profitable_Moves_Enumerators/Profitable_Moves_Enumerators.hpp"
+#include "src/matOptimize/Profitable_Moves_Enumerators/Profitable_Moves_Enumerators.hpp"
 
 //Push all nodes from cur to LCA onto dst_stack
 static void add_remaining_dst_to_LCA_nodes(MAT::Node *cur, const MAT::Node *LCA,

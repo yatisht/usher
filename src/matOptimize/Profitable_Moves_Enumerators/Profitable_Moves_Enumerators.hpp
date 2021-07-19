@@ -1,7 +1,7 @@
 #ifndef PROFITABLE_MOVES_ENUMERATOR
 #define PROFITABLE_MOVES_ENUMERATOR
 #include "../tree_rearrangement_internal.hpp"
-#include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
+#include "src/matOptimize/mutation_annotated_tree.hpp"
 #include <algorithm>
 #include <iterator>
 #include <utility>

@@ -1,7 +1,7 @@
 #ifdef CHECK_STATE_REASSIGN
 #include "apply_move.hpp"
-#include "src/new_tree_rearrangements/Fitch_Sankoff.hpp"
-#include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
+#include "src/matOptimize/Fitch_Sankoff.hpp"
+#include "src/matOptimize/mutation_annotated_tree.hpp"
 #include "tbb/parallel_for.h"
 #include "tbb/parallel_for_each.h"
 #include <vector>

@@ -1,8 +1,8 @@
 #include "tree_rearrangement_internal.hpp"
 #include "check_samples.hpp"
 #include "Fitch_Sankoff.hpp"
-#include "src/new_tree_rearrangements/Twice_Bloom_Filter.hpp"
-#include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
+#include "src/matOptimize/Twice_Bloom_Filter.hpp"
+#include "src/matOptimize/mutation_annotated_tree.hpp"
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
