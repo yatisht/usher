@@ -1,6 +1,7 @@
 #include "process_each_node.hpp"
 #include "src/new_tree_rearrangements/Profitable_Moves_Enumerators/Profitable_Moves_Enumerators.hpp"
 #include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
+#include <algorithm>
 #include <cstdio>
 #include <unordered_set>
 #include <utility>
@@ -11,7 +12,7 @@ int check_move_profitable_dst_not_LCA(
     const range<Mutation_Count_Change>  &mutations,
     const Mutation_Count_Change_Collection &root_mutations_altered,
     int parsimony_score_change, output_t &output,
-    const std::vector<MAT::Node *>& node_stack_from_src
+    const std::vector<MAT::Node *>& node_stack_from_src,int radius_left
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
     ,
     const std::vector<Mutation_Count_Change_Collection> debug_from_src,
@@ -23,7 +24,7 @@ int check_move_profitable_LCA(
     const Mutation_Count_Change_Collection &mutations,
     const Mutation_Count_Change_Collection &root_mutations_altered,
     int parsimony_score_change,
-    const std::vector<MAT::Node *> &node_stack_from_src, output_t &output
+    const std::vector<MAT::Node *> &node_stack_from_src, output_t &output,int radius_left
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
     ,
     const std::vector<Mutation_Count_Change_Collection> &debug_above_LCA,
@@ -97,7 +98,7 @@ static void search_subtree_not_LCA(
         //Pre-order, search when mutation vector of dst is slightly more likely to be hot
         check_move_profitable_dst_not_LCA(
             src, root, LCA, mutations, root_mutations_altered,
-            parsimony_score_change_from_removal,profitable_moves, node_stack_from_src
+            parsimony_score_change_from_removal,profitable_moves, node_stack_from_src,radius
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
             ,debug_from_src,tree
 #endif
@@ -143,7 +144,7 @@ void search_subtree(
             //moving src to LCA, if src's parent was not originally LCA 
             check_move_profitable_LCA(
             src, LCA, mutations, src_branch_mutations_altered,
-            parsimony_score_change_from_removal, node_stack_from_src,profitable_moves
+            parsimony_score_change_from_removal, node_stack_from_src,profitable_moves,radius
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
             ,debug_from_src,tree
 #endif
@@ -211,6 +212,11 @@ static void init_mutation_change(MAT::Node* src, Mutation_Count_Change_Collectio
         }
     }
 }
+struct Profitable_Move_Comparator{
+    bool operator()(const Profitable_Moves_ptr_t& lhs,const Profitable_Moves_ptr_t& rhs)const{
+        return lhs->radius_left>rhs->radius_left;
+    }
+};
 void find_profitable_moves(MAT::Node *src, output_t &out,int radius,
     stack_allocator<Mutation_Count_Change>& allocator
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
@@ -271,6 +277,7 @@ void find_profitable_moves(MAT::Node *src, output_t &out,int radius,
         root = root->parent;
         radius--;
     }
+    std::sort(out.moves.begin(),out.moves.end(),Profitable_Move_Comparator());
 }
 int individual_move(MAT::Node* src,MAT::Node* dst,MAT::Node* LCA,output_t& out
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
@@ -306,7 +313,7 @@ MAT::Node *root = src->parent;
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
         debug.push_back(new_alter_mutations);
 #endif
-        assert(node_stack_from_src.back()!=root);
+        //assert(node_stack_from_src.back()!=root);
         node_stack_from_src.push_back(root);
         merge_mutation_src_to_LCA(root, mutations);
         root_mutations_altered = std::move(new_alter_mutations);
@@ -326,13 +333,13 @@ MAT::Node *root = src->parent;
     }
     if (dst==LCA) {
         return check_move_profitable_LCA(src, LCA, mutations, root_mutations_altered,
-            parsimony_score_change, node_stack_from_src,out
+            parsimony_score_change, node_stack_from_src,out,1
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
             ,debug,tree
 #endif
         );;
     }else{
-    return check_move_profitable_dst_not_LCA(src, dst, LCA, mutations, root_mutations_altered, parsimony_score_change,out, node_stack_from_src
+    return check_move_profitable_dst_not_LCA(src, dst, LCA, mutations, root_mutations_altered, parsimony_score_change,out, node_stack_from_src,1
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
     , debug,tree
 #endif

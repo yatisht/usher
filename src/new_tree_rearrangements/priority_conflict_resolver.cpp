@@ -72,10 +72,9 @@ bool Conflict_Resolver::register_single_move_no_conflict(
 
 char Conflict_Resolver::operator()(std::vector<Profitable_Moves_ptr_t>& candidate_move){
     char ret=0;
-    fputs(candidate_move[0]->src->identifier.c_str(), log);
-    fputc('\n',log);
     Profitable_Moves_ptr_t selected_move=nullptr;
     for (Profitable_Moves_ptr_t& move : candidate_move) {
+        fprintf(log, "%s\t%s\n",move->src->identifier.c_str(),move->get_dst()->identifier.c_str());
         //fflush(log);
         //don't need check-lock-check-set, as there is little contension on conflict resolver 
         std::lock_guard<std::mutex> lk(register_lock);

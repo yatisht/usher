@@ -161,7 +161,7 @@ nuc_one_hot decrement_increment_mutation_count(
         // this is adding to a minor allele while removing a major
         // allele
         if (boundary1_state & incremented || major_allele_not_decremented) {
-            assert(!major_allele_incremented);
+            //assert(!major_allele_incremented);
             // tied alleles not decremented (no action needed)
             // and boundary 1 allele incremented (need to be incremented in
             // parent of parent counts) become new major allele
@@ -176,15 +176,6 @@ nuc_one_hot decrement_increment_mutation_count(
             // didn't change, as there are still same numbe of children that can
             // follow major_alleles
             return major_alleles;
-        } else if (incremented) {
-            assert(!(major_allele_not_decremented));
-            assert(!(boundary1_state & incremented));
-            // All major allele are decremented to tie with boundary 1 alleles,
-            // no boundary1 alleles are incremented,some boundary2 alleles get
-            // incremented. They become the new major alleles
-            // so no change in mutations (it just follow parent),just change in
-            // children mutation count in parent of parent;
-            assert(false);
         } else {
             // No thing interesting have been incremented
             major_alleles=decrement_mutation_count(parent_node_mutation_count_change,

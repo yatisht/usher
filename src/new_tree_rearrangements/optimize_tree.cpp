@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <mutex>
 #include <tbb/blocked_range.h>
+#include <tbb/concurrent_unordered_map.h>
 #include <tbb/concurrent_vector.h>
 #include <tbb/parallel_for.h>
 #include <tbb/partitioner.h>
@@ -19,7 +20,7 @@ void find_profitable_moves(MAT::Node *src, output_t &out,int radius,
 ,MAT::Tree* tree
 #endif
 );
-thread_local stack_allocator<Mutation_Count_Change> FIFO_allocator;
+thread_local allocator_state<Mutation_Count_Change> FIFO_allocator_state;
 extern tbb::task_group_context search_context;
 MAT::Node* get_LCA(MAT::Node* src,MAT::Node* dst){
     while (src!=dst) {
@@ -54,7 +55,7 @@ static void print_progress(
         start_time,
     size_t total_nodes,
     const tbb::concurrent_vector<MAT::Node *> *deferred_nodes,
-    bool *done,std::mutex* done_mutex,size_t max_queued_moves) {
+    bool *done,std::mutex* done_mutex) {
     while (true) {
         {
             if (*done) {
@@ -68,7 +69,7 @@ static void print_progress(
                 progress_bar_cv.wait(done_lock);
             }
         }
-        if (deferred_nodes->size()>max_queued_moves||*done) {
+        if (*done) {
             return;
         }
         int checked_nodes_temp = checked_nodes->load(std::memory_order_relaxed);
@@ -80,23 +81,17 @@ static void print_progress(
         fprintf(stderr,"\rchecked %d nodes, estimate %f min left,found %zu nodes "
                "profitable",
                checked_nodes_temp, seconds_left / 60, deferred_nodes->size());
-        if (seconds_left < 60) {
-            break;
-        }
     }
 }
 size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
               tbb::concurrent_vector<MAT::Node *> &nodes_to_search,
-              MAT::Tree &t,int radius,FILE* log,size_t max_queued_moves
+              MAT::Tree &t,int radius,FILE* log
               #ifndef NDEBUG
               , Original_State_t origin_states
             #endif
               ) {
     fprintf(stderr, "%zu nodes to search \n", nodes_to_search.size());
     fprintf(stderr, "Node size: %zu\n", bfs_ordered_nodes.size());
-    for(auto node:bfs_ordered_nodes){
-        node->changed=false;
-    }
     //for resolving conflicting moves
     tbb::concurrent_vector<MAT::Node *> deferred_nodes;
     Deferred_Move_t deferred_moves;
@@ -106,23 +101,23 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
     bool done=false;
     std::mutex done_mutex;
     auto search_start= std::chrono::steady_clock::now();
-    std::thread progress_meter(print_progress,&checked_nodes,search_start, nodes_to_search.size(), &deferred_nodes,&done,&done_mutex,max_queued_moves);
+    std::thread progress_meter(print_progress,&checked_nodes,search_start, nodes_to_search.size(), &deferred_nodes,&done,&done_mutex);
     fputs("Start searching for profitable moves\n",stderr);
     //Actual search of profitable moves
     output_t out;
     tbb::parallel_for(tbb::blocked_range<size_t>(0, nodes_to_search.size()),
                       [&nodes_to_search, &resolver,
-                       &deferred_nodes,radius,&checked_nodes,max_queued_moves
+                       &deferred_nodes,radius,&checked_nodes
                               #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
 ,&t
 #endif
                        ](tbb::blocked_range<size_t> r) {
-                        stack_allocator<Mutation_Count_Change>& this_thread_FIFO_allocator=FIFO_allocator;
+                        stack_allocator<Mutation_Count_Change> this_thread_FIFO_allocator(FIFO_allocator_state);
                           for (size_t i = r.begin(); i < r.end(); i++) {
                               if (search_context.is_group_execution_cancelled()) {
                                   break;
                               }
-                              if(deferred_nodes.size()<max_queued_moves){
+                              if(((!deferred_nodes.size())||(std::chrono::steady_clock::now()-last_save_time)<save_period)&&deferred_nodes.size()<max_queued_moves){
                               output_t out;
                               find_profitable_moves(nodes_to_search[i], out, radius,this_thread_FIFO_allocator
                               #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
@@ -165,6 +160,8 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
     elpased_time =apply_end-searh_end;
     fprintf(stderr, "apply moves took %f s\n",elpased_time.count());
     //recycle conflicting moves
+    int init_deferred=deferred_moves.size();
+    int recycled=0;
     fputs("Start recycling conflicting moves\n",stderr);
     while (!deferred_moves.empty()) {
         bfs_ordered_nodes=t.breadth_first_expansion();
@@ -196,6 +193,7 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
         });
         all_moves.clear();
         resolver.schedule_moves(all_moves);
+        recycled+=all_moves.size();
     apply_moves(all_moves, t, bfs_ordered_nodes, deferred_nodes
 #ifdef CHECK_STATE_REASSIGN
     ,origin_states
@@ -211,11 +209,12 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
     #endif
     nodes_to_search = std::move(deferred_nodes);
     progress_meter.join();
+    fprintf(stderr, "recycled %f of conflicting moves \n",(double)recycled/(double)init_deferred);
     fprintf(stderr, "recycling moves took %f s\n",elpased_time.count());
     return t.get_parsimony_score();
 }
-std::unordered_map<MAT::Mutation,
-                   std::unordered_map<std::string, nuc_one_hot> *,
+tbb::concurrent_unordered_map<MAT::Mutation,
+                   tbb::concurrent_unordered_map<std::string, nuc_one_hot> *,
                    Mutation_Pos_Only_Hash, Mutation_Pos_Only_Comparator>
     mutated_positions;
 void save_final_tree(MAT::Tree &t, Original_State_t& origin_states,

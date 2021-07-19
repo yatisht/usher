@@ -58,7 +58,7 @@ static void depth_first_expansion_helper(Mutation_Annotated_Tree::Node* node, st
     assert(std::find(vec.begin(),vec.end(),node)==vec.end());
     #endif
     vec.push_back(node);
-    assert(vec.size()-1==index);
+    //assert(vec.size()-1==index);
     node->dfs_index=index;
     index++;
     for (auto c: node->children) {

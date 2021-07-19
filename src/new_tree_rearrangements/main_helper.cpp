@@ -11,6 +11,7 @@
 #include <tbb/parallel_for.h>
 #include <unordered_set>
 #include <random>
+#include <utility>
 namespace MAT=Mutation_Annotated_Tree;
 //add a root above current root, so nodes can move above the current node
 void add_root(MAT::Tree *tree) {
@@ -90,20 +91,9 @@ static void check_changed_neighbor(int radius, MAT::Node* root, MAT::Node* exclu
         }
     }
 }
-//find src node to search
-void
-find_nodes_to_move(const std::vector<MAT::Node *> &bfs_ordered_nodes,
-                   tbb::concurrent_vector<MAT::Node*> &output,bool is_first,int radius) {
-    std::vector<MAT::Node *> nodes_with_recurrent_mutations;
-    auto start=std::chrono::steady_clock::now();
-    find_nodes_with_recurrent_mutations(bfs_ordered_nodes,
-                                        nodes_with_recurrent_mutations);
-    std::minstd_rand g(std::chrono::steady_clock::now().time_since_epoch().count());
-    std::shuffle(nodes_with_recurrent_mutations.begin(), nodes_with_recurrent_mutations.end(), g);
-    std::unordered_set<size_t> pushed_nodes;
-    pushed_nodes.reserve(nodes_with_recurrent_mutations.size()*4);
-    std::vector<MAT::Node*> first_pass_nodes;
-    first_pass_nodes.reserve(nodes_with_recurrent_mutations.size()*2);
+void add_ancestors(std::vector<MAT::Node *> &nodes_with_recurrent_mutations,
+               std::unordered_set<size_t> &pushed_nodes,
+               std::vector<MAT::Node *> &first_pass_nodes) {
     for (MAT::Node *this_node : nodes_with_recurrent_mutations) {
         while (this_node->parent) {
             auto result = pushed_nodes.insert(this_node->bfs_index);
@@ -115,6 +105,23 @@ find_nodes_to_move(const std::vector<MAT::Node *> &bfs_ordered_nodes,
             }
         }
     }
+}
+//find src node to search
+void find_nodes_to_move(const std::vector<MAT::Node *> &bfs_ordered_nodes,
+                        tbb::concurrent_vector<MAT::Node *> &output,
+                        bool is_first, int radius) {
+    std::vector<MAT::Node *> nodes_with_recurrent_mutations;
+    auto start=std::chrono::steady_clock::now();
+    find_nodes_with_recurrent_mutations(bfs_ordered_nodes,
+                                        nodes_with_recurrent_mutations);
+    std::minstd_rand g(std::chrono::steady_clock::now().time_since_epoch().count());
+    std::shuffle(nodes_with_recurrent_mutations.begin(), nodes_with_recurrent_mutations.end(), g);
+    std::unordered_set<size_t> pushed_nodes;
+    pushed_nodes.reserve(nodes_with_recurrent_mutations.size()*4);
+    std::vector<MAT::Node*> first_pass_nodes;
+    first_pass_nodes=std::move(nodes_with_recurrent_mutations);
+    //first_pass_nodes.reserve(nodes_with_recurrent_mutations.size()*2);
+    //add_ancestors(nodes_with_recurrent_mutations, pushed_nodes, first_pass_nodes);
     fprintf(stderr, "First pass nodes: %zu \n",first_pass_nodes.size());
     if (is_first) {
         output=tbb::concurrent_vector<MAT::Node*>(first_pass_nodes.begin(),first_pass_nodes.end());
@@ -135,7 +142,8 @@ find_nodes_to_move(const std::vector<MAT::Node *> &bfs_ordered_nodes,
             }
         }
     });
+    }
+    fprintf(stderr, "Will search %f of nodes\n",(double)output.size()/(double)bfs_ordered_nodes.size());
     std::chrono::duration<double> elapsed_seconds = std::chrono::steady_clock::now()-start;
     fprintf(stderr, "Took %f s to find nodes to move\n",elapsed_seconds.count());
-    }
 }

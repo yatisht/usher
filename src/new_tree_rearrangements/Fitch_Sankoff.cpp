@@ -146,19 +146,21 @@ std::array<int,4> count_right(MAT::Node* this_node, std::vector<uint8_t>& minor_
 }
 #endif
 
-void FS_backward_pass(const std::vector<backward_pass_range>& child_idx_range, std::vector<uint8_t>& boundary1_major_allele,const std::unordered_map<std::string, nuc_one_hot>& mutated,nuc_one_hot ref_nuc){
+void FS_backward_pass(const std::vector<backward_pass_range>& child_idx_range, std::vector<uint8_t>& boundary1_major_allele,const mutated_t& mutated,nuc_one_hot ref_nuc){
     //Using BFS order for memory locality, as children of a node are toghrther in BFS order
+    auto mutated_iter=mutated.begin();
     for(long node_idx=child_idx_range.size()-1;node_idx>=0;node_idx--){
         auto child_size=child_idx_range[node_idx].child_size;
 
         //leaf node
         if (child_size==0) {
-            auto iter=mutated.find(*child_idx_range[node_idx].identifier);
             nuc_one_hot allele;
-            if (iter==mutated.end()) {
+            if (mutated_iter->first!=node_idx) {
                 allele=ref_nuc;
+                assert(mutated_iter->first<node_idx);
             }else {
-                allele=iter->second;
+                allele=mutated_iter->second;
+                mutated_iter++;
             }
             boundary1_major_allele[node_idx]=allele;
         }else if (child_size==1) {
@@ -194,7 +196,7 @@ void FS_backward_pass(const std::vector<backward_pass_range>& child_idx_range, s
             #endif
             set_state_from_cnt(nuc_count, boundary1_major_allele[node_idx]);
         }
-        assert(boundary1_major_allele[node_idx]&0xf);
+        //assert(boundary1_major_allele[node_idx]&0xf);
     }
 }
 //add mutation for non-binary nodes
@@ -222,13 +224,13 @@ static nuc_one_hot set_state(const forward_pass_range & this_range,uint8_t bound
     nuc_one_hot major_allele(boundary1_major_allele&0xf);
 
     nuc_one_hot boundary1_allele=boundary1_major_allele>>4;
-    assert(major_allele&this_state);
+    //assert(major_allele&this_state);
     //add if have allele whose count is exactly one less than major allele count,unless it only have one children to save memory, or major allele count is not the same as parent allele
     if (major_allele.is_ambiguous()||(boundary1_allele)||need_add) {
         MAT::Mutation to_add(base);
         to_add.set_par_mut(par_state, this_state);
         if (this_range.child_size<=1) {
-            assert(!boundary1_allele);
+            //assert(!boundary1_allele);
             boundary1_allele=(~major_allele)&0xf;
         }
         to_add.set_auxillary(major_allele,boundary1_allele);
@@ -331,7 +333,7 @@ int FS_forward_assign_states_only(const std::vector<MAT::Node*>& bfs_ordered_nod
     return mutation_count;
 }
 #endif
-void Fitch_Sankoff_Whole_Tree(const std::vector<backward_pass_range>& child_idx_range,const std::vector<forward_pass_range>& parent_idx,const MAT::Mutation & base,const std::unordered_map<std::string, nuc_one_hot>& mutated,std::vector<tbb::concurrent_vector<Mutation_Annotated_Tree::Mutation>>& output,MAT::Tree* try_similar){
+void Fitch_Sankoff_Whole_Tree(const std::vector<backward_pass_range>& child_idx_range,const std::vector<forward_pass_range>& parent_idx,const MAT::Mutation & base,const mutated_t& mutated,std::vector<tbb::concurrent_vector<Mutation_Annotated_Tree::Mutation>>& output,MAT::Tree* try_similar){
     std::vector<uint8_t> minor_major_allele(child_idx_range.size()+16);
 
     FS_backward_pass(child_idx_range,minor_major_allele,mutated,base.get_ref_one_hot());

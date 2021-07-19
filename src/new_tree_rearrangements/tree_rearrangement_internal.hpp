@@ -1,10 +1,16 @@
 #include "mutation_annotated_tree.hpp"
+#include <chrono>
+#include <tbb/concurrent_unordered_map.h>
 #include <vector>
 #include <condition_variable>
 #include "check_samples.hpp"
 #pragma once
+extern std::chrono::time_point<std::chrono::steady_clock> last_save_time;
+extern bool no_write_intermediate;
+extern size_t max_queued_moves;
+extern std::chrono::steady_clock::duration save_period;
 namespace MAT = Mutation_Annotated_Tree;
-extern std::unordered_map<MAT::Mutation, std::unordered_map<std::string, nuc_one_hot>*,Mutation_Pos_Only_Hash,
+extern tbb::concurrent_unordered_map<MAT::Mutation, tbb::concurrent_unordered_map<std::string, nuc_one_hot>*,Mutation_Pos_Only_Hash,
                        Mutation_Pos_Only_Comparator>
         mutated_positions;
 extern std::condition_variable progress_bar_cv;
@@ -16,6 +22,7 @@ struct Profitable_Moves{
     std::vector<MAT::Node*> dst_to_LCA;
     MAT::Node* LCA;
     bool new_node;
+    int radius_left;
     Profitable_Moves():score_change(0){}
     Profitable_Moves(MAT::Node* src, MAT::Node* dst){
         score_change=-1;
@@ -42,8 +49,9 @@ struct Profitable_Moves{
 typedef Profitable_Moves* Profitable_Moves_ptr_t;
 struct output_t{
     int score_change;
+    int radius_left;
     std::vector<Profitable_Moves_ptr_t> moves;
-    output_t():score_change(-1){}
+    output_t():score_change(-1),radius_left(-1){}
 };
 int individual_move(Mutation_Annotated_Tree::Node* src,Mutation_Annotated_Tree::Node* dst,Mutation_Annotated_Tree::Node* LCA,output_t& out
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
@@ -68,7 +76,7 @@ void VCF_input(const char * name,MAT::Tree& tree);
 
 size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
               tbb::concurrent_vector<MAT::Node *> &nodes_to_search,
-              MAT::Tree &t,int radius,FILE* log,size_t max_queued_moves
+              MAT::Tree &t,int radius,FILE* log
               #ifndef NDEBUG
               , Original_State_t origin_states
             #endif
