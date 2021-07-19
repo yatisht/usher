@@ -1352,7 +1352,7 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_subtree (const Mutati
             }
             // Add to the parent identified
             else {
-                Node* new_node = subtree.create_node(n->identifier, subtree_parent->identifier);
+                Node* new_node = subtree.create_node(n->identifier, subtree_parent->identifier, num_annotations);
 
                 auto par_to_node = tree.rsearch(n->identifier, true);
                 std::reverse(par_to_node.begin(), par_to_node.end());
