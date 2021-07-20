@@ -465,29 +465,8 @@ void extract_main (po::parsed_options parsed) {
         fprintf(stderr, "Completed in %ld msec\n\n", timer.Stop());
     }
     if (clade_path_filename != dir_prefix) {
-        //need to get the set of all clade annotations currently in the tree for the clade_paths function
-        //TODO: refactor summary so I can just import the clade counter function from there (disentangle from file printing)
-        //also this block of code just generally sucks.
-        fprintf(stderr, "Writing clade root path strings...\n");
-        timer.Start();
-        std::vector<std::string> cladenames;
-        auto dfs = T.depth_first_expansion();
-        for (auto s: dfs) {
-            std::vector<std::string> canns = s->clade_annotations;
-            if (canns.size() > 0) {
-                if (canns.size() > 1 || canns[0] != "") {
-                    for (auto c: canns) {
-                        if (c != "" && std::find(cladenames.begin(), cladenames.end(), c) == cladenames.end()) {
-                            cladenames.push_back(c);
-                        }
-                    }
-                }
-            }
-        }
         std::ofstream outfile (clade_path_filename);
-        //TODO: maybe better to update clade_paths to take an "all current clades" option.
-        //should be more computationally efficient at least.
-        auto cpaths = clade_paths(T, cladenames);
+        auto cpaths = clade_paths(T);
         for (auto cstr: cpaths) {
             outfile << cstr;
         }
