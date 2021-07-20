@@ -730,6 +730,10 @@ size_t Mutation_Annotated_Tree::Tree::get_num_annotations () const {
 void Mutation_Annotated_Tree::Tree::rename_node(std::string old_nid, std::string new_nid) {
     auto n = get_node(old_nid);
     if (n != NULL) {
+        if (all_nodes.find(new_nid) != all_nodes.end()) {
+            fprintf(stderr, "ERROR: rename_node: node with id '%s' already exists.\n", new_nid.c_str());
+            exit(1);
+        }
         n->identifier = new_nid;
         all_nodes.erase(old_nid);
         all_nodes[new_nid] = n;
