@@ -86,6 +86,14 @@ if(DEFINED Protobuf_PATH)
         ${DETAILED_MUTATIONS_PROTO_HDRS}
         )
 
+    add_executable(compareVCF
+        src/mutation_annotated_tree.cpp
+        src/compareVCF.cpp)
+
+    add_executable(rename_fasta
+        src/mutation_annotated_tree.cpp
+        src/matOptimize/rename_fasta.cpp)
+
     protobuf_generate(
         LANGUAGE cpp
         TARGET usher 
