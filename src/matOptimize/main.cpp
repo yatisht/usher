@@ -91,14 +91,14 @@ int main(int argc, char **argv) {
         ("save-intermediate-mutation-annotated-tree,m", po::value<std::string>(&intermediate_pb_base_name)->default_value(""), "Save intermediate mutation-annotated tree object to the specified filename")
         ("radius,r", po::value<int32_t>(&radius)->default_value(10),
          "Radius in which to restrict the SPR moves.")
-        ("profitable_src_log,S", po::value<std::string>(&profitable_src_log)->default_value("/dev/null"),
+        ("profitable-src-log,S", po::value<std::string>(&profitable_src_log)->default_value("/dev/null"),
          "The file to log from which node a profitable move can be found.")
-        ("ambi_protobuf,a", po::value<std::string>(&input_complete_pb_path)->default_value(""),
+        ("ambi-protobuf,a", po::value<std::string>(&input_complete_pb_path)->default_value(""),
          "Continue from intermediate protobuf")
-        ("max_queued_moves,q",po::value<size_t>(&max_queued_moves)->default_value(1000),"Maximium number of profitable moves found before applying these moves")
-        ("minutes_between_save,s",po::value<unsigned int>(&minutes_between_save)->default_value(10),"Maximium number of profitable moves found before applying these moves")
+        ("max-queued-moves,q",po::value<size_t>(&max_queued_moves)->default_value(1000),"Maximium number of profitable moves found before applying these moves")
+        ("minutes-between-save,s",po::value<unsigned int>(&minutes_between_save)->default_value(10),"Maximium number of profitable moves found before applying these moves")
         ("do-not-write-intermediate-files,n","Do not write intermediate files.")
-        ("exhaustive_mode,e","Search every non-root node as source node.")
+        ("exhaustive-mode,e","Search every non-root node as source node.")
         ("max-hours,M",po::value(&max_optimize_hours)->default_value(0),"Maximium number of hours to run")
         ("version", "Print version number")
         ("help,h", "Print help messages");
@@ -134,7 +134,7 @@ int main(int argc, char **argv) {
     }
     //std::string cwd=get_current_dir_name();
     no_write_intermediate=vm.count("do-not-write-intermediate-files");
-    bool search_all_nodes=vm.count("exhaustive_mode");
+    bool search_all_nodes=vm.count("exhaustive-mode");
         try{
         auto output_path_dir_name=boost::filesystem::system_complete(output_path).parent_path();
         if(!boost::filesystem::exists(output_path_dir_name)){
