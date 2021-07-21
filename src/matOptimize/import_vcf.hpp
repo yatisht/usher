@@ -3,8 +3,8 @@
 #include <boost/iostreams/filter/gzip.hpp>
 #include <tbb/pipeline.h>
 #include <vector>
-#include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
-#include "src/new_tree_rearrangements/Fitch_Sankoff.hpp"
+#include "src/matOptimize/mutation_annotated_tree.hpp"
+#include "src/matOptimize/Fitch_Sankoff.hpp"
 #include "tree_rearrangement_internal.hpp"
 #include <utility>
 struct Parsed_VCF_Line{

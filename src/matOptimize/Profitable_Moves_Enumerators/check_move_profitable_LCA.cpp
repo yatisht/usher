@@ -1,6 +1,6 @@
 #include "process_each_node.hpp"
-#include "src/new_tree_rearrangements/Profitable_Moves_Enumerators/Profitable_Moves_Enumerators.hpp"
-#include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
+#include "src/matOptimize/Profitable_Moves_Enumerators/Profitable_Moves_Enumerators.hpp"
+#include "src/matOptimize/mutation_annotated_tree.hpp"
 
 //Mutation added by moving src to LCA doesn't match any sensitive mutation on LCA. Spliting the edge is equivalent to adding a binary node with parent state and src state at this node
 static void added_no_match(const Mutation_Count_Change &mutation_to_add,

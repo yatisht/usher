@@ -1,5 +1,5 @@
-#include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
-#include "src/new_tree_rearrangements/tree_rearrangement_internal.hpp"
+#include "src/matOptimize/mutation_annotated_tree.hpp"
+#include "src/matOptimize/tree_rearrangement_internal.hpp"
 //mark a state change collection is produced by merging in forward pass
 #define NEW_MARK -2
 #define NEW_SRC_MARK -3

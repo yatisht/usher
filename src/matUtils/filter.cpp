@@ -61,9 +61,6 @@ MAT::Tree get_sample_prune (const MAT::Tree& T, std::vector<std::string> sample_
     auto subtree = MAT::get_tree_copy(T);
     auto dfs = T.depth_first_expansion();
     for (auto s: dfs) {
-        if (!keep_clade_annotations) {
-            s->clear_annotations();
-        }
         //only call the remover on leaf nodes (can't be deleting the root...)
         if (s->is_leaf()) {
             //if the node is NOT in the set, remove it
@@ -75,6 +72,12 @@ MAT::Tree get_sample_prune (const MAT::Tree& T, std::vector<std::string> sample_
             }
         }
     }    
+    if (!keep_clade_annotations) {
+        dfs = subtree.depth_first_expansion();
+        for (auto s: dfs) {
+            s->clear_annotations();
+        }
+    }
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     return subtree;
 }

@@ -1,6 +1,6 @@
 #include "apply_move.hpp"
-#include "src/new_tree_rearrangements/check_samples.hpp"
-#include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
+#include "src/matOptimize/check_samples.hpp"
+#include "src/matOptimize/mutation_annotated_tree.hpp"
 #include <algorithm>
 #include <cstdio>
 #include <tbb/blocked_range.h>

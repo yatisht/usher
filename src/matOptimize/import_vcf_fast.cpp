@@ -1,5 +1,5 @@
-#include "src/new_tree_rearrangements/mutation_annotated_tree.hpp"
-#include "src/new_tree_rearrangements/tree_rearrangement_internal.hpp"
+#include "src/matOptimize/mutation_annotated_tree.hpp"
+#include "src/matOptimize/tree_rearrangement_internal.hpp"
 #include "zlib.h"
 #include "tbb/concurrent_queue.h"
 #include "tbb/flow_graph.h"
