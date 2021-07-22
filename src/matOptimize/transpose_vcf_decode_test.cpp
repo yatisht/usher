@@ -68,14 +68,12 @@ struct partitioner{
         return true; 
     }
 };
-#define MAX_SIZ 0xffff
+#define MAX_SIZ 0x30000
 struct printer{
-    mutable uint8_t buffer[MAX_SIZ];
     printer(){}
-    printer(const printer&){}
-    printer(printer&){}
     void operator=(const printer&){}
     void operator()(const uint8_t* in) const{
+        uint8_t buffer[MAX_SIZ];
         unsigned int item_len=*(int*) in;
         size_t out_len=MAX_SIZ;
         auto uncompress_out=uncompress(buffer, &out_len, in+4, item_len);
@@ -117,8 +115,8 @@ struct printer{
                 out.push_back(Mutation_Annotated_Tree::get_nuc(mutations_test[pos_idx].mut));
             }
         {
-            std::lock_guard<std::mutex> lk(print_mutex);
-            puts(out.c_str());
+            //std::lock_guard<std::mutex> lk(print_mutex);
+            //puts(out.c_str());
         }
             //data.PopLimit(internal_limit);
         }
@@ -126,7 +124,7 @@ struct printer{
     }
 };
 int main(int argc,char** argv){
-    tbb::task_scheduler_init init(1);
+    //tbb::task_scheduler_init init(1);
     auto fh=open(argv[1], O_RDONLY);
     struct stat stat_buf;
     fstat(fh, &stat_buf);
@@ -135,7 +133,7 @@ int main(int argc,char** argv){
     auto end=file+size;
     tbb::flow::graph input_graph;
     tbb::flow::source_node<const uint8_t*> source (input_graph,partitioner{file,end});
-    tbb::flow::function_node<const uint8_t*> consumer(input_graph,tbb::flow::serial,printer());
+    tbb::flow::function_node<const uint8_t*> consumer(input_graph,tbb::flow::unlimited,printer());
     tbb::flow::make_edge(source,consumer);
     input_graph.wait_for_all();
 }

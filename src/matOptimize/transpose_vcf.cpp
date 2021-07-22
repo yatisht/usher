@@ -8,6 +8,7 @@
 #include <string>
 #include "transpose_vcf.hpp"
 #include <sys/types.h>
+#include <tbb/pipeline.h>
 #include <tbb/task_scheduler_init.h>
 #include <tbb/blocked_range.h>
 #include <tbb/concurrent_vector.h>
@@ -18,6 +19,8 @@
 #include "tbb/parallel_for.h"
 std::mutex print_mutex;
 #define ZLIB_BUFSIZ 0x10000
+#include <atomic>
+std::atomic<size_t> buffer_left; 
 //Decouple parsing (slow) and decompression, segment file into blocks for parallelized parsing
 typedef tbb::flow::source_node<char*> decompressor_node_t;
 typedef tbb::flow::function_node<char*> line_parser_t;
@@ -47,9 +50,11 @@ struct Decompressor{
     gzFile* fd;
     size_t init_read_size;
     size_t cont_read_size;
-    bool operator()(char*& buf) const{
+    char* operator()(tbb::flow_control& fc) const{
+        char* buf;
         if (gzeof(*fd)) {
-            return false;
+            fc.stop();
+            return nullptr;
         }
         buf=new char[init_read_size+cont_read_size];
         int read_size=gzread(*fd, buf, init_read_size);
@@ -59,13 +64,16 @@ struct Decompressor{
         }
         if (!read_size) {
             delete [] (buf);
-            return false;
+            fc.stop();
+            return nullptr;
         }
         //Make sure the last line is complete in the block.
         if(!gzgets(*fd, buf+read_size, cont_read_size)){
             *(buf+read_size)=0;
         }
-        return true;
+        buffer_left++;
+        fprintf(stderr, "buffer in flight %zu\n",buffer_left.load());
+        return buf;
     }
 };
 struct Pos_Mut{
@@ -153,6 +161,8 @@ struct Line_Parser{
             }
         }
         delete[] (start);
+        buffer_left--;
+        fprintf(stderr, "buffer in flight %zu\n",buffer_left.load());
     }
 };
 //tokenize header, get sample name
@@ -188,7 +198,7 @@ static int read_header(gzFile* fd,std::vector<std::string>& out){
     }
     return header_len;
 }
-#define MAX_SIZ 0xffff
+#define MAX_SIZ 0x30000
 struct Sample_Mut_Msg{
     std::vector<uint8_t> buffer;
     Sample_Mut_Msg(const std::string& sample, tbb::concurrent_vector<Pos_Mut>& mutations){
@@ -244,8 +254,8 @@ Sample_Mut_Msg* serialize(const std::string& sample, tbb::concurrent_vector<Pos_
         //widx++;
     }
     {
-        std::lock_guard<std::mutex> lk(print_mutex);
-        std::cout<<p_out<<"\n";
+        //std::lock_guard<std::mutex> lk(print_mutex);
+        //std::cout<<p_out<<"\n";
     }
     /*TransposedVCF::sample* out=new TransposedVCF::sample();
     out->set_sample_name(sample);
@@ -404,7 +414,7 @@ struct Write_Node{
     }
 };
 
-#define CHUNK_SIZ 10
+#define CHUNK_SIZ 5
 void VCF_input(const char * name,const char * out_name){
     std::vector<std::string> fields;
     //open file set increase buffer size
@@ -416,20 +426,21 @@ void VCF_input(const char * name,const char * out_name){
     gzbuffer(fd,ZLIB_BUFSIZ);
 
     unsigned int header_size=read_header(&fd, fields);
-    tbb::flow::graph input_graph;
-    decompressor_node_t decompressor(input_graph,Decompressor{&fd,CHUNK_SIZ*header_size,2*header_size});
     std::vector<tbb::concurrent_vector<Pos_Mut>> sample_pos_mut(fields.size());
+    /*tbb::flow::graph input_graph;
+    decompressor_node_t decompressor(input_graph,Decompressor{&fd,CHUNK_SIZ*header_size,2*header_size});
     line_parser_t parser(input_graph,tbb::flow::unlimited,Line_Parser{sample_pos_mut});
     //feed used buffer back to decompressor
     tbb::flow::make_edge(decompressor,parser);
-    input_graph.wait_for_all();
+    input_graph.wait_for_all();*/
+    tbb::parallel_pipeline(80,tbb::make_filter<void,char*>(tbb::filter::serial_in_order,Decompressor{&fd,CHUNK_SIZ*header_size,2*header_size})&tbb::make_filter<char*,void>(tbb::filter::parallel,Line_Parser{sample_pos_mut}));
     gzclose(fd);
     compress_len=compressBound(MAX_SIZ);
     tbb::flow::graph output_graph;
     Packed_Msgs* blk_str=new Packed_Msgs;
     block_serializer_t serializer_head(output_graph,tbb::flow::serial,Block_Serializer{blk_str});
     compressor_t compressor(output_graph,4,Compressor{});
-    FILE* out_file=fopen(out_name, "w");
+    FILE* out_file=fopen(out_name, "a");
     write_node_t writer(output_graph,tbb::flow::serial,Write_Node{out_file});
     tbb::flow::make_edge(serializer_head,compressor);
     tbb::flow::make_edge(compressor,writer);
@@ -441,6 +452,9 @@ void VCF_input(const char * name,const char * out_name){
                 compressor.try_put(packed_out);
                 packed_out=new Packed_Msgs();
                 auto ret=packed_out->push_back(out);
+                if (!ret) {
+                    fprintf(stderr, "Message size %zu, cannot fit %d, new content %zu\n",out->buffer.size(),MAX_SIZ,packed_out->acc_size);
+                }
                 assert(ret);
             }
         }
