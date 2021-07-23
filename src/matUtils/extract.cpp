@@ -69,6 +69,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
         "Use to produce an usher-style single sample subtree of the indicated size with all selected samples plus random samples to fill. Produces .nh and .txt files.")
         ("usher_minimum_subtrees_size,x", po::value<size_t>()->default_value(0),
         "Use to produce an usher-style minimum set of subtrees of the indicated size which include all of the selected samples. Produces .nh and .txt files.")
+        ("usher_clades_txt", po::bool_switch(),
+         "When producing usher-style subtree(s), also write an usher-style clades.txt file with clade annotations for selected samples, if the tree has clade annotations.")
         ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
         ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
@@ -117,6 +119,7 @@ void extract_main (po::parsed_options parsed) {
     std::string dir_prefix = vm["output-directory"].as<std::string>();
     size_t usher_single_subtree_size = vm["usher_single_subtree_size"].as<size_t>();
     size_t usher_minimum_subtrees_size = vm["usher_minimum_subtrees_size"].as<size_t>();
+    bool usher_clades_txt = vm["usher_clades_txt"].as<bool>();
     size_t setsize = vm["set-size"].as<size_t>();
     size_t minimum_subtrees_size = vm["minimum_subtrees_size"].as<size_t>();
 
@@ -351,6 +354,7 @@ void extract_main (po::parsed_options parsed) {
             exit(1);
         }
     }
+    fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     //retrive path information for samples, clades, everything before pruning occurs. Behavioral change
     //to get the paths post-pruning, will need to save a new tree .pb and then repeat the extract command on that
     if (sample_path_filename != dir_prefix) {
@@ -392,6 +396,33 @@ void extract_main (po::parsed_options parsed) {
         }
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
+    size_t num_annotations = T.get_num_annotations();
+    if (usher_clades_txt && (usher_minimum_subtrees_size > 0 || usher_single_subtree_size > 0) && num_annotations > 0) {
+        // Also make a clades.txt file for the samples like usher does.
+        timer.Start();
+        auto annotations_filename = dir_prefix + "/clades.txt";
+        fprintf(stderr, "Writing clade annotations to file %s \n", annotations_filename.c_str());
+        FILE* annotations_file = fopen(annotations_filename.c_str(), "w");
+        if (! annotations_file) {
+            fprintf(stderr, "ERROR: could not open file %s\n", annotations_filename.c_str());
+            exit(1);
+        }
+        for (std::string sample: samples) {
+            fprintf(annotations_file, "%s", sample.c_str());
+            for (size_t k=0; k < num_annotations; k++) {
+                MAT::Node* node = T.get_node(sample);
+                if (node == NULL) {
+                    fprintf(stderr, "ERROR: no node for sample %s\n", sample.c_str());
+                    exit(1);
+                }
+                std::string clade = T.get_clade_assignment(node, k, false);
+                fprintf(annotations_file, "\t%s", clade.c_str());
+            }
+            fprintf(annotations_file, "\n");
+        }
+        fclose(annotations_file);
+        fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+    }
 
     //if we have no samples at the end without throwing an error,
     //probably because no selection arguments were set,
@@ -399,6 +430,7 @@ void extract_main (po::parsed_options parsed) {
     //and don't bother pruning.
     MAT::Tree subtree;
     if (samples.size() == 0) {
+        timer.Start();
         fprintf(stderr, "No sample selection arguments passed; using full input tree for further output.\n");
         samples = T.get_leaves_ids();
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
@@ -406,16 +438,12 @@ void extract_main (po::parsed_options parsed) {
         //subtree is identical to tree.
         subtree = T;
     } else {
-        fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
-        //timer.Start();
-        //fprintf(stderr, "Extracting subtree...\n");
         //second step is to filter the input based on the samples
 
         //TODO: filter_master can support pruning directly rather than generating an inverse set and pruning all but,
         //but downstream stuff wants the inverse set of sample names to work with
         //so there's a better way to do this in at least some cases.
         subtree = filter_master(T, samples, false);
-        //fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
     //if polytomy resolution was requested, apply it
     if (resolve_polytomies) {
@@ -455,7 +483,7 @@ void extract_main (po::parsed_options parsed) {
     if (all_path_filename != dir_prefix) {
         //print all node mutations *for this subtree*
         timer.Start();
-        fprintf(stderr, "Writing full node mutation information...\n");
+        fprintf(stderr, "Writing full node mutation information to %s\n", all_path_filename.c_str());
         std::ofstream outfile (all_path_filename);
         auto apaths = all_nodes_paths(T);
         for (auto astr: apaths) {
@@ -465,6 +493,8 @@ void extract_main (po::parsed_options parsed) {
         fprintf(stderr, "Completed in %ld msec\n\n", timer.Stop());
     }
     if (clade_path_filename != dir_prefix) {
+        timer.Start();
+        fprintf(stderr, "Writing clade paths to %s\n", clade_path_filename.c_str());
         std::ofstream outfile (clade_path_filename);
         auto cpaths = clade_paths(T);
         for (auto cstr: cpaths) {
@@ -601,6 +631,7 @@ void extract_main (po::parsed_options parsed) {
     }
     //and save a MAT if that was set
     if (output_mat_filename != dir_prefix) {
+        timer.Start();
         fprintf(stderr, "Saving output MAT file %s.\n", output_mat_filename.c_str());
         //only recondense the tree if polytomies weren't resolved.
         if (collapse_tree) {
