@@ -5,7 +5,9 @@
 #include <fcntl.h>
 #include <string>
 #include <sys/stat.h>
+#define LOAD
 #include "src/matOptimize/mutation_annotated_tree.hpp"
+#include "check_samples.hpp"
 #include "zlib.h"
 #include <tbb/task_scheduler_init.h>
 #include "tbb/flow_graph.h"
@@ -24,6 +26,7 @@ static unsigned int loadVariant(const uint8_t*& in){
     in++;
     return out;
 }
+#ifdef TEST_DECODER
 struct Pos_Mut{
     int position;
     uint8_t mut;
@@ -31,23 +34,67 @@ struct Pos_Mut{
         return position<other.position;
     }
 };
-static const uint8_t* parse_buffer(const uint8_t* in,std::string& sample_out, std::vector<Pos_Mut>& mutations){
+#endif
+static const uint8_t* parse_buffer(const uint8_t* in,
+#ifdef TEST_DECODE
+ std::string& sample_out,
+ std::vector<Pos_Mut>&
+ #else
+Original_State_t&
+#endif
+mutations
+){
+#ifndef TEST_DECODE
+ std::string sample_out;
+#endif
     while(*in!=0){
         sample_out.push_back(*in);
         in++;
     }
     in++;
     size_t mut_size=loadVariant(in);
+#ifdef TEST_DECODE
     mutations.resize(mut_size);
+#else
+    auto sample_iter=mutations.find(sample_out);
+    bool found=sample_iter!=mutations.end();
+    if (found) {
+        sample_iter->second.clear();
+        sample_iter->second.reserve(mut_size);
+    }
+    Mutation_Annotated_Tree::Mutation mut1; 
+    Mutation_Annotated_Tree::Mutation mut2; 
+#endif
     for(size_t idx=0;idx<mut_size;idx+=2){
+#ifdef TEST_DECODE
         mutations[idx].position=loadVariant(in);
+#else
+        mut1.position=loadVariant(in);
+#endif
         if (idx+1==mut_size) {
+#ifdef TEST_DECODE
             mutations[idx].mut=*in;
+#else
+            mut1.boundary1_all_major_allele=*in;
+            if (found) {
+                sample_iter->second.insert(mut1);
+            }
+#endif
             in++;
         }else{
+#ifdef TEST_DECODE
             mutations[idx+1].position=loadVariant(in);
             mutations[idx].mut=*in&0xf;
             mutations[idx+1].mut=*in>>4;
+#else
+            mut2.position=loadVariant(in);
+            mut1.boundary1_all_major_allele=*in&0xf;
+            mut2.boundary1_all_major_allele=*in>>4;
+            if (found) {
+                sample_iter->second.insert(mut1);
+                sample_iter->second.insert(mut2);
+            }
+#endif
             in++;
         }
     }
@@ -70,8 +117,9 @@ struct partitioner{
 };
 #define MAX_SIZ 0x30000
 struct printer{
-    printer(){}
-    void operator=(const printer&){}
+    #ifndef TEST_DECODE
+    Original_State_t& sample_muts;
+    #endif
     void operator()(const uint8_t* in) const{
         uint8_t buffer[MAX_SIZ];
         unsigned int item_len=*(int*) in;
@@ -89,20 +137,10 @@ struct printer{
             fprintf(stderr, "corrupted file size %d\n",item_len);
             assert(false);
         }
-        /*google::protobuf::io::CodedInputStream data(buffer,out_len);
-        data.SetTotalBytesLimit(out_len, out_len);
-        while (data.CurrentPosition()!=out_len) {
-            unsigned int limit;
-            data.ReadVarint32(&limit);
-            auto internal_limit=data.PushLimit(limit);
-            TransposedVCF::sample sample;
-            bool ret=sample.ParseFromCodedStream(&data);
-            assert(ret);
-            auto nPos=sample.position_size();
-            Nuc_Packer nucs{*sample.mutable_allele()};*/
         const uint8_t* start=buffer;
         auto end=buffer+out_len;
         while(start!=end){
+    #ifdef TEST_DECODE
             std::vector<Pos_Mut> mutations_test;
             std::string sample;
             start=parse_buffer(start,sample,mutations_test);
@@ -115,17 +153,24 @@ struct printer{
                 out.push_back(Mutation_Annotated_Tree::get_nuc(mutations_test[pos_idx].mut));
             }
         {
-            //std::lock_guard<std::mutex> lk(print_mutex);
-            //puts(out.c_str());
+            std::lock_guard<std::mutex> lk(print_mutex);
+            puts(out.c_str());
         }
-            //data.PopLimit(internal_limit);
+#else
+            start=parse_buffer(start,sample_muts);
+#endif
         }
             //fprintf(stderr, "finished file size %d\n",item_len);
     }
 };
+#ifdef TEST_DECODER
 int main(int argc,char** argv){
+    char* path=argv[1];
     //tbb::task_scheduler_init init(1);
-    auto fh=open(argv[1], O_RDONLY);
+#else
+void load_mutations(char* path, Original_State_t& sample_muts){
+#endif
+    auto fh=open(path, O_RDONLY);
     struct stat stat_buf;
     fstat(fh, &stat_buf);
     auto size=stat_buf.st_size;
