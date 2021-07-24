@@ -110,11 +110,6 @@ else()
         DETAILED_MUTATIONS_PROTO_SRCS
         DETAILED_MUTATIONS_PROTO_HDRS
         mutation_detailed.proto)
-
-    protobuf_generate_cpp(
-        TRANSPOSED_VCF_PROTO_SRCS
-        TRANSPOSED_VCF_PROTO_HDRS
-        src/matOptimize/transposed_vcf.proto)
     
     add_executable(usher
         src/mutation_annotated_tree.cpp
@@ -172,15 +167,11 @@ else()
         ${DETAILED_MUTATIONS_PROTO_HDRS}
         )
         add_executable(transpose_vcf
-        ${TRANSPOSED_VCF_PROTO_SRCS}
-        ${TRANSPOSED_VCF_PROTO_HDRS}
-        src/matOptimize/transpose_vcf.cpp
+        src/matOptimize/transpose_vcf_encode.cpp
         src/matOptimize/mutation_annotated_tree_nuc_util.cpp
         )
-        add_executable(transpose_vcf_decode_test
-        ${TRANSPOSED_VCF_PROTO_SRCS}
-        ${TRANSPOSED_VCF_PROTO_HDRS}
-        src/matOptimize/transpose_vcf_decode_test.cpp
+        add_executable(transposed_vcf_to_vcf
+        src/matOptimize/transposed_vcf_to_vcf.cpp
         src/matOptimize/mutation_annotated_tree_nuc_util.cpp
         )
 endif()
@@ -203,7 +194,7 @@ endif(SAVE_PROFILE)
 TARGET_LINK_LIBRARIES(compareVCF PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(matOptimize PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(transpose_vcf PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
-TARGET_LINK_LIBRARIES(transpose_vcf_decode_test PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
+TARGET_LINK_LIBRARIES(transposed_vcf_to_vcf PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 
 TARGET_LINK_LIBRARIES(rename_fasta PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(usher PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)

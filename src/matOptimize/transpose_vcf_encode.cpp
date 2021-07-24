@@ -32,7 +32,13 @@ static void writeVariant(std::vector<uint8_t>& out,unsigned int to_write){
         to_write>>=7;
     }
 }
-
+struct Pos_Mut{
+    int position;
+    uint8_t mut;
+    bool operator<(const Pos_Mut& other)const{
+        return position<other.position;
+    }
+};
 struct Decompressor{
     gzFile* fd;
     size_t init_read_size;
@@ -215,7 +221,6 @@ static int read_header(gzFile* fd,std::vector<std::string>& out){
     }
     return header_len;
 }
-#define MAX_SIZ 0x30000
 struct Sample_Mut_Msg{
     std::vector<uint8_t> buffer;
     Sample_Mut_Msg(const std::string& sample, const std::vector<Pos_Mut>& not_Ns,const std::vector<std::pair<int, int>>& Ns){
