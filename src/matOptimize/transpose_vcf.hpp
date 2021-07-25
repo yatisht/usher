@@ -42,7 +42,7 @@ const uint8_t* parse_buffer(const uint8_t* in,output_t& out_all){
         sample_name.push_back(*in);
         in++;
     }
-    auto& out=out_all.set_name(std::move(sample_name));
+    auto out=out_all.set_name(std::move(sample_name));
     in++;
     while(*in){
         int pos1=loadVariant(in);
@@ -93,7 +93,7 @@ struct printer{
     }
 };
 template<typename output_t>
-static void load_mutations(char* path,int nthread,output_t& out){
+static void load_mutations(const char* path,int nthread,output_t& out){
     auto fh=open(path, O_RDONLY);
     struct stat stat_buf;
     fstat(fh, &stat_buf);

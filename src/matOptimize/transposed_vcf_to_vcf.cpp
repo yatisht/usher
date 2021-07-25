@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+#include <iostream>
 #include <iterator>
 #include <mutex>
 #include <string>
@@ -14,7 +15,10 @@
 #include <tbb/pipeline.h>
 #include <utility>
 #include <vector>
+#include <tbb/task_scheduler_init.h>
 #include <zlib.h>
+#include <boost/program_options/value_semantic.hpp>
+#include <boost/program_options.hpp> 
 namespace MAT = Mutation_Annotated_Tree;
 std::string chrom;
 std::string ref;
@@ -33,12 +37,16 @@ struct Sample_Pos_Mut {
     std::vector<Pos_Mut> not_Ns;
     std::vector<std::pair<int, int>> Ns;
     Sample_Pos_Mut(std::string &&name) : name(std::move(name)) {}
+};
+
+struct Sample_Pos_Mut_Wrap {
+    Sample_Pos_Mut& content;
     void add_Not_N(int position, uint8_t allele) {
-        not_Ns.emplace_back(position, allele);
+        content.not_Ns.emplace_back(position, allele);
         pos_with_mut[position] = 1;
     }
     void add_N(int first, int second) {
-        Ns.emplace_back(first, second);
+        content.Ns.emplace_back(first, second);
         for (int pos = first; pos <= second; pos++) {
             pos_with_mut[pos] = 1;
         }
@@ -49,14 +57,14 @@ typedef tbb::enumerable_thread_specific<std::vector<Sample_Pos_Mut>>
     sample_pos_mut_local_t;
 sample_pos_mut_local_t sample_pos_mut_local;
 struct All_Sample_Appender {
-    Sample_Pos_Mut &set_name(std::string &&name) {
+    Sample_Pos_Mut_Wrap set_name(std::string &&name) {
         sample_pos_mut_local_t::reference my_sample_pos_mut_local =
             sample_pos_mut_local.local();
         my_sample_pos_mut_local.emplace_back(std::move(name));
-        return my_sample_pos_mut_local.back();
+        return Sample_Pos_Mut_Wrap{my_sample_pos_mut_local.back()};
     }
 };
-void load_reference(char *ref_path, std::string &seq_name,
+void load_reference(const char *ref_path, std::string &seq_name,
                     std::string &reference) {
     std::ifstream fasta_f(ref_path);
     std::string temp;
@@ -331,12 +339,44 @@ void write_header(std::vector<Sample_Pos_Mut>& all_samples,FILE* fh){
     fwrite(compressed_hdr.first,1,compressed_hdr.second,fh);
     free(compressed_hdr.first);
 }
+namespace po = boost::program_options;
 
 int main(int argc, char **argv) {
-    load_reference(argv[2], chrom, ref);
+    po::options_description desc{"Options"};
+    uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
+    std::string output_vcf_path;
+    std::string input_path;
+    uint32_t num_threads;
+    std::string reference;
+    std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
+    desc.add_options()
+        ("vcf,v", po::value<std::string>(&output_vcf_path)->required(), "Output VCF file (in uncompressed or gzip-compressed .gz format) ")
+        ("threads,T", po::value<uint32_t>(&num_threads)->default_value(num_cores), num_threads_message.c_str())
+        ("reference,r", po::value<std::string>(&reference)->required(),"Reference file")
+        ("output_path,i", po::value<std::string>(&input_path)->required(), "Load transposed VCF");
+    po::options_description all_options;
+    all_options.add(desc);
+    po::variables_map vm;
+    if (argc==1) {
+        std::cerr << desc << std::endl;
+        return EXIT_FAILURE;
+    }
+    try{
+        po::store(po::command_line_parser(argc, argv).options(all_options).run(), vm);
+        po::notify(vm);
+    }
+    catch(std::exception &e){
+        // Return with error code 1 unless the user specifies help
+        if(vm.count("help"))
+            return 0;
+        else
+            return 1;
+    }
+    tbb::task_scheduler_init init(num_threads);
+    load_reference(reference.c_str(), chrom, ref);
     pos_with_mut.resize(ref.size());
     All_Sample_Appender appender;
-    load_mutations(argv[1], 80, appender);
+    load_mutations(input_path.c_str(), 80, appender);
     std::vector<Sample_Pos_Mut> all_samples;
     for (auto &sample_block : sample_pos_mut_local) {
         all_samples.insert(all_samples.end(),
@@ -361,7 +401,7 @@ int main(int argc, char **argv) {
     }
     std::vector<int>::const_iterator pos_mut_iter = pos_mut_idx.begin();
     std::vector<int>::const_iterator pos_mut_end = pos_mut_idx.end();
-    FILE *vcf_out = fopen("transposed_vcf_converted_vcf.vcf.gz", "w");
+    FILE *vcf_out = fopen(output_vcf_path.c_str(), "w");
     write_header(all_samples, vcf_out);
     tbb::parallel_pipeline(
         1000, tbb::make_filter<void, iter_range>(

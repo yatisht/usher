@@ -1,4 +1,5 @@
 #include "src/matOptimize/mutation_annotated_tree.hpp"
+#include "src/matOptimize/tree_rearrangement_internal.hpp"
 #include "zlib.h"
 #include "tbb/flow_graph.h"
 #include <cctype>
@@ -15,6 +16,9 @@
 #include <vector>
 #include <iostream>
 #include "tbb/parallel_for.h"
+#include <boost/program_options/value_semantic.hpp>
+#include <boost/program_options.hpp> 
+
 std::mutex print_mutex;
 #define ZLIB_BUFSIZ 0x10000
 #include <atomic>
@@ -64,8 +68,8 @@ struct Decompressor{
         if(!gzgets(*fd, buf+read_size, cont_read_size)){
             *(buf+read_size)=0;
         }
-        buffer_left++;
-        fprintf(stderr, "buffer in flight %zu\n",buffer_left.load());
+        //buffer_left++;
+        //fprintf(stderr, "buffer in flight %zu\n",buffer_left.load());
         return buf;
     }
 };
@@ -172,8 +176,8 @@ struct Line_Parser{
             }
         }
         delete[] (start);
-        buffer_left--;
-        fprintf(stderr, "buffer in flight %zu\n",buffer_left.load());
+        //buffer_left--;
+        //fprintf(stderr, "buffer in flight %zu\n",buffer_left.load());
         return local_block;
     }
 };
@@ -400,7 +404,7 @@ struct Write_Node{
 };
 
 #define CHUNK_SIZ 5
-void VCF_input(const char * name,const char * out_name){
+void VCF_input(const char * name,const char * out_name,uint32_t nthreads){
     std::vector<std::string> fields;
     //open file set increase buffer size
     gzFile fd=gzopen(name, "r");
@@ -416,7 +420,7 @@ void VCF_input(const char * name,const char * out_name){
         samp.reserve(30);
     }
 
-    tbb::parallel_pipeline(80,
+    tbb::parallel_pipeline(nthreads,
         tbb::make_filter<void,char*>(tbb::filter::serial_in_order,Decompressor{&fd,CHUNK_SIZ*header_size,2*header_size})&
         tbb::make_filter<char*,std::vector<Pos_Mut_Block>*>(tbb::filter::parallel,Line_Parser{fields.size()})&
         tbb::make_filter<std::vector<Pos_Mut_Block>*,void>(tbb::filter::serial_out_of_order,Appender{sample_pos_mut}));
@@ -452,26 +456,38 @@ void VCF_input(const char * name,const char * out_name){
     output_graph.wait_for_all();
     fclose(out_file);
 }
+namespace po = boost::program_options;
+
 int main(int argc,char** argv){
-    /*
-    std::vector<uint8_t> test_vect;
-    writeVariant(test_vect, -1);
-    assert(test_vect.size()==5);
-    const uint8_t* ptr=test_vect.data();
-    auto res=loadVariant(ptr);
-    assert(0xffffffff==res);
-    test_vect.clear();
-    writeVariant(test_vect, 0xffff);
-    assert(test_vect.size()==3);
-    ptr=test_vect.data();
-    assert(0xffff==loadVariant(ptr));
-    test_vect.clear();
-    writeVariant(test_vect, 0xfff);
-    assert(test_vect.size()==2);
-    ptr=test_vect.data();
-    assert(0xfff==loadVariant(ptr));
-    */
-    //tbb::task_scheduler_init init(1);
-    VCF_input(argv[1], "vcf_test_out.pb");
+    po::options_description desc{"Options"};
+    uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
+    std::string input_vcf_path;
+    std::string output_path;
+    uint32_t num_threads;
+    std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
+    desc.add_options()
+        ("vcf,v", po::value<std::string>(&input_vcf_path)->default_value(""), "Input VCF file (in uncompressed or gzip-compressed .gz format) ")
+        ("threads,T", po::value<uint32_t>(&num_threads)->default_value(num_cores), num_threads_message.c_str())
+        ("output_path,o", po::value<std::string>(&output_path)->default_value(""), "Save transposed VCF");
+    po::options_description all_options;
+    all_options.add(desc);
+    tbb::task_scheduler_init init(num_threads);
+    po::variables_map vm;
+    if (argc==1) {
+        std::cerr << desc << std::endl;
+        return EXIT_FAILURE;
+    }
+    try{
+        po::store(po::command_line_parser(argc, argv).options(all_options).run(), vm);
+        po::notify(vm);
+    }
+    catch(std::exception &e){
+        // Return with error code 1 unless the user specifies help
+        if(vm.count("help"))
+            return 0;
+        else
+            return 1;
+    }
+    VCF_input(input_vcf_path.c_str(), output_path.c_str(),num_threads);
     std::flush(std::cout);
 }

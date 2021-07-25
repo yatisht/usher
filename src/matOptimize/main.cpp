@@ -26,7 +26,7 @@
 #include <vector>
 #include <iostream>
 
-
+uint32_t num_threads;
 std::chrono::time_point<std::chrono::steady_clock> last_save_time;
 bool no_write_intermediate;
 size_t max_queued_moves;
@@ -75,12 +75,12 @@ int main(int argc, char **argv) {
     std::string input_vcf_path;
     std::string intermediate_pb_base_name;
     std::string profitable_src_log;
+    std::string transposed_vcf_path;
     unsigned int max_optimize_hours;
     int radius;
     unsigned int minutes_between_save;
     po::options_description desc{"Options"};
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
-    uint32_t num_threads;
     std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
     desc.add_options()
         ("vcf,v", po::value<std::string>(&input_vcf_path)->default_value(""), "Input VCF file (in uncompressed or gzip-compressed .gz format) ")
@@ -100,6 +100,7 @@ int main(int argc, char **argv) {
         ("do-not-write-intermediate-files,n","Do not write intermediate files.")
         ("exhaustive-mode,e","Search every non-root node as source node.")
         ("max-hours,M",po::value(&max_optimize_hours)->default_value(0),"Maximium number of hours to run")
+        ("transposed-vcf-path,V",po::value(&transposed_vcf_path)->default_value(""),"Auxiliary transposed VCF for ambiguous bases, used in combination with usher protobuf (-i)")
         ("version", "Print version number")
         ("help,h", "Print help messages");
         
@@ -243,7 +244,7 @@ int main(int argc, char **argv) {
             fputs("Finished loading input tree, start reading VCF and assigning states \n",stderr);
             load_vcf_nh_directly(t, input_vcf_path, origin_states);
         } else {
-            t = load_tree(input_pb_path, origin_states);
+            t = load_tree(input_pb_path, origin_states,transposed_vcf_path==""?nullptr:transposed_vcf_path.c_str());
         }
     //scalable_allocation_command(TBBMALLOC_CLEAN_ALL_BUFFERS,0);
         if(!no_write_intermediate){
