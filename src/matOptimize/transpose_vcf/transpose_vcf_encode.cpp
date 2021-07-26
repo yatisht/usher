@@ -96,7 +96,7 @@ struct Pos_Mut_Block{
         assert(max_pos!=0);
     }
 
-    bool operator<(const Pos_Mut_Block& other){
+    bool operator<(const Pos_Mut_Block& other)const {
         return max_pos<other.min_pos;
     }
 };
@@ -341,7 +341,7 @@ struct Block_Serializer{
 size_t compress_len;
 typedef tbb::flow::function_node<Packed_Msgs*,std::pair<unsigned char*,size_t>> compressor_t;
 struct Compressor{
-    std::pair<unsigned char*,size_t> operator()(Packed_Msgs* in){
+    std::pair<unsigned char*,size_t> operator()(Packed_Msgs* in) const {
         uint8_t* out=new uint8_t[compress_len];
         z_stream stream;
         stream.zalloc = (alloc_func)0;
@@ -394,7 +394,7 @@ struct Compressor{
 typedef tbb::flow::function_node<std::pair<unsigned char*,size_t>> write_node_t;
 struct Write_Node{
     FILE* file;
-    void operator()(std::pair<unsigned char*,size_t> in){
+    void operator()(std::pair<unsigned char*,size_t> in) const {
         unsigned int b_length=in.second;
         //fprintf(stderr,"%d\n",b_length);
         std::fwrite(&b_length,4,1,file);
