@@ -1,6 +1,8 @@
-  //Load mat files
+ //Load mat files
  //uncondense leaves
  #include "merge.hpp"
+concurMap consistNodes;
+
  po::variables_map parse_merge_command(po::parsed_options parsed) {
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
     std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
@@ -36,14 +38,18 @@
     }
     return vm;
 }  
-
+/**
+ * Checks for consistency between both MAT files to ensure that they are able to merge
+ **/
 bool consistent(MAT::Tree A, MAT::Tree B){
+    std::cout<<"called consistency"<<std::endl;
     //vectors of all leaves in both input trees
     std::vector<std::string> A_leaves = A.get_leaves_ids();
     std::vector<std::string> B_leaves = B.get_leaves_ids();
     //creates a vector of common_leaves between two input trees
     std::vector<std::string> common_leaves(std::max(A_leaves.size(), B_leaves.size()));
     set_intersection(A_leaves.begin(),A_leaves.end(),B_leaves.begin(),B_leaves.end(), std::back_inserter(common_leaves));
+    std::cout<<"found common samples"<<std::endl;
     //creates two subtrees using the common_leaves
     auto Asub = MAT::get_subtree(A, common_leaves);
     auto Bsub = MAT::get_subtree(B, common_leaves);
@@ -64,13 +70,19 @@ bool consistent(MAT::Tree A, MAT::Tree B){
                         }
                     }
             }, ap); 
+    std::cout<<"finished loops"<<std::endl;
     return true;
 }
-
+/**
+ * Checks each node to make sure their mutations are consistent with each other
+ * Adds all consistent nodes to a concurrent hash map 
+ **/
 bool chelper(MAT::Node* a, MAT::Node* b){
+    concurMap::accessor ac;
     if (a->mutations.size() != b->mutations.size()){
         return false;
     }
+    
     for (int x = 0; x< a->mutations.size(); x++){
             MAT::Mutation mut1 = a->mutations[x];
             MAT::Mutation mut2 = b->mutations[x];
@@ -84,21 +96,24 @@ bool chelper(MAT::Node* a, MAT::Node* b){
                 return false;
             }
             else{
+                consistNodes.insert(ac, b);
+                ac->second = a;
+                ac.release();
                 return true;
             }
     }
 }
-
 void merge_main(po::parsed_options parsed) {
+    //Takes user input and loads the specified MAT files
     po::variables_map vm = parse_merge_command(parsed);
     std::string mat1_filename = vm["input-mat-1"].as<std::string>();
     std::string mat2_filename = vm["input-mat-2"].as<std::string>();
     std::string output_filename = vm["output-mat"].as<std::string>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
-
     tbb::task_scheduler_init init(num_threads);
     MAT::Tree mat1 = MAT::load_mutation_annotated_tree(mat1_filename);
     MAT::Tree mat2 = MAT::load_mutation_annotated_tree(mat2_filename);
+
     MAT::Tree baseMat;
     MAT::Tree otherMat;
 
@@ -108,14 +123,7 @@ void merge_main(po::parsed_options parsed) {
     if (mat2.condensed_nodes.size() > 0) {
       mat2.uncondense_leaves();
     }
-    if (consistent(mat1, mat2)==false){
-        std::cout<<"false";
-        return;
-    }
-    else{
-        std::cout<<"true";
-    }
-    
+    //Assigns biggest MAT to baseMat and smaller one to otherMat
    if (mat1.get_num_leaves() > mat2.get_num_leaves()){
         baseMat = mat1;
         otherMat = mat2;
@@ -124,6 +132,11 @@ void merge_main(po::parsed_options parsed) {
         baseMat = mat2;
         otherMat = mat1;
     }
+    //Checks for consistency
+    if (consistent(baseMat, otherMat)==false){
+        return;
+    }
+    //Makes a copy of the baseMat files to add the samples to later
     MAT::Tree finalMat = get_tree_copy(baseMat);
     std::vector<std::string> new_samples;
     auto otherLeaves = otherMat.get_leaves_ids();
@@ -131,42 +144,100 @@ void merge_main(po::parsed_options parsed) {
     sort( otherLeaves.begin(), otherLeaves.end() );
     sort( baseLeaves.begin(), baseLeaves.end() );
 
-    //insert set
+    //creates vector of new samples to be added
     std::set_difference(otherLeaves.begin(), otherLeaves.end(), baseLeaves.begin(), baseLeaves.end(), std::back_inserter(new_samples));
-    auto expand = baseMat.breadth_first_expansion();
-    //for every new sample, walk dopwn baseMat starting at the root
-    for (auto x : new_samples){
-        auto ancestors = otherMat.rsearch(x, true);
-        auto curr = expand[0];
-        std::vector<MAT::Mutation> diff_mutations;
-        for (auto y : ancestors){
-            //go through currents children and see if one of them matches the mutations
-            for (auto z : curr->children){
-               if (chelper(z,y)==true){
-                   curr = z;
-                   break;
-               }  
-               else{
-                   std::vector<MAT::Mutation> tempdiff;
-                   auto a = z->mutations;
-                   auto b = y->mutations;
-                   std::set_difference(a.begin(), a.end(), b.begin(), b.end(), std::back_inserter(tempdiff));
-                   if (diff_mutations.size()>0){
-                       if (tempdiff.size()<diff_mutations.size()){
-                           diff_mutations = tempdiff;
-                       }
-                   }
-                   if (diff_mutations.size() == 0){
-                       diff_mutations = tempdiff;
-                   }
-               }  
-            }
-        }
-        finalMat.create_node(x, curr->identifier, -1);
-        MAT::Node* add = finalMat.get_node(x);
-        add->mutations = diff_mutations;
+
+    //creates a string of potential conflicting samples from the first round of merging
+    std::vector<std::string> conflicts = mainhelper(new_samples, finalMat, baseMat, otherMat);
+
+    //Continuously run mainhelper until the vector it returns is empty
+    while (!(conflicts.empty())){
+        conflicts = mainhelper(conflicts, finalMat, baseMat, otherMat);
     }
+    //std::cout<<baseMat.get_num_leaves()<<std::endl;
+    //std::cout<<otherMat.get_num_leaves()<<std::endl;
+    //std::cout<<finalMat.get_num_leaves()<<std::endl;
+
+    //Save final MAT file
     finalMat.condense_leaves();
     MAT::save_mutation_annotated_tree(finalMat, output_filename);
     
+}
+
+std::vector<std::string> mainhelper(std::vector<std::string> samples,  MAT::Tree finalMat,  MAT::Tree baseMat,  MAT::Tree otherMat){
+    concurMap::accessor ac;
+    static tbb::affinity_partitioner ap;
+
+    std::set<std::string> parents;
+    MAT::Node *curr;
+    std::string x;
+    std::vector<MAT::Mutation> diff_mutations;
+    std::vector<MAT::Mutation> common_mutations;
+    std::string child;
+    std::vector<std::string> conflicts;
+    auto expand = baseMat.breadth_first_expansion();
+    //std::cout<<samples.size()<<std::endl;
+    //parallel loop that concurrently goes through all samples
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, samples.size()),
+            [&](tbb::blocked_range<size_t> r){
+    for (size_t k=r.begin(); k<r.end(); ++k){
+                x = samples[k];
+                //finds ancestors of new sample on otherMat
+                auto ancestors = otherMat.rsearch(x, true);
+                std::reverse(ancestors.begin(), ancestors.end());
+                //sets curr to root of tree 
+                curr = expand[0];
+                for (auto y : ancestors){
+                    //for each ancestor of the sample, checks concurrent hash map to see if there is a 
+                    //corresponding node in the baseMat
+                    if (!(consistNodes.find(ac, y))){
+                        //after reaching a point of non-concordance, goes through children of current node
+                        for (auto z : curr->children){
+                            std::vector<MAT::Mutation> tempdiff;
+                            std::vector<MAT::Mutation> tempcommon;
+                            auto a = z->mutations;
+                            auto b = y->mutations;
+                            //finds child with least amount of differing mutations from sample
+                            std::set_difference(a.begin(), a.end(), b.begin(), b.end(), std::back_inserter(tempdiff));
+                            std::set_intersection(a.begin(), a.end(), b.begin(), b.end(), std::back_inserter(tempcommon));
+                            if (diff_mutations.size()>0){
+                                if (tempdiff.size()<diff_mutations.size()){
+                                    diff_mutations = tempdiff;
+                                    common_mutations = tempcommon;
+                                    child = z->identifier;
+                                }
+                            }
+                            if (diff_mutations.empty()){
+                                diff_mutations = tempdiff;
+                                common_mutations = tempcommon;
+                                child = z->identifier;
+                            }
+                        }  
+                    }
+                   else{
+                        curr = y;
+                    }
+               }
+            }
+        //If samples intended parent is already in parents vector, adds to conflicts vector
+        if (parents.find(curr->identifier) == parents.end()){
+            //If there are any common mutations between sample and its intended neighbors,
+            //creates an internal node with the common mutations and assigns it as the parent to both nodes
+            if (common_mutations.size()>0){
+                std::string nid = std::to_string(++finalMat.curr_internal_node);
+                finalMat.create_node(nid, curr->identifier);
+                finalMat.move_node(child, nid);
+                curr = finalMat.get_node(nid);
+                curr->mutations = common_mutations;
+            }
+            finalMat.create_node(x, curr->identifier, -1);
+            MAT::Node* add = finalMat.get_node(x);
+            add->mutations = diff_mutations;
+            parents.insert(curr->identifier);
+        }
+        else{
+            conflicts.push_back(x);
+        }
+    }, ap);  
+    return conflicts;
 }
