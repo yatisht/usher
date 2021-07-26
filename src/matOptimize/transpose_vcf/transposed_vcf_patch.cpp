@@ -153,7 +153,7 @@ struct iter_heap {
         bool operator==(const MAT::Mutation &mut) const {
             return iter->position == mut.position;
         }
-        bool operator<(const Mut_Iter &other) {
+        bool operator<(const Mut_Iter &other) const {
             return iter->position > other.iter->position;
         }
         uint8_t get_allele() const { return iter->get_all_major_allele(); }
