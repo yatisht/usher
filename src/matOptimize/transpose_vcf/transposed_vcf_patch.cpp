@@ -1,5 +1,5 @@
 #define LOAD
-#include "check_samples.hpp"
+#include "../check_samples.hpp"
 #include "src/matOptimize/mutation_annotated_tree.hpp"
 #include "src/matOptimize/tree_rearrangement_internal.hpp"
 #include "transpose_vcf.hpp"
@@ -23,10 +23,10 @@ void check_consistent(Mutation_Set *old_muts, Mutation_Set &new_muts,
         if (!new_muts.count(mut)) {
             fprintf(
                 stderr,
-                "Inconsistent allele at %d of %s, %c in protobuf, %c in VCF, %zu\n",
+                "Inconsistent allele at %d of %s, %c in protobuf, %c in VCF\n",
                 mut.position, sample->c_str(),
                 MAT::get_nuc(mut.get_all_major_allele() & 0xf),
-                MAT::get_nuc(MAT::Mutation::refs[mut.position]),&mut);
+                MAT::get_nuc(MAT::Mutation::refs[mut.position]));
         }
     }
     for (auto &mut : new_muts) {
@@ -70,7 +70,7 @@ struct Adder {
     Adder() : condensed_add(nullptr), uncondensed_add(nullptr) {}
     void add_mut(MAT::Mutation &mutation,
                  std::vector<MAT::Mutation> &condensed_out) {
-        if (mutation.position >= MAT::Mutation::refs.size() ||
+        if (mutation.position >= (int) MAT::Mutation::refs.size() ||
             (!MAT::Mutation::refs[mutation.position])) {
             return;
         }

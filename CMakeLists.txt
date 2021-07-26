@@ -15,7 +15,7 @@ message(STATUS "${usher_VERSION}")
 
 configure_file(src/version.hpp.in version.hpp)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -msse4.1 -std=c++11 -Wall -g -Wno-unused-function -Wno-deprecated-declarations")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -msse4.1 -std=c++11 -Wall -g -Wno-unused-function -Wno-deprecated-declarations")
 #-DDEBUG_PARSIMONY_SCORE_CHANGE_CORRECT 
 set(CMAKE_CXX_FLAGS_DEBUG "-O3 -fsanitize=address")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-DNDEBUG -O3")
@@ -159,6 +159,7 @@ else()
         src/matOptimize/check_samples.cpp
         #src/matOptimize/priority_conflict_resolver_cross_only.cpp
         src/matOptimize/priority_conflict_resolver.cpp
+        src/matOptimize/transpose_vcf/transposed_vcf_patch.cpp
         ${patch_tree}
         ${New_Profitable_Moves_Enumerators}
         ${PROTO_SRCS}
@@ -167,11 +168,11 @@ else()
         ${DETAILED_MUTATIONS_PROTO_HDRS}
         )
         add_executable(transpose_vcf
-        src/matOptimize/transpose_vcf_encode.cpp
+        src/matOptimize/transpose_vcf/transpose_vcf_encode.cpp
         src/matOptimize/mutation_annotated_tree_nuc_util.cpp
         )
         add_executable(transposed_vcf_to_vcf
-        src/matOptimize/transposed_vcf_to_vcf.cpp
+        src/matOptimize/transpose_vcf/transposed_vcf_to_vcf.cpp
         src/matOptimize/mutation_annotated_tree_nuc_util.cpp
         )
 endif()

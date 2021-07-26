@@ -1,4 +1,4 @@
-#include "mutation_annotated_tree.hpp"
+#include "../mutation_annotated_tree.hpp"
 #include "transpose_vcf.hpp"
 #include <algorithm>
 #include <cstdio>
