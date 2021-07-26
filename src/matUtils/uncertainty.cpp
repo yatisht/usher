@@ -472,7 +472,7 @@ void check_for_droppers(MAT::Tree* T, std::string outf) {
     }
     //fprintf(stderr, "DEBUG: Global parsimony score recorded as %ld\n", global_parsimony_score);
     //fprintf(stderr, "DEBUG: Initiating branch checks\n");
-    //size_t tests_performed = 0;
+    size_t tests_performed = 0;
     for (auto n: T->depth_first_expansion()) {
         //timer.Start();
         //for each split point, get the subtree and the mutation count of that subtree.
@@ -494,7 +494,7 @@ void check_for_droppers(MAT::Tree* T, std::string outf) {
             }
             //fprintf(stderr,"DEBUG: Checking branch mutation that passes filters\n");
             auto pv = fisher_test(kv.second, local_parsimony_score, gmap[kv.first]-kv.second, global_parsimony_score-local_parsimony_score);
-            //tests_performed++;
+            tests_performed++;
             if (pv < 0.05) {
                 // if (pv < float(1e-100)) {
                     // fprintf(stderr, "DEBUG: Potential strong outlier detected\n");
