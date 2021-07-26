@@ -110,9 +110,6 @@ struct Sample_Adder {
     Adder set_name(std::string &&name) {
         auto not_condensed_iter = not_condensed.find(name);
         if (not_condensed_iter != not_condensed.end()) {
-#ifdef NDEBUG
-            not_condensed_iter->second.clear();
-#endif
             return Adder{&(not_condensed_iter->second),&(not_condensed_iter->first)};
         }
         auto condensed_iter = condensed.find(name);
@@ -229,9 +226,6 @@ void add_ambuiguous_mutations(const char *path, Original_State_t &to_patch,
                     to_merge.push_back(std::move(this_merged));
                 }
                 iter_heap heap(to_merge);
-#ifdef NDEBUG
-                condensed_children[idx].mut_set->clear();
-#endif
                 Mutation_Set mut_set_saging;
                 while (heap) {
                     heap.get_one(&mut_set_saging);
