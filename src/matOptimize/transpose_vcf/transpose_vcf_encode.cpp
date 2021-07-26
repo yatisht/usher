@@ -471,23 +471,20 @@ int main(int argc,char** argv){
         ("output_path,o", po::value<std::string>(&output_path)->default_value(""), "Save transposed VCF");
     po::options_description all_options;
     all_options.add(desc);
-    tbb::task_scheduler_init init(num_threads);
     po::variables_map vm;
-    if (argc==1) {
-        std::cerr << desc << std::endl;
-        return EXIT_FAILURE;
-    }
-    try{
+   try{
         po::store(po::command_line_parser(argc, argv).options(all_options).run(), vm);
         po::notify(vm);
     }
     catch(std::exception &e){
         // Return with error code 1 unless the user specifies help
+        std::cerr << desc << std::endl;
         if(vm.count("help"))
             return 0;
         else
             return 1;
     }
+    tbb::task_scheduler_init init(num_threads);
     VCF_input(input_vcf_path.c_str(), output_path.c_str(),num_threads);
     std::flush(std::cout);
 }
