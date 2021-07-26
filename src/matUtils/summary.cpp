@@ -1,4 +1,6 @@
 #include "summary.hpp"
+#include "introduce.hpp" //for date parsing functions.
+#include <boost/date_time/gregorian/gregorian.hpp>
 
 po::variables_map parse_summary_command(po::parsed_options parsed) {
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
@@ -211,34 +213,33 @@ void write_roho_table(MAT::Tree& T, std::string roho_file) {
     fprintf(stderr, "Calculating and writing RoHo values to output %s\n", roho_file.c_str());
     std::ofstream rhfile;
     rhfile.open(roho_file);
-    // rhfile << "mutation\tparent_node\tchild_count\toccurrence_node\toffspring_with\tmedian_offspring_without\tmean_offspring_without\tbranch_length_with\tbranch_length_without\n";
-    rhfile << "mutation\tparent_node\tchild_count\toccurrence_node\toffspring_with\tmedian_offspring_without\tsingle_roho\n";
+    rhfile << "mutation\tparent_node\tchild_count\toccurrence_node\toffspring_with\tmedian_offspring_without\tsingle_roho\t"; 
+    //the above are the basic columns, the following are additional columns requested to help sort out roho output. 
+    rhfile << "sister_clade_offspring_counts\tearliest_date\tlatest_date\tidentical_sample_sibling_count\tearliest_identical_sibling\tlatest_identical_sibling\tearlist_clade_sibling_dates\tlatest_clade_sibling_dates\n";
     for (auto n: T.depth_first_expansion()) {
         //candidate mutations maps each mutation to its child where it occurred
         //child counter maps the number of offspring of a given child
         //together, they store the results we need.
         std::map<std::string,std::string> candidate_mutations;
-        std::map<std::string,size_t> child_counter;
-        // //temporary check, let's try skipping nodes with >2 children and see what that does.
-        // //there are four alternatives 1. drop these occurrences (lose a lot of tree) 2. pick one at random to compare 3. pick biggest to compare 4. compare to the mean of the others
-        // if (n->children.size() > 2) {
-        //     continue;
-        // }
+        std::map<std::string,std::set<std::string>> child_counter;
+        std::set<std::string> parent_identical_samples;
 
         //step one: collect all potential candidate nodes.
-        size_t ccheck = 0;
+        std::vector<std::string> ccheck;
         std::map<std::string,size_t> blentracker;
 
         for (auto c: n->children) {
             if (!c->is_leaf()) {
                 //mutations occurring on any non-leaf child are potentially valid RoHo targets for this node.
-                ccheck++;
+                ccheck.push_back(c->identifier);
                 blentracker[c->identifier] = c->mutations.size();
                 for (auto m: c->mutations) {
-                    //candidate_mutations.insert(m.get_string());
                     //assumption each mutation only occurs for one child. This is a good assumption, as if its broken, the tree is malformed.
                     candidate_mutations[m.get_string()] = c->identifier;
                 }
+            } else if (c->mutations.size() == 0) {
+                //leaf children with zero mutations are of interest for date tracking downstream.
+                parent_identical_samples.insert(c->identifier);
             }
         }
         if (candidate_mutations.size() == 0) {
@@ -246,16 +247,16 @@ void write_roho_table(MAT::Tree& T, std::string roho_file) {
         }
         //step two: remove candidates who do not 1. have at least two offspring associated with them 2. do not recur secondarily at any point after this parent
         for (auto c: n->children) {
+            std::set<std::string> child_samples;
             if (c->is_leaf()) {
                 continue;
             }
-            size_t cc = 0;
             for (auto dn: T.depth_first_expansion(c)) {
                 if (dn->identifier == c->identifier) {
                     continue;
                 }
                 if (dn->is_leaf()) {
-                    cc++;
+                    child_samples.insert(dn->identifier);
                 }
                 for (auto m: dn->mutations) {
                     candidate_mutations.erase(m.get_string());
@@ -267,14 +268,24 @@ void write_roho_table(MAT::Tree& T, std::string roho_file) {
                 }
             }
             //don't bother recording values of 0 or 1.
-            if (cc > 1) {
-                child_counter[c->identifier] = cc;
+            if (child_samples.size() > 1) {
+                child_counter[c->identifier] = child_samples;
+                //prerecord date information for this child for future reference
+
             }
         }
         //we need at least one valid candidate and at least two non-leaf children to continue.
         if ((candidate_mutations.size() == 0) || (child_counter.size() <= 1)) {
             continue;
         }
+        //step 2.5; prerecord date information for each child of node N. 
+        std::map<std::string, std::pair<boost::gregorian::date,boost::gregorian::date>> datemap;
+        for (auto cc: child_counter) {
+            auto cdates = get_nearest_date(&T, n, &cc.second);
+            datemap[cc.first] = cdates;
+        }
+
+        auto parent_identical_dates = get_nearest_date(&T, n, &parent_identical_samples);
         //step 3: actually record the results.
         for (auto ms: candidate_mutations) {
             //size_t non_c = 0;
@@ -283,11 +294,11 @@ void write_roho_table(MAT::Tree& T, std::string roho_file) {
             size_t sum_wit = 0;
             for (auto cs: child_counter) {
                 if (cs.first != ms.second) {
-                    all_non.push_back(cs.second);
+                    all_non.push_back(cs.second.size());
                     //sum_non += cs.second;
                     //non_c++;
                 } else {
-                    sum_wit += cs.second;
+                    sum_wit += cs.second.size();
                 }
             }
             float med_non;
@@ -297,28 +308,24 @@ void write_roho_table(MAT::Tree& T, std::string roho_file) {
             } else {
                 med_non = all_non[all_non.size()/2];
             }
-            // float mean_non = 0;
-            // for (auto nv: all_non) {
-                // mean_non += nv;
-            // }
-            // mean_non = mean_non / all_non.size();
-            // size_t non_blc = 0;
-            // size_t sum_nonblc = 0;
-            // size_t sum_witblc = 0;
-            // for (auto bs: blentracker) {
-            //     if (bs.first != ms.second) {
-            //         sum_nonblc += bs.second;
-            //         non_blc++;
-            //     } else {
-            //         sum_witblc += bs.second;
-            //     }
-            // }
-            //rhfile << ms.first << "\t" << n->identifier << "\t" << ccheck << "\t" << ms.second << "\t" << sum_wit << "\t" << med_non << "\t" << mean_non << "\t" << sum_witblc << "\t" << sum_nonblc/non_blc << "\n";
             std::stringstream nonstrs;
-            for (auto nv: all_non) {
-                nonstrs << nv << ",";
+            std::stringstream nonearlydates;
+            std::stringstream nonlatedates;
+            std::pair<boost::gregorian::date,boost::gregorian::date> descendent_dates;
+            for (auto cc: child_counter) {
+                //build all at once to assert same order
+                if (cc.first != ms.first) {
+                    nonstrs << cc.second.size() << ",";
+                    //auto dates = get_nearest_date(&T, n, &cc.second);
+                    auto dates = datemap[cc.first];
+                    nonearlydates << dates.first << ",";
+                    nonlatedates << dates.second << ",";
+                } else {
+                    descendent_dates = datemap[cc.first];
+                }
             }
-            rhfile << ms.first << "\t" << n->identifier << "\t" << ccheck << "\t" << ms.second << "\t" << sum_wit << "\t" << nonstrs.str() << "\t" << std::log10(sum_wit/med_non) << "\n";
+            rhfile << ms.first << "\t" << n->identifier << "\t" << ccheck.size() << "\t" << ms.second << "\t" << sum_wit << "\t" << med_non << "\t" << std::log10(sum_wit/med_non) << "\t";
+            rhfile << nonstrs.str() << "\t" << descendent_dates.first << "\t" << descendent_dates.second << "\t" << parent_identical_samples.size() << "\t" << parent_identical_dates.first << "\t" << parent_identical_dates.second << "\t" << nonearlydates.str() << "\t" << nonlatedates.str() << "\n";
         }
     }
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
