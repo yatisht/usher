@@ -436,14 +436,20 @@ double fisher_test(unsigned a, unsigned b, unsigned c, unsigned d) {
 		return tmp_p;
 }
 
-std::map<std::string,size_t> get_mutation_count(MAT::Tree* T, MAT::Node* A = NULL) {
+std::map<std::string,size_t> get_mutation_count(MAT::Tree* T, MAT::Node* A = NULL, bool by_location = false) {
     std::map<std::string,size_t> mcm;
     for (auto n: T->depth_first_expansion(A)) {
         for (auto m: n->mutations) {
-            if (mcm.find(m.get_string()) == mcm.end()) {
-                mcm[m.get_string()] = 1;
+            std::string id;
+            if (by_location) {
+                id = std::to_string(m.position);
             } else {
-                mcm[m.get_string()]++;
+                id = m.get_string();
+            }
+            if (mcm.find(id) == mcm.end()) {
+                mcm[id] = 1;
+            } else {
+                mcm[id]++;
             }
         }
     }
@@ -453,23 +459,24 @@ std::map<std::string,size_t> get_mutation_count(MAT::Tree* T, MAT::Node* A = NUL
 void check_for_droppers(MAT::Tree* T, std::string outf) {
     timer.Start();
     std::ofstream outfile (outf);
-    outfile << "mutation\tbranch\tpvalue\toccurrences_in\toccurrences_out\tsplit_size\n";
+    outfile << "mutation\tbranch\tpvalue\tcorrected_pvalue\toccurrences_in\toccurrences_out\tsplit_size\n";
     std::map<std::string,double> pvals;
     std::map<std::string,std::string> nodetrack;
     std::map<std::string,size_t> ocintrack;
     std::map<std::string,size_t> splitstrack;
     //first, get the overall mutation map for the global tree.
-    auto gmap = get_mutation_count(T);
+    auto gmap = get_mutation_count(T, NULL, false);
     size_t global_parsimony_score = 0;
     for (auto kv: gmap) {
-        global_parsimony_score += kv.second;
+       global_parsimony_score += kv.second;
     }
-    fprintf(stderr, "DEBUG: Global parsimony score recorded as %ld\n", global_parsimony_score);
-    fprintf(stderr, "DEBUG: Initiating branch checks\n");
+    //fprintf(stderr, "DEBUG: Global parsimony score recorded as %ld\n", global_parsimony_score);
+    //fprintf(stderr, "DEBUG: Initiating branch checks\n");
+    //size_t tests_performed = 0;
     for (auto n: T->depth_first_expansion()) {
         //timer.Start();
         //for each split point, get the subtree and the mutation count of that subtree.
-        auto lmap = get_mutation_count(T,n);
+        auto lmap = get_mutation_count(T,n, false);
         size_t local_parsimony_score = 0;
         for (auto kv: lmap) {
             local_parsimony_score += kv.second;
@@ -487,12 +494,13 @@ void check_for_droppers(MAT::Tree* T, std::string outf) {
             }
             //fprintf(stderr,"DEBUG: Checking branch mutation that passes filters\n");
             auto pv = fisher_test(kv.second, local_parsimony_score, gmap[kv.first]-kv.second, global_parsimony_score-local_parsimony_score);
+            //tests_performed++;
             if (pv < 0.05) {
-                if (pv < float(1e-100)) {
-                    fprintf(stderr, "DEBUG: Potential strong outlier detected\n");
-                    std::cerr << kv.first << "\t" << n->identifier << "\t" << pv << "\n";
-                    std::cerr << kv.second << "\t" << gmap[kv.first]-kv.second << "\t" << (float)(kv.second/(gmap[kv.first]-kv.second+1)) << "\t" << local_parsimony_score << "\t" << global_parsimony_score-local_parsimony_score << "\t" << (float)(local_parsimony_score/(global_parsimony_score-local_parsimony_score+1)) <<"\n";
-                }
+                // if (pv < float(1e-100)) {
+                    // fprintf(stderr, "DEBUG: Potential strong outlier detected\n");
+                    // std::cerr << kv.first << "\t" << n->identifier << "\t" << pv << "\n";
+                    // std::cerr << kv.second << "\t" << gmap[kv.first]-kv.second << "\t" << (float)(kv.second/(gmap[kv.first]-kv.second+1)) << "\t" << local_parsimony_score << "\t" << global_parsimony_score-local_parsimony_score << "\t" << (float)(local_parsimony_score/(global_parsimony_score-local_parsimony_score+1)) <<"\n";
+                // }
                 if (pvals.find(kv.first) == pvals.end()) {
                     pvals[kv.first] = pv;
                     nodetrack[kv.first] = n->identifier;
@@ -509,8 +517,9 @@ void check_for_droppers(MAT::Tree* T, std::string outf) {
         }
         //fprintf(stderr, "DEBUG: Completed branch in %ld msec\n", timer.Stop());
     }
+    //fprintf(stderr, "DEBUG: %ld tests performed\n", tests_performed);
     for (auto kv: pvals) {
-        outfile << kv.first << "\t" << nodetrack[kv.first] << "\t" << pvals[kv.first] << "\t" << ocintrack[kv.first] << "\t" << gmap[kv.first] - ocintrack[kv.first] << "\t" << splitstrack[kv.first] << "\n";
+        outfile << kv.first << "\t" << nodetrack[kv.first] << "\t" << pvals[kv.first] << "\t" << (pvals[kv.first] * tests_performed) << "\t" << ocintrack[kv.first] << "\t" << gmap[kv.first] - ocintrack[kv.first] << "\t" << splitstrack[kv.first] << "\n";
     }
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 }
