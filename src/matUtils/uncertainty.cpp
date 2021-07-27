@@ -470,8 +470,6 @@ void check_for_droppers(MAT::Tree* T, std::string outf) {
     for (auto kv: gmap) {
        global_parsimony_score += kv.second;
     }
-    //fprintf(stderr, "DEBUG: Global parsimony score recorded as %ld\n", global_parsimony_score);
-    //fprintf(stderr, "DEBUG: Initiating branch checks\n");
     size_t tests_performed = 0;
     for (auto n: T->depth_first_expansion()) {
         //timer.Start();
@@ -492,15 +490,9 @@ void check_for_droppers(MAT::Tree* T, std::string outf) {
                 //more arbitrary cutoffs.
                 continue;
             }
-            //fprintf(stderr,"DEBUG: Checking branch mutation that passes filters\n");
             auto pv = fisher_test(kv.second, local_parsimony_score, gmap[kv.first]-kv.second, global_parsimony_score-local_parsimony_score);
             tests_performed++;
             if (pv < 0.05) {
-                // if (pv < float(1e-100)) {
-                    // fprintf(stderr, "DEBUG: Potential strong outlier detected\n");
-                    // std::cerr << kv.first << "\t" << n->identifier << "\t" << pv << "\n";
-                    // std::cerr << kv.second << "\t" << gmap[kv.first]-kv.second << "\t" << (float)(kv.second/(gmap[kv.first]-kv.second+1)) << "\t" << local_parsimony_score << "\t" << global_parsimony_score-local_parsimony_score << "\t" << (float)(local_parsimony_score/(global_parsimony_score-local_parsimony_score+1)) <<"\n";
-                // }
                 if (pvals.find(kv.first) == pvals.end()) {
                     pvals[kv.first] = pv;
                     nodetrack[kv.first] = n->identifier;
@@ -512,12 +504,9 @@ void check_for_droppers(MAT::Tree* T, std::string outf) {
                     ocintrack[kv.first] = kv.second;
                     splitstrack[kv.first] = local_parsimony_score;
                 }
-                // outfile << kv.first << "\t" << n->identifier << "\t" << pv << "\n";
             }
         }
-        //fprintf(stderr, "DEBUG: Completed branch in %ld msec\n", timer.Stop());
     }
-    //fprintf(stderr, "DEBUG: %ld tests performed\n", tests_performed);
     for (auto kv: pvals) {
         outfile << kv.first << "\t" << nodetrack[kv.first] << "\t" << pvals[kv.first] << "\t" << (pvals[kv.first] * tests_performed) << "\t" << ocintrack[kv.first] << "\t" << gmap[kv.first] - ocintrack[kv.first] << "\t" << splitstrack[kv.first] << "\n";
     }

@@ -119,12 +119,10 @@ float get_association_index(MAT::Tree* T, std::map<std::string, float> assignmen
     }
 
     srand(time(nullptr));
-    //float freq = 0.0;
     size_t leaf_count = 0;
     size_t permuted_inc = 0;
     size_t sample_count = 0;
     if (permute) {
-        //fprintf(stderr, "DEBUG: Initiating permutation with bfs of %ld size\n", bfs.size());
         for (auto b: bfs) {
             if (b->is_leaf()) {
                 leaf_count++;
@@ -520,18 +518,15 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
             //timer.Start();
             //total_processed++;
             //everything in this vector is going to be considered 1 (IN) this region
-            // fprintf(stderr, "DEBUG: Processing sample %s\n", s.c_str());
             std::string last_encountered = s;
             MAT::Node* last_node = NULL;
             float last_anc_state = 1;
-            // fprintf(stderr, "DEBUG: Checking if sample is in tree\n");
             auto node = T->get_node(s);
             if (node == NULL) {
                 fprintf(stderr, "WARNING: query sample %s not found in tree. continuing\n", s.c_str());
                 continue;
             }
             size_t traversed = node->mutations.size();
-            // fprintf(stderr, "DEBUG: Sample information collected, has %ld mutations\n", traversed);
             for (auto a: T->rsearch(s,false)) {
                 float anc_state;
                 if (a->is_root()) {
@@ -556,14 +551,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                         // float highest_conf = 0.0;
                         // std::string highest_conf_origin = "indeterminate";
                         if (assign_search != region_ins.end()) {
-                            // size_t index = 0;
                             for (auto r: assign_search->second) {
-                                // index++;
-                                // float conf = region_cons.find(a->identifier)->second[index];
-                                // if (conf > highest_conf) {
-                                //     highest_conf_origin = r;
-                                //     highest_conf = conf;
-                                // }
                                 if (origins.size() == 0) {
                                     origins += r;
                                 } else {
@@ -577,8 +565,6 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                             origins = "indeterminate";
                             origins_cons << 0.0;
                         }
-                        // origins = highest_conf_origin;
-                        // origins_cons << highest_conf;
                     }
                     if (origins.size() == 0) {
                         //if we didn't find anything which has the pre-introduction node at 1, we don't know where it came from
@@ -658,8 +644,6 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                             ostr << "\n";
                         }
                     }
-
-                    //outstrs.push_back(ostr.str());
                     clusters[last_encountered][s] = ostr.str();
                     total_processed++;
                     break;
@@ -671,26 +655,21 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                 }
             }
         }
-        // fprintf(stderr, "DEBUG: Sample data processed\n");
         std::vector<float> growthv;
         std::map<float,std::vector<std::string>> cgm;
         std::map<std::string, std::string> date_tracker;
         for (auto cs: clusters) {
             std::string ldatestr;
-            // timer.Start();
-            // fprintf(stderr, "Getting date for internal node %s\n", a->identifier.c_str());
             MAT::Node* nn = T->get_node(cs.first);
             std::pair<boost::gregorian::date,boost::gregorian::date> ldates = get_nearest_date(T, nn, &sampleset, datemeta);
             ldatestr = boost::gregorian::to_simple_string(ldates.first) + "\t" + boost::gregorian::to_simple_string(ldates.second);
             date_tracker[cs.first] = ldatestr;
-            // fprintf(stderr, "Date gotten in %ld msec\n", timer.Stop());
             float gv;
             boost::gregorian::days diff(ldates.second - ldates.first);
             gv = static_cast<float>(cs.second.size()) / static_cast<float>((int)(diff.days()/7)+1);
             growthv.emplace_back(gv);
             cgm[gv].emplace_back(cs.first);
         }
-        // fprintf(stderr, "DEBUG: Dates and growth scores handled\n");
         assert (growthv.size() == clusters.size());
         //sort by default goes from smallest to largest
         //I want to rank by largest to smallest, so this is reversed.
@@ -710,7 +689,6 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                 }
                 size_t span = 0;
                 if (cs.size() > 1) {
-                    //span = MAT::get_subtree(*T,cs).get_parsimony_score();
                     std::set<std::string> ancm;
                     for (auto s: cs) {
                         for (auto a: T->rsearch(s, true)) {
@@ -727,7 +705,6 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                 } else {
                     span = T->get_node(cs[0])->mutations.size();
                 }
-                // fprintf(stderr, "DEBUG: Cluster span evaluated\n");
                 //yes, I'm iterating over this multiple times. Nothing is ever easy.
                 rankr++;
                 for (auto ss: clusters[cid]) {
@@ -774,7 +751,6 @@ void introduce_main(po::parsed_options parsed) {
     std::string dump_assignments = vm["dump-assignments"].as<std::string>();
     float moconf = vm["origin-confidence"].as<float>();
     bool leafconf = vm["evaluate-metadata"].as<bool>();
-    // int32_t num_threads = vm["threads"].as<uint32_t>();
 
     // Load input MAT and uncondense tree
     MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);

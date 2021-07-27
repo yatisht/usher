@@ -26,7 +26,7 @@ po::variables_map parse_summary_command(po::parsed_options parsed) {
         ("haplotype,H", po::value<std::string>()->default_value(""),
         "Write a tsv listing haplotypes represented by comma-delimited sets of mutations and their total frequency across the tree.")
         ("calculate-roho,R", po::value<std::string>()->default_value(""),
-        "Write a tsv containing the distribution of ROHO values calculated for all homoplasic mutations.")
+        "Write a tsv containing the distribution of RoHO values calculated for all homoplasic mutations.")
         ("get-all,A", po::bool_switch(),
         "Use default filenames (samples.txt, clades.txt, etc) and save all summary tables to the output directory.")
         ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
