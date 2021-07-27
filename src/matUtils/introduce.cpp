@@ -1,6 +1,5 @@
 #include "introduce.hpp"
 #include "select.hpp"
-#include <boost/date_time/gregorian/gregorian.hpp>
 
 po::variables_map parse_introduce_command(po::parsed_options parsed) {
 
@@ -393,7 +392,7 @@ std::map<std::string, float> get_assignments(MAT::Tree* T, std::unordered_set<st
     return assignments;
 }
 
-std::pair<boost::gregorian::date,boost::gregorian::date> get_nearest_date(MAT::Tree* T, MAT::Node* n, std::set<std::string>* in_samples, std::map<std::string, std::string> datemeta = {}) {
+std::pair<boost::gregorian::date,boost::gregorian::date> get_nearest_date(MAT::Tree* T, MAT::Node* n, std::set<std::string>* in_samples, std::map<std::string, std::string> datemeta) {
     boost::gregorian::date earliest = boost::gregorian::day_clock::universal_day();
     boost::gregorian::date latest = boost::gregorian::date(2019,11,30);
     for (auto l: T->get_leaves_ids(n->identifier)) {
