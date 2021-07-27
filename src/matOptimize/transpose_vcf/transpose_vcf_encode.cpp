@@ -5,6 +5,9 @@
 #include <cctype>
 #include <cstdint>
 #include <cstdio>
+#include <fstream>
+#include <functional>
+#include <ios>
 #include <string>
 #include "transpose_vcf.hpp"
 #include <sys/types.h>
@@ -12,16 +15,20 @@
 #include <tbb/task_scheduler_init.h>
 #include <tbb/blocked_range.h>
 #include <tbb/concurrent_vector.h>
+#include <thread>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 #include <iostream>
 #include "tbb/parallel_for.h"
 #include <boost/program_options/value_semantic.hpp>
 #include <boost/program_options.hpp> 
-
+#include <boost/iostreams/filtering_stream.hpp>
+#include <boost/iostreams/filter/gzip.hpp>
 std::mutex print_mutex;
 #define ZLIB_BUFSIZ 0x10000
 #include <atomic>
+#define SAMPLE_START_IDX 9
 std::atomic<size_t> buffer_left; 
 //Decouple parsing (slow) and decompression, segment file into blocks for parallelized parsing
 typedef tbb::flow::source_node<char*> decompressor_node_t;
@@ -142,7 +149,7 @@ struct Line_Parser{
             }
             line_in++;
             unsigned int field_idx=5;
-            for (; field_idx < 9; field_idx++) {
+            for (; field_idx < SAMPLE_START_IDX; field_idx++) {
               while (*line_in != '\t') {
                 line_in++;
               }
@@ -402,9 +409,40 @@ struct Write_Node{
         delete[] in.first;
     }
 };
-
+void get_samp_names(const std::string &sample_names_fn,const std::vector<std::string>& fields,std::vector<bool>& do_add) {
+    std::unordered_set<std::string> sample_set;
+    std::ifstream infile(sample_names_fn, std::ios::in | std::ios::binary);
+    if (infile.good()) {
+        boost::iostreams::filtering_istream instream;
+        instream.push(boost::iostreams::gzip_decompressor());
+        instream.push(infile);
+        std::string sample;
+        std::getline(instream, sample);
+        sample_set.reserve(std::stoi(sample));
+        while (instream.good()) {
+            sample.clear();
+            std::getline(instream, sample);
+            sample_set.insert(sample);
+        }
+    }
+    do_add.resize(fields.size());
+    for (size_t idx=SAMPLE_START_IDX; idx<fields.size(); idx++) {
+        auto res=sample_set.insert(fields[idx]);
+        do_add[idx]=res.second;
+    }
+    infile.close();
+    std::ofstream outfile(sample_names_fn, std::ios::out | std::ios::binary);
+    boost::iostreams::filtering_streambuf<boost::iostreams::output> outbuf;
+    outbuf.push(boost::iostreams::gzip_compressor());
+    outbuf.push(outfile);
+    std::ostream  out(&outbuf);
+    out<<sample_set.size()<<'\n';
+    for (const auto& sample_name : sample_set) {
+        out<<sample_name<<'\n';
+    }
+}
 #define CHUNK_SIZ 5
-void VCF_input(const char * name,const char * out_name,uint32_t nthreads){
+void VCF_input(const char * name,const char * out_name,uint32_t nthreads, const std::string& sample_names_fn){
     std::vector<std::string> fields;
     //open file set increase buffer size
     gzFile fd=gzopen(name, "r");
@@ -415,6 +453,8 @@ void VCF_input(const char * name,const char * out_name,uint32_t nthreads){
     gzbuffer(fd,ZLIB_BUFSIZ);
 
     unsigned int header_size=read_header(&fd, fields);
+    std::vector<bool> do_add;
+    std::thread sample_name_thread(get_samp_names,std::ref(sample_names_fn), std::ref(fields), std::ref(do_add));
     std::vector<std::vector<Pos_Mut_Block>> sample_pos_mut(fields.size());
     for(auto& samp:sample_pos_mut){
         samp.reserve(30);
@@ -425,7 +465,7 @@ void VCF_input(const char * name,const char * out_name,uint32_t nthreads){
         tbb::make_filter<char*,std::vector<Pos_Mut_Block>*>(tbb::filter::parallel,Line_Parser{fields.size()})&
         tbb::make_filter<std::vector<Pos_Mut_Block>*,void>(tbb::filter::serial_out_of_order,Appender{sample_pos_mut}));
     gzclose(fd);
-
+    sample_name_thread.join();
     compress_len=compressBound(MAX_SIZ);
     tbb::flow::graph output_graph;
     Packed_Msgs* blk_str=new Packed_Msgs;
@@ -435,9 +475,12 @@ void VCF_input(const char * name,const char * out_name,uint32_t nthreads){
     write_node_t writer(output_graph,tbb::flow::serial,Write_Node{out_file});
     tbb::flow::make_edge(serializer_head,compressor);
     tbb::flow::make_edge(compressor,writer);
-    tbb::parallel_for(tbb::blocked_range<size_t>(9,fields.size()),[&fields,&sample_pos_mut,&serializer_head,&compressor](tbb::blocked_range<size_t>& range){
+    tbb::parallel_for(tbb::blocked_range<size_t>(SAMPLE_START_IDX,fields.size()),[&fields,&sample_pos_mut,&serializer_head,&compressor,&do_add](tbb::blocked_range<size_t>& range){
         auto packed_out=new Packed_Msgs();
         for(size_t idx=range.begin();idx<range.end();idx++){
+            if (!do_add[idx]) {
+                continue;
+            }
             auto out=serialize(fields[idx],sample_pos_mut[idx]);
             if (!packed_out->push_back(out)) {
                 compressor.try_put(packed_out);
@@ -485,6 +528,6 @@ int main(int argc,char** argv){
             return 1;
     }
     tbb::task_scheduler_init init(num_threads);
-    VCF_input(input_vcf_path.c_str(), output_path.c_str(),num_threads);
+    VCF_input(input_vcf_path.c_str(), output_path.c_str(),num_threads,output_path+".sample_names.gz");
     std::flush(std::cout);
 }
