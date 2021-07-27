@@ -1,5 +1,6 @@
 #define LOAD
 #include "../check_samples.hpp"
+#include <atomic>
 #include "src/matOptimize/mutation_annotated_tree.hpp"
 #include "src/matOptimize/tree_rearrangement_internal.hpp"
 #include "transpose_vcf.hpp"
@@ -14,8 +15,10 @@
 #include <vector>
 namespace MAT = Mutation_Annotated_Tree;
 struct Condesed_Muts {
+    std::atomic<char> set;
     std::vector<MAT::Mutation> not_Ns;
     std::vector<MAT::Mutation> Ns;
+    Condesed_Muts():set(0){}
 };
 void check_consistent(Mutation_Set *old_muts, Mutation_Set &new_muts,
                       const std::string *sample) {
@@ -107,16 +110,26 @@ struct Adder {
 struct Sample_Adder {
     const Original_State_t &not_condensed;
     const std::unordered_map<std::string, Condesed_Muts *> &condensed;
+    std::unordered_map<std::string,std::atomic<char>>& assigned;
     Adder set_name(std::string &&name) {
         auto not_condensed_iter = not_condensed.find(name);
+	char expected=0;
         if (not_condensed_iter != not_condensed.end()) {
-            return Adder{&(not_condensed_iter->second),&(not_condensed_iter->first)};
+		auto& add_flag=assigned[name];
+		if(!atomic_compare_exchange_strong(&add_flag,&expected,1)){
+			return Adder();
+		}
+           return Adder{&(not_condensed_iter->second),&(not_condensed_iter->first)};
         }
         auto condensed_iter = condensed.find(name);
         if (condensed_iter == condensed.end()) {
             //fprintf(stderr, "Sample %s not found in tree\n", name.c_str());
             return Adder();
         }
+	auto& flag=condensed_iter->second->set;
+	if(!atomic_compare_exchange_strong(&flag,&expected,1)){
+	    return Adder();
+	}
         return Adder(condensed_iter->second);
     }
 };
@@ -205,7 +218,12 @@ void add_ambuiguous_mutations(const char *path, Original_State_t &to_patch,
         condensed_children.emplace_back(condensed_map, &to_patch,
                                         condensed_one);
     }
-    Sample_Adder adder{to_patch, condensed_map};
+    std::unordered_map<std::string,std::atomic<char>> assigned;
+    assigned.reserve(to_patch.size());
+    for(const auto& ttt:to_patch){
+	assigned.emplace(ttt.first,0);
+    }
+    Sample_Adder adder{to_patch, condensed_map,assigned};
     load_mutations(path, num_threads, adder);
     tbb::parallel_for(
         tbb::blocked_range<size_t>(0, condensed_children.size()),

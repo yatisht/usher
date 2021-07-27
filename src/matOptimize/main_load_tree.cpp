@@ -186,6 +186,12 @@ static void reassign_states(MAT::Tree& t, Original_State_t& origin_states,const 
             }
         },
         ap);
+    size_t total_mutation_size=0;
+    for(const auto node:bfs_ordered_nodes){
+	    total_mutation_size+=node->mutations.size();
+    }
+    fprintf(stderr,"Total mutation size %zu \n", total_mutation_size);
+
 }
 //load from usher compatible pb
 Mutation_Annotated_Tree::Tree load_tree(const std::string& path,Original_State_t& origin_states,const char* transposed_vcf_path){
