@@ -32,8 +32,6 @@ po::variables_map check_options(int argc, char** argv) {
 //         "Start index of the interval in the sorted vector of nodes to consider.")
 //        ("end-index,E", po::value<int>()->default_value(-1), \
 //         "End index of the interval in the sorted vector of nodes to consider.")
-        ("min-coordinate-range,r", po::value<int>()->default_value(1e3), \
-         "Minimum range of the genomic coordinates of the mutations on the branch")
         ("outdir,d", po::value<std::string>()->default_value("."), 
          "Output directory to dump output files [DEFAULT uses current directory]")
 //        ("samples-filename,s", po::value<std::string>()->default_value(""),
