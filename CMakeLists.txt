@@ -47,6 +47,7 @@ INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIRS})
 AUX_SOURCE_DIRECTORY(src/matOptimize/Profitable_Moves_Enumerators New_Profitable_Moves_Enumerators) 
 AUX_SOURCE_DIRECTORY(src/matOptimize/apply_move patch_tree) 
 file(GLOB MATUTIL_SRCS "src/matUtils/*.cpp" "src/matUtils/*.hpp")
+file(GLOB RIPPLES_SRCS "src/ripples/*.cpp" "src/ripples/*.hpp")
 
 find_package(ZLIB)
 if(DEFINED Protobuf_PATH)
@@ -60,6 +61,12 @@ if(DEFINED Protobuf_PATH)
         src/mutation_annotated_tree.cpp
         src/usher_mapper.cpp
         ${MATUTIL_SRCS}
+        )
+
+    add_executable(ripples
+        src/mutation_annotated_tree.cpp
+        src/usher_mapper.cpp
+        ${RIPPLES_SRCS}
         )
 
     add_executable(matOptimize
@@ -134,6 +141,14 @@ else()
         ${PROTO_SRCS}
         ${PROTO_HDRS}
         )
+    add_executable(ripples
+        src/mutation_annotated_tree.cpp
+        src/usher_mapper.cpp
+        ${RIPPLES_SRCS}
+        ${PROTO_SRCS}
+        ${PROTO_HDRS}
+        )
+
 
     add_executable(compareVCF
         src/mutation_annotated_tree.cpp
@@ -202,4 +217,7 @@ target_include_directories(usher PUBLIC "${PROJECT_BINARY_DIR}")
 TARGET_COMPILE_OPTIONS(matUtils PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
 TARGET_LINK_LIBRARIES(matUtils PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
 
-install(TARGETS usher matUtils matOptimize DESTINATION bin)
+TARGET_COMPILE_OPTIONS(ripples PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
+TARGET_LINK_LIBRARIES(ripples PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
+
+install(TARGETS usher matUtils matOptimize ripples DESTINATION bin)
