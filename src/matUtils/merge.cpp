@@ -1,4 +1,4 @@
- //Load mat files
+//Load mat files
 //uncondense leaves
 #include "merge.hpp"
 concurMap consistNodes;
@@ -128,7 +128,6 @@ void merge_main(po::parsed_options parsed)
     tbb::task_scheduler_init init(num_threads);
     MAT::Tree mat1 = MAT::load_mutation_annotated_tree(mat1_filename);
     MAT::Tree mat2 = MAT::load_mutation_annotated_tree(mat2_filename);
-    bool empty = true;
     MAT::Tree baseMat;
     MAT::Tree otherMat;
 
@@ -174,6 +173,9 @@ void merge_main(po::parsed_options parsed)
     while (!(conflicts.empty()))
     {
         conflicts = mainhelper(conflicts, finalMat, baseMat, otherMat);
+                std::cout<<"conflicts: ";
+
+        std::cout<<conflicts.size()<<std::endl;
     }
     std::cout << baseMat.get_num_leaves() << std::endl;
     std::cout << otherMat.get_num_leaves() << std::endl;
@@ -184,7 +186,7 @@ void merge_main(po::parsed_options parsed)
     MAT::save_mutation_annotated_tree(finalMat, output_filename);
 }
 
-std::vector<std::string> mainhelper(std::vector<std::string> samples, MAT::Tree &finalMat, MAT::Tree &baseMat, MAT::Tree &otherMat)
+std::vector<std::string> mainhelper(std::vector<std::string> samples, MAT::Tree finalMat, MAT::Tree baseMat, MAT::Tree otherMat)
 {
     concurMap::accessor ac;
     static tbb::affinity_partitioner ap;
@@ -209,6 +211,7 @@ std::vector<std::string> mainhelper(std::vector<std::string> samples, MAT::Tree 
                 std::vector<MAT::Mutation> common_mutations;
 
                 x = samples[k];
+                std::cout << x << std::endl;
                 //finds ancestors of new sample on otherMat
                 auto ancestors = otherMat.rsearch(x, true);
                 std::reverse(ancestors.begin(), ancestors.end());
@@ -226,27 +229,28 @@ std::vector<std::string> mainhelper(std::vector<std::string> samples, MAT::Tree 
                         {
                             std::vector<MAT::Mutation> tempdiff;
                             std::vector<MAT::Mutation> tempcommon;
-                            std::vector<MAT::Mutation> a = z->mutations;
-                            std::vector<MAT::Mutation> b = y->mutations;
+                            std::vector<MAT::Mutation> a = otherMat.get_node(x)->mutations;
+                            std::vector<MAT::Mutation> b = z->mutations;
+                            //std::cout<<a.size()<<std::endl;
+                            // std::cout<<b.size()<<std::endl;
+
                             //finds child with least amount of differing mutations from sample
                             std::set_difference(a.begin(), a.end(), b.begin(), b.end(), std::back_inserter(tempdiff));
                             std::set_intersection(a.begin(), a.end(), b.begin(), b.end(), std::back_inserter(tempcommon));
+                            //std::cout<<tempdiff.size()<<std::endl;
 
-                            if (!empty)
-                            {
-                                if (tempdiff.size() < diff_mutations.size())
-                                {
-                                    diff_mutations = tempdiff;
-                                    common_mutations = tempcommon;
-                                    child = z->identifier;
-                                }
-                            }
-                            else if (empty == true)
+                            if (tempdiff.size() < diff_mutations.size())
                             {
                                 diff_mutations = tempdiff;
                                 common_mutations = tempcommon;
                                 child = z->identifier;
-                                empty = false;
+                            }
+
+                            else if (diff_mutations.size() == 0)
+                            {
+                                diff_mutations = tempdiff;
+                                common_mutations = tempcommon;
+                                child = z->identifier;
                             }
                         }
                     }
@@ -255,15 +259,29 @@ std::vector<std::string> mainhelper(std::vector<std::string> samples, MAT::Tree 
                         curr = y;
                     }
                 }
+                //std::cout<<curr->identifier<<std::endl;
                 //If samples intended parent is already in parents vector, adds to conflicts vector
                 m.lock();
                 bool c = false;
+                if (common_mutations.size() > 0)
+                {
+                    std::string nid = std::to_string(++finalMat.curr_internal_node);
+                    finalMat.create_node(nid, curr->identifier);
+                    finalMat.move_node(child, nid);
+                    curr = finalMat.get_node(nid);
+                    for (auto m : common_mutations)
+                    {
+                        curr->add_mutation(m);
+                    }
+                    //std::cout << common_mutations.size() << std::endl;
+
+                    common_mutations.clear();
+                }
                 for (auto p : parents)
                 {
                     if (chelper(p, curr) == true)
                     {
                         conflicts.push_back(x);
-                        std::cout << conflicts.size() << std::endl;
                         c = true;
                         break;
                     }
@@ -277,17 +295,15 @@ std::vector<std::string> mainhelper(std::vector<std::string> samples, MAT::Tree 
 
                     if (c == false)
                     {
-                        if (common_mutations.size() > 0)
-                        {
-                            std::string nid = std::to_string(++finalMat.curr_internal_node);
-                            finalMat.create_node(nid, curr->identifier);
-                            finalMat.move_node(child, nid);
-                            curr = finalMat.get_node(nid);
-                            curr->mutations = common_mutations;
-                        }
+
                         finalMat.create_node(x, curr->identifier, -1);
                         MAT::Node *add = finalMat.get_node(x);
-                        add->mutations = diff_mutations;
+                        //std::cout << diff_mutations.size() << std::endl;
+                        for (auto m : diff_mutations)
+                        {
+                            add->add_mutation(m);
+                        }
+                        diff_mutations.clear();
                         parents.push_back(curr);
                     }
                 }
