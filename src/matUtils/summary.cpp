@@ -23,6 +23,8 @@ po::variables_map parse_summary_command(po::parsed_options parsed) {
         "Write a tsv listing all mutations in the tree and their occurrence count.")
         ("aberrant,a", po::value<std::string>()->default_value(""),
         "Write a tsv listing duplicate samples and internal nodes with no mutations and/or branch length 0.")
+        ("haplotype,H", po::value<std::string>()->default_value(""),
+        "Write a tsv listing haplotypes represented by comma-delimited sets of mutations and their total frequency across the tree.")
         ("calculate-roho,R", po::value<std::string>()->default_value(""),
         "Write a tsv containing the distribution of ROHO values calculated for all homoplasic mutations.")
         ("get-all,A", po::bool_switch(),
@@ -81,32 +83,6 @@ void write_clade_table(MAT::Tree& T, std::string filename) {
     //clades will be a map object.
     std::map<std::string, size_t> incl_cladecounts;
     std::map<std::string, size_t> excl_cladecounts;
-    // auto dfs = T.depth_first_expansion();
-    // for (auto s: dfs) {
-    //     std::vector<std::string> canns = s->clade_annotations;
-    //     if (canns.size() > 0) {
-    //         if (canns.size() > 1 || canns[0] != "") {
-    //             //the empty string is the default clade identifier attribute
-    //             //skip entries which are annotated with 1 clade but that clade is empty
-    //             //but don't skip entries which are annotated with 1 clade and its not empty
-    //             //get the set of samples descended from this clade root
-    //             for (auto c: canns) {
-    //                 //the empty string is a default clade identifier
-    //                 //make sure not to include it.
-    //                 //the first time you encounter it should be the root of the clade
-    //                 //then if you see if after that you can ignore it. probably?
-    //                 if (incl_cladecounts.find(c) == incl_cladecounts.end() && c != "") {
-    //                     //inclusive clade count is all samples downstream of it, period
-    //                     //exclusive clade count is more complex. Its the set of samples which are descended from this clade and this clade only.
-
-    //                     std::vector<std::string> sids = T.get_leaves_ids(s->identifier);
-    //                     incl_cladecounts[c] = sids.size();
-                        
-    //                 }
-    //             }        
-    //         }
-    //     }
-    // }
     for (auto s: T.get_leaves()) {
         bool first_encountered_a1 = true;
         bool first_encountered_a2 = true;
@@ -182,6 +158,42 @@ void write_mutation_table(MAT::Tree& T, std::string filename) {
     //write the contents of map to the file
     for (auto const &mut : mutcounts) {
         mutfile << mut.first << "\t" << mut.second << "\n";
+    }
+    fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+}
+
+void write_haplotype_table(MAT::Tree& T, std::string filename) {
+    timer.Start();
+    fprintf(stderr, "Writing haplotype frequencies to output %s\n", filename.c_str());
+    std::ofstream hapfile;
+    hapfile.open(filename);
+    hapfile << "mutation_set\tsample_count\n";
+    std::map<std::set<std::string>,size_t> hapmap;
+    //naive method. for each sample, rsearch along the history to collect each of its mutations
+    //and add those to the set. At the end, add that set to the hapcount keys if its not there, and increment.
+    for (auto s: T.get_leaves()) {
+        std::set<std::string> mset;
+        for (auto a: T.rsearch(s->identifier, true)) {
+            for (auto m: a->mutations) {
+                mset.insert(m.get_string());
+            }
+        }
+        if (hapmap.find(mset) == hapmap.end()) {
+            hapmap[mset] = 0;
+        }
+        hapmap[mset]++;
+    }
+    for (auto const &hapc : hapmap) {
+        std::stringstream msetstr;
+        for (auto m: hapc.first) {
+            msetstr << m << ",";
+        }
+        std::string final_str = msetstr.str();
+        final_str.pop_back();
+        if (final_str.size() == 0) {
+            final_str = "reference";
+        }
+        hapfile << final_str << "\t" << hapc.second << "\n";
     }
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 }
@@ -423,6 +435,7 @@ void summary_main(po::parsed_options parsed) {
     std::string mutations = dir_prefix + vm["mutations"].as<std::string>();
     std::string aberrant = dir_prefix + vm["aberrant"].as<std::string>();
     std::string roho = dir_prefix + vm["calculate-roho"].as<std::string>();
+    std::string hapfile = dir_prefix + vm["haplotype"].as<std::string>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
     bool get_all = vm["get-all"].as<bool>();
     if (get_all) {
@@ -473,6 +486,10 @@ void summary_main(po::parsed_options parsed) {
             fprintf(stderr, "RoHO contextual columns requested; collecting...\n");
         }
         write_roho_table(T, roho, get_dates);
+        no_print = false;
+    }
+    if (hapfile != dir_prefix) {
+        write_haplotype_table(T, hapfile);
         no_print = false;
     }
     if (no_print) {
