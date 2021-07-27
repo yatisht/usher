@@ -24,10 +24,10 @@ po::variables_map check_options(int argc, char** argv) {
          "Input mutation-annotated tree file to optimize [REQUIRED].")
         ("branch-length,l", po::value<uint32_t>()->default_value(3), \
          "Minimum length of the branch to consider to recombination events")
-        ("max-coordinate-range,R", po::value<int>()->default_value(1e7), \
-         "Maximum range of the genomic coordinates of the mutations on the branch")
         ("min-coordinate-range,r", po::value<int>()->default_value(1e3), \
-         "Minimum range of the genomic coordinates of the mutations on the branch")
+         "Minimum range of the genomic coordinates of the mutations on the recombinant branch")
+        ("max-coordinate-range,R", po::value<int>()->default_value(1e7), \
+         "Maximum range of the genomic coordinates of the mutations on the recombinant branch")
 //        ("start-index,S", po::value<int>()->default_value(-1), \
 //         "Start index of the interval in the sorted vector of nodes to consider.")
 //        ("end-index,E", po::value<int>()->default_value(-1), \
@@ -38,7 +38,7 @@ po::variables_map check_options(int argc, char** argv) {
 //         "Restrict the search to the samples specified in the input file")
     
         ("parsimony-improvement,p", po::value<int>()->default_value(3), \
-         "Minimum improvement in parsimony score of the recombinant sequence during the partial placement.")
+         "Minimum improvement in parsimony score of the recombinant sequence during the partial placement")
         ("num-descendants,n", po::value<uint32_t>()->default_value(10), \
          "Minimum number of leaves that node should have to be considered for recombination.")
         ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
