@@ -730,6 +730,10 @@ size_t Mutation_Annotated_Tree::Tree::get_num_annotations () const {
 void Mutation_Annotated_Tree::Tree::rename_node(std::string old_nid, std::string new_nid) {
     auto n = get_node(old_nid);
     if (n != NULL) {
+        if (all_nodes.find(new_nid) != all_nodes.end()) {
+            fprintf(stderr, "ERROR: rename_node: node with id '%s' already exists.\n", new_nid.c_str());
+            exit(1);
+        }
         n->identifier = new_nid;
         all_nodes.erase(old_nid);
         all_nodes[new_nid] = n;
@@ -876,7 +880,7 @@ std::vector<Mutation_Annotated_Tree::Node*> Mutation_Annotated_Tree::Tree::rsear
 std::string Mutation_Annotated_Tree::Tree::get_clade_assignment (const Node* n, int clade_id, bool include_self) const {
     assert ((size_t)clade_id < get_num_annotations());
     for (auto anc: rsearch(n->identifier, include_self)) {
-        if (anc->clade_annotations[clade_id] != "") {
+      if ((int)anc->clade_annotations.size() > clade_id && anc->clade_annotations[clade_id] != "") {
             return anc->clade_annotations[clade_id];
         }
     }
@@ -1352,7 +1356,7 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_subtree (const Mutati
             }
             // Add to the parent identified
             else {
-                Node* new_node = subtree.create_node(n->identifier, subtree_parent->identifier);
+                Node* new_node = subtree.create_node(n->identifier, subtree_parent->identifier, num_annotations);
 
                 auto par_to_node = tree.rsearch(n->identifier, true);
                 std::reverse(par_to_node.begin(), par_to_node.end());

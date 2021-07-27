@@ -43,27 +43,26 @@ static int read_header(gzFile *fd, std::vector<std::string> &out) {
     return header_len;
 }
 #define ZLIB_BUFSIZ 0x40000
-typedef tbb::flow::multifunction_node<char *, tbb::flow::tuple<char *>>
+typedef tbb::flow::source_node<char *>
     decompressor_node_t;
 struct Decompressor {
     gzFile *fd;
     size_t cont_read_size;
     size_t init_read_size;
-    void operator()(char *buf,
-                    decompressor_node_t::output_ports_type &out) const {
+    bool operator()(char *&buf) const {
         if (gzeof(*fd)) {
-            free(buf);
-            return;
+            return false;
         }
+        buf=new char[init_read_size+cont_read_size];
         int read_size = gzread(*fd, buf, init_read_size);
         if (!read_size) {
             free(buf);
-            return;
+            return false;
         }
         if (!gzgets(*fd, buf + read_size, cont_read_size)) {
             *(buf + read_size) = 0;
         }
-        std::get<0>(out).try_put(buf);
+        return true;
     }
 };
 static std::array<std::string, 2> filenames;
@@ -102,7 +101,7 @@ struct line_parser {
     static const int SAMPLE_START_IDX = 9;
     const std::vector<unsigned int> index_translate;
     int file_idx;
-    char *operator()(char *line_in) const {
+    void operator()(char *line_in) const {
         auto start=line_in;
         while (*line_in!=0) {
             std::vector<uint8_t> allele_translated;
@@ -208,7 +207,7 @@ struct line_parser {
             auto position=std::stoi(words[POS_IDX]);
             insert_line(position, out, file_idx);
         }*/
-        return start;
+        delete[] start;
     }
 };
 static int  map_index(gzFile* fd1,gzFile* fd2,std::vector<unsigned int>& index_map1,std::vector<unsigned int>& index_map2){
@@ -242,7 +241,7 @@ static int  map_index(gzFile* fd1,gzFile* fd2,std::vector<unsigned int>& index_m
     }
     return header_size;
 }
-#define LINE_PER_BLOCK 10
+#define LINE_PER_BLOCK 5
 int main(int argc, char**argv){
     gzFile fd1=gzopen(argv[1], "r");
     filenames[0]=argv[1];
@@ -257,20 +256,14 @@ int main(int argc, char**argv){
     size_t header_size=map_index(&fd1, &fd2, index_map1, index_map2);
 
     tbb::flow::graph input_graph;
-    decompressor_node_t decompressor1(input_graph,1,Decompressor{&fd1,LINE_PER_BLOCK*header_size,5*header_size});
-    decompressor_node_t decompressor2(input_graph,1,Decompressor{&fd2,LINE_PER_BLOCK*header_size,5*header_size});
+    decompressor_node_t decompressor1(input_graph,Decompressor{&fd1,LINE_PER_BLOCK*header_size,1*header_size});
+    decompressor_node_t decompressor2(input_graph,Decompressor{&fd2,LINE_PER_BLOCK*header_size,1*header_size});
 
-    tbb::flow::function_node<char*,char*> parser1(input_graph,tbb::flow::unlimited,line_parser{index_map1,0});
-    tbb::flow::function_node<char*,char*> parser2(input_graph,tbb::flow::unlimited,line_parser{index_map2,1});
-    tbb::flow::make_edge(parser1,decompressor1);
-    tbb::flow::make_edge(tbb::flow::output_port<0>(decompressor1),parser1);
+    tbb::flow::function_node<char*,tbb::flow::continue_msg> parser1(input_graph,tbb::flow::unlimited,line_parser{index_map1,0});
+    tbb::flow::function_node<char*,tbb::flow::continue_msg> parser2(input_graph,tbb::flow::unlimited,line_parser{index_map2,1});
+    tbb::flow::make_edge(decompressor1,parser1);
 
-    tbb::flow::make_edge(parser2,decompressor2);
-    tbb::flow::make_edge(tbb::flow::output_port<0>(decompressor2),parser2);
-    for (int i=0; i<80; i++) {
-        decompressor1.try_put((char*)malloc((5+LINE_PER_BLOCK)*header_size));
-        decompressor2.try_put((char*)malloc((5+LINE_PER_BLOCK)*header_size));
-    }
+    tbb::flow::make_edge(decompressor2,parser2);
     input_graph.wait_for_all();
 }
 
