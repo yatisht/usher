@@ -1,5 +1,5 @@
 # Transposed VCF
-Transposed VCF supplement MAT with information about ambiguous bases at sample nodes to aid tree optimization. All variants of a sample is written contagiously (in rows instead of columns), so new samples can be concatenated.
+Transposed VCF supplement MAT with information about ambiguous bases at sample nodes to aid tree optimization. All variants of a sample is written contiguously (in rows instead of columns), so new samples can be concatenated.
 ## Converting VCF to Transposed VCF
 ```
 transpose_vcf -v <input vcf> -o <output> -T <number of threads>
