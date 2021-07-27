@@ -28,6 +28,8 @@ po::variables_map parse_summary_command(po::parsed_options parsed) {
         ("get-all,A", po::bool_switch(),
         "Use default filenames (samples.txt, clades.txt, etc) and save all summary tables to the output directory.")
         ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
+        ("date-info,D", po::bool_switch(),
+        "Use to include date information in RoHO table output. Significantly slows calculation time.")
         ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
     // (positional) command name, so we need to erase that.
@@ -199,7 +201,7 @@ void write_sample_clades_table (MAT::Tree& T, std::string sample_clades) {
     scfile.close();
 }
 
-void write_roho_table(MAT::Tree& T, std::string roho_file) {
+void write_roho_table(MAT::Tree& T, std::string roho_file, bool get_dates) {
     /*
     RoHo is a metric used for SARS-CoV-2 genetic analysis described in van Dorp et al 2021 (doi: 10.1038/s41467-020-19818-2)
     Essentially it is the proportion of offspring of a parent node which have a mutation vs do not have a mutation of interest
@@ -213,15 +215,22 @@ void write_roho_table(MAT::Tree& T, std::string roho_file) {
     fprintf(stderr, "Calculating and writing RoHo values to output %s\n", roho_file.c_str());
     std::ofstream rhfile;
     rhfile.open(roho_file);
-    rhfile << "mutation\tparent_node\tchild_count\toccurrence_node\toffspring_with\tmedian_offspring_without\tsingle_roho\t"; 
+    rhfile << "mutation\tparent_node\tchild_count\toccurrence_node\toffspring_with\tmedian_offspring_without\tsingle_roho"; 
     //the above are the basic columns, the following are additional columns requested to help sort out roho output. 
-    rhfile << "sister_clade_offspring_counts\tearliest_date\tlatest_date\tidentical_sample_sibling_count\tearliest_identical_sibling\tlatest_identical_sibling\tearlist_clade_sibling_dates\tlatest_clade_sibling_dates\n";
+    if (get_dates) {
+        rhfile << "\tsister_clade_offspring_counts\tidentical_sample_sibling_count\tearliest_date\tlatest_date\tearliest_identical_sibling\tlatest_identical_sibling\tearliest_clade_sibling_dates\tlatest_clade_sibling_dates\n";
+    } else {
+        rhfile << "\n";
+    }
     for (auto n: T.depth_first_expansion()) {
         //candidate mutations maps each mutation to its child where it occurred
         //child counter maps the number of offspring of a given child
         //together, they store the results we need.
         std::map<std::string,std::string> candidate_mutations;
         std::map<std::string,std::set<std::string>> child_counter;
+        //using a separate size tracker to speed things when extra columns are not requested and therefore
+        //set membership is irrelevant and wasteful to compute/store
+        std::map<std::string,size_t> child_increment;
         std::set<std::string> parent_identical_samples;
 
         //step one: collect all potential candidate nodes.
@@ -248,6 +257,7 @@ void write_roho_table(MAT::Tree& T, std::string roho_file) {
         //step two: remove candidates who do not 1. have at least two offspring associated with them 2. do not recur secondarily at any point after this parent
         for (auto c: n->children) {
             std::set<std::string> child_samples;
+            size_t ccount = 0;
             if (c->is_leaf()) {
                 continue;
             }
@@ -256,49 +266,51 @@ void write_roho_table(MAT::Tree& T, std::string roho_file) {
                     continue;
                 }
                 if (dn->is_leaf()) {
-                    child_samples.insert(dn->identifier);
+                    ccount++;
+                    if (get_dates) {
+                        child_samples.insert(dn->identifier);
+                    }
                 }
                 for (auto m: dn->mutations) {
                     candidate_mutations.erase(m.get_string());
-                    // auto find = candidate_mutations.get(m.get_string());
-                    // if (find != candidate_mutations.end()) {
-                    //     //remove mutations which recur secondarily at any point in the descendents from consideration.
-                    //     candidate_mutations.erase(find);
-                    // }
                 }
             }
             //don't bother recording values of 0 or 1.
-            if (child_samples.size() > 1) {
-                child_counter[c->identifier] = child_samples;
-                //prerecord date information for this child for future reference
-
+            if (ccount > 1) {
+                child_increment[c->identifier] = ccount;
+                if (get_dates) {
+                    child_counter[c->identifier] = std::move(child_samples);
+                }
             }
         }
         //we need at least one valid candidate and at least two non-leaf children to continue.
-        if ((candidate_mutations.size() == 0) || (child_counter.size() <= 1)) {
+        if ((candidate_mutations.size() == 0) || (child_increment.size() <= 1)) {
             continue;
         }
-        //step 2.5; prerecord date information for each child of node N. 
+        //step 2.5; prerecord date information for each child of node N if requested.
         std::map<std::string, std::pair<boost::gregorian::date,boost::gregorian::date>> datemap;
-        for (auto cc: child_counter) {
-            auto cdates = get_nearest_date(&T, n, &cc.second);
-            datemap[cc.first] = cdates;
+        std::pair<boost::gregorian::date,boost::gregorian::date> parent_identical_dates;
+        if (get_dates) {
+            for (auto cc: child_counter) {
+                auto cdates = get_nearest_date(&T, n, &cc.second);
+                datemap[cc.first] = std::move(cdates);
+            }
+            parent_identical_dates = get_nearest_date(&T, n, &parent_identical_samples);
         }
 
-        auto parent_identical_dates = get_nearest_date(&T, n, &parent_identical_samples);
         //step 3: actually record the results.
         for (auto ms: candidate_mutations) {
             //size_t non_c = 0;
             //size_t sum_non = 0;
             std::vector<size_t> all_non;
             size_t sum_wit = 0;
-            for (auto cs: child_counter) {
+            for (auto cs: child_increment) {
                 if (cs.first != ms.second) {
-                    all_non.push_back(cs.second.size());
+                    all_non.push_back(cs.second);
                     //sum_non += cs.second;
                     //non_c++;
                 } else {
-                    sum_wit += cs.second.size();
+                    sum_wit += cs.second;
                 }
             }
             float med_non;
@@ -311,21 +323,39 @@ void write_roho_table(MAT::Tree& T, std::string roho_file) {
             std::stringstream nonstrs;
             std::stringstream nonearlydates;
             std::stringstream nonlatedates;
-            std::pair<boost::gregorian::date,boost::gregorian::date> descendent_dates;
-            for (auto cc: child_counter) {
-                //build all at once to assert same order
-                if (cc.first != ms.first) {
-                    nonstrs << cc.second.size() << ",";
+            if (get_dates) {
+                for (auto cc: child_counter) {
+                    //build all at once to assert same order
                     //auto dates = get_nearest_date(&T, n, &cc.second);
-                    auto dates = datemap[cc.first];
-                    nonearlydates << dates.first << ",";
-                    nonlatedates << dates.second << ",";
-                } else {
-                    descendent_dates = datemap[cc.first];
+                    if (cc.first != ms.second) {
+                        nonstrs << cc.second.size() << ",";
+                        auto dates = datemap[cc.first];
+                        nonearlydates << dates.first << ",";
+                        nonlatedates << dates.second << ",";
+                    }
                 }
             }
+            
             rhfile << ms.first << "\t" << n->identifier << "\t" << ccheck.size() << "\t" << ms.second << "\t" << sum_wit << "\t" << med_non << "\t" << std::log10(sum_wit/med_non) << "\t";
-            rhfile << nonstrs.str() << "\t" << descendent_dates.first << "\t" << descendent_dates.second << "\t" << parent_identical_samples.size() << "\t" << parent_identical_dates.first << "\t" << parent_identical_dates.second << "\t" << nonearlydates.str() << "\t" << nonlatedates.str() << "\n";
+            if (get_dates) {
+                std::string ns = nonstrs.str();
+                ns.pop_back();
+                rhfile << ns << "\t" << parent_identical_samples.size() << "\t";
+                auto descendent_dates = datemap[ms.second];
+                rhfile << descendent_dates.first << "\t" << descendent_dates.second << "\t";
+                if (parent_identical_samples.size() > 0) {
+                    rhfile << parent_identical_dates.first << "\t" << parent_identical_dates.second << "\t";
+                } else {
+                    rhfile << "None\tNone\t";
+                }
+                std::string ned = nonearlydates.str();
+                std::string nld = nonlatedates.str();
+                ned.pop_back();
+                nld.pop_back();
+                rhfile << ned << "\t" << nld << "\n";
+            } else {
+                rhfile << "\n";
+            }
         }
     }
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
@@ -336,6 +366,7 @@ void summary_main(po::parsed_options parsed) {
     po::variables_map vm = parse_summary_command(parsed);
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string dir_prefix = vm["output-directory"].as<std::string>();
+    bool get_dates = vm["date-info"].as<bool>();
 
     boost::filesystem::path path(dir_prefix);
     if (!boost::filesystem::exists(path)) {
@@ -398,7 +429,7 @@ void summary_main(po::parsed_options parsed) {
         no_print = false;
     }
     if (roho != dir_prefix) {
-        write_roho_table(T, roho);
+        write_roho_table(T, roho, get_dates);
         no_print = false;
     }
         
