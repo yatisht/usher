@@ -82,8 +82,14 @@ if(DEFINED Protobuf_PATH)
         src/matOptimize/priority_conflict_resolver.cpp
         ${patch_tree}
         ${New_Profitable_Moves_Enumerators}
-        ${DETAILED_MUTATIONS_PROTO_SRCS}
-        ${DETAILED_MUTATIONS_PROTO_HDRS}
+        )
+	add_executable(transpose_vcf
+        src/matOptimize/transpose_vcf/transpose_vcf_encode.cpp
+        src/matOptimize/mutation_annotated_tree_nuc_util.cpp
+        )
+        add_executable(transposed_vcf_to_vcf
+        src/matOptimize/transpose_vcf/transposed_vcf_to_vcf.cpp
+        src/matOptimize/mutation_annotated_tree_nuc_util.cpp
         )
 
     protobuf_generate(
@@ -100,6 +106,11 @@ if(DEFINED Protobuf_PATH)
         LANGUAGE cpp
         TARGET matOptimize
         PROTOS parsimony.proto)
+
+    protobuf_generate(
+        LANGUAGE cpp
+        TARGET matOptimize
+        PROTOS mutation_detailed.proto)
     
 else()
     protobuf_generate_cpp(
