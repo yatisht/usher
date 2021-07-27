@@ -114,9 +114,10 @@ struct Sample_Adder {
     Adder set_name(std::string &&name) {
         auto not_condensed_iter = not_condensed.find(name);
 	char expected=0;
+	char to_swap=1;
         if (not_condensed_iter != not_condensed.end()) {
 		auto& add_flag=assigned[name];
-		if(!atomic_compare_exchange_strong(&add_flag,&expected,1)){
+		if(!atomic_compare_exchange_strong(&add_flag,&expected,to_swap)){
 			return Adder();
 		}
            return Adder{&(not_condensed_iter->second),&(not_condensed_iter->first)};
@@ -127,7 +128,7 @@ struct Sample_Adder {
             return Adder();
         }
 	auto& flag=condensed_iter->second->set;
-	if(!atomic_compare_exchange_strong(&flag,&expected,1)){
+	if(!atomic_compare_exchange_strong(&flag,&expected,to_swap)){
 	    return Adder();
 	}
         return Adder(condensed_iter->second);
