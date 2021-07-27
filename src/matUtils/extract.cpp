@@ -69,7 +69,7 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
         "Use to produce an usher-style single sample subtree of the indicated size with all selected samples plus random samples to fill. Produces .nh and .txt files.")
         ("usher-minimum-subtrees-size,x", po::value<size_t>()->default_value(0),
         "Use to produce an usher-style minimum set of subtrees of the indicated size which include all of the selected samples. Produces .nh and .txt files.")
-        ("usher_clades_txt", po::bool_switch(),
+        ("usher-clades-txt", po::bool_switch(),
          "When producing usher-style subtree(s), also write an usher-style clades.txt file with clade annotations for selected samples, if the tree has clade annotations.")
         ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
         ("help,h", "Print help messages");
@@ -117,14 +117,9 @@ void extract_main (po::parsed_options parsed) {
     bool resolve_polytomies = vm["resolve-polytomies"].as<bool>();
     bool retain_branch = vm["retain-branch-length"].as<bool>();
     std::string dir_prefix = vm["output-directory"].as<std::string>();
-<<<<<<< HEAD
-    size_t usher_single_subtree_size = vm["usher-single-subtree-size"].as<size_t>();
-    size_t usher_minimum_subtrees_size = vm["usher-minimum-subtrees-size"].as<size_t>();
-=======
     size_t usher_single_subtree_size = vm["usher_single_subtree_size"].as<size_t>();
     size_t usher_minimum_subtrees_size = vm["usher_minimum_subtrees_size"].as<size_t>();
-    bool usher_clades_txt = vm["usher_clades_txt"].as<bool>();
->>>>>>> upstream/master
+    bool usher_clades_txt = vm["usher-clades-txt"].as<bool>();
     size_t setsize = vm["set-size"].as<size_t>();
     size_t minimum_subtrees_size = vm["minimum-subtrees-size"].as<size_t>();
 
