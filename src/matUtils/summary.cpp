@@ -77,34 +77,74 @@ void write_clade_table(MAT::Tree& T, std::string filename) {
     fprintf(stderr, "Writing clades to output %s\n", filename.c_str());
     std::ofstream cladefile;
     cladefile.open(filename);
-    cladefile << "clade\tcount\n";
+    cladefile << "clade\tinclusive_count\texclusive_count\n";
     //clades will be a map object.
-    std::map<std::string, size_t> cladecounts;
-    auto dfs = T.depth_first_expansion();
-    for (auto s: dfs) {
-        std::vector<std::string> canns = s->clade_annotations;
-        if (canns.size() > 0) {
-            if (canns.size() > 1 || canns[0] != "") {
-                //the empty string is the default clade identifier attribute
-                //skip entries which are annotated with 1 clade but that clade is empty
-                //but don't skip entries which are annotated with 1 clade and its not empty
-                //get the set of samples descended from this clade root
-                for (auto c: canns) {
-                    //the empty string is a default clade identifier
-                    //make sure not to include it.
-                    //the first time you encounter it should be the root of the clade
-                    //then if you see if after that you can ignore it. probably?
-                    if (cladecounts.find(c) == cladecounts.end() && c != "") {
-                        std::vector<std::string> sids = T.get_leaves_ids(s->identifier);
-                        cladecounts[c] = sids.size();
+    std::map<std::string, size_t> incl_cladecounts;
+    std::map<std::string, size_t> excl_cladecounts;
+    // auto dfs = T.depth_first_expansion();
+    // for (auto s: dfs) {
+    //     std::vector<std::string> canns = s->clade_annotations;
+    //     if (canns.size() > 0) {
+    //         if (canns.size() > 1 || canns[0] != "") {
+    //             //the empty string is the default clade identifier attribute
+    //             //skip entries which are annotated with 1 clade but that clade is empty
+    //             //but don't skip entries which are annotated with 1 clade and its not empty
+    //             //get the set of samples descended from this clade root
+    //             for (auto c: canns) {
+    //                 //the empty string is a default clade identifier
+    //                 //make sure not to include it.
+    //                 //the first time you encounter it should be the root of the clade
+    //                 //then if you see if after that you can ignore it. probably?
+    //                 if (incl_cladecounts.find(c) == incl_cladecounts.end() && c != "") {
+    //                     //inclusive clade count is all samples downstream of it, period
+    //                     //exclusive clade count is more complex. Its the set of samples which are descended from this clade and this clade only.
+
+    //                     std::vector<std::string> sids = T.get_leaves_ids(s->identifier);
+    //                     incl_cladecounts[c] = sids.size();
+                        
+    //                 }
+    //             }        
+    //         }
+    //     }
+    // }
+    for (auto s: T.get_leaves()) {
+        bool first_encountered_a1 = true;
+        bool first_encountered_a2 = true;
+        for (auto a: T.rsearch(s->identifier, false)) {
+            std::vector<std::string> canns = a->clade_annotations;
+            if (canns.size() >= 1) {
+                if (canns[0] != "" && incl_cladecounts.find(canns[0]) == incl_cladecounts.end()) {
+                    //these should always be matched in keys.
+                    //if a sample is present in one, its present in the other, and vice versa
+                    incl_cladecounts[canns[0]] = 0;
+                    excl_cladecounts[canns[0]] = 0;
+                }
+                if (canns[0] != "") {
+                    incl_cladecounts[canns[0]]++;
+                    if (first_encountered_a1) {
+                        excl_cladecounts[canns[0]]++;
+                        first_encountered_a1 = false;
                     }
-                }        
+                }
+                if (canns.size() >= 2) {
+                    if (canns[1] != "" && incl_cladecounts.find(canns[1]) == incl_cladecounts.end()) {
+                        incl_cladecounts[canns[1]] = 0;
+                        excl_cladecounts[canns[1]] = 0;
+                    }
+                    if (canns[1] != "") {
+                        incl_cladecounts[canns[1]]++;
+                        if (first_encountered_a2) {
+                            excl_cladecounts[canns[1]]++;
+                            first_encountered_a2 = false;
+                        }
+                    }
+                }                
             }
         }
     }
     //write the contents of map to the file.
-    for (auto const &clade : cladecounts) {
-        cladefile << clade.first << "\t" << clade.second << "\n";
+    for (auto const &clade : incl_cladecounts) {
+        cladefile << clade.first << "\t" << clade.second << "\t" << excl_cladecounts[clade.first] << "\n";
     }
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 }
@@ -435,7 +475,6 @@ void summary_main(po::parsed_options parsed) {
         write_roho_table(T, roho, get_dates);
         no_print = false;
     }
-        
     if (no_print) {
         //just count the number of nodes in the tree and the number of leaves (samples)
         //additional basic statistics can also go in this code block (total tree depth?)
