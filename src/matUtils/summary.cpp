@@ -28,8 +28,8 @@ po::variables_map parse_summary_command(po::parsed_options parsed) {
         ("get-all,A", po::bool_switch(),
         "Use default filenames (samples.txt, clades.txt, etc) and save all summary tables to the output directory.")
         ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
-        ("date-info,D", po::bool_switch(),
-        "Use to include date information in RoHO table output. Significantly slows calculation time.")
+        ("expanded-roho,E", po::bool_switch(),
+        "Use to include date and other contextual information in RoHO table output. Significantly slows calculation time.")
         ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
     // (positional) command name, so we need to erase that.
@@ -366,7 +366,7 @@ void summary_main(po::parsed_options parsed) {
     po::variables_map vm = parse_summary_command(parsed);
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string dir_prefix = vm["output-directory"].as<std::string>();
-    bool get_dates = vm["date-info"].as<bool>();
+    bool get_dates = vm["expanded-roho"].as<bool>();
 
     boost::filesystem::path path(dir_prefix);
     if (!boost::filesystem::exists(path)) {
@@ -429,6 +429,9 @@ void summary_main(po::parsed_options parsed) {
         no_print = false;
     }
     if (roho != dir_prefix) {
+        if (get_dates) {
+            fprintf(stderr, "RoHO contextual columns requested; collecting...\n");
+        }
         write_roho_table(T, roho, get_dates);
         no_print = false;
     }
