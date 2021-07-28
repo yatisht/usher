@@ -229,7 +229,6 @@ std::vector<std::string> get_nearby (MAT::Tree* T, std::string sample_id, int nu
             break;
         }
     }
-    //assert (leaves_to_keep.size() == static_cast<size_t>(number_to_get));
     return leaves_to_keep;
 }
 
@@ -280,7 +279,6 @@ std::map<std::string,std::map<std::string,std::string>> read_metafile(std::strin
     std::vector<std::string> keys;
 
     while (std::getline(infile, line)) {
-        //std::cerr << "reading\n";
         std::vector<std::string> words;
         if (line[line.size()-1] == '\r') {
             line = line.substr(0, line.size()-1);
@@ -291,7 +289,6 @@ std::map<std::string,std::map<std::string,std::string>> read_metafile(std::strin
                 keys.push_back(w);
             }
             first = false;
-            //std::cerr << keys[0].c_str() << ',' << keys[1].c_str() << "\n";
         } else {
             for (size_t i=1; i < words.size(); i++) {
                 metamap[keys[i]][words[0]] = words[i];

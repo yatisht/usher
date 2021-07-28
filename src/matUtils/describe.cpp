@@ -1,11 +1,11 @@
 #include "describe.hpp"
 
-std::vector<std::string> mutation_paths(const MAT::Tree& T, std::vector<std::string> samples) {
+std::vector<std::string> mutation_paths(MAT::Tree* T, std::vector<std::string> samples) {
     std::vector<std::string> mpaths;
     mpaths.push_back("sample_id\tpath_from_root");
     for (auto sample: samples) {
         std::string cpath = sample + "\t";
-        auto root_to_sample = T.rsearch(sample, true);
+        auto root_to_sample = T->rsearch(sample, true);
         std::reverse(root_to_sample.begin(), root_to_sample.end());
         for (auto n: root_to_sample) {
             for (size_t i=0; i<n->mutations.size(); i++) {
@@ -25,7 +25,7 @@ std::vector<std::string> mutation_paths(const MAT::Tree& T, std::vector<std::str
     return mpaths;
 }
 
-std::vector<std::string> clade_paths(MAT::Tree T) {
+std::vector<std::string> clade_paths(MAT::Tree* T) {
     //get the set of clade path strings for printing
     //similar to the above, construct a series of strings to be printed or redirected later on
     std::vector<std::string> clpaths;
@@ -33,7 +33,7 @@ std::vector<std::string> clade_paths(MAT::Tree T) {
     //do a breadth-first search
     //clades are annotated only at the root, so when we see an annotation, add it to the list.
 
-    auto bfs = T.breadth_first_expansion();
+    auto bfs = T->breadth_first_expansion();
     for (auto n: bfs) {
         for (auto ann: n->clade_annotations) {
             if (ann != "") {
@@ -43,7 +43,7 @@ std::vector<std::string> clade_paths(MAT::Tree T) {
                 curpath += n->identifier + "\t";
                 //get the ancestral mutations back to the root
                 std::string root = "";
-                auto root_to_sample = T.rsearch(n->identifier, true);
+                auto root_to_sample = T->rsearch(n->identifier, true);
                 std::reverse(root_to_sample.begin(), root_to_sample.end());
                 for (auto an: root_to_sample) {
                   for (size_t i=0; i<an->mutations.size(); i++) {
@@ -65,9 +65,9 @@ std::vector<std::string> clade_paths(MAT::Tree T) {
     return clpaths;
 }
 
-std::vector<std::string> all_nodes_paths(MAT::Tree T) {
+std::vector<std::string> all_nodes_paths(MAT::Tree* T) {
     std::vector<std::string> dfs_strings;
-    auto dfs = T.depth_first_expansion();
+    auto dfs = T->depth_first_expansion();
     for (auto n: dfs) {
         std::string node_path = n->identifier + ": ";
         for (size_t i=0; i<n->mutations.size(); i++) {
