@@ -392,7 +392,7 @@ std::map<std::string, float> get_assignments(MAT::Tree* T, std::unordered_set<st
 
 std::pair<boost::gregorian::date,boost::gregorian::date> get_nearest_date(MAT::Tree* T, MAT::Node* n, std::set<std::string>* in_samples, std::map<std::string, std::string> datemeta) {
     boost::gregorian::date earliest = boost::gregorian::day_clock::universal_day();
-    boost::gregorian::date latest = boost::gregorian::date(2019,11,30);
+    boost::gregorian::date latest = boost::gregorian::date(1500,1,1);
     for (auto l: T->get_leaves_ids(n->identifier)) {
         if (in_samples->find(l) != in_samples->end()) {
             if (datemeta.size() > 0) {
@@ -429,6 +429,9 @@ std::pair<boost::gregorian::date,boost::gregorian::date> get_nearest_date(MAT::T
                 }
             }
         }
+    }
+    if ((earliest == boost::gregorian::day_clock::universal_day()) && (latest == boost::gregorian::date(1500,1,1))) {
+        return std::pair<boost::gregorian::date,boost::gregorian::date> ();
     }
     return std::pair<boost::gregorian::date,boost::gregorian::date> (earliest,latest);
 }
