@@ -184,16 +184,16 @@ void write_haplotype_table(MAT::Tree* T, std::string filename) {
         hapmap[mset]++;
     }
     for (auto const &hapc : hapmap) {
-        std::stringstream msetstr;
+        std::ostringstream msetstr;
         for (auto m: hapc.first) {
             msetstr << m << ",";
         }
         std::string final_str = msetstr.str();
         final_str.pop_back();
-        if (final_str.size() == 0) {
+        if (final_str.c_str()[0] == '\0') {
             final_str = "reference";
         }
-        hapfile << final_str << "\t" << hapc.second << "\n";
+        hapfile << final_str.c_str() << "\t" << hapc.second << "\n";
     }
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 }
