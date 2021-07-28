@@ -429,7 +429,7 @@ double fisher_test(unsigned a, unsigned b, unsigned c, unsigned d) {
 		boost::math::hypergeometric_distribution<> hgd(r, n, N);	
 		double cutoff = boost::math::pdf(hgd, c);
 		double tmp_p = 0.0;
-		for(int k = min_for_k;k < max_for_k + 1;k++) {
+		for(int k = min_for_k;k < static_cast<int>(max_for_k + 1);k++) {
 				double p = boost::math::pdf(hgd, k);
 				if(p <= cutoff) tmp_p += p;
 		}
