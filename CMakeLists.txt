@@ -51,11 +51,11 @@ file(GLOB RIPPLES_SRCS "src/ripples/*.cpp" "src/ripples/*.hpp")
 
 find_package(ZLIB)
 if(DEFINED Protobuf_PATH)
-    add_executable(usher
-        src/mutation_annotated_tree.cpp
-        src/usher_mapper.cpp
-        src/usher.cpp
-        )
+    # add_executable(usher
+    #     src/mutation_annotated_tree.cpp
+    #     src/usher_mapper.cpp
+    #     src/usher.cpp
+    #     )
 
     add_executable(matUtils
         src/mutation_annotated_tree.cpp
@@ -63,58 +63,58 @@ if(DEFINED Protobuf_PATH)
         ${MATUTIL_SRCS}
         )
 
-    add_executable(ripples
-        src/mutation_annotated_tree.cpp
-        src/usher_mapper.cpp
-        ${RIPPLES_SRCS}
-        )
+    # add_executable(ripples
+    #     src/mutation_annotated_tree.cpp
+    #     src/usher_mapper.cpp
+    #     ${RIPPLES_SRCS}
+    #     )
 
-    add_executable(matOptimize
-        src/matOptimize/mutation_annotated_tree.cpp
-        src/matOptimize/mutation_annotated_tree_node.cpp
-        src/matOptimize/mutation_annotated_tree_load_store.cpp
-        src/matOptimize/detailed_mutations_load_store.cpp
-        src/matOptimize/mutation_annotated_tree_nuc_util.cpp
-        src/matOptimize/main.cpp
-        src/matOptimize/optimize_tree.cpp
-        src/matOptimize/import_vcf_fast.cpp
-        src/matOptimize/condense.cpp
-        src/matOptimize/VCF_load_tree.cpp
-        src/matOptimize/main_load_tree.cpp
-        src/matOptimize/main_helper.cpp
-        src/matOptimize/Mutation_Collection.cpp
-        src/matOptimize/Fitch_Sankoff.cpp
-        src/matOptimize/check_samples.cpp
-        #src/matOptimize/priority_conflict_resolver_cross_only.cpp
-        src/matOptimize/priority_conflict_resolver.cpp
-        ${patch_tree}
-        ${New_Profitable_Moves_Enumerators}
-        ${DETAILED_MUTATIONS_PROTO_SRCS}
-        ${DETAILED_MUTATIONS_PROTO_HDRS}
-        )
+    # add_executable(matOptimize
+    #     src/matOptimize/mutation_annotated_tree.cpp
+    #     src/matOptimize/mutation_annotated_tree_node.cpp
+    #     src/matOptimize/mutation_annotated_tree_load_store.cpp
+    #     src/matOptimize/detailed_mutations_load_store.cpp
+    #     src/matOptimize/mutation_annotated_tree_nuc_util.cpp
+    #     src/matOptimize/main.cpp
+    #     src/matOptimize/optimize_tree.cpp
+    #     src/matOptimize/import_vcf_fast.cpp
+    #     src/matOptimize/condense.cpp
+    #     src/matOptimize/VCF_load_tree.cpp
+    #     src/matOptimize/main_load_tree.cpp
+    #     src/matOptimize/main_helper.cpp
+    #     src/matOptimize/Mutation_Collection.cpp
+    #     src/matOptimize/Fitch_Sankoff.cpp
+    #     src/matOptimize/check_samples.cpp
+    #     #src/matOptimize/priority_conflict_resolver_cross_only.cpp
+    #     src/matOptimize/priority_conflict_resolver.cpp
+    #     ${patch_tree}
+    #     ${New_Profitable_Moves_Enumerators}
+    #     ${DETAILED_MUTATIONS_PROTO_SRCS}
+    #     ${DETAILED_MUTATIONS_PROTO_HDRS}
+    #     )
 
-    add_executable(compareVCF
-        src/mutation_annotated_tree.cpp
-        src/compareVCF.cpp)
+    # add_executable(compareVCF
+    #     src/mutation_annotated_tree.cpp
+    #     src/compareVCF.cpp)
 
-    add_executable(rename_fasta
-        src/mutation_annotated_tree.cpp
-        src/matOptimize/rename_fasta.cpp)
+    # add_executable(rename_fasta
+    #     src/mutation_annotated_tree.cpp
+    #     src/matOptimize/rename_fasta.cpp)
 
-    protobuf_generate(
-        LANGUAGE cpp
-        TARGET usher 
-        PROTOS parsimony.proto)
+    # protobuf_generate(
+    #     LANGUAGE cpp
+    #     TARGET usher 
+    #     PROTOS parsimony.proto)
 
     protobuf_generate(
         LANGUAGE cpp
         TARGET matUtils
         PROTOS parsimony.proto)
     
-    protobuf_generate(
-        LANGUAGE cpp
-        TARGET matOptimize
-        PROTOS parsimony.proto)
+    # protobuf_generate(
+    #     LANGUAGE cpp
+    #     TARGET matOptimize
+    #     PROTOS parsimony.proto)
     
 else()
     protobuf_generate_cpp(
@@ -126,13 +126,13 @@ else()
         DETAILED_MUTATIONS_PROTO_HDRS
         mutation_detailed.proto)
 
-    add_executable(usher
-        src/mutation_annotated_tree.cpp
-        src/usher_mapper.cpp
-        src/usher.cpp
-        ${PROTO_SRCS}
-        ${PROTO_HDRS}
-        )
+    # add_executable(usher
+    #     src/mutation_annotated_tree.cpp
+    #     src/usher_mapper.cpp
+    #     src/usher.cpp
+    #     ${PROTO_SRCS}
+    #     ${PROTO_HDRS}
+    #     )
 
     add_executable(matUtils
         src/mutation_annotated_tree.cpp
@@ -141,83 +141,83 @@ else()
         ${PROTO_SRCS}
         ${PROTO_HDRS}
         )
-    add_executable(ripples
-        src/mutation_annotated_tree.cpp
-        src/usher_mapper.cpp
-        ${RIPPLES_SRCS}
-        ${PROTO_SRCS}
-        ${PROTO_HDRS}
-        )
+    # add_executable(ripples
+    #     src/mutation_annotated_tree.cpp
+    #     src/usher_mapper.cpp
+    #     ${RIPPLES_SRCS}
+    #     ${PROTO_SRCS}
+    #     ${PROTO_HDRS}
+    #     )
 
 
-    add_executable(compareVCF
-        src/mutation_annotated_tree.cpp
-        src/compareVCF.cpp
-        ${PROTO_SRCS}
-        ${PROTO_HDRS}
-        )
+    # add_executable(compareVCF
+    #     src/mutation_annotated_tree.cpp
+    #     src/compareVCF.cpp
+    #     ${PROTO_SRCS}
+    #     ${PROTO_HDRS}
+    #     )
 
-    add_executable(rename_fasta
-        src/mutation_annotated_tree.cpp
-        src/matOptimize/rename_fasta.cpp
-        ${PROTO_SRCS}
-        ${PROTO_HDRS}
-        )
+    # add_executable(rename_fasta
+    #     src/mutation_annotated_tree.cpp
+    #     src/matOptimize/rename_fasta.cpp
+    #     ${PROTO_SRCS}
+    #     ${PROTO_HDRS}
+    #     )
 
-    add_executable(matOptimize
-        src/matOptimize/mutation_annotated_tree.cpp
-        src/matOptimize/mutation_annotated_tree_node.cpp
-        src/matOptimize/mutation_annotated_tree_load_store.cpp
-        src/matOptimize/detailed_mutations_load_store.cpp
-        src/matOptimize/mutation_annotated_tree_nuc_util.cpp
-        src/matOptimize/main.cpp
-        src/matOptimize/optimize_tree.cpp
-        src/matOptimize/import_vcf_fast.cpp
-        src/matOptimize/condense.cpp
-        src/matOptimize/VCF_load_tree.cpp
-        src/matOptimize/main_load_tree.cpp
-        src/matOptimize/main_helper.cpp
-        src/matOptimize/Mutation_Collection.cpp
-        src/matOptimize/Fitch_Sankoff.cpp
-        src/matOptimize/check_samples.cpp
-        #src/matOptimize/priority_conflict_resolver_cross_only.cpp
-        src/matOptimize/priority_conflict_resolver.cpp
-        ${patch_tree}
-        ${New_Profitable_Moves_Enumerators}
-        ${PROTO_SRCS}
-        ${PROTO_HDRS}
-        ${DETAILED_MUTATIONS_PROTO_SRCS}
-        ${DETAILED_MUTATIONS_PROTO_HDRS}
-        )
+    # add_executable(matOptimize
+    #     src/matOptimize/mutation_annotated_tree.cpp
+    #     src/matOptimize/mutation_annotated_tree_node.cpp
+    #     src/matOptimize/mutation_annotated_tree_load_store.cpp
+    #     src/matOptimize/detailed_mutations_load_store.cpp
+    #     src/matOptimize/mutation_annotated_tree_nuc_util.cpp
+    #     src/matOptimize/main.cpp
+    #     src/matOptimize/optimize_tree.cpp
+    #     src/matOptimize/import_vcf_fast.cpp
+    #     src/matOptimize/condense.cpp
+    #     src/matOptimize/VCF_load_tree.cpp
+    #     src/matOptimize/main_load_tree.cpp
+    #     src/matOptimize/main_helper.cpp
+    #     src/matOptimize/Mutation_Collection.cpp
+    #     src/matOptimize/Fitch_Sankoff.cpp
+    #     src/matOptimize/check_samples.cpp
+    #     #src/matOptimize/priority_conflict_resolver_cross_only.cpp
+    #     src/matOptimize/priority_conflict_resolver.cpp
+    #     ${patch_tree}
+    #     ${New_Profitable_Moves_Enumerators}
+    #     ${PROTO_SRCS}
+    #     ${PROTO_HDRS}
+    #     ${DETAILED_MUTATIONS_PROTO_SRCS}
+    #     ${DETAILED_MUTATIONS_PROTO_HDRS}
+    #     )
         
 endif()
 
-if(SAVE_PROFILE)
-    if(DEBUG)
-        TARGET_COMPILE_OPTIONS(usher PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES -DSAVE_PROFILE=1 -DDEBUG=1)
-    else(DEBUG)
-        TARGET_COMPILE_OPTIONS(usher PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES -DSAVE_PROFILE=1)
-    endif(DEBUG)
-else(SAVE_PROFILE)
-    if(DEBUG)
-        TARGET_COMPILE_OPTIONS(usher PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES -DDEBUG=1)
-    else(DEBUG)
-        TARGET_COMPILE_OPTIONS(usher PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
-    endif(DEBUG)
-endif(SAVE_PROFILE)
+# if(SAVE_PROFILE)
+#     if(DEBUG)
+#         TARGET_COMPILE_OPTIONS(usher PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES -DSAVE_PROFILE=1 -DDEBUG=1)
+#     else(DEBUG)
+#         TARGET_COMPILE_OPTIONS(usher PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES -DSAVE_PROFILE=1)
+#     endif(DEBUG)
+# else(SAVE_PROFILE)
+#     if(DEBUG)
+#         TARGET_COMPILE_OPTIONS(usher PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES -DDEBUG=1)
+#     else(DEBUG)
+#         TARGET_COMPILE_OPTIONS(usher PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
+#     endif(DEBUG)
+# endif(SAVE_PROFILE)
 
 #set_property(TARGET matOptimize PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-TARGET_LINK_LIBRARIES(compareVCF PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
-TARGET_LINK_LIBRARIES(matOptimize PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
+# TARGET_LINK_LIBRARIES(compareVCF PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
+# TARGET_LINK_LIBRARIES(matOptimize PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 
-TARGET_LINK_LIBRARIES(rename_fasta PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
-TARGET_LINK_LIBRARIES(usher PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
-target_include_directories(usher PUBLIC "${PROJECT_BINARY_DIR}")
+# TARGET_LINK_LIBRARIES(rename_fasta PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
+# TARGET_LINK_LIBRARIES(usher PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
+# target_include_directories(usher PUBLIC "${PROJECT_BINARY_DIR}")
 
 TARGET_COMPILE_OPTIONS(matUtils PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
 TARGET_LINK_LIBRARIES(matUtils PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
 
-TARGET_COMPILE_OPTIONS(ripples PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
-TARGET_LINK_LIBRARIES(ripples PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
+# TARGET_COMPILE_OPTIONS(ripples PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
+# TARGET_LINK_LIBRARIES(ripples PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
 
-install(TARGETS usher matUtils matOptimize ripples DESTINATION bin)
+install(TARGETS matUtils DESTINATION bin)

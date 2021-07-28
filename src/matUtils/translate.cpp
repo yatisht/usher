@@ -1,7 +1,8 @@
 #include "translate.hpp"
 
-po::variables_map parse_translate_command(po::parsed_options parsed) {
 
+po::variables_map parse_translate_command(po::parsed_options parsed) {
+  
     po::variables_map vm;
     po::options_description filt_desc("introduce options");
     filt_desc.add_options()
@@ -48,6 +49,63 @@ po::variables_map parse_translate_command(po::parsed_options parsed) {
     return vm;
 }
 
+std::vector<std::string> split(const std::string &s, char delim) {
+	std::vector<std::string> result;
+	std::stringstream ss(s);
+	std::string item;
+	while (getline(ss, item, delim)) {
+		result.push_back(item);
+	}
+	return result;
+}
+
+char translate_codon(std::string nt) {
+    if (nt == "GCT" || nt == "GCC" || nt == "GCA" || nt == "GCG" || nt == "GCN") {
+        return 'A';
+    } else if (nt == "TGT" || nt == "TGC" || nt == "TGY") {
+            return 'C';
+    } else if (nt == "GAT" || nt == "GAC" || nt == "GAY") {
+            return 'D';
+    } else if (nt == "GAA" || nt == "GAG" || nt == "GAR") {
+            return 'E';
+    } else if (nt == "TTT" || nt == "TTC" || nt == "TTY") {
+            return 'F';
+    } else if (nt == "GGT" || nt == "GGC" || nt == "GGA" || nt == "GGG" || nt == "GGN") {
+            return 'G';
+    } else if (nt == "CAT" || nt == "CAC" || nt == "CAY") {
+            return 'H';
+    } else if (nt == "ATT" || nt == "ATC" || nt == "ATA" || nt == "ATH") {
+            return 'I';
+    } else if (nt == "AAA" || nt == "AAG" || nt == "AAR") {
+            return 'K';
+    } else if (nt == "TTA" || nt == "TTG" || nt == "CTT" || nt == "CTC" || nt == "CTA" || nt == "CTG" || nt == "YTR" || nt == "CTN") {
+            return 'L';
+    } else if (nt == "ATG") {
+            return 'M';
+    } else if (nt == "AAT" || nt == "AAC" || nt == "AAY") {
+            return 'N';
+    } else if (nt == "CCT" || nt == "CCC" || nt == "CCA" || nt == "CCG" || nt == "CCN") {
+            return 'P';
+    } else if (nt == "CAA" || nt == "CAG" || nt == "CAR") {
+            return 'Q';
+    } else if (nt == "CGT" || nt == "CGC" || nt == "CGA" || nt == "CGG" || nt == "AGA" || nt == "AGG" || nt == "CGN" || nt == "MGR") {
+            return 'R';
+    } else if (nt == "TCT" || nt == "TCC" || nt == "TCA" || nt == "TCG" || nt == "AGT" || nt == "AGC" || nt == "TCN" || nt == "AGY") {
+            return 'S';
+    } else if (nt == "ACT" || nt == "ACC" || nt == "ACA" || nt == "ACG" || nt == "ACN") {
+            return 'T';
+    } else if (nt == "GTT" || nt == "GTC" || nt == "GTA" || nt == "GTG" || nt == "GTN") {
+            return 'V';
+    } else if (nt == "TGG") {
+            return 'W';
+    } else if (nt == "TAT" || nt == "TAC" || nt == "TAY") {
+            return 'Y';
+    } else if (nt == "TAG" || nt == "TAA" || nt == "TGA") {
+        return '*';
+    } else { //ambiguous
+        return 'X';
+    }
+}
 void translate_main(po::parsed_options parsed) {
  //   po::variables_map vm = parse_introduce_command(parsed);
  //   std::string input_mat_filename = vm["input-mat"].as<std::string>();
@@ -66,45 +124,104 @@ void translate_main(po::parsed_options parsed) {
     MAT::Tree T = MAT::load_mutation_annotated_tree("test.pb.gz");
     //T here is the actual object.
 
+    std::map<int, std::vector<Codon *>> codonMap;
+    std::vector<Codon> codons;
+
     if (T.condensed_nodes.size() > 0) {
       T.uncondense_leaves();
     }
 
 
-    std::ifstream infile("test.gff");
-    if (!infile) {
+    std::ifstream fasta_file("ref.fasta");
+    if (!fasta_file) {
+        fprintf(stderr, "ERROR: Could not open the fasta file: %s!\n", "filename");
+        exit(1);
+    }
+    std::ifstream gff_file("test.gff");
+    if (!gff_file) {
         fprintf(stderr, "ERROR: Could not open the GFF file: %s!\n", "filename");
         exit(1);
     }
+
+    std::string fasta_line;
+    std::string reference = "";
+    size_t line_length;
+    while(std::getline(fasta_file, fasta_line)) {
+        if (fasta_line[0] == '>' or fasta_line[0] == '\n') {
+            continue;
+        } else {
+            line_length = fasta_line.length();
+            if (fasta_line[line_length-1] == '\r') {
+                fasta_line.erase(line_length-1);
+            }
+            reference += fasta_line;
+        }
+    }
+
+    
     std::string gff_line;
+    std::string feature;
+    std::string attribute;
+    int start;
+    int stop;
+    while (std::getline(gff_file, gff_line)) {
+        if (gff_line[0] == '#' || gff_line[0] == '\n') {
+            continue;
+        }
 
-    while (std::getline(infile, gff_line)) {
-        std::cout << gff_line;
-    };
+        std::vector<std::string> split_line = split(gff_line, '\t');
 
+        if(split_line.size() <= 1) {
+            continue;
+        }
+        
+        feature = split_line[2];
+        if (feature == "gene") {
+            attribute = split_line[8];
+            start = std::stoi(split_line[3]);
+            stop = std::stoi(split_line[4]);
+            std::cout << feature << ',' << attribute << ',' << start << ',' << stop << '\n';
+            for (int pos = start - 1; pos < stop; pos += 3) {
+                
+                std::string nt = "";
+                nt +=  reference[pos];
+                nt += reference[pos+1];
+                nt += reference[pos+2];
+                Codon *c = new Codon(
+                    attribute,
+                    pos,
+                    nt,
+                    translate_codon(nt)
+                );
+                
+                // pos not in map yet
+                if (codonMap.find(pos) == codonMap.end()) {
+                    codonMap.insert({pos, {c}});
+                } else { // add to existing list
+                    codonMap[pos].push_back(c);
+                }
+                if (codonMap.find(pos+1) == codonMap.end()) {
+                    codonMap.insert({pos+1, {c}});
+                } else {
+                    codonMap[pos+1].push_back(c);
+                }
+                if (codonMap.find(pos+2) == codonMap.end()) {
+                    codonMap.insert({pos+2, {c}});
+                } else {
+                    codonMap[pos+2].push_back(c);
+                }
+             }
+        }
+                
+    }
+    for (auto const& [key, val] : codonMap) {
+        std::cout << '\n' << key << "=>";
+        for (auto v : val) {
+            std::cout << '\n' << "    " <<v->get_string() << '\n';
+        }
+    }
+}
 
-    std::vector<Codon *> codonPtrs = {
-        new Codon("Orf1", 0, 'A', 'T', 'G'),
-        new Codon("Orf1", 3, 'T', 'T', 'C'),
-        new Codon("Orf1", 6, 'C', 'C', 'C'),
-        new Codon("Orf1", 5, 'C', 'C', 'C')
-    };
-
-    std::map<int, std::vector<Codon *>> codons = {
-        {0, {codonPtrs[0]}},
-        {1, {codonPtrs[0]}},
-        {2, {codonPtrs[0]}},
-        {3, {codonPtrs[1]}},
-        {4, {codonPtrs[1]}},
-        {5, {codonPtrs[1], codonPtrs[3]}},
-        {6, {codonPtrs[2], codonPtrs[3]}},
-        {7, {codonPtrs[2], codonPtrs[3]}},
-        {8, {codonPtrs[2]}}  
-    };
-
-    // for (auto c : codons) {
-    //     std::cout << c.get_string() << '\n';
-    // }
     auto dfs = T.depth_first_expansion();
     int count = 0;
     std::string parentNuc;
@@ -124,7 +241,3 @@ void translate_main(po::parsed_options parsed) {
         }
     }
 
-    for (auto c: codonPtrs) {
-        delete c;
-    }
-}
