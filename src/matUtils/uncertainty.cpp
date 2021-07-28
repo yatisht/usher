@@ -383,7 +383,7 @@ po::variables_map parse_uncertainty_command(po::parsed_options parsed) {
         ("record-placements,o", po::value<std::string>()->default_value(""),
         "Name for an Auspice-compatible two-column tsv which records potential parents for each sample in the query set.")
         ("dropout-mutations,d", po::value<std::string>()->default_value(""),
-        "Name a file to calculate and save mutations which may be associated with primer dropout.")
+        "Name a file to calculate and save mutations which may be associated with primer dropout [EXPERIMENTAL].")
         ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
         ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
