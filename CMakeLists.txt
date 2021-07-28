@@ -16,8 +16,8 @@ message(STATUS "${usher_VERSION}")
 configure_file(src/version.hpp.in version.hpp)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -msse4.1 -std=c++11 -Wall -g -Wno-unused-function -Wno-deprecated-declarations")
-#-DDEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-set(CMAKE_CXX_FLAGS_DEBUG "-O3 -DCHECK_PLACEMENT")
+#-DDEBUG_PARSIMONY_SCORE_CHANGE_CORRECT 
+set(CMAKE_CXX_FLAGS_DEBUG "-O3 -fsanitize=address")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-DNDEBUG -O3")
 set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O3")
 set(CMAKE_INCLUDE_CURRENT_DIR ON) 
@@ -89,8 +89,14 @@ if(DEFINED Protobuf_PATH)
         src/matOptimize/priority_conflict_resolver.cpp
         ${patch_tree}
         ${New_Profitable_Moves_Enumerators}
-        ${DETAILED_MUTATIONS_PROTO_SRCS}
-        ${DETAILED_MUTATIONS_PROTO_HDRS}
+        )
+	add_executable(transpose_vcf
+        src/matOptimize/transpose_vcf/transpose_vcf_encode.cpp
+        src/matOptimize/mutation_annotated_tree_nuc_util.cpp
+        )
+        add_executable(transposed_vcf_to_vcf
+        src/matOptimize/transpose_vcf/transposed_vcf_to_vcf.cpp
+        src/matOptimize/mutation_annotated_tree_nuc_util.cpp
         )
 
     add_executable(compareVCF
@@ -115,6 +121,11 @@ if(DEFINED Protobuf_PATH)
         LANGUAGE cpp
         TARGET matOptimize
         PROTOS parsimony.proto)
+
+    protobuf_generate(
+        LANGUAGE cpp
+        TARGET matOptimize
+        PROTOS mutation_detailed.proto)
     
 else()
     protobuf_generate_cpp(
@@ -125,7 +136,7 @@ else()
         DETAILED_MUTATIONS_PROTO_SRCS
         DETAILED_MUTATIONS_PROTO_HDRS
         mutation_detailed.proto)
-
+    
     add_executable(usher
         src/mutation_annotated_tree.cpp
         src/usher_mapper.cpp
@@ -182,6 +193,7 @@ else()
         src/matOptimize/check_samples.cpp
         #src/matOptimize/priority_conflict_resolver_cross_only.cpp
         src/matOptimize/priority_conflict_resolver.cpp
+        src/matOptimize/transpose_vcf/transposed_vcf_patch.cpp
         ${patch_tree}
         ${New_Profitable_Moves_Enumerators}
         ${PROTO_SRCS}
@@ -189,7 +201,14 @@ else()
         ${DETAILED_MUTATIONS_PROTO_SRCS}
         ${DETAILED_MUTATIONS_PROTO_HDRS}
         )
-        
+        add_executable(transpose_vcf
+        src/matOptimize/transpose_vcf/transpose_vcf_encode.cpp
+        src/matOptimize/mutation_annotated_tree_nuc_util.cpp
+        )
+        add_executable(transposed_vcf_to_vcf
+        src/matOptimize/transpose_vcf/transposed_vcf_to_vcf.cpp
+        src/matOptimize/mutation_annotated_tree_nuc_util.cpp
+        )
 endif()
 
 if(SAVE_PROFILE)
@@ -209,6 +228,8 @@ endif(SAVE_PROFILE)
 #set_property(TARGET matOptimize PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 TARGET_LINK_LIBRARIES(compareVCF PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(matOptimize PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
+TARGET_LINK_LIBRARIES(transpose_vcf PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
+TARGET_LINK_LIBRARIES(transposed_vcf_to_vcf PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 
 TARGET_LINK_LIBRARIES(rename_fasta PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(usher PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
