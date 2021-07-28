@@ -117,8 +117,8 @@ void extract_main (po::parsed_options parsed) {
     bool resolve_polytomies = vm["resolve-polytomies"].as<bool>();
     bool retain_branch = vm["retain-branch-length"].as<bool>();
     std::string dir_prefix = vm["output-directory"].as<std::string>();
-    size_t usher_single_subtree_size = vm["usher_single_subtree_size"].as<size_t>();
-    size_t usher_minimum_subtrees_size = vm["usher_minimum_subtrees_size"].as<size_t>();
+    size_t usher_single_subtree_size = vm["usher-single-subtree-size"].as<size_t>();
+    size_t usher_minimum_subtrees_size = vm["usher-minimum-subtrees-size"].as<size_t>();
     bool usher_clades_txt = vm["usher-clades-txt"].as<bool>();
     size_t setsize = vm["set-size"].as<size_t>();
     size_t minimum_subtrees_size = vm["minimum-subtrees-size"].as<size_t>();
@@ -485,7 +485,7 @@ void extract_main (po::parsed_options parsed) {
         timer.Start();
         fprintf(stderr, "Writing full node mutation information to %s\n", all_path_filename.c_str());
         std::ofstream outfile (all_path_filename);
-        auto apaths = all_nodes_paths(T);
+        auto apaths = all_nodes_paths(&T);
         for (auto astr: apaths) {
             outfile << astr << "\n";
         }
@@ -496,7 +496,7 @@ void extract_main (po::parsed_options parsed) {
         timer.Start();
         fprintf(stderr, "Writing clade paths to %s\n", clade_path_filename.c_str());
         std::ofstream outfile (clade_path_filename);
-        auto cpaths = clade_paths(T);
+        auto cpaths = clade_paths(&T);
         for (auto cstr: cpaths) {
             outfile << cstr;
         }
