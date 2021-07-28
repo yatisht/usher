@@ -18,6 +18,10 @@ po::variables_map parse_mask_command(po::parsed_options parsed) {
          "Sample names to restrict. Use to perform masking") 
         ("rename-samples,r", po::value<std::string>()->default_value(""), 
          "Name of the TSV file containing names of the samples to be renamed and their new names") 
+        ("mask-mutations,m", po::value<std::string>()->default_value(""),
+        "Name of a TSV or CSV containing mutations to be masked in the first column and locations to mask downstream from in the second. If only one column is passed, all instances of that mutation on the tree are masked.")
+        ("condense-tree,c", po::bool_switch(), 
+        "Use to recondense the tree before saving.")
         ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
         ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
@@ -48,6 +52,8 @@ void mask_main(po::parsed_options parsed) {
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string output_mat_filename = vm["output-mat"].as<std::string>();
     std::string samples_filename = vm["restricted-samples"].as<std::string>();
+    std::string mutations_filename = vm["mask-mutations"].as<std::string>();
+    bool recondense = vm["condense-tree"].as<bool>();
     bool simplify = vm["simplify"].as<bool>();
     std::string rename_filename = vm["rename-samples"].as<std::string>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
@@ -76,6 +82,10 @@ void mask_main(po::parsed_options parsed) {
         fprintf(stderr, "Removing identifying information...\n");
         simplify_tree(&T);
     }
+    if (mutations_filename != "") {
+        fprintf(stderr, "Masking mutations...\n");
+        restrictMutationsLocally(mutations_filename, &T);
+    }
 
     // If a rename file was provided, perform renaming procedure
     if (rename_filename != "") {
@@ -86,6 +96,10 @@ void mask_main(po::parsed_options parsed) {
     // Store final MAT to output file
     if (output_mat_filename != "") {
         fprintf(stderr, "Saving Final Tree\n");
+        if (recondense) {
+            T.collapse_tree();
+            T.condense_leaves();
+        }
         MAT::save_mutation_annotated_tree(T, output_mat_filename);
     }    
 }
@@ -159,6 +173,54 @@ void renameSamples (std::string rename_filename, MAT::Tree& T) {
     }
 }
 
+void restrictMutationsLocally (std::string mutations_filename, MAT::Tree* T, bool global) {
+    std::ifstream infile(mutations_filename);
+    if (!infile) {
+        fprintf(stderr, "ERROR: Could not open the file: %s!\n", mutations_filename.c_str());
+        exit(1);
+    }
+    std::string line;
+    char delim = '\t';
+    if (mutations_filename.find(".csv\0") != std::string::npos) {
+        delim = ',';
+    }
+    std::map<std::string,std::string> mutlmap;
+    std::string rootid = T->root->identifier;
+    while (std::getline(infile, line)) {
+        std::vector<std::string> words;
+        if (line[line.size()-1] == '\r') {
+            line = line.substr(0, line.size()-1);
+        }
+        MAT::string_split(line, delim, words);
+        if ((words.size() == 1) || (global)) {
+            mutlmap[words[0]] = rootid;
+        } else {
+            mutlmap[words[0]] = words[1];
+        }
+    }
+    infile.close();
+    //now that we have a map of mutations to mask plus the locations to mask downstream from, we proceed accordingly. 
+    //very simple loop. For each mutation-location pair, depth first from that point and mask all instances of that mutation.
+    //then return the tree. 
+    for (auto ml: mutlmap) {
+        for (auto n: T->depth_first_expansion(T->get_node(ml.second))) {
+            //build a new vector of mutations to force overriding
+            std::vector<MAT::Mutation> nmuts;
+            for (auto mut: n->mutations) {
+                if (mut.get_string() == ml.first) {
+                    //std::cerr << "DEBUG: before change: " << mut.position << "\n";
+                    mut.position = -1;
+                    mut.ref_nuc = 0;
+                    mut.par_nuc = 0;
+                    mut.mut_nuc = 0;
+                    //std::cerr << "DEBUG: inscope change: " << mut.position << "\n";
+                }
+                nmuts.push_back(mut);
+            }
+            n->mutations = nmuts;
+        }
+    }
+}
 
 void restrictSamples (std::string samples_filename, MAT::Tree& T) {
     std::ifstream infile(samples_filename);
