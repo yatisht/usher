@@ -16,7 +16,7 @@ po::variables_map parse_summary_command(po::parsed_options parsed) {
         ("samples,s", po::value<std::string>()->default_value(""),
         "Write a tsv listing all samples in the tree and their parsimony score (terminal branch length).")
         ("clades,c", po::value<std::string>()->default_value(""),
-        "Write a tsv listing all clades and the count of associated samples.")
+        "Write a tsv listing all clades and the (inclusive and exclusive of nested clades) count of associated samples.")
         ("sample-clades,C", po::value<std::string>()->default_value(""),
         "Write a tsv of all samples and their associated clade values")
         ("mutations,m", po::value<std::string>()->default_value(""),
