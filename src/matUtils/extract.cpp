@@ -63,13 +63,13 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
          "Use to write a newick tree to the indicated file.")
         ("retain-branch-length,E", po::bool_switch(),
         "Use to not recalculate branch lengths when saving newick output. Used only with -t")
-        ("minimum_subtrees_size,N", po::value<size_t>()->default_value(0),
+        ("minimum-subtrees-size,N", po::value<size_t>()->default_value(0),
         "Use to generate a series of JSON or Newick format files representing subtrees of the indicated size which cover all queried samples. Uses and overrides -j and -t output arguments.")
-        ("usher_single_subtree_size,X", po::value<size_t>()->default_value(0),
+        ("usher-single-subtree-size,X", po::value<size_t>()->default_value(0),
         "Use to produce an usher-style single sample subtree of the indicated size with all selected samples plus random samples to fill. Produces .nh and .txt files.")
-        ("usher_minimum_subtrees_size,x", po::value<size_t>()->default_value(0),
+        ("usher-minimum-subtrees-size,x", po::value<size_t>()->default_value(0),
         "Use to produce an usher-style minimum set of subtrees of the indicated size which include all of the selected samples. Produces .nh and .txt files.")
-        ("usher_clades_txt", po::bool_switch(),
+        ("usher-clades-txt", po::bool_switch(),
          "When producing usher-style subtree(s), also write an usher-style clades.txt file with clade annotations for selected samples, if the tree has clade annotations.")
         ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
         ("help,h", "Print help messages");
@@ -117,11 +117,11 @@ void extract_main (po::parsed_options parsed) {
     bool resolve_polytomies = vm["resolve-polytomies"].as<bool>();
     bool retain_branch = vm["retain-branch-length"].as<bool>();
     std::string dir_prefix = vm["output-directory"].as<std::string>();
-    size_t usher_single_subtree_size = vm["usher_single_subtree_size"].as<size_t>();
-    size_t usher_minimum_subtrees_size = vm["usher_minimum_subtrees_size"].as<size_t>();
-    bool usher_clades_txt = vm["usher_clades_txt"].as<bool>();
+    size_t usher_single_subtree_size = vm["usher-single-subtree-size"].as<size_t>();
+    size_t usher_minimum_subtrees_size = vm["usher-minimum-subtrees-size"].as<size_t>();
+    bool usher_clades_txt = vm["usher-clades-txt"].as<bool>();
     size_t setsize = vm["set-size"].as<size_t>();
-    size_t minimum_subtrees_size = vm["minimum_subtrees_size"].as<size_t>();
+    size_t minimum_subtrees_size = vm["minimum-subtrees-size"].as<size_t>();
 
     boost::filesystem::path path(dir_prefix);
     if (!boost::filesystem::exists(path)) {
@@ -485,7 +485,7 @@ void extract_main (po::parsed_options parsed) {
         timer.Start();
         fprintf(stderr, "Writing full node mutation information to %s\n", all_path_filename.c_str());
         std::ofstream outfile (all_path_filename);
-        auto apaths = all_nodes_paths(T);
+        auto apaths = all_nodes_paths(&T);
         for (auto astr: apaths) {
             outfile << astr << "\n";
         }
@@ -496,7 +496,7 @@ void extract_main (po::parsed_options parsed) {
         timer.Start();
         fprintf(stderr, "Writing clade paths to %s\n", clade_path_filename.c_str());
         std::ofstream outfile (clade_path_filename);
-        auto cpaths = clade_paths(T);
+        auto cpaths = clade_paths(&T);
         for (auto cstr: cpaths) {
             outfile << cstr;
         }
@@ -541,7 +541,6 @@ void extract_main (po::parsed_options parsed) {
                         }
                     }
                 }
-                // break;
             }
             mutmap[n->identifier] = metastr;
         }
@@ -555,7 +554,7 @@ void extract_main (po::parsed_options parsed) {
         //references the original tree for getting nearest background.
         get_minimum_subtrees(&T, samples, minimum_subtrees_size, dir_prefix, &catmeta, json_filename, tree_filename, retain_branch);
         fprintf(stderr, "Minimum subtree files written in %ld msec; exiting\n", timer.Stop());
-        exit(0); //end of the line here.
+        exit(0); 
     }
     if (nearest_k_batch_file != "") {
         fprintf(stderr, "Batch sample context writing requested.\n");
@@ -573,33 +572,26 @@ void extract_main (po::parsed_options parsed) {
         }
         auto batch_samples = read_sample_names(sample_file);
         timer.Start();
-        // size_t counter = 0;
         static tbb::affinity_partitioner ap;
 
         tbb::parallel_for(tbb::blocked_range<size_t>(0, batch_samples.size() ),
                       [&](const tbb::blocked_range<size_t> r) {
 
            for (auto s = r.begin() ; s < r.end() ; ++s ) {
-                //std::map<std::string,std::string> conmap;
-                //conmap[batch_samples[s]] = "focal";
-                //catmeta["focal_view"] = conmap;
                 auto cs = get_nearby(&T, batch_samples[s], nk);
                 if ( cs.size() == 0 ) {
                     continue ;
                 }
                 MAT::Tree subt = filter_master(T, cs, false);
-                //remove forward slashes from the string, replacing them with underscores.
+                //remove forward slashes from the string, replacing them with underscores, so that it works for file names
                 size_t pos = 0;
                 while ((pos = batch_samples[s].find("/")) != std::string::npos) {
                     batch_samples[s].replace(pos, 1, "_");
                 }
-                //fprintf(stderr, "DEBUG: writing file %s\n", (std::to_string(counter) + "_context.json").c_str());
                 write_json_from_mat(&subt, batch_samples[s] + "_context.json", &catmeta);
-                // counter++;
             }
         }, ap) ;
         fprintf(stderr, "%ld batch sample jsons written in %ld msec.\n\n", batch_samples.size(), timer.Stop());
-
     }
     //if json output AND sample context is requested, add an additional metadata column which simply indicates the focal sample versus context
     if ((json_filename != "") && (nearest_k != "")) {
