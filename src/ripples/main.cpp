@@ -28,14 +28,10 @@ po::variables_map check_options(int argc, char** argv) {
          "Minimum range of the genomic coordinates of the mutations on the recombinant branch")
         ("max-coordinate-range,R", po::value<int>()->default_value(1e7), \
          "Maximum range of the genomic coordinates of the mutations on the recombinant branch")
-//        ("start-index,S", po::value<int>()->default_value(-1), \
-//         "Start index of the interval in the sorted vector of nodes to consider.")
-//        ("end-index,E", po::value<int>()->default_value(-1), \
-//         "End index of the interval in the sorted vector of nodes to consider.")
         ("outdir,d", po::value<std::string>()->default_value("."), 
          "Output directory to dump output files [DEFAULT uses current directory]")
-//        ("samples-filename,s", po::value<std::string>()->default_value(""),
-//         "Restrict the search to the samples specified in the input file")
+        ("samples-filename,s", po::value<std::string>()->default_value(""),
+         "Restrict the search to the ancestors of the samples specified in the input file")
     
         ("parsimony-improvement,p", po::value<int>()->default_value(3), \
          "Minimum improvement in parsimony score of the recombinant sequence during the partial placement")
@@ -136,8 +132,8 @@ std::vector<Recomb_Interval> combine_intervals(std::vector<Recomb_Interval> pair
     //combine second interval
     std::vector<Recomb_Interval> pairs(pair_list);
     std::sort(pairs.begin(), pairs.end());//sorts by beginning of second interval
-    for(int i = 0; i < pairs.size(); i++){
-        for(int j = i+1; j < pairs.size(); j++){
+    for(size_t i = 0; i < pairs.size(); i++){
+        for(size_t j = i+1; j < pairs.size(); j++){
             //check everything except first interval is same and first interval of pairs[i] ends where it starts for pairs[j]
             if((pairs[i].d.name == pairs[j].d.name) && (pairs[i].a.name == pairs[j].a.name) &&
                 (pairs[i].start_range_low == pairs[j].start_range_low) && (pairs[i].start_range_high == pairs[j].start_range_high) && 
@@ -150,8 +146,8 @@ std::vector<Recomb_Interval> combine_intervals(std::vector<Recomb_Interval> pair
     }
     //combine first interval
     std::sort(pairs.begin(), pairs.end(), Comp_First_Interval());
-    for(int i = 0; i < pairs.size(); i++){
-        for(int j = i + 1; j < pairs.size(); j++){
+    for(size_t i = 0; i < pairs.size(); i++){
+        for(size_t j = i + 1; j < pairs.size(); j++){
             //check everything except second interval is same and second interval of pairs[i] ends where it starts for pairs[j]
             if((pairs[i].d.name == pairs[j].d.name) && (pairs[i].a.name == pairs[j].a.name) &&
                 (pairs[i].end_range_low == pairs[j].end_range_low) && (pairs[i].end_range_high == pairs[j].end_range_high) && 
@@ -170,7 +166,7 @@ int main(int argc, char** argv) {
     po::variables_map vm = check_options(argc, argv);
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string outdir = vm["outdir"].as<std::string>();
-    std::string samples_filename = ""; //vm["samples-filename"].as<std::string>();
+    std::string samples_filename = vm["samples-filename"].as<std::string>();
     uint32_t branch_len = vm["branch-length"].as<uint32_t>();
     int parsimony_improvement = vm["parsimony-improvement"].as<int>();
     int max_range = vm["max-coordinate-range"].as<int>();
@@ -223,7 +219,9 @@ int main(int argc, char** argv) {
                 exit(1);
             }
             else {
-                nodes_to_consider.insert(words[0]);
+                for (auto anc: T.rsearch(n->identifier, true)) { 
+                        nodes_to_consider.insert(anc->identifier);
+                }
             }
         }
         infile.close();

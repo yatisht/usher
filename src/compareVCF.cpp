@@ -222,7 +222,7 @@ static int  map_index(gzFile* fd1,gzFile* fd2,std::vector<unsigned int>& index_m
         samples.push_back(header1[i+line_parser::SAMPLE_START_IDX]);
         auto emplace_result=idx_map.emplace(header1[i+line_parser::SAMPLE_START_IDX],i);
         if (!emplace_result.second) {
-            fprintf(stderr, "%s\t %d",emplace_result.first->first.c_str(),emplace_result.first->second);
+            printf( "%s\t %d repeated\n",emplace_result.first->first.c_str(),emplace_result.first->second);
         }
         assert(emplace_result.second);
         index_map1.push_back(i);
