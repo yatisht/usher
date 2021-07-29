@@ -59,53 +59,7 @@ std::vector<std::string> split(const std::string &s, char delim) {
 	return result;
 }
 
-char translate_codon(std::string nt) {
-    if (nt == "GCT" || nt == "GCC" || nt == "GCA" || nt == "GCG" || nt == "GCN") {
-        return 'A';
-    } else if (nt == "TGT" || nt == "TGC" || nt == "TGY") {
-            return 'C';
-    } else if (nt == "GAT" || nt == "GAC" || nt == "GAY") {
-            return 'D';
-    } else if (nt == "GAA" || nt == "GAG" || nt == "GAR") {
-            return 'E';
-    } else if (nt == "TTT" || nt == "TTC" || nt == "TTY") {
-            return 'F';
-    } else if (nt == "GGT" || nt == "GGC" || nt == "GGA" || nt == "GGG" || nt == "GGN") {
-            return 'G';
-    } else if (nt == "CAT" || nt == "CAC" || nt == "CAY") {
-            return 'H';
-    } else if (nt == "ATT" || nt == "ATC" || nt == "ATA" || nt == "ATH") {
-            return 'I';
-    } else if (nt == "AAA" || nt == "AAG" || nt == "AAR") {
-            return 'K';
-    } else if (nt == "TTA" || nt == "TTG" || nt == "CTT" || nt == "CTC" || nt == "CTA" || nt == "CTG" || nt == "YTR" || nt == "CTN") {
-            return 'L';
-    } else if (nt == "ATG") {
-            return 'M';
-    } else if (nt == "AAT" || nt == "AAC" || nt == "AAY") {
-            return 'N';
-    } else if (nt == "CCT" || nt == "CCC" || nt == "CCA" || nt == "CCG" || nt == "CCN") {
-            return 'P';
-    } else if (nt == "CAA" || nt == "CAG" || nt == "CAR") {
-            return 'Q';
-    } else if (nt == "CGT" || nt == "CGC" || nt == "CGA" || nt == "CGG" || nt == "AGA" || nt == "AGG" || nt == "CGN" || nt == "MGR") {
-            return 'R';
-    } else if (nt == "TCT" || nt == "TCC" || nt == "TCA" || nt == "TCG" || nt == "AGT" || nt == "AGC" || nt == "TCN" || nt == "AGY") {
-            return 'S';
-    } else if (nt == "ACT" || nt == "ACC" || nt == "ACA" || nt == "ACG" || nt == "ACN") {
-            return 'T';
-    } else if (nt == "GTT" || nt == "GTC" || nt == "GTA" || nt == "GTG" || nt == "GTN") {
-            return 'V';
-    } else if (nt == "TGG") {
-            return 'W';
-    } else if (nt == "TAT" || nt == "TAC" || nt == "TAY") {
-            return 'Y';
-    } else if (nt == "TAG" || nt == "TAA" || nt == "TGA") {
-        return '*';
-    } else { //ambiguous
-        return 'X';
-    }
-}
+
 void translate_main(po::parsed_options parsed) {
  //   po::variables_map vm = parse_introduce_command(parsed);
  //   std::string input_mat_filename = vm["input-mat"].as<std::string>();
@@ -121,10 +75,10 @@ void translate_main(po::parsed_options parsed) {
 
     // Load input MAT and uncondense tree
 
-    MAT::Tree T = MAT::load_mutation_annotated_tree("test.pb.gz");
+    MAT::Tree T = MAT::load_mutation_annotated_tree("public-latest.all.masked.pb");
     //T here is the actual object.
 
-    std::map<int, std::vector<Codon *>> codonMap;
+    std::map<int, std::vector<Codon *>> codon_map;
     std::vector<Codon> codons;
 
     if (T.condensed_nodes.size() > 0) {
@@ -147,9 +101,13 @@ void translate_main(po::parsed_options parsed) {
     std::string reference = "";
     size_t line_length;
     while(std::getline(fasta_file, fasta_line)) {
+        
         if (fasta_line[0] == '>' or fasta_line[0] == '\n') {
             continue;
         } else {
+        
+            for (auto & c: fasta_line) c = (char)toupper(c);
+        
             line_length = fasta_line.length();
             if (fasta_line[line_length-1] == '\r') {
                 fasta_line.erase(line_length-1);
@@ -180,64 +138,174 @@ void translate_main(po::parsed_options parsed) {
             attribute = split_line[8];
             start = std::stoi(split_line[3]);
             stop = std::stoi(split_line[4]);
-            std::cout << feature << ',' << attribute << ',' << start << ',' << stop << '\n';
+//            std::cout << feature << ',' << attribute << ',' << start << ',' << stop << '\n';
             for (int pos = start - 1; pos < stop; pos += 3) {
                 
-                std::string nt = "";
-                nt +=  reference[pos];
-                nt += reference[pos+1];
-                nt += reference[pos+2];
-                Codon *c = new Codon(
-                    attribute,
-                    pos,
-                    nt,
-                    translate_codon(nt)
-                );
+                char nt[3] = {
+                    reference[pos],
+                    reference[pos+1],
+                    reference[pos+2]
+                };
+
+                Codon *c = new Codon(attribute, (pos - start + 1) / 3,  pos, nt);
                 
-                // pos not in map yet
-                if (codonMap.find(pos) == codonMap.end()) {
-                    codonMap.insert({pos, {c}});
-                } else { // add to existing list
-                    codonMap[pos].push_back(c);
+                auto it = codon_map.find(pos);
+                if (it == codon_map.end()) {
+                    codon_map.insert({pos, {c}});
+                } else { 
+                    (it->second).push_back(c);
                 }
-                if (codonMap.find(pos+1) == codonMap.end()) {
-                    codonMap.insert({pos+1, {c}});
+
+                it = codon_map.find(pos+1);
+                if (it == codon_map.end()) {
+                    codon_map.insert({pos+1, {c}});
                 } else {
-                    codonMap[pos+1].push_back(c);
+                    (it->second).push_back(c);
                 }
-                if (codonMap.find(pos+2) == codonMap.end()) {
-                    codonMap.insert({pos+2, {c}});
+
+                it = codon_map.find(pos+2);
+                if (it == codon_map.end()) {
+                    codon_map.insert({pos+2, {c}});
                 } else {
-                    codonMap[pos+2].push_back(c);
+                    (it->second).push_back(c);
                 }
              }
-        }
-                
+        }       
     }
-    for (auto const& [key, val] : codonMap) {
-        std::cout << '\n' << key << "=>";
-        for (auto v : val) {
-            std::cout << '\n' << "    " <<v->get_string() << '\n';
-        }
-    }
-}
+
+
+    // std::string orf1a = "";
+    // std::string orf1b = "";
+    // std::string orf7a = "";
+    // std::string orf7b = "";
+    // std::string S = "";
+    
+
+//    validate proteins constructed correctly
+//     for (auto const& [key, val] : codon_map) {
+// //        std::cout << '\n' << key << "=>";
+//         for (auto v : val) {
+//             if (v->orf_name == " gene_name \"ORF1a\"") {
+//                 orf1a += v->protein;
+//             } else if (v->orf_name == " gene_name \"ORF1b\"") {
+//                 orf1b += v->protein;
+//             } else if (v->orf_name == " gene_name \"ORF7a\"") {
+//                 orf7a += v->protein;
+//             } else if (v->orf_name == " gene_name \"ORF7b\"") {
+//                 orf7b += v->protein;
+//             } else if (v->orf_name == " gene_name \"S\"") {
+//                 S += v->protein;
+//             }
+//         }
+//     }
+    
+
 
     auto dfs = T.depth_first_expansion();
     int count = 0;
-    std::string parentNuc;
-    std::string mutatedNuc;
-    std::string pos;
-    for (auto s: dfs) {
-        std::cout << '\n' << s->identifier << '\n';
-        for (auto m: s->mutations) {
-            parentNuc = MAT::get_nuc(m.par_nuc);
-            mutatedNuc = MAT::get_nuc(m.mut_nuc);
-            pos = m.position;
-            std::cout << m.get_string() << '\n';
+    MAT::Node *last_visited = nullptr;
+    bool first = true;
+    for (auto node: dfs) {
+        std::string mutation_result = "";
+        if (first) {
+//            std::cout << "\nBeginning DFS for translate\n";
+ //           std::cout << "NODE: root\n";
+            first = false;
+            std::cout << node->identifier << "\t.\t.\n";
+
+        } else {
+
+            
+            //std::cout << "\n--------\nNODE: " << node->identifier << '\n';
+            if (last_visited == node->parent) {
+                ;
+            //    std::cout << "\nvisiting a child\n";
+            } else {
+                // Jumping across a branch, so we need to revert codon mutations up to
+                // the LCA of this node and the last visited
+                MAT::Node *last_common_ancestor = MAT::LCA(T, node->identifier, last_visited->identifier);
+                MAT::Node *trace_to_lca = last_visited;
+            //    std::cout << "retracing..." << '\n';
+                while (trace_to_lca != last_common_ancestor) {
+                    undo_mutations(trace_to_lca->mutations, codon_map);        
+                    trace_to_lca = trace_to_lca->parent;
+                }
+           //     std::cout << "reached LCA"  << '\n';
+            }
+          //  std::cout << "\ndoing mutations:" << '\n';
+            mutation_result = do_mutations(node->mutations, codon_map);
+
+            count += 1;
+         //   if (count > 20) {
+         //      break;
+         //   }
+
+         std::cout << node->identifier << '\t' << mutation_result;
+
         }
-        count += 1;
-        if (count > 10) {
-            break;
+        
+
+        last_visited = node;
+
+    }
+}
+
+
+
+std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::map<int, std::vector<Codon *>> &codon_map) {
+
+    std::string prot_string = "";
+    std::string nuc_string = "";
+    for (auto m: mutations) {
+        nuc_string += m.get_string();
+        nuc_string += ',';
+        char mutated_nuc = MAT::get_nuc(m.mut_nuc);
+        int pos = m.position;
+        auto it = codon_map.find(pos);
+        if (it == codon_map.end()) {
+            continue; // Not a coding mutation
+        } else {
+            // Mutate each codon associated with this position
+            for (auto codon_ptr : it->second) {
+                prot_string += codon_ptr->orf_name + ":";
+                prot_string += codon_ptr->protein;
+                codon_ptr->mutate(pos, mutated_nuc);
+                prot_string += std::to_string(codon_ptr->codon_number);
+                prot_string += codon_ptr->protein;
+                prot_string += ',';                
+             }
+
         }
     }
+    if (!prot_string.empty() && prot_string.back() == ',') {
+        prot_string.resize(prot_string.length() - 1); //remove trailing ',' 
+    }
+    if (!nuc_string.empty() && nuc_string.back() == ',') {
+        nuc_string.resize(nuc_string.length() - 1);
+    } else if (nuc_string.empty()) {
+        nuc_string = ".";
+    }
+    if (prot_string.empty()) {
+        prot_string = ".";
+    }
 
+    return prot_string + '\t' + nuc_string + '\n';
+}            
+
+void undo_mutations(std::vector<MAT::Mutation> &mutations, std::map<int, std::vector<Codon *>> &codon_map) {
+    for (auto m: mutations) {
+        char parent_nuc = MAT::get_nuc(m.par_nuc);
+        int pos = m.position;
+        auto it = codon_map.find(pos);
+        if (it == codon_map.end()) {
+            continue;
+            // Not a coding mutation
+        } else {
+            // Revert the mutation by mutating to the parent nucleotide
+            for (auto codon_ptr : it->second) {
+                codon_ptr->mutate(pos, parent_nuc);
+            }
+        }
+    //    std::cout << "undoing " << m.get_string() << '\n';
+    }
+}
