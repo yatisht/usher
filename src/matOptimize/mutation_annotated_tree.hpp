@@ -481,11 +481,5 @@ namespace Mutation_Annotated_Tree {
 }
 bool check_grand_parent(const Mutation_Annotated_Tree::Node* node,const Mutation_Annotated_Tree::Node* grand_parent);
 
-template<>
-struct std::hash<Mutation_Annotated_Tree::Mutation> {
-    size_t operator()(const Mutation_Annotated_Tree::Mutation &in) const {
-        return in.get_position();
-    }
-};
 nuc_one_hot get_parent_state(Mutation_Annotated_Tree::Node* ancestor,int position);
 #endif

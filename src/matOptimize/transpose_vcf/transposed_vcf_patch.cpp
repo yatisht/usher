@@ -106,17 +106,22 @@ struct Adder {
         }
     }
 };
-
+struct copyable_atomic{
+	std::atomic<char> content;
+	copyable_atomic(const copyable_atomic& other):content(other.content.load()){}
+	copyable_atomic(int other):content(other){}
+	copyable_atomic(){}
+};
 struct Sample_Adder {
     const Original_State_t &not_condensed;
     const std::unordered_map<std::string, Condesed_Muts *> &condensed;
-    std::unordered_map<std::string,std::atomic<char>>& assigned;
+    std::unordered_map<std::string,copyable_atomic>& assigned;
     Adder set_name(std::string &&name) {
         auto not_condensed_iter = not_condensed.find(name);
 	char expected=0;
 	char to_swap=1;
         if (not_condensed_iter != not_condensed.end()) {
-		auto& add_flag=assigned[name];
+		auto& add_flag=assigned[name].content;
 		if(!atomic_compare_exchange_strong(&add_flag,&expected,to_swap)){
 			return Adder();
 		}
@@ -219,10 +224,10 @@ void add_ambuiguous_mutations(const char *path, Original_State_t &to_patch,
         condensed_children.emplace_back(condensed_map, &to_patch,
                                         condensed_one);
     }
-    std::unordered_map<std::string,std::atomic<char>> assigned;
+    std::unordered_map<std::string,copyable_atomic> assigned;
     assigned.reserve(to_patch.size());
     for(const auto& ttt:to_patch){
-	assigned.emplace(ttt.first,0);
+	assigned.emplace(ttt.first,copyable_atomic{0});
     }
     Sample_Adder adder{to_patch, condensed_map,assigned};
     load_mutations(path, num_threads, adder);
