@@ -1,4 +1,6 @@
 #include "summary.hpp"
+#include "introduce.hpp" //for date parsing functions.
+#include <boost/date_time/gregorian/gregorian.hpp>
 
 po::variables_map parse_summary_command(po::parsed_options parsed) {
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
@@ -14,18 +16,22 @@ po::variables_map parse_summary_command(po::parsed_options parsed) {
         ("samples,s", po::value<std::string>()->default_value(""),
         "Write a tsv listing all samples in the tree and their parsimony score (terminal branch length).")
         ("clades,c", po::value<std::string>()->default_value(""),
-        "Write a tsv listing all clades and the count of associated samples.")
+        "Write a tsv listing all clades and the (inclusive and exclusive of nested clades) count of associated samples.")
         ("sample-clades,C", po::value<std::string>()->default_value(""),
         "Write a tsv of all samples and their associated clade values")
         ("mutations,m", po::value<std::string>()->default_value(""),
         "Write a tsv listing all mutations in the tree and their occurrence count.")
         ("aberrant,a", po::value<std::string>()->default_value(""),
         "Write a tsv listing duplicate samples and internal nodes with no mutations and/or branch length 0.")
+        ("haplotype,H", po::value<std::string>()->default_value(""),
+        "Write a tsv listing haplotypes represented by comma-delimited sets of mutations and their total frequency across the tree.")
         ("calculate-roho,R", po::value<std::string>()->default_value(""),
-        "Write a tsv containing the distribution of ROHO values calculated for all homoplasic mutations.")
+        "Write a tsv containing the distribution of RoHO values calculated for all homoplasic mutations.")
         ("get-all,A", po::bool_switch(),
         "Use default filenames (samples.txt, clades.txt, etc) and save all summary tables to the output directory.")
         ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
+        ("expanded-roho,E", po::bool_switch(),
+        "Use to include date and other contextual information in RoHO table output. Significantly slows calculation time.")
         ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
     // (positional) command name, so we need to erase that.
@@ -50,7 +56,7 @@ po::variables_map parse_summary_command(po::parsed_options parsed) {
     return vm;
 }
 
-void write_sample_table(MAT::Tree& T, std::string filename) {
+void write_sample_table(MAT::Tree* T, std::string filename) {
     timer.Start();
     fprintf(stderr, "Writing samples to output %s\n", filename.c_str());
     std::ofstream samplefile;
@@ -58,7 +64,7 @@ void write_sample_table(MAT::Tree& T, std::string filename) {
     //print a quick column header (makes this specific file auspice compatible also!)
     samplefile << "sample\tparsimony\n";
 
-    auto dfs = T.depth_first_expansion();
+    auto dfs = T->depth_first_expansion();
     for (auto s: dfs) {
         if (s->is_leaf()) {
             //leaves are samples (on the uncondensed tree)
@@ -68,44 +74,58 @@ void write_sample_table(MAT::Tree& T, std::string filename) {
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 }
 
-void write_clade_table(MAT::Tree& T, std::string filename) {
+void write_clade_table(MAT::Tree* T, std::string filename) {
     timer.Start();
     fprintf(stderr, "Writing clades to output %s\n", filename.c_str());
     std::ofstream cladefile;
     cladefile.open(filename);
-    cladefile << "clade\tcount\n";
+    cladefile << "clade\tinclusive_count\texclusive_count\n";
     //clades will be a map object.
-    std::map<std::string, size_t> cladecounts;
-    auto dfs = T.depth_first_expansion();
-    for (auto s: dfs) {
-        std::vector<std::string> canns = s->clade_annotations;
-        if (canns.size() > 0) {
-            if (canns.size() > 1 || canns[0] != "") {
-                //the empty string is the default clade identifier attribute
-                //skip entries which are annotated with 1 clade but that clade is empty
-                //but don't skip entries which are annotated with 1 clade and its not empty
-                //get the set of samples descended from this clade root
-                for (auto c: canns) {
-                    //the empty string is a default clade identifier
-                    //make sure not to include it.
-                    //the first time you encounter it should be the root of the clade
-                    //then if you see if after that you can ignore it. probably?
-                    if (cladecounts.find(c) == cladecounts.end() && c != "") {
-                        std::vector<std::string> sids = T.get_leaves_ids(s->identifier);
-                        cladecounts[c] = sids.size();
+    std::map<std::string, size_t> incl_cladecounts;
+    std::map<std::string, size_t> excl_cladecounts;
+    for (auto s: T->get_leaves()) {
+        bool first_encountered_a1 = true;
+        bool first_encountered_a2 = true;
+        for (auto a: T->rsearch(s->identifier, false)) {
+            std::vector<std::string> canns = a->clade_annotations;
+            if (canns.size() >= 1) {
+                if (canns[0] != "" && incl_cladecounts.find(canns[0]) == incl_cladecounts.end()) {
+                    //these should always be matched in keys.
+                    //if a sample is present in one, its present in the other, and vice versa
+                    incl_cladecounts[canns[0]] = 0;
+                    excl_cladecounts[canns[0]] = 0;
+                }
+                if (canns[0] != "") {
+                    incl_cladecounts[canns[0]]++;
+                    if (first_encountered_a1) {
+                        excl_cladecounts[canns[0]]++;
+                        first_encountered_a1 = false;
                     }
-                }        
+                }
+                if (canns.size() >= 2) {
+                    if (canns[1] != "" && incl_cladecounts.find(canns[1]) == incl_cladecounts.end()) {
+                        incl_cladecounts[canns[1]] = 0;
+                        excl_cladecounts[canns[1]] = 0;
+                    }
+                    if (canns[1] != "") {
+                        incl_cladecounts[canns[1]]++;
+                        if (first_encountered_a2) {
+                            excl_cladecounts[canns[1]]++;
+                            first_encountered_a2 = false;
+                        }
+                    }
+                }                
             }
         }
     }
     //write the contents of map to the file.
-    for (auto const &clade : cladecounts) {
-        cladefile << clade.first << "\t" << clade.second << "\n";
+    for (auto const &clade : incl_cladecounts) {
+        cladefile << clade.first << "\t" << clade.second << "\t" << excl_cladecounts[clade.first] << "\n";
     }
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 }
 
-void write_mutation_table(MAT::Tree& T, std::string filename) {
+void write_mutation_table(MAT::Tree* T, std::string filename) {
     timer.Start();
     fprintf(stderr, "Writing mutations to output %s\n", filename.c_str());
     std::ofstream mutfile;
@@ -114,7 +134,7 @@ void write_mutation_table(MAT::Tree& T, std::string filename) {
     //mutations will be a map object, similar to clades, since we're looking for counts
     std::map<std::string, int> mutcounts;
 
-    auto dfs = T.depth_first_expansion();
+    auto dfs = T->depth_first_expansion();
     for (auto s: dfs) {
         //occurrence here is the number of times a mutation occurred 
         //during the history of the pandemic
@@ -142,7 +162,43 @@ void write_mutation_table(MAT::Tree& T, std::string filename) {
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 }
 
-void write_aberrant_table(MAT::Tree& T, std::string filename) {
+void write_haplotype_table(MAT::Tree* T, std::string filename) {
+    timer.Start();
+    fprintf(stderr, "Writing haplotype frequencies to output %s\n", filename.c_str());
+    std::ofstream hapfile;
+    hapfile.open(filename);
+    hapfile << "mutation_set\tsample_count\n";
+    std::map<std::set<std::string>,size_t> hapmap;
+    //naive method. for each sample, rsearch along the history to collect each of its mutations
+    //and add those to the set. At the end, add that set to the hapcount keys if its not there, and increment.
+    for (auto s: T->get_leaves()) {
+        std::set<std::string> mset;
+        for (auto a: T->rsearch(s->identifier, true)) {
+            for (auto m: a->mutations) {
+                mset.insert(m.get_string());
+            }
+        }
+        if (hapmap.find(mset) == hapmap.end()) {
+            hapmap[mset] = 0;
+        }
+        hapmap[mset]++;
+    }
+    for (auto const &hapc : hapmap) {
+        std::ostringstream msetstr;
+        for (auto m: hapc.first) {
+            msetstr << m << ",";
+        }
+        std::string final_str = msetstr.str();
+        final_str.pop_back();
+        if (final_str.c_str()[0] == '\0') {
+            final_str = "reference";
+        }
+        hapfile << final_str.c_str() << "\t" << hapc.second << "\n";
+    }
+    fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+}
+
+void write_aberrant_table(MAT::Tree* T, std::string filename) {
     /*
     This function identifies nodes which have missing information or are otherwise potentially problematic.
     These nodes do not necessarily break matUtils or Usher in general, but they may need to be accounted for
@@ -154,9 +210,9 @@ void write_aberrant_table(MAT::Tree& T, std::string filename) {
     std::ofstream badfile;
     badfile.open(filename);
     badfile << "NodeID\tIssue\n";
-    size_t num_annotations = T.get_num_annotations();
+    size_t num_annotations = T->get_num_annotations();
     std::set<std::string> dup_tracker;
-    auto dfs = T.depth_first_expansion();
+    auto dfs = T->depth_first_expansion();
     for (auto n: dfs) {
         if (dup_tracker.find(n->identifier) == dup_tracker.end()) {
             dup_tracker.insert(n->identifier);
@@ -173,16 +229,16 @@ void write_aberrant_table(MAT::Tree& T, std::string filename) {
     }
 }
 
-void write_sample_clades_table (MAT::Tree& T, std::string sample_clades) {
+void write_sample_clades_table (MAT::Tree* T, std::string sample_clades) {
     timer.Start();
     fprintf(stderr, "Writing clade associations for all samples to output %s\n", sample_clades.c_str());
     std::ofstream scfile;
     scfile.open(sample_clades);
     scfile << "sample\tannotation_1\tannotation_2\n";
-    for (auto n: T.get_leaves()) {
+    for (auto n: T->get_leaves()) {
         std::string ann_1 = "None";
         std::string ann_2 = "None";
-        for (auto a: T.rsearch(n->identifier, false)) {
+        for (auto a: T->rsearch(n->identifier, false)) {
             std::vector<std::string> canns = a->clade_annotations;
             for (size_t i = 0; i < canns.size(); i++) {
                 if ((i == 0) && (canns[i] != "") && (ann_1 == "None")) {
@@ -202,7 +258,7 @@ void write_sample_clades_table (MAT::Tree& T, std::string sample_clades) {
     scfile.close();
 }
 
-void write_roho_table(MAT::Tree& T, std::string roho_file) {
+void write_roho_table(MAT::Tree* T, std::string roho_file, bool get_dates) {
     /*
     RoHo is a metric used for SARS-CoV-2 genetic analysis described in van Dorp et al 2021 (doi: 10.1038/s41467-020-19818-2)
     Essentially it is the proportion of offspring of a parent node which have a mutation vs do not have a mutation of interest
@@ -216,34 +272,40 @@ void write_roho_table(MAT::Tree& T, std::string roho_file) {
     fprintf(stderr, "Calculating and writing RoHo values to output %s\n", roho_file.c_str());
     std::ofstream rhfile;
     rhfile.open(roho_file);
-    // rhfile << "mutation\tparent_node\tchild_count\toccurrence_node\toffspring_with\tmedian_offspring_without\tmean_offspring_without\tbranch_length_with\tbranch_length_without\n";
-    rhfile << "mutation\tparent_node\tchild_count\toccurrence_node\toffspring_with\tmedian_offspring_without\tsingle_roho\n";
-    for (auto n: T.depth_first_expansion()) {
+    rhfile << "mutation\tparent_node\tchild_count\toccurrence_node\toffspring_with\tmedian_offspring_without\tsingle_roho"; 
+    //the above are the basic columns, the following are additional columns requested to help sort out roho output. 
+    if (get_dates) {
+        rhfile << "\tsister_clade_offspring_counts\tidentical_sample_sibling_count\tearliest_date\tlatest_date\tearliest_identical_sibling\tlatest_identical_sibling\tearliest_clade_sibling_dates\tlatest_clade_sibling_dates\n";
+    } else {
+        rhfile << "\n";
+    }
+    for (auto n: T->depth_first_expansion()) {
         //candidate mutations maps each mutation to its child where it occurred
         //child counter maps the number of offspring of a given child
         //together, they store the results we need.
         std::map<std::string,std::string> candidate_mutations;
-        std::map<std::string,size_t> child_counter;
-        // //temporary check, let's try skipping nodes with >2 children and see what that does.
-        // //there are four alternatives 1. drop these occurrences (lose a lot of tree) 2. pick one at random to compare 3. pick biggest to compare 4. compare to the mean of the others
-        // if (n->children.size() > 2) {
-        //     continue;
-        // }
+        std::map<std::string,std::set<std::string>> child_counter;
+        //using a separate size tracker to speed things when extra columns are not requested and therefore
+        //set membership is irrelevant and wasteful to compute/store
+        std::map<std::string,size_t> child_increment;
+        std::set<std::string> parent_identical_samples;
 
         //step one: collect all potential candidate nodes.
-        size_t ccheck = 0;
+        std::vector<std::string> ccheck;
         std::map<std::string,size_t> blentracker;
 
         for (auto c: n->children) {
             if (!c->is_leaf()) {
                 //mutations occurring on any non-leaf child are potentially valid RoHo targets for this node.
-                ccheck++;
+                ccheck.push_back(c->identifier);
                 blentracker[c->identifier] = c->mutations.size();
                 for (auto m: c->mutations) {
-                    //candidate_mutations.insert(m.get_string());
                     //assumption each mutation only occurs for one child. This is a good assumption, as if its broken, the tree is malformed.
                     candidate_mutations[m.get_string()] = c->identifier;
                 }
+            } else if (c->mutations.size() == 0) {
+                //leaf children with zero mutations are of interest for date tracking downstream.
+                parent_identical_samples.insert(c->identifier);
             }
         }
         if (candidate_mutations.size() == 0) {
@@ -251,42 +313,55 @@ void write_roho_table(MAT::Tree& T, std::string roho_file) {
         }
         //step two: remove candidates who do not 1. have at least two offspring associated with them 2. do not recur secondarily at any point after this parent
         for (auto c: n->children) {
+            std::set<std::string> child_samples;
+            size_t ccount = 0;
             if (c->is_leaf()) {
                 continue;
             }
-            size_t cc = 0;
-            for (auto dn: T.depth_first_expansion(c)) {
+            for (auto dn: T->depth_first_expansion(c)) {
                 if (dn->identifier == c->identifier) {
                     continue;
                 }
                 if (dn->is_leaf()) {
-                    cc++;
+                    ccount++;
+                    if (get_dates) {
+                        child_samples.insert(dn->identifier);
+                    }
                 }
                 for (auto m: dn->mutations) {
                     candidate_mutations.erase(m.get_string());
-                    // auto find = candidate_mutations.get(m.get_string());
-                    // if (find != candidate_mutations.end()) {
-                    //     //remove mutations which recur secondarily at any point in the descendents from consideration.
-                    //     candidate_mutations.erase(find);
-                    // }
                 }
             }
             //don't bother recording values of 0 or 1.
-            if (cc > 1) {
-                child_counter[c->identifier] = cc;
+            if (ccount > 1) {
+                child_increment[c->identifier] = ccount;
+                if (get_dates) {
+                    child_counter[c->identifier] = std::move(child_samples);
+                }
             }
         }
         //we need at least one valid candidate and at least two non-leaf children to continue.
-        if ((candidate_mutations.size() == 0) || (child_counter.size() <= 1)) {
+        if ((candidate_mutations.size() == 0) || (child_increment.size() <= 1)) {
             continue;
         }
+        //step 2.5; prerecord date information for each child of node N if requested.
+        std::map<std::string, std::pair<boost::gregorian::date,boost::gregorian::date>> datemap;
+        std::pair<boost::gregorian::date,boost::gregorian::date> parent_identical_dates;
+        if (get_dates) {
+            for (auto cc: child_counter) {
+                auto cdates = get_nearest_date(T, n, &cc.second);
+                datemap[cc.first] = std::move(cdates);
+            }
+            parent_identical_dates = get_nearest_date(T, n, &parent_identical_samples);
+        }
+
         //step 3: actually record the results.
         for (auto ms: candidate_mutations) {
             //size_t non_c = 0;
             //size_t sum_non = 0;
             std::vector<size_t> all_non;
             size_t sum_wit = 0;
-            for (auto cs: child_counter) {
+            for (auto cs: child_increment) {
                 if (cs.first != ms.second) {
                     all_non.push_back(cs.second);
                     //sum_non += cs.second;
@@ -302,24 +377,42 @@ void write_roho_table(MAT::Tree& T, std::string roho_file) {
             } else {
                 med_non = all_non[all_non.size()/2];
             }
-            // float mean_non = 0;
-            // for (auto nv: all_non) {
-                // mean_non += nv;
-            // }
-            // mean_non = mean_non / all_non.size();
-            // size_t non_blc = 0;
-            // size_t sum_nonblc = 0;
-            // size_t sum_witblc = 0;
-            // for (auto bs: blentracker) {
-            //     if (bs.first != ms.second) {
-            //         sum_nonblc += bs.second;
-            //         non_blc++;
-            //     } else {
-            //         sum_witblc += bs.second;
-            //     }
-            // }
-            //rhfile << ms.first << "\t" << n->identifier << "\t" << ccheck << "\t" << ms.second << "\t" << sum_wit << "\t" << med_non << "\t" << mean_non << "\t" << sum_witblc << "\t" << sum_nonblc/non_blc << "\n";
-            rhfile << ms.first << "\t" << n->identifier << "\t" << ccheck << "\t" << ms.second << "\t" << sum_wit << "\t" << med_non << "\t" << std::log10(sum_wit/med_non) << "\n";
+            std::stringstream nonstrs;
+            std::stringstream nonearlydates;
+            std::stringstream nonlatedates;
+            if (get_dates) {
+                for (auto cc: child_counter) {
+                    //build all at once to assert same order
+                    //auto dates = get_nearest_date(&T, n, &cc.second);
+                    if (cc.first != ms.second) {
+                        nonstrs << cc.second.size() << ",";
+                        auto dates = datemap[cc.first];
+                        nonearlydates << dates.first << ",";
+                        nonlatedates << dates.second << ",";
+                    }
+                }
+            }
+            
+            rhfile << ms.first << "\t" << n->identifier << "\t" << ccheck.size() << "\t" << ms.second << "\t" << sum_wit << "\t" << med_non << "\t" << std::log10(sum_wit/med_non) << "\t";
+            if (get_dates) {
+                std::string ns = nonstrs.str();
+                ns.pop_back();
+                rhfile << ns << "\t" << parent_identical_samples.size() << "\t";
+                auto descendent_dates = datemap[ms.second];
+                rhfile << descendent_dates.first << "\t" << descendent_dates.second << "\t";
+                if (parent_identical_samples.size() > 0) {
+                    rhfile << parent_identical_dates.first << "\t" << parent_identical_dates.second << "\t";
+                } else {
+                    rhfile << "None\tNone\t";
+                }
+                std::string ned = nonearlydates.str();
+                std::string nld = nonlatedates.str();
+                ned.pop_back();
+                nld.pop_back();
+                rhfile << ned << "\t" << nld << "\n";
+            } else {
+                rhfile << "\n";
+            }
         }
     }
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
@@ -330,6 +423,7 @@ void summary_main(po::parsed_options parsed) {
     po::variables_map vm = parse_summary_command(parsed);
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string dir_prefix = vm["output-directory"].as<std::string>();
+    bool get_dates = vm["expanded-roho"].as<bool>();
 
     boost::filesystem::path path(dir_prefix);
     if (!boost::filesystem::exists(path)) {
@@ -346,6 +440,7 @@ void summary_main(po::parsed_options parsed) {
     std::string mutations = dir_prefix + vm["mutations"].as<std::string>();
     std::string aberrant = dir_prefix + vm["aberrant"].as<std::string>();
     std::string roho = dir_prefix + vm["calculate-roho"].as<std::string>();
+    std::string hapfile = dir_prefix + vm["haplotype"].as<std::string>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
     bool get_all = vm["get-all"].as<bool>();
     if (get_all) {
@@ -372,30 +467,36 @@ void summary_main(po::parsed_options parsed) {
 
     bool no_print = true;
     if (clades != dir_prefix ) {
-        write_clade_table(T, clades);
+        write_clade_table(&T, clades);
         no_print = false;
     }
     if (samples != dir_prefix) {
-        write_sample_table(T, samples);
+        write_sample_table(&T, samples);
         no_print = false;
     }
     if (mutations != dir_prefix) {
-        write_mutation_table(T, mutations);
+        write_mutation_table(&T, mutations);
         no_print = false;
     }  
     if (aberrant != dir_prefix) {
-        write_aberrant_table(T, aberrant);
+        write_aberrant_table(&T, aberrant);
         no_print = false;
     }
     if (sample_clades != dir_prefix) {
-        write_sample_clades_table(T, sample_clades);
+        write_sample_clades_table(&T, sample_clades);
         no_print = false;
     }
     if (roho != dir_prefix) {
-        write_roho_table(T, roho);
+        if (get_dates) {
+            fprintf(stderr, "RoHO contextual columns requested; collecting...\n");
+        }
+        write_roho_table(&T, roho, get_dates);
         no_print = false;
     }
-        
+    if (hapfile != dir_prefix) {
+        write_haplotype_table(&T, hapfile);
+        no_print = false;
+    }
     if (no_print) {
         //just count the number of nodes in the tree and the number of leaves (samples)
         //additional basic statistics can also go in this code block (total tree depth?)
