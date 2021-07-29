@@ -23,7 +23,7 @@ template<typename T>
         }
         };
 template<typename T>
-struct stack_allocator:private std::allocator<T>{
+struct stack_allocator{
     typedef T value_type;
     typedef T* pointer;
     typedef const T* const_pointer;
