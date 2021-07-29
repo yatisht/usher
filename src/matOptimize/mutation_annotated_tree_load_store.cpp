@@ -488,7 +488,7 @@ Mutation_Annotated_Tree::Mutation::Mutation(const std::string &chromosome,
     chrom_idx = ins_result.first->second;
     if (ref) {
         std::lock_guard<std::mutex> lk(ref_lock);
-        refs.resize(std::max((int)refs.size(), position + 1));
+        refs.resize(std::max((int)refs.size(), position + 1),0);
         //assert((refs[position].is_invalid()) || refs[position] == ref);
         refs[position] = ref;
     }
