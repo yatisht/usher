@@ -132,17 +132,22 @@ void populate_mutated_pos(const Original_State_t& origin_state){
     //clean up all mutexes
 }
 //Use Full fitch sankoff to reassign state from scratch
-static void reassign_states(MAT::Tree& t, Original_State_t& origin_states){
+static void reassign_states(MAT::Tree& t, Original_State_t& origin_states,const char* transposed_vcf_path){
     auto bfs_ordered_nodes = t.breadth_first_expansion();
 
     check_samples(t.root, origin_states, &t);
+    {
     std::unordered_set<std::string> ignored;
     std::unordered_set<std::string> ignored2;
     clean_up_internal_nodes(t.root,t,ignored,ignored2);
     //populate_mutated_pos(origin_states);
+    }
     bfs_ordered_nodes = t.breadth_first_expansion();
     std::vector<tbb::concurrent_vector<Mutation_Annotated_Tree::Mutation>>
         output(bfs_ordered_nodes.size());
+    if( transposed_vcf_path){
+        add_ambuiguous_mutations(transposed_vcf_path,origin_states,t);
+    }
     //get mutation vector
     std::vector<backward_pass_range> child_idx_range;
     std::vector<forward_pass_range> parent_idx;
@@ -181,14 +186,20 @@ static void reassign_states(MAT::Tree& t, Original_State_t& origin_states){
             }
         },
         ap);
+    size_t total_mutation_size=0;
+    for(const auto node:bfs_ordered_nodes){
+	    total_mutation_size+=node->mutations.size();
+    }
+    fprintf(stderr,"Total mutation size %zu \n", total_mutation_size);
+
 }
 //load from usher compatible pb
-Mutation_Annotated_Tree::Tree load_tree(const std::string& path,Original_State_t& origin_states){
+Mutation_Annotated_Tree::Tree load_tree(const std::string& path,Original_State_t& origin_states,const char* transposed_vcf_path){
     fputs("Start loading protobuf\n",stderr);
     Mutation_Annotated_Tree::Tree t =
         Mutation_Annotated_Tree::load_mutation_annotated_tree(path);
     fputs("Finished loading protobuf, start reassigning states\n",stderr);
-    reassign_states(t, origin_states);
+    reassign_states(t, origin_states,transposed_vcf_path);
     fputs("Finished reassigning states\n",stderr);
     fprintf(stderr, "original score:%zu\n", t.get_parsimony_score());
     return t;
