@@ -21,7 +21,8 @@ static std::unordered_map<std::string, char> translation_map= {
     {"ACT", 'T'}, {"ACC", 'T'}, {"ACA", 'T'}, {"ACG", 'T'}, {"ACN", 'T'},
     {"GTT", 'V'}, {"GTC", 'V'}, {"GTA", 'V'}, {"GTG", 'V'}, {"GTN", 'V'},
     {"TGG", 'W'},
-    {"TAT", 'Y'}, {"TAC", 'Y'}, {"TAY", 'Y'}
+    {"TAT", 'Y'}, {"TAC", 'Y'}, {"TAY", 'Y'},
+    {"TAG", "*"}, {"TAA", "*"}, {"TGA", "*"}
 };
 
 struct Codon {
@@ -47,6 +48,7 @@ struct Codon {
         // starting coordinate of the codon
         nucleotides[nuc_pos-start_position] = mutated_nuc;
         protein = translate_codon(nucleotides);
+        
     }
 
     Codon (std::string _orf_name, int _codon_number, int _start_position, char nt[3]) {

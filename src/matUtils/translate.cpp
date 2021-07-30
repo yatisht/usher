@@ -59,7 +59,48 @@ std::vector<std::string> split(const std::string &s, char delim) {
 	return result;
 }
 
+void print_proteins(std::map<int, std::vector<Codon *>> codon_map) {
+    
 
+    std::string orf1a = "";
+    std::string orf1b = "";
+    std::string orf7a = "";
+    std::string orf7b = "";
+    std::string S = "";
+    
+
+   //validate proteins constructed correctly
+    for (auto const& [key, val] : codon_map) {
+//        //std::cout << '\n' << key << "=>";
+        if(key % 3 == 0) {
+            for (auto v : val) {
+                if (v->orf_name == " gene_name \"ORF1a\"") {
+                    orf1a += v->protein;
+                } else if (v->orf_name == " gene_name \"ORF1b\"") {
+                    orf1b += v->protein;
+                } else if (v->orf_name == " gene_name \"ORF7a\"") {
+                    orf7a += v->protein;
+                } else if (v->orf_name == " gene_name \"ORF7b\"") {
+                    orf7b += v->protein;
+                } else if (v->orf_name == " gene_name \"S\"") {
+                    S += v->protein;
+                }
+            }
+        }
+    }
+
+    std::cout << ">orf1a\n";
+    std::cout << orf1a << '\n';
+    std::cout << ">orf1b\n";
+    std::cout << orf1b << '\n';
+    std::cout << ">orf7a\n";
+    std::cout << orf7a << '\n';
+    std::cout << ">orf7b\n";
+    std::cout << orf7b << '\n';
+    std::cout << ">S\n";
+    std::cout << S << '\n';
+    
+}
 void translate_main(po::parsed_options parsed) {
  //   po::variables_map vm = parse_introduce_command(parsed);
  //   std::string input_mat_filename = vm["input-mat"].as<std::string>();
@@ -75,7 +116,7 @@ void translate_main(po::parsed_options parsed) {
 
     // Load input MAT and uncondense tree
 
-    MAT::Tree T = MAT::load_mutation_annotated_tree("public-latest.all.masked.pb");
+    MAT::Tree T = MAT::load_mutation_annotated_tree("public-latest.all.masked.pb.gz");
     //T here is the actual object.
 
     std::map<int, std::vector<Codon *>> codon_map;
@@ -115,13 +156,10 @@ void translate_main(po::parsed_options parsed) {
             reference += fasta_line;
         }
     }
+    //std::cout << "ref:" << reference << ":done" << '\n';
 
     
     std::string gff_line;
-    std::string feature;
-    std::string attribute;
-    int start;
-    int stop;
     while (std::getline(gff_file, gff_line)) {
         if (gff_line[0] == '#' || gff_line[0] == '\n') {
             continue;
@@ -133,12 +171,12 @@ void translate_main(po::parsed_options parsed) {
             continue;
         }
         
-        feature = split_line[2];
+        std::string feature = split_line[2];
         if (feature == "gene") {
-            attribute = split_line[8];
-            start = std::stoi(split_line[3]);
-            stop = std::stoi(split_line[4]);
-//            std::cout << feature << ',' << attribute << ',' << start << ',' << stop << '\n';
+            std::string attribute = split_line[8];
+            int start = std::stoi(split_line[3]);
+            int stop = std::stoi(split_line[4]);
+//            //std::cout << feature << ',' << attribute << ',' << start << ',' << stop << '\n';
             for (int pos = start - 1; pos < stop; pos += 3) {
                 
                 char nt[3] = {
@@ -147,7 +185,8 @@ void translate_main(po::parsed_options parsed) {
                     reference[pos+2]
                 };
 
-                Codon *c = new Codon(attribute, (pos - start + 1) / 3,  pos, nt);
+                // Coordinates are 0-based at this point
+                Codon *c = new Codon(attribute, ((pos - start + 1) / 3),  pos, nt);
                 
                 auto it = codon_map.find(pos);
                 if (it == codon_map.end()) {
@@ -174,32 +213,6 @@ void translate_main(po::parsed_options parsed) {
     }
 
 
-    // std::string orf1a = "";
-    // std::string orf1b = "";
-    // std::string orf7a = "";
-    // std::string orf7b = "";
-    // std::string S = "";
-    
-
-//    validate proteins constructed correctly
-//     for (auto const& [key, val] : codon_map) {
-// //        std::cout << '\n' << key << "=>";
-//         for (auto v : val) {
-//             if (v->orf_name == " gene_name \"ORF1a\"") {
-//                 orf1a += v->protein;
-//             } else if (v->orf_name == " gene_name \"ORF1b\"") {
-//                 orf1b += v->protein;
-//             } else if (v->orf_name == " gene_name \"ORF7a\"") {
-//                 orf7a += v->protein;
-//             } else if (v->orf_name == " gene_name \"ORF7b\"") {
-//                 orf7b += v->protein;
-//             } else if (v->orf_name == " gene_name \"S\"") {
-//                 S += v->protein;
-//             }
-//         }
-//     }
-    
-
 
     auto dfs = T.depth_first_expansion();
     int count = 0;
@@ -208,10 +221,10 @@ void translate_main(po::parsed_options parsed) {
     for (auto node: dfs) {
         std::string mutation_result = "";
         if (first) {
-//            std::cout << "\nBeginning DFS for translate\n";
- //           std::cout << "NODE: root\n";
+            //std::cout << "\nBeginning DFS for translate\n";
+            //std::cout << "NODE: root\n";
             first = false;
-            std::cout << node->identifier << "\t.\t.\n";
+            //std::cout << node->identifier << "\t.\t.\n";
 
         } else {
 
@@ -219,35 +232,41 @@ void translate_main(po::parsed_options parsed) {
             //std::cout << "\n--------\nNODE: " << node->identifier << '\n';
             if (last_visited == node->parent) {
                 ;
-            //    std::cout << "\nvisiting a child\n";
+                //std::cout << "\nvisiting a child\n";
             } else {
                 // Jumping across a branch, so we need to revert codon mutations up to
                 // the LCA of this node and the last visited
                 MAT::Node *last_common_ancestor = MAT::LCA(T, node->identifier, last_visited->identifier);
                 MAT::Node *trace_to_lca = last_visited;
-            //    std::cout << "retracing..." << '\n';
+                //std::cout << "retracing..." << '\n';
                 while (trace_to_lca != last_common_ancestor) {
                     undo_mutations(trace_to_lca->mutations, codon_map);        
                     trace_to_lca = trace_to_lca->parent;
                 }
-           //     std::cout << "reached LCA"  << '\n';
+                //std::cout << "reached LCA"  << '\n';
             }
-          //  std::cout << "\ndoing mutations:" << '\n';
+            //std::cout << "\ndoing mutations:" << '\n';
             mutation_result = do_mutations(node->mutations, codon_map);
 
             count += 1;
-         //   if (count > 20) {
-         //      break;
-         //   }
+        //     if (count > 20) {
+        //       break;
+        //    }
 
-         std::cout << node->identifier << '\t' << mutation_result;
+         //std::cout << node->identifier << '\t' << mutation_result;
 
         }
         
 
         last_visited = node;
 
+
+        if (node->identifier == "USA/CA-CHLA-PLM65244990/2020|MZ622303.1|2020-11-09") {
+            print_proteins(codon_map);
+        }
+
     }
+
 }
 
 
@@ -260,7 +279,7 @@ std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::map<int, st
         nuc_string += m.get_string();
         nuc_string += ',';
         char mutated_nuc = MAT::get_nuc(m.mut_nuc);
-        int pos = m.position;
+        int pos = m.position - 1;
         auto it = codon_map.find(pos);
         if (it == codon_map.end()) {
             continue; // Not a coding mutation
@@ -269,10 +288,17 @@ std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::map<int, st
             for (auto codon_ptr : it->second) {
                 prot_string += codon_ptr->orf_name + ":";
                 prot_string += codon_ptr->protein;
+                //std::cout << "mutating nt " << m.get_string() << '\n';
+                //std::cout << "-> codon" << codon_ptr->orf_name << ':' << codon_ptr->codon_number+1 << '\n';
+                //std::cout << "original nuc: " << codon_ptr->nucleotides << '\n';
+                //std::cout << "original prot: " << codon_ptr->protein << '\n';
                 codon_ptr->mutate(pos, mutated_nuc);
+                //std::cout << "new nuc: " << codon_ptr->nucleotides << '\n';
+                //std::cout << "new prot:" << codon_ptr->protein << '\n';
                 prot_string += std::to_string(codon_ptr->codon_number);
                 prot_string += codon_ptr->protein;
-                prot_string += ',';                
+                prot_string += ',';
+                //std::cout << "\nthis codon mutated " << codon_ptr->times_mutated << "times\n";
              }
 
         }
@@ -288,14 +314,13 @@ std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::map<int, st
     if (prot_string.empty()) {
         prot_string = ".";
     }
-
     return prot_string + '\t' + nuc_string + '\n';
 }            
 
 void undo_mutations(std::vector<MAT::Mutation> &mutations, std::map<int, std::vector<Codon *>> &codon_map) {
     for (auto m: mutations) {
         char parent_nuc = MAT::get_nuc(m.par_nuc);
-        int pos = m.position;
+        int pos = m.position - 1;
         auto it = codon_map.find(pos);
         if (it == codon_map.end()) {
             continue;
@@ -306,6 +331,6 @@ void undo_mutations(std::vector<MAT::Mutation> &mutations, std::map<int, std::ve
                 codon_ptr->mutate(pos, parent_nuc);
             }
         }
-    //    std::cout << "undoing " << m.get_string() << '\n';
+        //std::cout << "undoing " << m.get_string() << '\n';
     }
 }
