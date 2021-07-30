@@ -19,8 +19,8 @@ int main (int argc, char** argv) {
     po::variables_map vm;
     po::parsed_options parsed = po::command_line_parser(argc, argv).options(global).positional(pos).allow_unregistered().run();
     //this help string shows up over and over, lets just define it once
-    std::string cnames[8] = {"COMMAND","summary","extract","annotate","uncertainty","mask","introduce","version"};
-    std::string chelp[8] = {
+    std::string cnames[9] = {"COMMAND","summary","extract","annotate","uncertainty","mask","introduce","translate","version"};
+    std::string chelp[9] = {
         "DESCRIPTION\n\n",
         "calculates basic statistics and counts samples, mutations, and clades in the input MAT\n\n",
         "subsets the input MAT on various conditions and/or converts to other formats (newick, VCF, JSON)\n\n",
@@ -28,6 +28,7 @@ int main (int argc, char** argv) {
         "calculates sample placement uncertainty metrics and writes the results to tsv\n\n",
         "masks the input samples\n\n",
         "given sample region information, heuristically identifies points of geographic introduction along the phylogeny\n\n",
+        "computes protein mutations at each node of the MAT, accounting for prior mutations incurred up the tree. outputs to tsv\n\n",
         "display version number\n\n"
     };
     try {

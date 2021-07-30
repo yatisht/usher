@@ -22,7 +22,7 @@ static std::unordered_map<std::string, char> translation_map= {
     {"GTT", 'V'}, {"GTC", 'V'}, {"GTA", 'V'}, {"GTG", 'V'}, {"GTN", 'V'},
     {"TGG", 'W'},
     {"TAT", 'Y'}, {"TAC", 'Y'}, {"TAY", 'Y'},
-    {"TAG", "*"}, {"TAA", "*"}, {"TGA", "*"}
+    {"TAG", '*'}, {"TAA", '*'}, {"TGA", '*'}
 };
 
 struct Codon {
@@ -69,16 +69,10 @@ struct Codon {
                 + nucleotides[2] 
                 + '=' + protein;
     }
-    
-
-
-
-
 };
 
+po::variables_map parse_translate_command(po::parsed_options parsed);
+std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::map<int, std::vector<std::shared_ptr<Codon>>> &codon_map);
 void translate_main(po::parsed_options parsed);
-void undo_mutations(std::vector<MAT::Mutation> &mutations, std::map<int, std::vector<Codon *>> &codon_map);
-
-std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::map<int, std::vector<Codon *>> &codon_map);
-
-
+void cleanup_codon_map(std::map<int, std::vector<std::shared_ptr<Codon>>> &codon_map);
+void undo_mutations(std::vector<MAT::Mutation> &mutations, std::map<int, std::vector<std::shared_ptr<Codon>>> &codon_map);
