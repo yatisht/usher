@@ -22,7 +22,7 @@ UShER is now a package consisting of a family of programs for rapid phylogenetic
 * **RIPPLES** is a program that uses a phylogenomic technique to rapidly and sensitively detect recombinant nodes and their ancestors in a mutation-annotated tree (MAT).  
 
 
-Please refer our [wiki](https://usher-wiki.readthedocs.io/) for detailed instructions on installing and using UShER package. 
+Please refer our [wiki](https://usher-wiki.readthedocs.io/) for detailed instructions on installing and using the UShER package. 
 
 ## Acknowledgement
 
