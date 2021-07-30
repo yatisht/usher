@@ -580,10 +580,10 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                     //get the mutations and clade information
                     //both of these require an rsearch back from the point of origin to the tree root
                     //mutation path is going to be in reverse for simplicity, so using < to indicate direction
-                    for (MAT::Node* a: T->rsearch(a->identifier, true)) {
+                    for (MAT::Node* as: T->rsearch(a->identifier, true)) {
                         //collect mutations
                         std::string mutstr;
-                        for (auto m: a->mutations) {
+                        for (auto m: as->mutations) {
                             if (mutstr.size() == 0) {
                                 mutstr += m.get_string();
                             } else {
@@ -592,7 +592,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                         }
                         intro_mut_path += mutstr + "<";
                         //check for any clade identifiers, record comma delineated
-                        for (auto ann: a->clade_annotations) {
+                        for (auto ann: as->clade_annotations) {
                             if (ann.size() > 0) {
                                 if (intro_clades.size() == 0) {
                                     intro_clades += ann;
