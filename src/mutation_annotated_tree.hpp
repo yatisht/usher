@@ -104,7 +104,13 @@ namespace Mutation_Annotated_Tree {
         public:
             Tree() {
                 root = NULL;
+                curr_internal_node = 0;
                 all_nodes.clear();
+            }
+
+            std::string new_internal_node_id() {
+                return "node_" + std::to_string(++curr_internal_node); 
+
             }
 
             Node* root;

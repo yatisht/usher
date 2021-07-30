@@ -406,7 +406,6 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::create_tree_from_newick_s
         exit(1);
     }
 
-    T.curr_internal_node = 0;
     std::stack<Node*> parent_stack;
 
     for (size_t i=0; i<leaves.size(); i++) {
@@ -414,7 +413,7 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::create_tree_from_newick_s
         auto no = num_open[i];
         auto nc = num_close[i];
         for (size_t j=0; j<no; j++) {
-            std::string nid = std::to_string(++T.curr_internal_node);
+            std::string nid = T.new_internal_node_id(); 
             Node* new_node = NULL;
             if (parent_stack.size() == 0) {
                 new_node = T.create_node(nid, branch_len[level].front());

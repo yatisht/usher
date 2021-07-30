@@ -1004,7 +1004,7 @@ int main(int argc, char** argv) {
                         if (!no_add && T->get_node(sample) == NULL) {
                             // Is placement as sibling
                             if (best_node->is_leaf() || best_node_has_unique) {
-                                std::string nid = std::to_string(++T->curr_internal_node);
+                                std::string nid = T->new_internal_node_id();
                                 T->create_node(nid, best_node->parent->identifier);
                                 T->create_node(sample, nid);
                                 T->move_node(best_node->identifier, nid);
