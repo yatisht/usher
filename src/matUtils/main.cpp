@@ -5,13 +5,13 @@
 #include "introduce.hpp"
 #include "version.hpp"
 
-Timer timer; 
+Timer timer;
 
 int main (int argc, char** argv) {
     po::options_description global("Command options");
     global.add_options()
-        ("command", po::value<std::string>(), "Command to execute. Valid options are annotate, mask, extract, uncertainty, and summary.")
-        ("subargs", po::value<std::vector<std::string> >(), "Command-specific arguments.");
+    ("command", po::value<std::string>(), "Command to execute. Valid options are annotate, mask, extract, uncertainty, and summary.")
+    ("subargs", po::value<std::vector<std::string> >(), "Command-specific arguments.");
     po::positional_options_description pos;
     pos.add("command",1 ).add("subargs", -1);
     std::string cmd;
@@ -44,8 +44,8 @@ int main (int argc, char** argv) {
         extract_main(parsed);
     } else if (cmd == "annotate") {
         annotate_main(parsed);
-    } else if (cmd == "mask"){
-        mask_main(parsed); 
+    } else if (cmd == "mask") {
+        mask_main(parsed);
     } else if (cmd == "uncertainty") {
         uncertainty_main(parsed);
     } else if (cmd == "summary") {
@@ -54,18 +54,18 @@ int main (int argc, char** argv) {
         introduce_main(parsed);
     } else if (cmd == "version") {
         std::cerr << "matUtils (v" << PROJECT_VERSION << ")" << std::endl;
-    } else if (cmd == "help") { 
+    } else if (cmd == "help") {
         fprintf(stderr, "\n");
         std::cerr << "matUtils (v" << PROJECT_VERSION << ")" << std::endl;
         for (int i = 0; i < 8; ++i) {
             fprintf(stderr, "%-15s\t%s", cnames[i].c_str(), chelp[i].c_str());
-        }        
+        }
         exit(0);
     } else {
         fprintf(stderr, "\nInvalid command. Help follows:\n\n");
         for (int i = 0; i < 8; ++i) {
             fprintf(stderr, "%-15s\t%s", cnames[i].c_str(), chelp[i].c_str());
-        }        
+        }
         exit(1);
     }
 

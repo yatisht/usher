@@ -11,7 +11,7 @@ bool get_major_allele_polytomy(MAT::Node *node,
 bool get_major_allele_binary(const MAT::Node *node,
                              MAT::Mutations_Collection &out,
                              State_Change_Collection &changed_states);
-//Node heap to make sure parent node of a node come out after that node, 
+//Node heap to make sure parent node of a node come out after that node,
 //using the fact that dfs index of a parent node will be smaller than that of its children
 struct State_Assign_Comparator {
     bool operator()(const Altered_Node_t &first, const Altered_Node_t &second) {
@@ -31,7 +31,7 @@ class Backward_Pass_Heap {
                       State_Assign_Comparator());
         //skip pop out all the nodes that are the same
         while (altered_nodes.front().altered_node ==
-               altered_nodes.back().altered_node) {
+                altered_nodes.back().altered_node) {
             std::pop_heap(altered_nodes.begin(), altered_nodes.end() - 1,
                           State_Assign_Comparator());
 #ifdef CHECK_STATE_REASSIGN
@@ -59,8 +59,12 @@ class Backward_Pass_Heap {
         increment();
     }
 
-    Altered_Node_t &operator*() { return altered_nodes.back(); }
-    Altered_Node_t *operator->() { return &altered_nodes.back(); }
+    Altered_Node_t &operator*() {
+        return altered_nodes.back();
+    }
+    Altered_Node_t *operator->() {
+        return &altered_nodes.back();
+    }
 
     bool next(bool major_allele_changed) {
         auto &changed = altered_nodes.back();
@@ -163,9 +167,9 @@ void check_major_state(MAT::Node *node, const MAT::Tree &new_tree) {
     auto ref_mut_end = ref_node->mutations.end();
     for (const auto &mut : node->mutations) {
         while (ref_mut_iter != ref_mut_end &&
-               ref_mut_iter->get_position() < mut.get_position()) {
+                ref_mut_iter->get_position() < mut.get_position()) {
             assert(ref_mut_iter->get_mut_one_hot() ==
-                       ref_mut_iter->get_all_major_allele() &&
+                   ref_mut_iter->get_all_major_allele() &&
                    (!ref_mut_iter->get_boundary1_one_hot()||node->children.size()<=1));
             assert(
                 ref_mut_iter->get_mut_one_hot() ==
@@ -173,7 +177,7 @@ void check_major_state(MAT::Node *node, const MAT::Tree &new_tree) {
             ref_mut_iter++;
         }
         if (ref_mut_iter != ref_mut_end &&
-            ref_mut_iter->get_position() == mut.get_position()) {
+                ref_mut_iter->get_position() == mut.get_position()) {
             assert(ref_mut_iter->get_all_major_allele() ==
                    mut.get_all_major_allele());
             assert(ref_mut_iter->get_boundary1_one_hot() ==
@@ -195,7 +199,7 @@ void check_major_state(MAT::Node *node, const MAT::Tree &new_tree) {
     }
     while (ref_mut_iter != ref_mut_end) {
         assert(ref_mut_iter->get_mut_one_hot() ==
-                   ref_mut_iter->get_all_major_allele() &&
+               ref_mut_iter->get_all_major_allele() &&
                (!ref_mut_iter->get_boundary1_one_hot()));
         assert(ref_mut_iter->get_mut_one_hot() ==
                get_parent_state(node, ref_mut_iter->get_position()));
@@ -213,11 +217,11 @@ static bool adjust_single_child_node(MAT::Node *node,
     auto child_mut_end = child_mut.end();
     for (const auto &ori_mut : node->mutations) {
         while (child_mut_iter != child_mut_end &&
-               (child_mut_iter->get_position() < ori_mut.get_position())) {
+                (child_mut_iter->get_position() < ori_mut.get_position())) {
             // mutation unique to its only children (shouldn't happen), pull it
             // up to this node
             if (child_mut_iter->get_par_one_hot() !=
-                child_mut_iter->get_all_major_allele()) {
+                    child_mut_iter->get_all_major_allele()) {
                 changed = true;
                 new_mut.push_back(*child_mut_iter);
                 new_mut.back().set_boundary_one_hot(
@@ -232,19 +236,19 @@ static bool adjust_single_child_node(MAT::Node *node,
             child_mut_iter++;
         }
         if ((child_mut_iter != child_mut_end) &&
-            (child_mut_iter->get_par_one_hot() !=
-             child_mut_iter->get_all_major_allele()) &&
-            (child_mut_iter->get_position() == ori_mut.get_position())) {
+                (child_mut_iter->get_par_one_hot() !=
+                 child_mut_iter->get_all_major_allele()) &&
+                (child_mut_iter->get_position() == ori_mut.get_position())) {
             //the child mutated again at a mutated loci of this node
             new_mut.push_back(ori_mut);
             changed = true;
-            //only using mut_nuc of the child node, because do not want 
-            //there to be valid mutation from this node to its only 
-            //child, and that child have the parent state the same as 
+            //only using mut_nuc of the child node, because do not want
+            //there to be valid mutation from this node to its only
+            //child, and that child have the parent state the same as
             //the parent state of this node
             nuc_one_hot new_state = child_mut_iter->get_mut_one_hot();
             if (ori_mut.get_par_one_hot() &
-                child_mut_iter->get_all_major_allele()) {
+                    child_mut_iter->get_all_major_allele()) {
                 new_state = ori_mut.get_par_one_hot() &
                             child_mut_iter->get_all_major_allele();
             }
@@ -257,7 +261,7 @@ static bool adjust_single_child_node(MAT::Node *node,
                                            ori_mut.get_mut_one_hot());
             }
         } else {
-            //original mutation not found in its only child, perserve if it is valid, 
+            //original mutation not found in its only child, perserve if it is valid,
             //if it is invalid, then originally it was ambiguous, but now it isn't , so it changed
             //and if it originally have multiple major allele, now its children is not reporting
             // having multiple major allele, it also changed
@@ -272,14 +276,14 @@ static bool adjust_single_child_node(MAT::Node *node,
             }
         }
         if ((child_mut_iter != child_mut_end) &&
-            (child_mut_iter->get_position() == ori_mut.get_position())) {
+                (child_mut_iter->get_position() == ori_mut.get_position())) {
             child_mut_iter++;
         }
     }
     while (child_mut_iter != child_mut_end) {
         //child mut not present in parent mut, same as above
         if (child_mut_iter->get_par_one_hot() !=
-            child_mut_iter->get_all_major_allele()) {
+                child_mut_iter->get_all_major_allele()) {
             changed = true;
             new_mut.push_back(*child_mut_iter);
             new_mut.back().set_boundary_one_hot(
@@ -300,7 +304,7 @@ static bool adjust_node(MAT::Node *node,
                         ,
                         MAT::Tree &new_tree
 #endif
-) {
+                       ) {
     MAT::Mutations_Collection new_major_alleles;
     bool changed;
     if (node->children.size() == 2) {
@@ -347,7 +351,7 @@ void reassign_backward_pass(
                               ,
                               new_tree
 #endif
-        );
+                             );
         if (changed) {
             heap->altered_node->changed=true;
         }

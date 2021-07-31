@@ -19,13 +19,13 @@ struct Mutation_Pos_Only_Hash {
         return in.get_position();
     }
 };
-struct Node_Idx_Hash{
-    size_t operator()(const Mutation_Annotated_Tree::Node* in) const{
+struct Node_Idx_Hash {
+    size_t operator()(const Mutation_Annotated_Tree::Node* in) const {
         return in->bfs_index;
     }
 };
 
-struct Node_Idx_Eq{
+struct Node_Idx_Eq {
     bool operator()(const Mutation_Annotated_Tree::Node* first,const Mutation_Annotated_Tree::Node* second)const {
         return first->bfs_index==second->bfs_index;
     }
@@ -33,7 +33,7 @@ struct Node_Idx_Eq{
 
 typedef std::unordered_set<Mutation_Annotated_Tree::Mutation, Mutation_Pos_Only_Hash, Mutation_Pos_Only_Comparator> Mutation_Set;
 typedef tbb::concurrent_unordered_map<std::string, Mutation_Set>
-    Original_State_t;
+Original_State_t;
 //populate state of all leaves when original state is empty, check if not
 void check_samples(
     Mutation_Annotated_Tree::Node *root,

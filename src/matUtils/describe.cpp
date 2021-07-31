@@ -46,15 +46,15 @@ std::vector<std::string> clade_paths(MAT::Tree* T) {
                 auto root_to_sample = T->rsearch(n->identifier, true);
                 std::reverse(root_to_sample.begin(), root_to_sample.end());
                 for (auto an: root_to_sample) {
-                  for (size_t i=0; i<an->mutations.size(); i++) {
-                      root += an->mutations[i].get_string();
-                      if (i+1 < an->mutations.size()) {
-                          root += ",";
-                      }
-                  }
-                  if (an != root_to_sample.back()) {
-                      root += " > ";
-                  }
+                    for (size_t i=0; i<an->mutations.size(); i++) {
+                        root += an->mutations[i].get_string();
+                        if (i+1 < an->mutations.size()) {
+                            root += ",";
+                        }
+                    }
+                    if (an != root_to_sample.back()) {
+                        root += " > ";
+                    }
                 }
                 //save values to the string and save the string
                 curpath += root;

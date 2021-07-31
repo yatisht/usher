@@ -17,7 +17,7 @@ void write_vcf_header(std::ostream& vcf_file, std::vector<Mutation_Annotated_Tre
         vcf_file << "\tFORMAT";
         for (auto node: dfs) {
             if (samples_to_use->find(node->identifier) != samples_to_use->end()) {
-            //if (node->is_leaf()) {
+                //if (node->is_leaf()) {
                 //fprintf(vcf_file, "\t%s", node->identifier.c_str());
                 vcf_file << boost::format("\t%s") % node->identifier.c_str();
             }
@@ -43,10 +43,10 @@ uint r_add_genotypes(MAT::Node *node,
     // Traverse tree, adding leaf/sample genotypes for mutations annotated on path from root to node
     // to chrom_pos_genotypes (and reference allele to chrom_pos_ref).
     for (auto &mut: node->mutations) {
-      if (mut.is_masked()) {
-          continue;
-      }
-      mut_stack.push_back(&mut);
+        if (mut.is_masked()) {
+            continue;
+        }
+        mut_stack.push_back(&mut);
     }
     // if (node->is_leaf()) {
     if (samples_to_use->find(node->identifier) != samples_to_use->end()) {
@@ -55,8 +55,8 @@ uint r_add_genotypes(MAT::Node *node,
             std::string chrom = mut->chrom;
             uint pos = (uint)mut->position;
             if (chrom.empty()) {
-              fprintf(stderr, "mut->chrom is empty std::string at node '%s', position %u\n",
-                      node->identifier.c_str(), pos);
+                fprintf(stderr, "mut->chrom is empty std::string at node '%s', position %u\n",
+                        node->identifier.c_str(), pos);
             }
             if (chrom_pos_genotypes.find(chrom) == chrom_pos_genotypes.end()) {
                 // First variant on chrom: initialize a vector mapping position to genotype.
@@ -122,7 +122,7 @@ std::map<int8_t, uint>make_alts(std::unordered_map<int8_t, uint> &allele_counts,
     std::sort(pairs.begin(), pairs.end(), cmp_allele_count_desc);
     std::map<int8_t, uint> alts;
     for (auto &itr : pairs) {
-      alts.insert(itr);
+        alts.insert(itr);
     }
     return alts;
 }
@@ -144,7 +144,7 @@ std::string make_alt_str(std::map<int8_t, uint> &alts) {
     std::string alt_str;
     for (auto &itr : alts) {
         if (! alt_str.empty()) {
-          alt_str += ",";
+            alt_str += ",";
         }
         alt_str += MAT::get_nuc(itr.first);
     }
@@ -179,50 +179,50 @@ int *make_allele_codes(int8_t ref, std::map<int8_t, uint> &alts) {
     }
     return al_codes;
 }
-struct VCF_Line_Writer{
+struct VCF_Line_Writer {
     const std::vector<int8_t *>& pos_genotypes;
     const std::vector<int8_t>& pos_ref;
     uint leaf_count;
     bool print_genotypes;
     const std::string& chrom;
-    std::string* operator()(uint pos) const{
-            int8_t ref = pos_ref[pos];
-            int8_t *gt_array = pos_genotypes[pos];
-              std::unordered_map<int8_t, uint>allele_counts = count_alleles(gt_array, leaf_count);
-              std::map<int8_t, uint>alts = make_alts(allele_counts, ref);
-              if (alts.size() == 0) {
-                  fprintf(stderr, "WARNING: no-alternative site encountered in vcf output; skipping\n");
-                  return nullptr;
-              }
-              std::string id = make_id(ref, pos, alts);
-              std::string alt_str = make_alt_str(alts);
-              std::string info = make_info(alts, leaf_count);
-              //fprintf(vcf_file, "%s\t%d\t%s\t%c\t%s\t.\t.\t%s",
-                    //   chrom.c_str(), pos, id .c_str(), MAT::get_nuc(ref), alt_str.c_str(),
-                    //   info.c_str());
-              std::string* out=new std::string(boost::str(boost::format("%s\t%d\t%s\t%c\t%s\t.\t.\t%s")
-                      % chrom.c_str() % pos % id .c_str() % MAT::get_nuc(ref) % alt_str.c_str() % info.c_str()));
-              if (print_genotypes) {
-                  out->reserve(leaf_count*2);
-                  int *allele_codes = make_allele_codes(ref, alts);
-                  //fprintf(vcf_file, "\tGT");
-                  out ->append("\tGT");
-                  for (uint i = 0;  i < leaf_count;  i++) {
-                      int8_t allele = gt_array[i];
-                      out->append("\t");
-                      out->append(std::to_string(allele_codes[allele]));
-                      //fprintf(vcf_file, "\t%d", allele_codes[allele]);
-                  }
-              }
-              //fputc('\n', vcf_file);
-              out->append("\n");
-              return out;
+    std::string* operator()(uint pos) const {
+        int8_t ref = pos_ref[pos];
+        int8_t *gt_array = pos_genotypes[pos];
+        std::unordered_map<int8_t, uint>allele_counts = count_alleles(gt_array, leaf_count);
+        std::map<int8_t, uint>alts = make_alts(allele_counts, ref);
+        if (alts.size() == 0) {
+            fprintf(stderr, "WARNING: no-alternative site encountered in vcf output; skipping\n");
+            return nullptr;
+        }
+        std::string id = make_id(ref, pos, alts);
+        std::string alt_str = make_alt_str(alts);
+        std::string info = make_info(alts, leaf_count);
+        //fprintf(vcf_file, "%s\t%d\t%s\t%c\t%s\t.\t.\t%s",
+        //   chrom.c_str(), pos, id .c_str(), MAT::get_nuc(ref), alt_str.c_str(),
+        //   info.c_str());
+        std::string* out=new std::string(boost::str(boost::format("%s\t%d\t%s\t%c\t%s\t.\t.\t%s")
+                                         % chrom.c_str() % pos % id .c_str() % MAT::get_nuc(ref) % alt_str.c_str() % info.c_str()));
+        if (print_genotypes) {
+            out->reserve(leaf_count*2);
+            int *allele_codes = make_allele_codes(ref, alts);
+            //fprintf(vcf_file, "\tGT");
+            out ->append("\tGT");
+            for (uint i = 0;  i < leaf_count;  i++) {
+                int8_t allele = gt_array[i];
+                out->append("\t");
+                out->append(std::to_string(allele_codes[allele]));
+                //fprintf(vcf_file, "\t%d", allele_codes[allele]);
+            }
+        }
+        //fputc('\n', vcf_file);
+        out->append("\n");
+        return out;
     }
 };
-struct Pos_Finder{
+struct Pos_Finder {
     uint& pos;
     const std::vector<int8_t *>& pos_genotypes;
-    uint operator()(tbb::flow_control& fc) const{
+    uint operator()(tbb::flow_control& fc) const {
         for (; pos<pos_genotypes.size(); pos++) {
             if (pos_genotypes[pos]) {
                 pos++;
@@ -249,13 +249,13 @@ void write_vcf_rows(std::ostream& vcf_file, MAT::Tree T, bool print_genotypes, c
         std::vector<int8_t *> pos_genotypes = itr->second;
         uint pos=0;
         tbb::parallel_pipeline(tbb::task_scheduler_init::default_num_threads()*2,tbb::make_filter<void,uint>(tbb::filter::serial_in_order,Pos_Finder{pos,pos_genotypes})&
-            tbb::make_filter<uint,std::string*>(tbb::filter::parallel,VCF_Line_Writer{pos_genotypes,chrom_pos_ref[chrom],leaf_count,print_genotypes,chrom})
-            &tbb::make_filter<std::string*,void>(tbb::filter::serial_in_order,[&vcf_file](std::string* to_write){
-                if (to_write) {
+                               tbb::make_filter<uint,std::string*>(tbb::filter::parallel,VCF_Line_Writer{pos_genotypes,chrom_pos_ref[chrom],leaf_count,print_genotypes,chrom})
+        &tbb::make_filter<std::string*,void>(tbb::filter::serial_in_order,[&vcf_file](std::string* to_write) {
+            if (to_write) {
                 vcf_file<<*to_write;
                 delete to_write;
-                }
-            }));
+            }
+        }));
     }
 }
 
@@ -292,10 +292,10 @@ void make_vcf (MAT::Tree T, std::string vcf_filepath, bool no_genotypes, std::ve
 
 std::string write_mutations(MAT::Node *N) { // writes muts as a list, e.g. "A23403G,G1440A,G23403A,G2891A" for "nuc mutations" under labels
     std::string muts = ": \"" ;
-    for (unsigned int m = 0 ; m < N->mutations.size() ; m ++ ){
+    for (unsigned int m = 0 ; m < N->mutations.size() ; m ++ ) {
         auto mut_string = N->mutations[m].get_string();
         muts += mut_string ;
-        if ( m < (N->mutations.size()-1) ){
+        if ( m < (N->mutations.size()-1) ) {
             muts +=  "," ; // if not last, add comma
         }
     }
@@ -439,7 +439,7 @@ json get_json_entry(MAT::Node* n, std::vector<std::map<std::string,std::map<std:
     std::map<std::string,std::string> com {{"value",country}};
     std::map<std::string,std::string> dam {{"value",date}};
     if ((n->is_leaf()) && (country.length() != n->identifier.size()) && (date.length() != n->identifier.size()) ) {
-        sj["node_attrs"] = { {"country",com}, {"date",dam} ,{"div", div}, {"MAT_Clade_0", c1a}, {"MAT_Clade_1", c2a} };
+        sj["node_attrs"] = { {"country",com}, {"date",dam},{"div", div}, {"MAT_Clade_0", c1a}, {"MAT_Clade_1", c2a} };
     } else {
         sj["node_attrs"]["div"] = div;
         if (use_clade_zero) {
@@ -474,17 +474,21 @@ void write_json_from_mat(MAT::Tree* T, std::string output_filename, std::vector<
     std::map<std::string,std::string> lm = {{"branch_label", "none"}};
     nj = {
         {"version","v2"},
-        {"meta", {
-            {"title","mutation_annotated_tree"},
-            {"filters",json::array({"country"})},
-            {"panels",json::array({"tree"})},
-            {"colorings",{ {{"key","country"},{"title","Country"},{"type","categorical"}} }},
-            {"display_defaults",lm},
-            {"description",desc}
-        }},
-        {"tree",{
-            {"name","wrapper"},
-        }}
+        {
+            "meta", {
+                {"title","mutation_annotated_tree"},
+                {"filters",json::array({"country"})},
+                {"panels",json::array({"tree"})},
+                {"colorings",{ {{"key","country"},{"title","Country"},{"type","categorical"}} }},
+                {"display_defaults",lm},
+                {"description",desc}
+            }
+        },
+        {
+            "tree",{
+                {"name","wrapper"},
+            }
+        }
     };
     //add metadata to the header colorings if any exist
     if (catmeta->size()>0) {
@@ -559,51 +563,51 @@ void get_minimum_subtrees(MAT::Tree* T, std::vector<std::string> samples, size_t
     /// record trees here
     std::vector<std::vector<std::string> > subtree_sample_sets ;
 
-      for ( size_t i = 0 ; i < samples.size() ; i ++ ) {
+    for ( size_t i = 0 ; i < samples.size() ; i ++ ) {
 
-          auto check_sample = samples_we_have_seen.find( samples[i] ) ;
-          if ( check_sample != samples_we_have_seen.end() ) {
-              continue ;
-          }
+        auto check_sample = samples_we_have_seen.find( samples[i] ) ;
+        if ( check_sample != samples_we_have_seen.end() ) {
+            continue ;
+        }
 
-          /// get the nearby tree of size nearest_subtree_size
-          std::vector<std::string> leaves_to_keep = get_nearby( T, samples[i], nearest_subtree_size ) ;
+        /// get the nearby tree of size nearest_subtree_size
+        std::vector<std::string> leaves_to_keep = get_nearby( T, samples[i], nearest_subtree_size ) ;
 
-          if ( leaves_to_keep.size() == 0 ) {
-              samples_we_have_seen.insert({samples[i],-1}) ;
-              continue ;
-          }
+        if ( leaves_to_keep.size() == 0 ) {
+            samples_we_have_seen.insert({samples[i],-1}) ;
+            continue ;
+        }
 
-          /// record all samples seen
-          for ( size_t s = 0 ; s < leaves_to_keep.size() ; s ++ ) {
-              samples_we_have_seen.insert({leaves_to_keep[s],subtree_sample_sets.size()}) ;
-          }
+        /// record all samples seen
+        for ( size_t s = 0 ; s < leaves_to_keep.size() ; s ++ ) {
+            samples_we_have_seen.insert({leaves_to_keep[s],subtree_sample_sets.size()}) ;
+        }
 
-          /// record sample set
-          subtree_sample_sets.push_back( leaves_to_keep ) ;
-      }
+        /// record sample set
+        subtree_sample_sets.push_back( leaves_to_keep ) ;
+    }
 
-      tbb::parallel_for (tbb::blocked_range<size_t>(0, subtree_sample_sets.size()),
-                  [&](tbb::blocked_range<size_t> r) {
-              for (size_t i = r.begin(); i < r.end() ; i++) {
+    tbb::parallel_for (tbb::blocked_range<size_t>(0, subtree_sample_sets.size()),
+    [&](tbb::blocked_range<size_t> r) {
+        for (size_t i = r.begin(); i < r.end() ; i++) {
 
-          auto new_T = Mutation_Annotated_Tree::get_subtree(*T, subtree_sample_sets[i]);
+            auto new_T = Mutation_Annotated_Tree::get_subtree(*T, subtree_sample_sets[i]);
 
-          //from here, this function diverges from the similar function in the MAT definition.
-          if (json_n != output_dir) {
-              std::string outf = json_n + "-subtree-" + std::to_string(i) + ".json";
-              write_json_from_mat(&new_T, outf, catmeta);
-          }
-          if (newick_n != output_dir) {
-              std::string outf = newick_n + "-subtree-" + std::to_string(i) + ".nw";
-              std::ofstream subtree_file(outf.c_str(), std::ofstream::out);
-              std::stringstream newick_ss;
-              write_newick_string(newick_ss, new_T, new_T.root, true, true, retain_original_branch_len);
-              subtree_file << newick_ss.rdbuf();
-              subtree_file.close();
-          }
-      }
-    /// end TBB loop
+            //from here, this function diverges from the similar function in the MAT definition.
+            if (json_n != output_dir) {
+                std::string outf = json_n + "-subtree-" + std::to_string(i) + ".json";
+                write_json_from_mat(&new_T, outf, catmeta);
+            }
+            if (newick_n != output_dir) {
+                std::string outf = newick_n + "-subtree-" + std::to_string(i) + ".nw";
+                std::ofstream subtree_file(outf.c_str(), std::ofstream::out);
+                std::stringstream newick_ss;
+                write_newick_string(newick_ss, new_T, new_T.root, true, true, retain_original_branch_len);
+                subtree_file << newick_ss.rdbuf();
+                subtree_file.close();
+            }
+        }
+        /// end TBB loop
     } ) ;
 
     /// get the set of metadata fields in the requested samples

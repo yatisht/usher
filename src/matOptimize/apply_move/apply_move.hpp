@@ -56,7 +56,7 @@ char merge_new_node_mutations(
     MAT::Mutations_Collection &new_node_mutations_out);
 //insert a node between to_replace and its parent, then return it
 MAT::Node *replace_with_internal_node(MAT::Node *to_replace,
-                                             MAT::Tree &tree);
+                                      MAT::Tree &tree);
 /**
  * @brief Move src to dst, while perserving the state of all nodes
  * @param src
@@ -70,7 +70,7 @@ void move_node(MAT::Node *src, MAT::Node *dst,
                std::vector<MAT::Node *> &altered_node, MAT::Tree &tree,
                std::unordered_set<size_t> &deleted,
                std::vector<MAT::Node *> &nodes_to_clean
-);
+              );
 
 #ifdef CHECK_STATE_REASSIGN
 MAT::Tree reassign_state_full(MAT::Tree &tree_in);
@@ -91,7 +91,7 @@ void forward_pass(std::vector<Altered_Node_t> &in
                   ,
                   MAT::Tree &new_tree
 #endif
-);
+                 );
 //merge mutation vector of nodes with their parent node deleted because it only have 1 child left
 bool merge_mutation_single_child(MAT::Node *node,const MAT::Mutations_Collection &merge_with);
 void clean_up_src_states(MAT::Node *src,std::vector<Altered_Node_t> &out);

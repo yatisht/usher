@@ -2,21 +2,21 @@
 #include <cstdio>
 #include <sys/mman.h>
 //See whether a valus appeared twice
-class Twice_Bloom_Filter{
+class Twice_Bloom_Filter {
     uint16_t* filter;
-    int hash(int pos){
+    int hash(int pos) {
         //This works for coronavirus whose length is 29903<32767, it basically does nothing
         return pos&0x7FFF;
     }
-    public:
-    Twice_Bloom_Filter(){
+  public:
+    Twice_Bloom_Filter() {
         filter=(uint16_t*) mmap(0,4096*2,PROT_READ|PROT_WRITE,MAP_SHARED | MAP_ANONYMOUS,-1,0);
         //perror("");
     }
-    ~Twice_Bloom_Filter(){
+    ~Twice_Bloom_Filter() {
         munmap(filter, 4096);
     }
-    void insert(int pos){
+    void insert(int pos) {
         int hash_code=hash(pos);
         //MSB is twice mask, LSB is once mask
         uint16_t* value_ptr=filter+(hash_code>>3);
@@ -29,7 +29,7 @@ class Twice_Bloom_Filter{
         *value_ptr=value|once_mask|mark_twice_mask;
     }
 
-    bool query(int pos){
+    bool query(int pos) {
         int hash_code=hash(pos);
         uint16_t value=filter[hash_code>>3];
         return value&(1<<((hash_code&7)+8));

@@ -9,9 +9,9 @@ namespace MAT = Mutation_Annotated_Tree;
 #include <unordered_set>
 
 extern std::unordered_map<MAT::Mutation,
-                          std::unordered_map<std::string, nuc_one_hot> *,
-                          Mutation_Pos_Only_Hash, Mutation_Pos_Only_Comparator>
-    mutated_positions;
+       std::unordered_map<std::string, nuc_one_hot> *,
+       Mutation_Pos_Only_Hash, Mutation_Pos_Only_Comparator>
+       mutated_positions;
 
 struct Mutation_Count {
     int position;
@@ -28,15 +28,15 @@ static void count_mutations(MAT::Node *start,
     size_t mut_idx = 0;
     for (const MAT::Mutation &m : start->mutations) {
         while (mut_idx != mutations_count.size() &&
-               mutations_count[mut_idx].position < m.get_position()) {
+                mutations_count[mut_idx].position < m.get_position()) {
             mut_idx++;
         }
         if (mut_idx != mutations_count.size() &&
-            mutations_count[mut_idx].position == m.get_position() &&
-            m.is_valid()) {
+                mutations_count[mut_idx].position == m.get_position() &&
+                m.is_valid()) {
             mutations_count[mut_idx].count++;
             auto res = mutations_count[mut_idx].mut_count.emplace(
-                start->parent->identifier, 0);
+                           start->parent->identifier, 0);
             res.first->second.push_back(start);
         }
     }
@@ -88,7 +88,7 @@ MAT::Node *get_mutation_path(MAT::Mutations_Collection &mutations,
         mutations.merge(n->mutations, MAT::Mutations_Collection::KEEP_SELF);
     }
     for (auto iter = dst_to_root_path.rbegin(); iter < dst_to_root_path.rend();
-         iter++) {
+            iter++) {
         mutations.merge((*iter)->mutations,
                         MAT::Mutations_Collection::KEEP_OTHER);
     }
@@ -123,9 +123,9 @@ int get_parsimmony_score_only(MAT::Node *src, MAT::Node *dst, MAT::Node *LCA,con
     if (new_dst->identifier!=actual_LCA->identifier) {
         auto &dst_parent_children = new_dst->parent->children;
         dst_parent_children.erase(std::find(
-            dst_parent_children.begin(), dst_parent_children.end(), new_dst));
+                                      dst_parent_children.begin(), dst_parent_children.end(), new_dst));
         auto split_node = new_tree.create_node(
-            std::to_string(++new_tree.curr_internal_node), new_dst->parent);
+                              std::to_string(++new_tree.curr_internal_node), new_dst->parent);
         split_node->children.push_back(new_dst);
         new_dst->parent = split_node;
         split_node->children.push_back(new_src);
@@ -135,7 +135,7 @@ int get_parsimmony_score_only(MAT::Node *src, MAT::Node *dst, MAT::Node *LCA,con
         auto new_src_branch_node=new_tree.get_node(src_branch_node->identifier);
         LCA_children.erase(std::find(LCA_children.begin(),LCA_children.end(),new_src_branch_node));
         auto split_node = new_tree.create_node(
-            std::to_string(++new_tree.curr_internal_node), new_dst);
+                              std::to_string(++new_tree.curr_internal_node), new_dst);
         split_node->children.push_back(new_src_branch_node);
         new_src_branch_node->parent=split_node;
         split_node->children.push_back(new_src);
@@ -155,10 +155,10 @@ int get_parsimmony_score_only(MAT::Node *src, MAT::Node *dst, MAT::Node *LCA,con
                          *non_ref_muts, MAT::Mutation::refs[position]);
         std::vector<uint8_t> states_out(new_bfs_ordered_nodes.size());
         std::vector<std::vector<MAT::Node *>> mutation_count(
-            new_bfs_ordered_nodes.size());
+                                               new_bfs_ordered_nodes.size());
         int new_parsimony_score = FS_forward_assign_states_only(
-            new_bfs_ordered_nodes, boundary1_major_allele, LCA_parent_state,
-            states_out, mutation_count);
+                                      new_bfs_ordered_nodes, boundary1_major_allele, LCA_parent_state,
+                                      states_out, mutation_count);
         int this_change =
             new_parsimony_score - original_mutation_count[idx].count;
         if (this_change) {
