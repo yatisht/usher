@@ -378,7 +378,7 @@ int main(int argc, char** argv) {
         size_t at = 0;
         for (size_t i = 0; i<num_mutations; i++) {
             for (size_t j=i; j<num_mutations; j++) {
-                fprintf(stderr, "\r%zu/%zu", ++at, num_mutations*(1+num_mutations)/2);
+                fprintf(stderr, "\rTrying %zu of %zu breakpoint pairs.", ++at, num_mutations*(1+num_mutations)/2);
                 Pruned_Sample donor("donor");
                 Pruned_Sample acceptor("acceptor");
 
