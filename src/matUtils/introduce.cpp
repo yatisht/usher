@@ -444,7 +444,13 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
     //so we can check membership of introduction points in each of the other groups
     //this allows us to look for migrant flow between regions
     std::map<std::string, std::map<std::string, float>> region_assignments;
-    boost::gregorian::date recency_filter = boost::gregorian::from_string(latest_date);
+    boost::gregorian::date recency_filter;
+    try {
+        recency_filter = boost::gregorian::from_string(latest_date);
+    } catch (const std::out_of_range& oor) {
+        fprintf(stderr, "ERROR: Minimum date argument (-l) could not be parsed. Check that it is formatted year-month-day and try again.\n");
+        exit(1);
+    }
     //TODO: This could be parallel for a significant speedup when dozens or hundreds of regions are being passed in
     //I also suspect I could use pointers for the assignment maps to make this more memory efficient
     for (auto ms: sample_regions) {
