@@ -6,6 +6,7 @@ representing those samples in an optimal manner.
 */
 MAT::Tree filter_master(const MAT::Tree& T, std::vector<std::string> sample_names, bool prune, bool keep_clade_annotations) {
     MAT::Tree subtree;
+    assert (sample_names.size() > 0);
     if (prune) {
         subtree = prune_leaves(T, sample_names);
     } else if (sample_names.size() < 10000) {
