@@ -177,7 +177,7 @@ void restrictSamples (std::string samples_filename, MAT::Tree& T) {
         }
         restricted_samples.insert(std::move(sample));
     }
-
+    assert (restricted_samples.size() > 0);
     // Set of nodes rooted at restricted samples
     std::unordered_set<MAT::Node*> restricted_roots;
     std::unordered_map<std::string, bool> visited;
