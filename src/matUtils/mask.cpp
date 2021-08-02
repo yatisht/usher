@@ -204,15 +204,12 @@ void restrictMutationsLocally (std::string mutations_filename, MAT::Tree* T, boo
     //then return the tree. 
     for (auto ml: mutlmap) {
         for (auto n: T->depth_first_expansion(T->get_node(ml.second))) {
-            //build a new vector of mutations to force overriding
             for (auto& mut: n->mutations) {
                 if (mut.get_string() == ml.first) {
-                    //std::cerr << "DEBUG: before change: " << mut.position << "\n";
                     mut.position = -1;
                     mut.ref_nuc = 0;
                     mut.par_nuc = 0;
                     mut.mut_nuc = 0;
-                    //std::cerr << "DEBUG: inscope change: " << mut.position << "\n";
                 }
             }
         }
