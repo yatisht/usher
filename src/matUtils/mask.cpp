@@ -205,8 +205,7 @@ void restrictMutationsLocally (std::string mutations_filename, MAT::Tree* T, boo
     for (auto ml: mutlmap) {
         for (auto n: T->depth_first_expansion(T->get_node(ml.second))) {
             //build a new vector of mutations to force overriding
-            std::vector<MAT::Mutation> nmuts;
-            for (auto mut: n->mutations) {
+            for (auto& mut: n->mutations) {
                 if (mut.get_string() == ml.first) {
                     //std::cerr << "DEBUG: before change: " << mut.position << "\n";
                     mut.position = -1;
@@ -215,9 +214,7 @@ void restrictMutationsLocally (std::string mutations_filename, MAT::Tree* T, boo
                     mut.mut_nuc = 0;
                     //std::cerr << "DEBUG: inscope change: " << mut.position << "\n";
                 }
-                nmuts.push_back(mut);
             }
-            n->mutations = nmuts;
         }
     }
 }
