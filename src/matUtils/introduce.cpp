@@ -9,39 +9,38 @@ po::variables_map parse_introduce_command(po::parsed_options parsed) {
     po::variables_map vm;
     po::options_description filt_desc("introduce options");
     filt_desc.add_options()
-        ("input-mat,i", po::value<std::string>()->required(),
-         "Input mutation-annotated tree file [REQUIRED]")
-        ("population-samples,s", po::value<std::string>()->required(), 
-         "Names of samples from the population of interest [REQUIRED].") 
-        ("additional-info,a", po::bool_switch(),
-        "Set to calculate additional phylogenetic trait association statistics for whole regions and individual introductions. WARNING: Adds significantly to runtime.")
-        ("clade-regions,c", po::value<std::string>()->default_value(""),
-        "Set to optionally record, for each clade root in the tree, the support for that clade root being IN each region in the input, as a tsv with the indicated name.")
-        ("date-metadata,M", po::value<std::string>()->default_value(""),
-        "Pass a TSV or CSV containing a 'date' column to use for date information. If not used, date will be inferred from the sample name where possible.")
-        ("output,o", po::value<std::string>()->required(),
-        "Name of the file to save the introduction information to.")
-        ("origin-confidence,C", po::value<float>()->default_value(0.5),
-        "Set the threshold for recording of putative origins of introductions. Default is 0.5")
-        ("evaluate-metadata,E", po::bool_switch(),
-        "Set to assign each leaf a confidence value based on ancestor distance and confidence.")
-        ("dump-assignments,D", po::value<std::string>()->default_value(""),
-        "Indicate a directory to which two-column text files containing node assignment values should be dumped for downstream processing.")
-        // ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
-        ("help,h", "Print help messages");
+    ("input-mat,i", po::value<std::string>()->required(),
+     "Input mutation-annotated tree file [REQUIRED]")
+    ("population-samples,s", po::value<std::string>()->required(),
+     "Names of samples from the population of interest [REQUIRED].")
+    ("additional-info,a", po::bool_switch(),
+     "Set to calculate additional phylogenetic trait association statistics for whole regions and individual introductions. WARNING: Adds significantly to runtime.")
+    ("clade-regions,c", po::value<std::string>()->default_value(""),
+     "Set to optionally record, for each clade root in the tree, the support for that clade root being IN each region in the input, as a tsv with the indicated name.")
+    ("date-metadata,M", po::value<std::string>()->default_value(""),
+     "Pass a TSV or CSV containing a 'date' column to use for date information. If not used, date will be inferred from the sample name where possible.")
+    ("output,o", po::value<std::string>()->required(),
+     "Name of the file to save the introduction information to.")
+    ("origin-confidence,C", po::value<float>()->default_value(0.5),
+     "Set the threshold for recording of putative origins of introductions. Default is 0.5")
+    ("evaluate-metadata,E", po::bool_switch(),
+     "Set to assign each leaf a confidence value based on ancestor distance and confidence.")
+    ("dump-assignments,D", po::value<std::string>()->default_value(""),
+     "Indicate a directory to which two-column text files containing node assignment values should be dumped for downstream processing.")
+    // ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
+    ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
     // (positional) command name, so we need to erase that.
     std::vector<std::string> opts = po::collect_unrecognized(parsed.options, po::include_positional);
     opts.erase(opts.begin());
 
     // Run the parser, with try/catch for help
-    try{
+    try {
         po::store(po::command_line_parser(opts)
                   .options(filt_desc)
                   .run(), vm);
         po::notify(vm);
-    }
-    catch(std::exception &e){
+    } catch(std::exception &e) {
         std::cerr << filt_desc << std::endl;
         // Return with error code 1 unless the user specifies help
         if (vm.count("help"))
@@ -60,7 +59,7 @@ std::map<std::string, std::vector<std::string>> read_two_column (std::string sam
     if (!infile) {
         fprintf(stderr, "ERROR: Could not open the file: %s!\n", sample_filename.c_str());
         exit(1);
-    }    
+    }
     std::string line;
     while (std::getline(infile, line)) {
         std::vector<std::string> words;
@@ -99,14 +98,14 @@ float get_association_index(MAT::Tree* T, std::map<std::string, float> assignmen
 
     My implementation is an efficient one that relies on dynamic programming and useful ordering of node traversal.
     This searches over a reverse breadth first order. For each internal node, check the children.
-    Count the number of direct leaf children which are in/out and get the records for the counts for in/out 
+    Count the number of direct leaf children which are in/out and get the records for the counts for in/out
     from the internal_tracker map. Add these up to get the total number of in/out leaves associated with a node.
     This avoids repeatedly traversing the tree to identify leaves for each internal node, since reverse breadth-first search order
-    means that all children of a node will necessarily be traversed over before the node itself is. 
+    means that all children of a node will necessarily be traversed over before the node itself is.
 
-    The permute boolean, when true, sets a mode where in/out traits are randomly assigned on a uniform distribution based on 
-    the baseline frequency of the trait across the tree instead of actually checking membership. Used to evaluate the results with 
-    some statistical grounding, though full repeated permutations are too computationally costly. 
+    The permute boolean, when true, sets a mode where in/out traits are randomly assigned on a uniform distribution based on
+    the baseline frequency of the trait across the tree instead of actually checking membership. Used to evaluate the results with
+    some statistical grounding, though full repeated permutations are too computationally costly.
     */
     //timer.Start();
     float total_ai = 0.0;
@@ -128,7 +127,7 @@ float get_association_index(MAT::Tree* T, std::map<std::string, float> assignmen
                 leaf_count++;
                 auto search = assignments.find(b->identifier);
                 if (search != assignments.end()) {
-                    if (search->second > 0.5) {                
+                    if (search->second > 0.5) {
                         sample_count++;
                     }
                 }
@@ -138,7 +137,7 @@ float get_association_index(MAT::Tree* T, std::map<std::string, float> assignmen
 
     std::reverse(bfs.begin(), bfs.end());
     for (auto n: bfs) {
-       if (!n->is_leaf()) {
+        if (!n->is_leaf()) {
             size_t in_c = 0;
             size_t out_c = 0;
             for (auto c: n->children) {
@@ -154,7 +153,7 @@ float get_association_index(MAT::Tree* T, std::map<std::string, float> assignmen
                     } else {
                         auto search = assignments.find(c->identifier);
                         if (search != assignments.end()) {
-                            if (search->second > 0.5) {                
+                            if (search->second > 0.5) {
                                 in_c++;
                             } else {
                                 out_c++;
@@ -236,7 +235,7 @@ void record_clade_regions(MAT::Tree* T, std::map<std::string, std::map<std::stri
     of << "\n";
 
     for (auto n: T->depth_first_expansion()) {
-        for (auto ca: n->clade_annotations){
+        for (auto ca: n->clade_annotations) {
             if (ca.size() > 0) {
                 //we have a clade root here
                 std::stringstream rowstr;
@@ -273,7 +272,7 @@ std::map<std::string, float> get_assignments(MAT::Tree* T, std::unordered_set<st
         if (n->is_leaf()) {
             //rule 1
             if (sample_set.find(n->identifier) != sample_set.end()) {
-                assignments[n->identifier] = 1; 
+                assignments[n->identifier] = 1;
             } else {
                 assignments[n->identifier] = 0;
             }
@@ -297,17 +296,17 @@ std::map<std::string, float> get_assignments(MAT::Tree* T, std::unordered_set<st
                 assignments[n->identifier] = 0;
             } else {
                 //rule 4...
-                //the best way to do this is to keep in mind that the nearest descendent leaf 
+                //the best way to do this is to keep in mind that the nearest descendent leaf
                 //is going to be the next leaf encountered in DFS order
                 //so we're going to iterate over DFS until we encounter a leaf of each type and record those distances
                 size_t min_to_in = 0;
                 size_t min_to_out = 0;
                 for (auto d: T->depth_first_expansion(n)) {
-                    if ((min_to_in > 0) & (min_to_out > 0)){
+                    if ((min_to_in > 0) & (min_to_out > 0)) {
                         //if both of these are assigned, we're done. break out of this loop and move on
                         break;
                     }
-                    if (d->is_leaf()){
+                    if (d->is_leaf()) {
                         if ((sample_set.find(d->identifier) != sample_set.end()) & (min_to_in == 0)) {
                             //found the nearest IN.
                             //rsearch back from it so that we're getting the direct path to the original node
@@ -334,7 +333,7 @@ std::map<std::string, float> get_assignments(MAT::Tree* T, std::unordered_set<st
                                     break;
                                 }
                             }
-                        } 
+                        }
                     }
                 }
                 //update to rule 4- 1 is IN, 0 is OUT, but we want to have in-between numbers to represent relative confidence.
@@ -350,7 +349,7 @@ std::map<std::string, float> get_assignments(MAT::Tree* T, std::unordered_set<st
                 } else if (min_to_out == 0) {
                     assignments[n->identifier] = 0;
                 } else {
-                    // fprintf(stderr, "DEBUG: min %ld, mout %ld, ols %ld, ils %ld\n", min_to_in, min_to_out, out_leaves.size(), in_leaves.size());                    
+                    // fprintf(stderr, "DEBUG: min %ld, mout %ld, ols %ld, ils %ld\n", min_to_in, min_to_out, out_leaves.size(), in_leaves.size());
                     //unnecessary variable declarations because I was hitting floating point exceptions.
                     //float vor = (min_to_out/out_leaves.size());
                     //float vir = (min_to_in/in_leaves.size());
@@ -360,7 +359,7 @@ std::map<std::string, float> get_assignments(MAT::Tree* T, std::unordered_set<st
                     float c = (1/(1+r));
                     if (isnan(c)) {
                         fprintf(stderr, "ERROR: Invalid introduction assignment calculation. Debug information follows.\n");
-                        fprintf(stderr, "min %ld, mout %ld, ols %ld, ils %ld,", min_to_in, min_to_out, out_leaves.size(), in_leaves.size());                    
+                        fprintf(stderr, "min %ld, mout %ld, ols %ld, ils %ld,", min_to_in, min_to_out, out_leaves.size(), in_leaves.size());
                         fprintf(stderr, " vor %f, vir %f, r %f\n", vor, vir, r);
                         exit(1);
                     }
@@ -460,7 +459,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                 permvec.push_back(perm);
             }
             std::sort(permvec.begin(), permvec.end());
-            fprintf(stderr, "Real value %f. Quantiles of random expected AI for this sample size: %f, %f, %f, %f, %f\n", global_ai, permvec[5],permvec[25],permvec[50],permvec[75],permvec[95]);       
+            fprintf(stderr, "Real value %f. Quantiles of random expected AI for this sample size: %f, %f, %f, %f, %f\n", global_ai, permvec[5],permvec[25],permvec[50],permvec[75],permvec[95]);
         }
 
         region_assignments[region] = assignments;
@@ -474,9 +473,9 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
     //so I'm going to generate a series of sets of nodes which are 1 for any given assignment
     //these will be used when looking for the origin of an introduction, as that only
     //cares about whether its 1 for a given region, not about the context.
-    
+
     //this structure holds the ID of every node which is 1 in at least one region
-    //and all corresponding regions it is 1 for. 
+    //and all corresponding regions it is 1 for.
     std::map<std::string, std::vector<float>> region_cons;
     std::map<std::string, std::vector<std::string>> region_ins;
     for (auto ra: region_assignments) {
@@ -580,10 +579,10 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                     //get the mutations and clade information
                     //both of these require an rsearch back from the point of origin to the tree root
                     //mutation path is going to be in reverse for simplicity, so using < to indicate direction
-                    for (MAT::Node* a: T->rsearch(a->identifier, true)) {
+                    for (MAT::Node* as: T->rsearch(a->identifier, true)) {
                         //collect mutations
                         std::string mutstr;
-                        for (auto m: a->mutations) {
+                        for (auto m: as->mutations) {
                             if (mutstr.size() == 0) {
                                 mutstr += m.get_string();
                             } else {
@@ -592,13 +591,13 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                         }
                         intro_mut_path += mutstr + "<";
                         //check for any clade identifiers, record comma delineated
-                        for (auto ann: a->clade_annotations) {
+                        for (auto ann: as->clade_annotations) {
                             if (ann.size() > 0) {
                                 if (intro_clades.size() == 0) {
                                     intro_clades += ann;
                                 } else {
                                     intro_clades += "," + ann;
-                                }    
+                                }
                             }
                         }
                     }
@@ -719,7 +718,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                     outstrs.push_back(cout.str());
                 }
             }
-        }   
+        }
         fprintf(stderr, "Region %s complete, %d samples processed.\n", region.c_str(), total_processed);
     }
     if (dump_assignments != "") {
@@ -759,7 +758,7 @@ void introduce_main(po::parsed_options parsed) {
     MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
     //T here is the actual object.
     if (T.condensed_nodes.size() > 0) {
-      T.uncondense_leaves();
+        T.uncondense_leaves();
     }
     auto region_map = read_two_column(samples_filename);
     std::map<std::string,std::string> datemeta = {};

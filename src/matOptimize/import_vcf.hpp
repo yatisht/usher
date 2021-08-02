@@ -7,7 +7,7 @@
 #include "src/matOptimize/Fitch_Sankoff.hpp"
 #include "tree_rearrangement_internal.hpp"
 #include <utility>
-struct Parsed_VCF_Line{
+struct Parsed_VCF_Line {
     Mutation_Annotated_Tree::Mutation mutation;
     //std::unordered_map<std::string, nuc_one_hot> *mutated;
     mutated_t mutated;

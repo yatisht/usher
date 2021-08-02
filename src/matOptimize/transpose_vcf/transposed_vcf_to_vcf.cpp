@@ -18,14 +18,14 @@
 #include <tbb/task_scheduler_init.h>
 #include <zlib.h>
 #include <boost/program_options/value_semantic.hpp>
-#include <boost/program_options.hpp> 
+#include <boost/program_options.hpp>
 namespace MAT = Mutation_Annotated_Tree;
 std::string chrom;
 std::string ref;
 struct Pos_Mut {
     int position;
     uint8_t mut;
-    Pos_Mut(int position,uint8_t mut):position(position),mut(mut){}
+    Pos_Mut(int position,uint8_t mut):position(position),mut(mut) {}
     bool operator<(const Pos_Mut &other) const {
         return position < other.position;
     }
@@ -54,7 +54,7 @@ struct Sample_Pos_Mut_Wrap {
 };
 
 typedef tbb::enumerable_thread_specific<std::vector<Sample_Pos_Mut>>
-    sample_pos_mut_local_t;
+        sample_pos_mut_local_t;
 sample_pos_mut_local_t sample_pos_mut_local;
 struct All_Sample_Appender {
     Sample_Pos_Mut_Wrap set_name(std::string &&name) {
@@ -112,9 +112,9 @@ struct mut_iterator {
         N_iter = std::lower_bound(mut_ele.Ns.begin(), N_end,
                                   std::make_pair(position, position),
                                   [](const std::pair<int, int> &first,
-                                     const std::pair<int, int> &second) {
-                                      return first.first < second.first;
-                                  });
+        const std::pair<int, int> &second) {
+            return first.first < second.first;
+        });
 #ifndef NDEBUG
         N_begin = mut_ele.Ns.begin();
 #endif
@@ -176,9 +176,9 @@ std::vector<std::pair<int8_t, uint>> count_alleles(const uint *allele_count) {
     }
     std::sort(out.begin(), out.end(),
               [](const std::pair<int8_t, uint> &first,
-                 const std::pair<int8_t, uint> &second) {
-                  return first.second > second.second;
-              });
+    const std::pair<int8_t, uint> &second) {
+        return first.second > second.second;
+    });
     return out;
 }
 void make_id(int8_t ref, uint pos, std::vector<std::pair<int8_t, uint>> &alts,
@@ -186,7 +186,7 @@ void make_id(int8_t ref, uint pos, std::vector<std::pair<int8_t, uint>> &alts,
     assert(!alts.empty());
     id.push_back(ref);
     id += std::to_string(pos) + MAT::get_nuc(alts[0].first);
-    for (size_t idx=1;idx<alts.size();idx++) {
+    for (size_t idx=1; idx<alts.size(); idx++) {
         id += ",";
         id.push_back(ref);
         id += std::to_string(pos) + MAT::get_nuc(alts[idx].first);
@@ -198,7 +198,7 @@ void make_info(std::vector<std::pair<int8_t, uint>> &alts, uint leaf_count,
     assert(!alts.empty());
     alt_count_str+="AC=";
     alt_count_str += std::to_string(alts[0].second);
-    for (size_t idx=1;idx<alts.size();idx++) {
+    for (size_t idx=1; idx<alts.size(); idx++) {
         alt_count_str += ",";
         alt_count_str += std::to_string(alts[idx].second);
     }
@@ -209,7 +209,7 @@ void make_alt_str(std::vector<std::pair<int8_t, uint>> &alts,
     assert(!alts.empty());
     alt_str += MAT::get_nuc(alts[0].first);
 
-    for (size_t idx=1;idx<alts.size();idx++) {
+    for (size_t idx=1; idx<alts.size(); idx++) {
         alt_str += ",";
         alt_str += MAT::get_nuc(alts[idx].first);
     }
@@ -231,7 +231,7 @@ void write_individual_row(std::string *out, int position, const vcf_rows &row) {
     out->append(std::to_string(position));
     out->push_back('\t');
     std::vector<std::pair<int8_t, uint>> alts =
-        count_alleles(row.allele_count);
+                                          count_alleles(row.allele_count);
     make_id(ref_nuc, position, alts, *out);
     out->push_back('\t');
     out->push_back(ref_nuc);
@@ -275,14 +275,14 @@ std::pair<uint8_t *, size_t> compress(std::string *in) {
 
 struct File_Writer {
     FILE *fh;
-    void operator()(std::pair<uint8_t *, size_t> in) const{
+    void operator()(std::pair<uint8_t *, size_t> in) const {
         fwrite((void *)in.first, 1, in.second, fh);
         free(in.first);
     }
 };
 typedef std::pair<std::vector<int>::const_iterator,
-                  std::vector<int>::const_iterator>
-    iter_range;
+        std::vector<int>::const_iterator>
+        iter_range;
 struct Output_Genotypes {
     const std::vector<Sample_Pos_Mut> &all_samples;
     std::pair<uint8_t *, size_t> operator()(const iter_range &range) const {
@@ -298,9 +298,9 @@ struct Output_Genotypes {
         while (samp_idx_start < nSamples) {
             auto samp_idx_end = std::min(64 + samp_idx_start, nSamples);
             for (auto pos_iter = range.first; pos_iter < range.second;
-                 pos_iter++) {
+                    pos_iter++) {
                 for (size_t samp_idx = samp_idx_start; samp_idx < samp_idx_end;
-                     samp_idx++) {
+                        samp_idx++) {
                     rows[pos_iter-range.first].add_allele(
                         iters[samp_idx].get_allele(*pos_iter));
                 }
@@ -333,7 +333,7 @@ struct Pos_Iter_Gen {
     }
 };
 
-void write_header(std::vector<Sample_Pos_Mut>& all_samples,FILE* fh){
+void write_header(std::vector<Sample_Pos_Mut>& all_samples,FILE* fh) {
     auto hdr_str=write_vcf_header(all_samples);
     auto compressed_hdr=compress(&hdr_str);
     fwrite(compressed_hdr.first,1,compressed_hdr.second,fh);
@@ -350,10 +350,10 @@ int main(int argc, char **argv) {
     std::string reference;
     std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
     desc.add_options()
-        ("vcf,v", po::value<std::string>(&output_vcf_path)->required(), "Output VCF file (in uncompressed or gzip-compressed .gz format) ")
-        ("threads,T", po::value<uint32_t>(&num_threads)->default_value(num_cores), num_threads_message.c_str())
-        ("reference,r", po::value<std::string>(&reference)->required(),"Reference file")
-        ("output_path,i", po::value<std::string>(&input_path)->required(), "Load transposed VCF");
+    ("vcf,v", po::value<std::string>(&output_vcf_path)->required(), "Output VCF file (in uncompressed or gzip-compressed .gz format) ")
+    ("threads,T", po::value<uint32_t>(&num_threads)->default_value(num_cores), num_threads_message.c_str())
+    ("reference,r", po::value<std::string>(&reference)->required(),"Reference file")
+    ("output_path,i", po::value<std::string>(&input_path)->required(), "Load transposed VCF");
     po::options_description all_options;
     all_options.add(desc);
     po::variables_map vm;
@@ -361,11 +361,10 @@ int main(int argc, char **argv) {
         std::cerr << desc << std::endl;
         return EXIT_FAILURE;
     }
-    try{
+    try {
         po::store(po::command_line_parser(argc, argv).options(all_options).run(), vm);
         po::notify(vm);
-    }
-    catch(std::exception &e){
+    } catch(std::exception &e) {
         // Return with error code 1 unless the user specifies help
         if(vm.count("help"))
             return 0;
@@ -405,11 +404,11 @@ int main(int argc, char **argv) {
     write_header(all_samples, vcf_out);
     tbb::parallel_pipeline(
         1000, tbb::make_filter<void, iter_range>(
-                tbb::filter::serial_in_order,
-                Pos_Iter_Gen{pos_mut_iter, pos_mut_end}) &
-                tbb::make_filter<iter_range, std::pair<uint8_t *, size_t>>(
-                    tbb::filter::parallel, Output_Genotypes{all_samples}) &
-                tbb::make_filter<std::pair<uint8_t *, size_t>, void>(
-                    tbb::filter::serial_in_order, File_Writer{vcf_out}));
+            tbb::filter::serial_in_order,
+            Pos_Iter_Gen{pos_mut_iter, pos_mut_end}) &
+        tbb::make_filter<iter_range, std::pair<uint8_t *, size_t>>(
+            tbb::filter::parallel, Output_Genotypes{all_samples}) &
+        tbb::make_filter<std::pair<uint8_t *, size_t>, void>(
+            tbb::filter::serial_in_order, File_Writer{vcf_out}));
     fclose(vcf_out);
 }

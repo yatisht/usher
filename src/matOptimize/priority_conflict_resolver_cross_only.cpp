@@ -15,7 +15,7 @@ bool Conflict_Resolver::register_single_move_no_conflict(
     struct Conflicting_Move_t {
         size_t bfs_idx;
         std::vector<std::vector<Profitable_Moves_ptr_t>::iterator>
-            conflicting_moves;
+        conflicting_moves;
         Conflicting_Move_t(
             MAT::Node *node,
             const std::vector<Profitable_Moves_ptr_t>::iterator &iter)
@@ -26,7 +26,7 @@ bool Conflict_Resolver::register_single_move_no_conflict(
         auto &temp = potential_crosses[node->bfs_index].moves;
 
         for (std::vector<Profitable_Moves_ptr_t>::iterator iter = temp.begin();
-             iter < temp.end(); iter++) {
+                iter < temp.end(); iter++) {
             auto &other_move = *iter;
             if (other_move->LCA == candidate_move->LCA) {
                 const auto &other_dst_to_LCA = other_move->dst_to_LCA;
@@ -34,7 +34,7 @@ bool Conflict_Resolver::register_single_move_no_conflict(
                               candidate_move->src) != other_dst_to_LCA.end()) {
                     best_score = std::min(best_score, other_move->score_change);
                     if (conflicting_moves.empty() ||
-                        conflicting_moves.back().bfs_idx != node->bfs_index) {
+                            conflicting_moves.back().bfs_idx != node->bfs_index) {
                         conflicting_moves.emplace_back(node, iter);
                     } else {
                         conflicting_moves.back().conflicting_moves.push_back(

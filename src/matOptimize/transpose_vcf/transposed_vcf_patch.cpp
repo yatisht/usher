@@ -18,7 +18,7 @@ struct Condesed_Muts {
     std::atomic<char> set;
     std::vector<MAT::Mutation> not_Ns;
     std::vector<MAT::Mutation> Ns;
-    Condesed_Muts():set(0){}
+    Condesed_Muts():set(0) {}
 };
 void check_consistent(Mutation_Set *old_muts, Mutation_Set &new_muts,
                       const std::string *sample) {
@@ -36,7 +36,7 @@ void check_consistent(Mutation_Set *old_muts, Mutation_Set &new_muts,
         auto iter = old_muts->find(mut);
         if (iter == old_muts->end()) {
             if (!(mut.boundary1_all_major_allele &
-                  MAT::Mutation::refs[mut.position])) {
+                    MAT::Mutation::refs[mut.position])) {
                 fprintf(stderr,
                         "Inconsistent allele at %d of %s, %c in protobuf, %c "
                         "in VCF\n",
@@ -46,9 +46,9 @@ void check_consistent(Mutation_Set *old_muts, Mutation_Set &new_muts,
             }
         } else {
             if (!(iter->boundary1_all_major_allele &
-                  mut.boundary1_all_major_allele)) {
+                    mut.boundary1_all_major_allele)) {
                 if (!(mut.boundary1_all_major_allele &
-                      MAT::Mutation::refs[mut.position])) {
+                        MAT::Mutation::refs[mut.position])) {
                     fprintf(stderr,
                             "Inconsistent allele at %d of %s, %c in protobuf, "
                             "%c in VCF\n",
@@ -74,7 +74,7 @@ struct Adder {
     void add_mut(MAT::Mutation &mutation,
                  std::vector<MAT::Mutation> &condensed_out) {
         if (mutation.position >= (int) MAT::Mutation::refs.size() ||
-            (!MAT::Mutation::refs[mutation.position])) {
+                (!MAT::Mutation::refs[mutation.position])) {
             return;
         }
         if (condensed_add) {
@@ -106,11 +106,11 @@ struct Adder {
         }
     }
 };
-struct copyable_atomic{
-	std::atomic<char> content;
-	copyable_atomic(const copyable_atomic& other):content(other.content.load()){}
-	copyable_atomic(int other):content(other){}
-	copyable_atomic(){}
+struct copyable_atomic {
+    std::atomic<char> content;
+    copyable_atomic(const copyable_atomic& other):content(other.content.load()) {}
+    copyable_atomic(int other):content(other) {}
+    copyable_atomic() {}
 };
 struct Sample_Adder {
     const Original_State_t &not_condensed;
@@ -118,24 +118,24 @@ struct Sample_Adder {
     std::unordered_map<std::string,copyable_atomic>& assigned;
     Adder set_name(std::string &&name) {
         auto not_condensed_iter = not_condensed.find(name);
-	char expected=0;
-	char to_swap=1;
+        char expected=0;
+        char to_swap=1;
         if (not_condensed_iter != not_condensed.end()) {
-		auto& add_flag=assigned[name].content;
-		if(!atomic_compare_exchange_strong(&add_flag,&expected,to_swap)){
-			return Adder();
-		}
-           return Adder{&(not_condensed_iter->second),&(not_condensed_iter->first)};
+            auto& add_flag=assigned[name].content;
+            if(!atomic_compare_exchange_strong(&add_flag,&expected,to_swap)) {
+                return Adder();
+            }
+            return Adder{&(not_condensed_iter->second),&(not_condensed_iter->first)};
         }
         auto condensed_iter = condensed.find(name);
         if (condensed_iter == condensed.end()) {
             //fprintf(stderr, "Sample %s not found in tree\n", name.c_str());
             return Adder();
         }
-	auto& flag=condensed_iter->second->set;
-	if(!atomic_compare_exchange_strong(&flag,&expected,to_swap)){
-	    return Adder();
-	}
+        auto& flag=condensed_iter->second->set;
+        if(!atomic_compare_exchange_strong(&flag,&expected,to_swap)) {
+            return Adder();
+        }
         return Adder(condensed_iter->second);
     }
 };
@@ -163,16 +163,24 @@ struct iter_heap {
             iter = muts.begin();
             end = muts.end();
         }
-        bool operator!() const { return iter == end; }
-        operator const MAT::Mutation &() const { return *iter; }
-        void operator++() { iter++; }
+        bool operator!() const {
+            return iter == end;
+        }
+        operator const MAT::Mutation &() const {
+            return *iter;
+        }
+        void operator++() {
+            iter++;
+        }
         bool operator==(const MAT::Mutation &mut) const {
             return iter->position == mut.position;
         }
         bool operator<(const Mut_Iter &other) const {
             return iter->position > other.iter->position;
         }
-        uint8_t get_allele() const { return iter->get_all_major_allele(); }
+        uint8_t get_allele() const {
+            return iter->get_all_major_allele();
+        }
     };
     std::vector<Mut_Iter> iters;
     size_t size;
@@ -209,11 +217,13 @@ struct iter_heap {
         }
         assert(count <= size);
         if (count == size && mut.boundary1_all_major_allele !=
-                                 MAT::Mutation::refs[mut.position]) {
+                MAT::Mutation::refs[mut.position]) {
             mut_set->insert(mut);
         }
     }
-    operator bool() const { return !iters.empty(); }
+    operator bool() const {
+        return !iters.empty();
+    }
 };
 void add_ambuiguous_mutations(const char *path, Original_State_t &to_patch,
                               Mutation_Annotated_Tree::Tree &tree) {
@@ -226,37 +236,37 @@ void add_ambuiguous_mutations(const char *path, Original_State_t &to_patch,
     }
     std::unordered_map<std::string,copyable_atomic> assigned;
     assigned.reserve(to_patch.size());
-    for(const auto& ttt:to_patch){
-	assigned.emplace(ttt.first,copyable_atomic{0});
+    for(const auto& ttt:to_patch) {
+        assigned.emplace(ttt.first,copyable_atomic{0});
     }
     Sample_Adder adder{to_patch, condensed_map,assigned};
     load_mutations(path, num_threads, adder);
     tbb::parallel_for(
         tbb::blocked_range<size_t>(0, condensed_children.size()),
-        [&condensed_children](const tbb::blocked_range<size_t> &range) {
-            for (size_t idx = range.begin(); idx < range.end(); idx++) {
-                std::vector<std::vector<MAT::Mutation>> to_merge;
-                for (auto &c : condensed_children[idx].children) {
-                    if (!c) {
-                        return;
-                    }
-                    if (c->not_Ns.empty() && c->Ns.empty()) {
-                        return;
-                    }
-                    std::vector<MAT::Mutation> this_merged;
-                    std::merge(c->not_Ns.begin(), c->not_Ns.end(),
-                               c->Ns.begin(), c->Ns.end(),
-                               std::back_inserter(this_merged));
-                    to_merge.push_back(std::move(this_merged));
+    [&condensed_children](const tbb::blocked_range<size_t> &range) {
+        for (size_t idx = range.begin(); idx < range.end(); idx++) {
+            std::vector<std::vector<MAT::Mutation>> to_merge;
+            for (auto &c : condensed_children[idx].children) {
+                if (!c) {
+                    return;
                 }
-                iter_heap heap(to_merge);
-                Mutation_Set mut_set_saging;
-                while (heap) {
-                    heap.get_one(&mut_set_saging);
+                if (c->not_Ns.empty() && c->Ns.empty()) {
+                    return;
                 }
-                check_consistent(condensed_children[idx].mut_set,
-                                 mut_set_saging,condensed_children[idx].sample);
-                condensed_children[idx].mut_set->swap(mut_set_saging);
+                std::vector<MAT::Mutation> this_merged;
+                std::merge(c->not_Ns.begin(), c->not_Ns.end(),
+                           c->Ns.begin(), c->Ns.end(),
+                           std::back_inserter(this_merged));
+                to_merge.push_back(std::move(this_merged));
             }
-        });
+            iter_heap heap(to_merge);
+            Mutation_Set mut_set_saging;
+            while (heap) {
+                heap.get_one(&mut_set_saging);
+            }
+            check_consistent(condensed_children[idx].mut_set,
+                             mut_set_saging,condensed_children[idx].sample);
+            condensed_children[idx].mut_set->swap(mut_set_saging);
+        }
+    });
 }

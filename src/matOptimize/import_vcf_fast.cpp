@@ -22,11 +22,11 @@
 typedef tbb::flow::source_node<char*> decompressor_node_t;
 typedef tbb::flow::multifunction_node<char*,tbb::flow::tuple<Parsed_VCF_Line*>> line_parser_t;
 
-struct Decompressor{
+struct Decompressor {
     gzFile* fd;
     size_t init_read_size;
     size_t cont_read_size;
-    bool operator()(char*& buf) const{
+    bool operator()(char*& buf) const {
         if (gzeof(*fd)) {
             return false;
         }
@@ -41,16 +41,16 @@ struct Decompressor{
             return false;
         }
         //Make sure the last line is complete in the block.
-        if(!gzgets(*fd, buf+read_size, cont_read_size)){
+        if(!gzgets(*fd, buf+read_size, cont_read_size)) {
             *(buf+read_size)=0;
         }
         return true;
     }
 };
 //Parse a block of lines, assuming there is a complete line in the line_in buffer
-struct line_parser{
+struct line_parser {
     const std::vector<long>& header;
-    void operator()(char* line_in, line_parser_t::output_ports_type& out)const{
+    void operator()(char* line_in, line_parser_t::output_ports_type& out)const {
         char* const start=line_in;
         Parsed_VCF_Line* parsed_line;
         while (*line_in!=0) {
@@ -77,7 +77,7 @@ struct line_parser{
             line_in++;
             //REF
             parsed_line=new Parsed_VCF_Line{MAT::Mutation(chromosome,pos, 0, 0, 1,
-                      MAT::get_nuc_id(*line_in))};
+                                            MAT::get_nuc_id(*line_in))};
             auto& non_ref_muts_out=parsed_line->mutated;
             line_in++;
             //assert(*line_in=='\t');
@@ -86,19 +86,19 @@ struct line_parser{
             while (*line_in!='\t') {
                 allele_translated.push_back(MAT::get_nuc_id(*line_in));
                 line_in++;
-                if(*line_in==','){
+                if(*line_in==',') {
                     line_in++;
-                }else{
+                } else {
                     //assert(*line_in=='\t');
                 }
             }
             line_in++;
             unsigned int field_idx=5;
             for (; field_idx < 9; field_idx++) {
-              while (*line_in != '\t') {
+                while (*line_in != '\t') {
+                    line_in++;
+                }
                 line_in++;
-              }
-              line_in++;
             }
             //samples
             bool is_last=false;
@@ -117,27 +117,27 @@ struct line_parser{
                     }
                     line_in++;
                 }
-                if(header[field_idx]>0){
-                //output prototype of mutation, and a map from sample to non-ref allele
-                if (allele_idx>=(allele_translated.size()+1)) {
-                    non_ref_muts_out.emplace_back(header[field_idx],0xf);
-                }else if (allele_idx) {
-                    non_ref_muts_out.emplace_back(header[field_idx],allele_translated[allele_idx-1]);
-                }
+                if(header[field_idx]>0) {
+                    //output prototype of mutation, and a map from sample to non-ref allele
+                    if (allele_idx>=(allele_translated.size()+1)) {
+                        non_ref_muts_out.emplace_back(header[field_idx],0xf);
+                    } else if (allele_idx) {
+                        non_ref_muts_out.emplace_back(header[field_idx],allele_translated[allele_idx-1]);
+                    }
                 }
                 field_idx++;
                 line_in++;
             }
             //assert(field_idx==header.size());
             std::sort(non_ref_muts_out.begin(),non_ref_muts_out.end(),mutated_t_comparator());
-             non_ref_muts_out.emplace_back(0,0);
+            non_ref_muts_out.emplace_back(0,0);
             std::get<0>(out).try_put(parsed_line);
         }
         delete[] (start);
     }
 };
 //tokenize header, get sample name
-static int read_header(gzFile* fd,std::vector<std::string>& out){
+static int read_header(gzFile* fd,std::vector<std::string>& out) {
     int header_len=0;
     char in=gzgetc(*fd);
     in=gzgetc(*fd);
@@ -170,24 +170,25 @@ static int read_header(gzFile* fd,std::vector<std::string>& out){
     return header_len;
 }
 std::atomic<size_t> assigned_count;
-struct Assign_State{
+struct Assign_State {
     const std::vector<backward_pass_range>& child_idx_range;
-    const std::vector<forward_pass_range>& parent_idx;std::vector<tbb::concurrent_vector<Mutation_Annotated_Tree::Mutation>> &output;
-    void operator()(const Parsed_VCF_Line* vcf_line)const{
+    const std::vector<forward_pass_range>& parent_idx;
+    std::vector<tbb::concurrent_vector<Mutation_Annotated_Tree::Mutation>> &output;
+    void operator()(const Parsed_VCF_Line* vcf_line)const {
         assert(vcf_line->mutation.get_position()>0);
         Fitch_Sankoff_Whole_Tree(child_idx_range,parent_idx,vcf_line->mutation,vcf_line->mutated,output);
         assigned_count.fetch_add(1,std::memory_order_relaxed);
         delete vcf_line;
     }
 };
-void print_progress(std::atomic<bool>* done,std::mutex* done_mutex){
+void print_progress(std::atomic<bool>* done,std::mutex* done_mutex) {
     while (true) {
         {
             std::unique_lock<std::mutex> lk(*done_mutex);
             if (timed_print_progress) {
                 progress_bar_cv.wait_for(lk,std::chrono::seconds(1));
 
-            }else {
+            } else {
                 progress_bar_cv.wait(lk);
             }
             if (done->load()) {
@@ -198,7 +199,7 @@ void print_progress(std::atomic<bool>* done,std::mutex* done_mutex){
     }
 }
 #define CHUNK_SIZ 10
-void VCF_input(const char * name,MAT::Tree& tree){
+void VCF_input(const char * name,MAT::Tree& tree) {
     assigned_count=0;
     std::vector<std::string> fields;
     //open file set increase buffer size
@@ -223,14 +224,14 @@ void VCF_input(const char * name,MAT::Tree& tree){
         if (iter==tree.all_nodes.end()) {
             fprintf(stderr, "sample %s cannot be found\n",fields[idx].c_str());
             exit(EXIT_FAILURE);
-        }else {
+        } else {
             auto res=inserted_samples.insert(fields[idx]);
             if (res.second) {
                 idx_map.push_back(iter->second->bfs_index);
-            }else {
+            } else {
                 idx_map.push_back(-1);
             }
-            
+
         }
     }
     line_parser_t parser(input_graph,tbb::flow::unlimited,line_parser{idx_map});
@@ -249,19 +250,19 @@ void VCF_input(const char * name,MAT::Tree& tree){
     progress_bar_cv.notify_all();
     //Filling mutation vector
     tbb::affinity_partitioner ap;
-        tbb::parallel_for(
+    tbb::parallel_for(
         tbb::blocked_range<size_t>(0, bfs_ordered_nodes.size()),
-        [&bfs_ordered_nodes, &output](tbb::blocked_range<size_t> r) {
-            for (size_t i = r.begin(); i < r.end(); i++) {
-                const auto &to_refill = output[i];
-                bfs_ordered_nodes[i]->refill(to_refill.begin(), to_refill.end(),
-                                             to_refill.size());
-            }
-        },
+    [&bfs_ordered_nodes, &output](tbb::blocked_range<size_t> r) {
+        for (size_t i = r.begin(); i < r.end(); i++) {
+            const auto &to_refill = output[i];
+            bfs_ordered_nodes[i]->refill(to_refill.begin(), to_refill.end(),
+                                         to_refill.size());
+        }
+    },
     ap);
     size_t total_mutation_size=0;
-    for(const auto node:bfs_ordered_nodes){
-	    total_mutation_size+=node->mutations.size();
+    for(const auto node:bfs_ordered_nodes) {
+        total_mutation_size+=node->mutations.size();
     }
     fprintf(stderr,"Total mutation size %zu \n", total_mutation_size);
     progress_meter.join();
