@@ -9,14 +9,14 @@
  * @param change_in Fitch set change of a children of node, only the effect of moving a single node is concerned in profitable move enumeration step,
   so for non-LCA nodes, it was assumed only one children changed
  * @param score_change
- * @return 
+ * @return
  */
 nuc_one_hot decrement_mutation_count(Mutation_Count_Change_Collection &out,
-                         const MAT::Mutation &parent_mut,const Mutation_Count_Change& change_in,
-                         int& score_change);
+                                     const MAT::Mutation &parent_mut,const Mutation_Count_Change& change_in,
+                                     int& score_change);
 nuc_one_hot increment_mutation_count(Mutation_Count_Change_Collection &out,
-                         const MAT::Mutation &parent_mut,
-                         const Mutation_Count_Change& change_in,int& score_change) ;
+                                     const MAT::Mutation &parent_mut,
+                                     const Mutation_Count_Change& change_in,int& score_change) ;
 
 nuc_one_hot decrement_increment_mutation_count(
     const MAT::Mutation &parent_mutation, const Mutation_Count_Change &change_in,
