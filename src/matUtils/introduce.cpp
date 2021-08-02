@@ -27,7 +27,7 @@ po::variables_map parse_introduce_command(po::parsed_options parsed) {
         "Set to assign each leaf a confidence value based on ancestor distance and confidence.")
         ("dump-assignments,D", po::value<std::string>()->default_value(""),
         "Indicate a directory to which two-column text files containing node assignment values should be dumped for downstream processing.")
-        ("latest-date,l", po::value<std::string>()->default_value(""),
+        ("latest-date,l", po::value<std::string>()->default_value("1500/1/1"),
         "Use to filter to clusters which have samples after the indicated date.")
         // ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
         ("help,h", "Print help messages");
@@ -438,7 +438,7 @@ std::pair<boost::gregorian::date,boost::gregorian::date> get_nearest_date(MAT::T
     return std::pair<boost::gregorian::date,boost::gregorian::date> (earliest,latest);
 }
 
-std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, std::vector<std::string>> sample_regions, bool add_info, std::string clade_output, float min_origin_confidence, std::string dump_assignments, bool eval_uncertainty, std::string latest_date = "1-1-1500", std::map<std::string, std::string> datemeta = {}) {
+std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, std::vector<std::string>> sample_regions, bool add_info, std::string clade_output, float min_origin_confidence, std::string dump_assignments, bool eval_uncertainty, std::string latest_date = "1700/1/1", std::map<std::string, std::string> datemeta = {}) {
     //for every region, independently assign IN/OUT states
     //and save these assignments into a map of maps
     //so we can check membership of introduction points in each of the other groups
@@ -682,7 +682,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
             growthv.emplace_back(gv);
             cgm[gv].emplace_back(cs.first);
         }
-        assert (growthv.size() == clusters.size());
+        //assert (growthv.size() == clusters.size());
         //sort by default goes from smallest to largest
         //I want to rank by largest to smallest, so this is reversed.
         //tiebreaker ordering has to do with the order of samples encountered.
