@@ -27,6 +27,8 @@ po::variables_map parse_introduce_command(po::parsed_options parsed) {
         "Set to assign each leaf a confidence value based on ancestor distance and confidence.")
         ("dump-assignments,D", po::value<std::string>()->default_value(""),
         "Indicate a directory to which two-column text files containing node assignment values should be dumped for downstream processing.")
+        ("latest-date,l", po::value<std::string>()->default_value(""),
+        "Use to filter to clusters which have samples after the indicated date.")
         // ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
         ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
@@ -436,12 +438,13 @@ std::pair<boost::gregorian::date,boost::gregorian::date> get_nearest_date(MAT::T
     return std::pair<boost::gregorian::date,boost::gregorian::date> (earliest,latest);
 }
 
-std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, std::vector<std::string>> sample_regions, bool add_info, std::string clade_output, float min_origin_confidence, std::string dump_assignments, bool eval_uncertainty, std::map<std::string, std::string> datemeta = {}) {
+std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, std::vector<std::string>> sample_regions, bool add_info, std::string clade_output, float min_origin_confidence, std::string dump_assignments, bool eval_uncertainty, std::string latest_date = "1-1-1500", std::map<std::string, std::string> datemeta = {}) {
     //for every region, independently assign IN/OUT states
     //and save these assignments into a map of maps
     //so we can check membership of introduction points in each of the other groups
     //this allows us to look for migrant flow between regions
     std::map<std::string, std::map<std::string, float>> region_assignments;
+    boost::gregorian::date recency_filter = boost::gregorian::from_string(latest_date);
     //TODO: This could be parallel for a significant speedup when dozens or hundreds of regions are being passed in
     //I also suspect I could use pointers for the assignment maps to make this more memory efficient
     for (auto ms: sample_regions) {
@@ -665,11 +668,17 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
             std::string ldatestr;
             MAT::Node* nn = T->get_node(cs.first);
             std::pair<boost::gregorian::date,boost::gregorian::date> ldates = get_nearest_date(T, nn, &sampleset, datemeta);
+            //don't record the dates or information for clusters where the latest sample of the cluster is still earlier than the minimum time parameter.
+            if (recency_filter > ldates.second) {
+                continue;
+            }
             ldatestr = boost::gregorian::to_simple_string(ldates.first) + "\t" + boost::gregorian::to_simple_string(ldates.second);
             date_tracker[cs.first] = ldatestr;
             float gv;
             boost::gregorian::days diff(ldates.second - ldates.first);
-            gv = static_cast<float>(cs.second.size()) / static_cast<float>((int)(diff.days()/7)+1);
+            //gv = static_cast<float>(cs.second.size()) / static_cast<float>((int)(diff.days()/7)+1);
+            //change growth to be natural log of samples divided by days instead of raw by weeks
+            gv = log(static_cast<float>(cs.second.size())) / static_cast<float>(diff.days()+1);
             growthv.emplace_back(gv);
             cgm[gv].emplace_back(cs.first);
         }
@@ -715,6 +724,9 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                     //in order, first seven columns are
                     //sample id, cluster id, cluster rank, cluster growth score, earliest date, latest date, cluster size
                     //then the rest are the by-sample information (path, distance of this specific sample, yadda yadda)
+                    if (date_tracker.find(cid) == date_tracker.end()) {
+                        continue;
+                    }
                     cout << ss.first << "\t" << cid << "\t" << rankr << "\t" << gv << "\t" << date_tracker[cid] << "\t" << clusters[cid].size() << "\t" << span << ss.second;
                     outstrs.push_back(cout.str());
                 }
@@ -749,6 +761,7 @@ void introduce_main(po::parsed_options parsed) {
     std::string samples_filename = vm["population-samples"].as<std::string>();
     std::string clade_regions = vm["clade-regions"].as<std::string>();
     std::string metafile = vm["date-metadata"].as<std::string>();
+    std::string latest_date = vm["latest-date"].as<std::string>();
     bool add_info = vm["additional-info"].as<bool>();
     std::string output_file = vm["output"].as<std::string>();
     std::string dump_assignments = vm["dump-assignments"].as<std::string>();
@@ -776,7 +789,7 @@ void introduce_main(po::parsed_options parsed) {
             exit(1);
         }
     }
-    auto outstrings = find_introductions(&T, region_map, add_info, clade_regions, moconf, dump_assignments, leafconf, datemeta);
+    auto outstrings = find_introductions(&T, region_map, add_info, clade_regions, moconf, dump_assignments, leafconf, latest_date, datemeta);
 
     std::ofstream of;
     of.open(output_file);
