@@ -177,6 +177,8 @@ std::vector<std::string> get_clade_representatives(MAT::Tree* T, size_t samples_
 std::vector<std::string> sample_intersect (std::vector<std::string> samples, std::vector<std::string> nsamples) {
     //helper function to get the intersection of two sample identifier vectors
     //used when chaining together other select functions
+    assert (samples.size() > 0);
+    assert (nsamples.size() > 0);
     std::vector<std::string> inter_samples;
     for (auto s: samples) {
         if (std::find(nsamples.begin(), nsamples.end(), s) != nsamples.end()) {
@@ -191,6 +193,7 @@ std::vector<std::string> get_nearby (MAT::Tree* T, std::string sample_id, int nu
     //the simple indexing method is not guaranteed to get the very closest neighbors when the query sample is out near the edge of a large clade
     //unfortunately. so we have to brute force it.
     MAT::Node* last_anc = T->get_node(sample_id);
+    assert (number_to_get > 0);
     if (last_anc == NULL) {
         fprintf(stderr, "ERROR: %s is not present in the tree!\n", sample_id.c_str() );
     }
