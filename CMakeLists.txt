@@ -51,11 +51,11 @@ file(GLOB RIPPLES_SRCS "src/ripples/*.cpp" "src/ripples/*.hpp")
 
 find_package(ZLIB)
 if(DEFINED Protobuf_PATH)
-    # add_executable(usher
-    #     src/mutation_annotated_tree.cpp
-    #     src/usher_mapper.cpp
-    #     src/usher.cpp
-    #     )
+    add_executable(usher
+        src/mutation_annotated_tree.cpp
+        src/usher_mapper.cpp
+        src/usher.cpp
+        )
 
     add_executable(matUtils
         src/mutation_annotated_tree.cpp
@@ -217,19 +217,19 @@ else()
         )
 endif()
 
-# if(SAVE_PROFILE)
-#     if(DEBUG)
-#         TARGET_COMPILE_OPTIONS(usher PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES -DSAVE_PROFILE=1 -DDEBUG=1)
-#     else(DEBUG)
-#         TARGET_COMPILE_OPTIONS(usher PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES -DSAVE_PROFILE=1)
-#     endif(DEBUG)
-# else(SAVE_PROFILE)
-#     if(DEBUG)
-#         TARGET_COMPILE_OPTIONS(usher PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES -DDEBUG=1)
-#     else(DEBUG)
-#         TARGET_COMPILE_OPTIONS(usher PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
-#     endif(DEBUG)
-# endif(SAVE_PROFILE)
+if(SAVE_PROFILE)
+    if(DEBUG)
+        TARGET_COMPILE_OPTIONS(usher PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES -DSAVE_PROFILE=1 -DDEBUG=1)
+    else(DEBUG)
+        TARGET_COMPILE_OPTIONS(usher PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES -DSAVE_PROFILE=1)
+    endif(DEBUG)
+else(SAVE_PROFILE)
+    if(DEBUG)
+        TARGET_COMPILE_OPTIONS(usher PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES -DDEBUG=1)
+    else(DEBUG)
+        TARGET_COMPILE_OPTIONS(usher PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
+    endif(DEBUG)
+endif(SAVE_PROFILE)
 
 #set_property(TARGET matOptimize PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 TARGET_LINK_LIBRARIES(compareVCF PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
@@ -243,7 +243,7 @@ target_include_directories(usher PUBLIC "${PROJECT_BINARY_DIR}")
 TARGET_COMPILE_OPTIONS(matUtils PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
 TARGET_LINK_LIBRARIES(matUtils PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
 
-# TARGET_COMPILE_OPTIONS(ripples PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
-# TARGET_LINK_LIBRARIES(ripples PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
+TARGET_COMPILE_OPTIONS(ripples PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
+TARGET_LINK_LIBRARIES(ripples PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
 
-install(TARGETS matUtils DESTINATION bin)
+install(TARGETS usher matUtils matOptimize ripples DESTINATION bin)
