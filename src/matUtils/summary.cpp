@@ -498,7 +498,7 @@ void summary_main(po::parsed_options parsed) {
             quit = true;
         }
         if (quit) {
-            exit(1;)
+            exit(1);
         }
         translate_main(&T, translate, gff, fasta);
         no_print = false;
