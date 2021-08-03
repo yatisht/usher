@@ -1,5 +1,6 @@
 #include "summary.hpp"
 #include "introduce.hpp" //for date parsing functions.
+#include "translate.hpp"
 #include <boost/date_time/gregorian/gregorian.hpp>
 
 po::variables_map parse_summary_command(po::parsed_options parsed) {
@@ -11,6 +12,10 @@ po::variables_map parse_summary_command(po::parsed_options parsed) {
     conv_desc.add_options()
     ("input-mat,i", po::value<std::string>()->required(),
      "Input mutation-annotated tree file [REQUIRED]. If only this argument is set, print the count of samples and nodes in the tree.")
+    ("input-gff,g", po::value<std::string>()->default_value(""),
+     "Input GFF annotation file. Required for --translate / -t")
+    ("input-fasta,f", po::value<std::string>()->default_value(""),
+     "Input FASTA reference sequence. Required for --translate / -t")
     ("output-directory,d", po::value<std::string>()->default_value("./"),
      "Write output files to the target directory. Default is current directory.")
     ("samples,s", po::value<std::string>()->default_value(""),
@@ -21,6 +26,8 @@ po::variables_map parse_summary_command(po::parsed_options parsed) {
      "Write a tsv of all samples and their associated clade values")
     ("mutations,m", po::value<std::string>()->default_value(""),
      "Write a tsv listing all mutations in the tree and their occurrence count.")
+    ("translate,t", po::value<std::string>()->default_value(""),
+     "Write a tsv listing the amino acid and nucleotide mutations at each node.")
     ("aberrant,a", po::value<std::string>()->default_value(""),
      "Write a tsv listing duplicate samples and internal nodes with no mutations and/or branch length 0.")
     ("haplotype,H", po::value<std::string>()->default_value(""),
@@ -437,6 +444,9 @@ void summary_main(po::parsed_options parsed) {
     std::string clades = dir_prefix + vm["clades"].as<std::string>();
     std::string sample_clades = dir_prefix + vm["sample-clades"].as<std::string>();
     std::string mutations = dir_prefix + vm["mutations"].as<std::string>();
+    std::string translate = dir_prefix + vm["translate"].as<std::string>();
+    std::string gff = dir_prefix + vm["input-gff"].as<std::string>();
+    std::string fasta = dir_prefix + vm["input-fasta"].as<std::string>();
     std::string aberrant = dir_prefix + vm["aberrant"].as<std::string>();
     std::string roho = dir_prefix + vm["calculate-roho"].as<std::string>();
     std::string hapfile = dir_prefix + vm["haplotype"].as<std::string>();
@@ -475,6 +485,22 @@ void summary_main(po::parsed_options parsed) {
     }
     if (mutations != dir_prefix) {
         write_mutation_table(&T, mutations);
+        no_print = false;
+    }
+    if (translate != dir_prefix) {
+        bool quit = false;
+        if (gff == dir_prefix) {
+            fprintf(stderr, "ERROR: You must specify a GFF file with -g\n");
+            quit = true;
+        }
+        if (fasta == dir_prefix) {
+            fprintf(stderr, "ERROR: You must specify a FASTA reference file with -f\n");
+            quit = true;
+        }
+        if (quit) {
+            exit(1);
+        }
+        translate_main(&T, translate, gff, fasta);
         no_print = false;
     }
     if (aberrant != dir_prefix) {
