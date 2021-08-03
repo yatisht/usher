@@ -1,8 +1,0 @@
-##fileformat=VCFv4.2				
-##reference=stdin:hCoV-19/Wuhan/Hu-1/2019|EPI_ISL_402125|2019-12-31				
-##source=faToVcf stdin rob-11-7-20.unfiltered.vcf				
-#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	B	D	A	E	C	F	G
-NC_045512v2	1440	G1440A	G	A	.	.	.	GT	1	1	1	1	1	1	1
-NC_045512v2	2891	G2891A	G	A	.	.	.	GT	0	0	1	1	1	1	1
-NC_045512v2	2892	G2892A	C	A	.	.	.	GT	0	0	0	0	1	1	1
-NC_045512v2	2892	G2892A	A	C	.	.	.	GT	0	0	0	0	0	0	1
