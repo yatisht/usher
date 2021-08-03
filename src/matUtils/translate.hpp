@@ -1,6 +1,5 @@
 #include "common.hpp"
 
-
 static std::unordered_map<std::string, char> translation_map= {
  	{"GCT", 'A'}, {"GCC", 'A'}, {"GCA", 'A'}, {"GCG", 'A'}, {"GCN", 'A'},
     {"TGT", 'C'}, {"TGC", 'C'}, {"TGY", 'C'},
@@ -48,7 +47,6 @@ struct Codon {
         // starting coordinate of the codon
         nucleotides[nuc_pos-start_position] = mutated_nuc;
         protein = translate_codon(nucleotides);
-        
     }
 
     Codon (std::string _orf_name, int _codon_number, int _start_position, char nt[3]) {
