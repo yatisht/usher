@@ -361,13 +361,14 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
                }
                for (int k = 0; k < mutation_list.mutation_size(); k++) {
                   auto mut = mutation_list.mutation(k);
+                  if (mut.position()<0) {
+                      continue;
+                  }
                   char mut_one_hot=1<<mut.mut_nuc(0);
                   char all_major_alleles=mut_one_hot;
-                  if (mut.position()>0) {
-                     for (int n = 1; n < mut.mut_nuc_size(); n++) {
+                    for (int n = 1; n < mut.mut_nuc_size(); n++) {
                         all_major_alleles|= (1<<mut.mut_nuc(n));
                      }
-                  }
                     Mutation m(mut.chromosome(),mut.position(),nuc_one_hot(mut_one_hot),two_bit_to_one_hot(mut.par_nuc()),all_major_alleles,two_bit_to_one_hot(mut.ref_nuc()));
                     node->add_mutation(m);
                }
