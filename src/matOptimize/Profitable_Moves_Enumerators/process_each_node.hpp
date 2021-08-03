@@ -1,7 +1,7 @@
 #include "Profitable_Moves_Enumerators.hpp"
-//Tag for merges that don't care about data unique to arg2 
+//Tag for merges that don't care about data unique to arg2
 struct ignore_T2 {};
-//Tag for merges that care about data unique to arg2 
+//Tag for merges that care about data unique to arg2
 struct use_T2 {};
 //Template for merge
 template <typename Functor> class merge_func {
@@ -17,20 +17,20 @@ template <typename Functor> class merge_func {
         }
     }
 
-    void process_arg1(const typename T1::value_type& ele,range<typename T2::value_type>& T2_iter, Functor &functor){
-                    //consume arg2 element smaller than arg1
-            while (T2_iter && T2_iter->get_position() < ele.get_position()) {
-                functor.T2_only(*T2_iter);
-                T2_iter++;
-            }
-            //equal
-            if (T2_iter && T2_iter->get_position() == ele.get_position()) {
-                functor.T1_T2_match(ele, *T2_iter);
-                T2_iter++;
-            } else {
-                //arg2>arg1
-                functor.T1_only(ele);
-            }
+    void process_arg1(const typename T1::value_type& ele,range<typename T2::value_type>& T2_iter, Functor &functor) {
+        //consume arg2 element smaller than arg1
+        while (T2_iter && T2_iter->get_position() < ele.get_position()) {
+            functor.T2_only(*T2_iter);
+            T2_iter++;
+        }
+        //equal
+        if (T2_iter && T2_iter->get_position() == ele.get_position()) {
+            functor.T1_T2_match(ele, *T2_iter);
+            T2_iter++;
+        } else {
+            //arg2>arg1
+            functor.T1_only(ele);
+        }
     }
   public:
     void operator()(const T1 &arg1, const T2 &arg2, Functor &functor) {
@@ -42,7 +42,7 @@ template <typename Functor> class merge_func {
     }
     void operator()(range<typename T1::value_type> arg1, const T2 &arg2, Functor &functor) {
         range<typename T2::value_type> T2_iter(arg2);
-        for (;arg1;arg1++) {
+        for (; arg1; arg1++) {
             process_arg1(*arg1, T2_iter, functor);
         }
         process_rest_of_t2(T2_iter, functor, typename Functor::T2_useful());
@@ -55,7 +55,7 @@ template <typename Functor> class merge_func {
  * @param[in] changed_child the children of node whose fitch set have changed
  * @param[in] this_node_mutation_count_change changes to fitch set of that child
  * @param[out] parent_node_mutation_count_change changes to Fitch set of this node
- * @param[out] parent_parsimony_score_change apply change in parsimony score due to 
+ * @param[out] parent_parsimony_score_change apply change in parsimony score due to
     change in number of mutations on edge between node and its direct children
  */
 void get_intermediate_nodes_mutations(
@@ -66,7 +66,7 @@ void get_intermediate_nodes_mutations(
 /**
  * @brief Calculate the fitch set difference between fitch set of
     the new node formed by splitting the branch between node and that of parent of node to insert src
-    (always assumed branch splitting in caculate parsimony score change) and parsimony score 
+    (always assumed branch splitting in caculate parsimony score change) and parsimony score
     increase due to mutations unique to src
  * @param[in] node dst node
  * @param[in] children_added_mutations mutations needed to maintain the state of src when move it as sibling of dst
@@ -88,8 +88,8 @@ void get_parent_altered_remove(
     const MAT::Node *src, int &parent_parsimony_score_change);
 
 static int get_new_major_allele_binary_node(nuc_one_hot left_child,
-                                     nuc_one_hot right_child,
-                                     nuc_one_hot &major_allele_out) {
+        nuc_one_hot right_child,
+        nuc_one_hot &major_allele_out) {
     major_allele_out = left_child & right_child;
     if (!major_allele_out) {
         major_allele_out = left_child | right_child;
@@ -99,15 +99,15 @@ static int get_new_major_allele_binary_node(nuc_one_hot left_child,
 }
 //Helper function for adding Fitch set change from original state of a loci and changed state of a loci
 static int register_change_from_new_state(Mutation_Count_Change_Collection &out,
-                                   int new_mut_count, const MAT::Mutation &pos,
-                                   nuc_one_hot new_state) {
+        int new_mut_count, const MAT::Mutation &pos,
+        nuc_one_hot new_state) {
     if (new_state != pos.get_all_major_allele()) {
         nuc_one_hot incremented_allele =
             new_state & (~pos.get_all_major_allele());
         nuc_one_hot decremented_allele =
             pos.get_all_major_allele() & (~new_state);
         out.emplace_back(pos,decremented_allele, incremented_allele,
-                              new_state);
+                         new_state);
     }
     int old_mutation_count =
         !(pos.get_left_child_state() & pos.get_right_child_state());
@@ -122,7 +122,7 @@ void get_child_removed_binary_node(
  * @brief Caculate the fitch set change of LCA, if dst is not LCA
  * @param LCA the LCA node
  * @param src_branch Direct child of LCA that is on the path from src to LCA
- * @param is_src_terminal whether the src_branch_node is src node itself, 
+ * @param is_src_terminal whether the src_branch_node is src node itself,
     if true, src_branch_node is removed fromm children of LCA
  * @param from_src_remove Fitch set changes of src_branch_node, or don't care if is_src_terminal is true
  * @param from_dst_add Fitch set changes of dst_branch_node, the child of LCA that is on path from dst to LCA

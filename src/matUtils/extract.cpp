@@ -7,85 +7,84 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
     po::variables_map vm;
     po::options_description conv_desc("extract options");
     conv_desc.add_options()
-        ("input-mat,i", po::value<std::string>()->required(),
-         "Input mutation-annotated tree file [REQUIRED]")
-        ("samples,s", po::value<std::string>()->default_value(""),
-        "Select samples by explicitly naming them. One per line")
-        ("metadata,M", po::value<std::string>()->default_value(""),
-        "Comma-delineated paths to metadata tsv/csvs containing categorical metadata values for a json output. Used with -j only")
-        ("clade,c", po::value<std::string>()->default_value(""),
-        "Select samples by membership in at least one of the indicated clade(s), comma delimited.")
-        ("mutation,m", po::value<std::string>()->default_value(""),
-        "Select samples by whether they contain any of the indicated mutation(s), comma delimited.")
-        ("match,H", po::value<std::string>()->default_value(""),
-        "Select samples by whether their identifier matches the indicated regex pattern.")
-        ("max-epps,e", po::value<size_t>()->default_value(0),
-        "Select samples by whether they have less than the maximum indicated number of equally parsimonious placements. Note: calculation adds significantly to runtime.")
-        ("max-parsimony,a", po::value<int>()->default_value(-1),
-        "Select samples by whether they have less than the maximum indicated parsimony score (terminal branch length)")
-        ("max-branch-length,b", po::value<int>()->default_value(-1),
-        "Remove samples which have branches of greater than the indicated length in their ancestry.")
-        ("nearest-k,k", po::value<std::string>()->default_value(""),
-        "Select a sample ID and the nearest k samples to it, formatted as sample:k. E.g. -k sample_1:50 gets sample 1 and the nearest 50 samples to it as a subtree.")
-        ("nearest-k-batch,K", po::value<std::string>()->default_value(""),
-        "Pass a text file of sample IDs and a number of the number of context samples, formatted as sample_file.txt:k.")
-        ("set-size,z", po::value<size_t>()->default_value(0),
-        "Automatically add or remove samples at random from the selected sample set until it is the indicated size.")
-        ("get-internal-descendents,I", po::value<std::string>()->default_value(""),
-        "Select the set of samples descended from the indicated internal node.")
-        ("get-representative,r", po::value<size_t>()->default_value(0),
-        "Automatically select the indicated number of representative samples per clade in the tree after other selection steps and prune all other samples (minimum 2).")
-        ("prune,p", po::bool_switch(),
-        "Remove the selected samples instead of keeping them in the output files.")
-        ("resolve-polytomies,R", po::bool_switch(),
-        "Resolve all polytomies by assigning branch length 0 relationships arbitrarily. Applied after selection; prevents recondensing of the MAT.")
-        ("output-directory,d", po::value<std::string>()->default_value("./"),
-        "Write output files to the target directory. Default is current directory.")
-        ("used-samples,u", po::value<std::string>()->default_value(""),
-        "Write a simple text file of selected sample ids.")
-        ("sample-paths,S", po::value<std::string>()->default_value(""),
-        "Write the path of mutations defining each sample in the subtree.")
-        ("clade-paths,C", po::value<std::string>()->default_value(""),
-        "Write the path of mutations defining each clade in the subtree to the target file.")
-        ("all-paths,A", po::value<std::string>()->default_value(""),
-        "Write mutations assigned to each node in the subtree in depth-first traversal order to the target file.")
-        ("write-vcf,v", po::value<std::string>()->default_value(""),
-         "Output VCF file representing selected subtree. Default is full tree")
-        ("no-genotypes,n", po::bool_switch(),
-        "Do not include sample genotype columns in VCF output. Used only with the write-vcf option")
-        ("collapse-tree,O", po::bool_switch(),
-        "Collapse the MAT before writing it to output. Used only with the write-mat option")
-        ("write-mat,o", po::value<std::string>()->default_value(""),
-        "Write the selected tree as a new protobuf to the target file.")
-        ("write-json,j", po::value<std::string>()->default_value(""),
-        "Write the tree as a JSON to the indicated file.")
-        ("write-tree,t", po::value<std::string>()->default_value(""),
-         "Use to write a newick tree to the indicated file.")
-        ("retain-branch-length,E", po::bool_switch(),
-        "Use to not recalculate branch lengths when saving newick output. Used only with -t")
-        ("minimum-subtrees-size,N", po::value<size_t>()->default_value(0),
-        "Use to generate a series of JSON or Newick format files representing subtrees of the indicated size which cover all queried samples. Uses and overrides -j and -t output arguments.")
-        ("usher-single-subtree-size,X", po::value<size_t>()->default_value(0),
-        "Use to produce an usher-style single sample subtree of the indicated size with all selected samples plus random samples to fill. Produces .nh and .txt files.")
-        ("usher-minimum-subtrees-size,x", po::value<size_t>()->default_value(0),
-        "Use to produce an usher-style minimum set of subtrees of the indicated size which include all of the selected samples. Produces .nh and .txt files.")
-        ("usher-clades-txt", po::bool_switch(),
-         "When producing usher-style subtree(s), also write an usher-style clades.txt file with clade annotations for selected samples, if the tree has clade annotations.")
-        ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
-        ("help,h", "Print help messages");
+    ("input-mat,i", po::value<std::string>()->required(),
+     "Input mutation-annotated tree file [REQUIRED]")
+    ("samples,s", po::value<std::string>()->default_value(""),
+     "Select samples by explicitly naming them. One per line")
+    ("metadata,M", po::value<std::string>()->default_value(""),
+     "Comma-delineated paths to metadata tsv/csvs containing categorical metadata values for a json output. Used with -j only")
+    ("clade,c", po::value<std::string>()->default_value(""),
+     "Select samples by membership in at least one of the indicated clade(s), comma delimited.")
+    ("mutation,m", po::value<std::string>()->default_value(""),
+     "Select samples by whether they contain any of the indicated mutation(s), comma delimited.")
+    ("match,H", po::value<std::string>()->default_value(""),
+     "Select samples by whether their identifier matches the indicated regex pattern.")
+    ("max-epps,e", po::value<size_t>()->default_value(0),
+     "Select samples by whether they have less than the maximum indicated number of equally parsimonious placements. Note: calculation adds significantly to runtime.")
+    ("max-parsimony,a", po::value<int>()->default_value(-1),
+     "Select samples by whether they have less than the maximum indicated parsimony score (terminal branch length)")
+    ("max-branch-length,b", po::value<int>()->default_value(-1),
+     "Remove samples which have branches of greater than the indicated length in their ancestry.")
+    ("nearest-k,k", po::value<std::string>()->default_value(""),
+     "Select a sample ID and the nearest k samples to it, formatted as sample:k. E.g. -k sample_1:50 gets sample 1 and the nearest 50 samples to it as a subtree.")
+    ("nearest-k-batch,K", po::value<std::string>()->default_value(""),
+     "Pass a text file of sample IDs and a number of the number of context samples, formatted as sample_file.txt:k.")
+    ("set-size,z", po::value<size_t>()->default_value(0),
+     "Automatically add or remove samples at random from the selected sample set until it is the indicated size.")
+    ("get-internal-descendents,I", po::value<std::string>()->default_value(""),
+     "Select the set of samples descended from the indicated internal node.")
+    ("get-representative,r", po::value<size_t>()->default_value(0),
+     "Automatically select the indicated number of representative samples per clade in the tree after other selection steps and prune all other samples (minimum 2).")
+    ("prune,p", po::bool_switch(),
+     "Remove the selected samples instead of keeping them in the output files.")
+    ("resolve-polytomies,R", po::bool_switch(),
+     "Resolve all polytomies by assigning branch length 0 relationships arbitrarily. Applied after selection; prevents recondensing of the MAT.")
+    ("output-directory,d", po::value<std::string>()->default_value("./"),
+     "Write output files to the target directory. Default is current directory.")
+    ("used-samples,u", po::value<std::string>()->default_value(""),
+     "Write a simple text file of selected sample ids.")
+    ("sample-paths,S", po::value<std::string>()->default_value(""),
+     "Write the path of mutations defining each sample in the subtree.")
+    ("clade-paths,C", po::value<std::string>()->default_value(""),
+     "Write the path of mutations defining each clade in the subtree to the target file.")
+    ("all-paths,A", po::value<std::string>()->default_value(""),
+     "Write mutations assigned to each node in the subtree in depth-first traversal order to the target file.")
+    ("write-vcf,v", po::value<std::string>()->default_value(""),
+     "Output VCF file representing selected subtree. Default is full tree")
+    ("no-genotypes,n", po::bool_switch(),
+     "Do not include sample genotype columns in VCF output. Used only with the write-vcf option")
+    ("collapse-tree,O", po::bool_switch(),
+     "Collapse the MAT before writing it to output. Used only with the write-mat option")
+    ("write-mat,o", po::value<std::string>()->default_value(""),
+     "Write the selected tree as a new protobuf to the target file.")
+    ("write-json,j", po::value<std::string>()->default_value(""),
+     "Write the tree as a JSON to the indicated file.")
+    ("write-tree,t", po::value<std::string>()->default_value(""),
+     "Use to write a newick tree to the indicated file.")
+    ("retain-branch-length,E", po::bool_switch(),
+     "Use to not recalculate branch lengths when saving newick output. Used only with -t")
+    ("minimum-subtrees-size,N", po::value<size_t>()->default_value(0),
+     "Use to generate a series of JSON or Newick format files representing subtrees of the indicated size which cover all queried samples. Uses and overrides -j and -t output arguments.")
+    ("usher-single-subtree-size,X", po::value<size_t>()->default_value(0),
+     "Use to produce an usher-style single sample subtree of the indicated size with all selected samples plus random samples to fill. Produces .nh and .txt files.")
+    ("usher-minimum-subtrees-size,x", po::value<size_t>()->default_value(0),
+     "Use to produce an usher-style minimum set of subtrees of the indicated size which include all of the selected samples. Produces .nh and .txt files.")
+    ("usher-clades-txt", po::bool_switch(),
+     "When producing usher-style subtree(s), also write an usher-style clades.txt file with clade annotations for selected samples, if the tree has clade annotations.")
+    ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
+    ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
     // (positional) command name, so we need to erase that.
     std::vector<std::string> opts = po::collect_unrecognized(parsed.options, po::include_positional);
     opts.erase(opts.begin());
 
     // Run the parser, with try/catch for help
-    try{
+    try {
         po::store(po::command_line_parser(opts)
                   .options(conv_desc)
                   .run(), vm);
         po::notify(vm);
-    }
-    catch(std::exception &e){
+    } catch(std::exception &e) {
         std::cerr << conv_desc << std::endl;
         // Return with error code 1 unless the user specifies help
         if (vm.count("help"))
@@ -146,8 +145,10 @@ void extract_main (po::parsed_options parsed) {
     //check that at least one of the output filenames (things which take dir_prefix)
     //are set before proceeding.
     std::vector<std::string> outs = {sample_path_filename, clade_path_filename, all_path_filename, tree_filename, vcf_filename, output_mat_filename, json_filename, used_sample_filename};
-    if (!std::any_of(outs.begin(), outs.end(), [=](std::string f){return f != dir_prefix;}) &&
-        usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
+    if (!std::any_of(outs.begin(), outs.end(), [=](std::string f) {
+    return f != dir_prefix;
+}) &&
+usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         if (nearest_k_batch_file == "") {
             fprintf(stderr, "ERROR: No output files requested!\n");
             exit(1);
@@ -201,7 +202,7 @@ void extract_main (po::parsed_options parsed) {
             exit(1);
         }
         auto nk_samples = get_nearby(&T, sample_id, nk);
-        assert ( nk_samples.size() > 0 ) ; 
+        assert ( nk_samples.size() > 0 ) ;
         if (samples.size() == 0) {
             samples = nk_samples;
         } else {
@@ -459,8 +460,8 @@ void extract_main (po::parsed_options parsed) {
     //add a valid samples vector argument to the clade representatives function and check membership before selection, maybe
     if (get_representative > 0) {
         if (get_representative < 2) {
-          fprintf(stderr, "ERROR: value of --get-representative must be at least 2.\n");
-          exit(1);
+            fprintf(stderr, "ERROR: value of --get-representative must be at least 2.\n");
+            exit(1);
         }
         //fprintf(stderr, "Filtering again to a clade representative tree...\n");
         auto rep_samples = get_clade_representatives(&subtree, get_representative);
@@ -554,7 +555,7 @@ void extract_main (po::parsed_options parsed) {
         //references the original tree for getting nearest background.
         get_minimum_subtrees(&T, samples, minimum_subtrees_size, dir_prefix, &catmeta, json_filename, tree_filename, retain_branch);
         fprintf(stderr, "Minimum subtree files written in %ld msec; exiting\n", timer.Stop());
-        exit(0); 
+        exit(0);
     }
     if (nearest_k_batch_file != "") {
         fprintf(stderr, "Batch sample context writing requested.\n");
@@ -575,9 +576,9 @@ void extract_main (po::parsed_options parsed) {
         static tbb::affinity_partitioner ap;
 
         tbb::parallel_for(tbb::blocked_range<size_t>(0, batch_samples.size() ),
-                      [&](const tbb::blocked_range<size_t> r) {
+        [&](const tbb::blocked_range<size_t> r) {
 
-           for (auto s = r.begin() ; s < r.end() ; ++s ) {
+            for (auto s = r.begin() ; s < r.end() ; ++s ) {
                 auto cs = get_nearby(&T, batch_samples[s], nk);
                 if ( cs.size() == 0 ) {
                     continue ;
@@ -618,7 +619,7 @@ void extract_main (po::parsed_options parsed) {
         fprintf(stderr, "Generating Newick file of final tree\n");
         FILE *tree_file = fopen(tree_filename.c_str(), "w");
         fprintf(tree_file, "%s\n",
-            MAT::get_newick_string(subtree, true, true, retain_branch).c_str());
+                MAT::get_newick_string(subtree, true, true, retain_branch).c_str());
         fclose(tree_file);
     }
     //and save a MAT if that was set

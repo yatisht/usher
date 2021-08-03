@@ -28,7 +28,7 @@ std::vector<nuc_one_hot> Mutation_Annotated_Tree::Mutation::refs;
 /* === Tree === */
 std::vector<Mutation_Annotated_Tree::Node*> Mutation_Annotated_Tree::Tree::breadth_first_expansion(std::string nid) {
     std::vector<Node*> traversal;
-    
+
     if (nid == "") {
         if (root == NULL) {
             return traversal;
@@ -54,9 +54,9 @@ std::vector<Mutation_Annotated_Tree::Node*> Mutation_Annotated_Tree::Tree::bread
 }
 
 static void depth_first_expansion_helper(Mutation_Annotated_Tree::Node* node, std::vector<Mutation_Annotated_Tree::Node*>& vec, size_t& index) {
-    #ifdef DETAIL_DEBUG_NO_LOOP
+#ifdef DETAIL_DEBUG_NO_LOOP
     assert(std::find(vec.begin(),vec.end(),node)==vec.end());
-    #endif
+#endif
     vec.push_back(node);
     //assert(vec.size()-1==index);
     node->dfs_index=index;
@@ -85,7 +85,7 @@ size_t Mutation_Annotated_Tree::Tree::get_parsimony_score() {
     size_t score = 0;
     auto dfs = depth_first_expansion();
     for (auto n: dfs) {
-        for (const auto& mut:n->mutations){
+        for (const auto& mut:n->mutations) {
             score+=mut.is_valid();
         }
     }
@@ -111,12 +111,12 @@ void Mutation_Annotated_Tree::Tree::uncondense_leaves() {
     condensed_nodes.clear();
 }
 
-void Node::delete_this(){
-    for(Node* n:children){
+void Node::delete_this() {
+    for(Node* n:children) {
         n->delete_this();
     }
     delete this;
 }
-void Mutation_Annotated_Tree::Tree::delete_nodes(){
+void Mutation_Annotated_Tree::Tree::delete_nodes() {
     root->delete_this();
 }
