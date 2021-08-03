@@ -25,7 +25,7 @@ void Mutations_Collection::merge_out(const Mutations_Collection &other,
             other_iter++;
         }
         while (other_iter != other.mutations.end() &&
-               other_iter->get_position() < this_mutation.get_position()) {
+                other_iter->get_position() < this_mutation.get_position()) {
             mutation_vector_check_order(other_iter->get_position());
             out.mutations.push_back(*other_iter);
             if (keep_self == INVERT_MERGE) {
@@ -34,11 +34,11 @@ void Mutations_Collection::merge_out(const Mutations_Collection &other,
                 out.mutations.back().set_par_one_hot(temp);
             }
             auto nuc=out.mutations.back().get_mut_one_hot();
-            out.mutations.back().set_children(0, nuc,nuc ,nuc );
+            out.mutations.back().set_children(0, nuc,nuc,nuc );
             other_iter++;
         }
         if (other_iter == other.mutations.end() ||
-            this_mutation.get_position() < other_iter->get_position()) {
+                this_mutation.get_position() < other_iter->get_position()) {
             mutation_vector_check_order(this_mutation.get_position());
             out.mutations.push_back(this_mutation);
         } else {
@@ -92,16 +92,16 @@ void Mutations_Collection::merge_out(const Mutations_Collection &other,
             out.mutations.back().set_par_one_hot(temp);
         }
         auto nuc=out.mutations.back().get_mut_one_hot();
-        out.mutations.back().set_children(0, nuc,nuc ,nuc );
+        out.mutations.back().set_children(0, nuc,nuc,nuc );
 
         other_iter++;
     }
 }
 
 void Mutations_Collection::set_difference(const Mutations_Collection &other,
-                                          Mutations_Collection &this_unique,
-                                          Mutations_Collection &other_unique,
-                                          Mutations_Collection &common) const {
+        Mutations_Collection &this_unique,
+        Mutations_Collection &other_unique,
+        Mutations_Collection &common) const {
     this_unique.mutations.reserve(mutations.size());
     other_unique.mutations.reserve(other.mutations.size());
     common.mutations.reserve(
@@ -113,13 +113,13 @@ void Mutations_Collection::set_difference(const Mutations_Collection &other,
     // merge sort again
     for (auto this_mutation : mutations) {
         while (other_iter != other.mutations.end() &&
-               other_iter->get_position() < this_mutation.get_position()) {
+                other_iter->get_position() < this_mutation.get_position()) {
             mutation_vector_check_order(other_iter->get_position());
             other_unique.mutations.push_back(*other_iter);
             other_iter++;
         }
         if (other_iter == other.mutations.end() ||
-            this_mutation.get_position() < other_iter->get_position()) {
+                this_mutation.get_position() < other_iter->get_position()) {
             mutation_vector_check_order(this_mutation.get_position());
             this_unique.mutations.push_back(this_mutation);
         } else {
@@ -165,16 +165,16 @@ Mutations_Collection::iterator Mutations_Collection::find_next(int pos) {
 }
 
 
-int Mutation_Annotated_Tree::Mutations_Collection::count_valid_mutations() const{
+int Mutation_Annotated_Tree::Mutations_Collection::count_valid_mutations() const {
     int count=0;
-    for(const auto & mut:mutations){
+    for(const auto & mut:mutations) {
         if (mut.is_valid()) {
             count++;
         }
     }
     return count;
 }
-void Mutation_Annotated_Tree::Mutations_Collection::remove_invalid(){
+void Mutation_Annotated_Tree::Mutations_Collection::remove_invalid() {
     std::vector<Mutation_Annotated_Tree::Mutation> out;
     out.reserve(mutations.size());
     for (const auto& mut : mutations) {
@@ -185,8 +185,8 @@ void Mutation_Annotated_Tree::Mutations_Collection::remove_invalid(){
     mutations.swap(out);
 }
 
-bool Mutation_Annotated_Tree::Mutations_Collection::no_valid_mutation()const{
-    for(auto& mut:mutations){
+bool Mutation_Annotated_Tree::Mutations_Collection::no_valid_mutation()const {
+    for(auto& mut:mutations) {
         if (mut.is_valid()) {
             return false;
         }

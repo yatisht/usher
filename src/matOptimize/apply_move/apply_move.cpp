@@ -10,7 +10,7 @@
 //Fix state of src node when its parent state changes to make it consistent with parent state
 //, and if a state change is needed, add to altered nodes list
 void clean_up_src_states(MAT::Node *src,
-                                std::vector<Altered_Node_t> &out) {
+                         std::vector<Altered_Node_t> &out) {
     MAT::Mutations_Collection &in = src->mutations;
     //bool have_change = false;
     State_Change_Collection changed_state({state_change(NEW_SRC_MARK)});
@@ -28,13 +28,13 @@ void clean_up_src_states(MAT::Node *src,
     }
     //Clean up irrelevent mutations whose major allele agree with parent allele and have no sensitive alleles (allele count one less than major allele count)
     in.mutations.erase(std::remove_if(in.mutations.begin(), in.mutations.end(),
-                                      [](const MAT::Mutation &mut) {
-                                          return (
-                                              mut.get_par_one_hot() ==
-                                                  mut.get_all_major_allele() &&
-                                              (!mut.get_boundary1_one_hot()));
-                                      }),
-                       in.mutations.end());
+    [](const MAT::Mutation &mut) {
+        return (
+                   mut.get_par_one_hot() ==
+                   mut.get_all_major_allele() &&
+                   (!mut.get_boundary1_one_hot()));
+    }),
+    in.mutations.end());
     if (changed_state.size()>1) {
         out.emplace_back(src);
         out.back().changed_states = std::move(changed_state);
@@ -59,8 +59,8 @@ void compare_mutations(MAT::Node *old_nodes, MAT::Node *new_nodes) {
 #endif
 void check_major_state(MAT::Node *node, const MAT::Tree &new_tree);
 //Called when debugging to locate a node
-const Altered_Node_t* find_altered_node(char* node_name, const std::vector<Altered_Node_t>& to_find){
-    for(const auto& temp:to_find){
+const Altered_Node_t* find_altered_node(char* node_name, const std::vector<Altered_Node_t>& to_find) {
+    for(const auto& temp:to_find) {
         if (temp.altered_node->identifier==node_name) {
             return &temp;
         }
@@ -92,7 +92,7 @@ void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t,
                  ,
                  const Original_State_t &original_state
 #endif
-) {
+                ) {
     std::vector<MAT::Node *> altered_node; //nodes whose children are altered, need to do FS backward pass from them
     std::vector<Altered_Node_t> forward_pass_altered_nodes; //Their state have changed, need to make their children follow parent
     std::unordered_set<size_t> deleted_node_ptrs;//pointers of deleted nodes, delay deletion until the end
@@ -109,7 +109,7 @@ void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t,
     for (const auto &move : all_moves) {
         //skip moves whose end points have been deleted
         if (deleted_node_ptrs.count((size_t)move->src) ||
-            deleted_node_ptrs.count((size_t)move->get_dst())||move->src->parent==move->get_dst()) {
+                deleted_node_ptrs.count((size_t)move->get_dst())||move->src->parent==move->get_dst()) {
             continue;
         }
 #ifdef CHECK_STATE_REASSIGN
@@ -135,14 +135,14 @@ void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t,
     std::vector<MAT::Node*> dfs=t.depth_first_expansion();
     //filter deleted nodes among nodes to do fitch sankoff
     auto end = std::remove_if(altered_node.begin(), altered_node.end(),
-                              [&deleted_node_ptrs](MAT::Node *node) {
-                                  return deleted_node_ptrs.count((size_t)node);
-                              });
-    altered_node.erase(end, altered_node.end());
-    nodes_to_clean.erase(std::remove_if(nodes_to_clean.begin(), nodes_to_clean.end(), 
     [&deleted_node_ptrs](MAT::Node *node) {
-                                  return deleted_node_ptrs.count((size_t)node);
-                              }),nodes_to_clean.end());
+        return deleted_node_ptrs.count((size_t)node);
+    });
+    altered_node.erase(end, altered_node.end());
+    nodes_to_clean.erase(std::remove_if(nodes_to_clean.begin(), nodes_to_clean.end(),
+    [&deleted_node_ptrs](MAT::Node *node) {
+        return deleted_node_ptrs.count((size_t)node);
+    }),nodes_to_clean.end());
 #ifdef CHECK_STATE_REASSIGN
 
     //MAT::Tree new_tree;
@@ -152,12 +152,12 @@ void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t,
 #endif
     //backward pass, patch major allele set
     if (!altered_node.empty()) {
-    reassign_backward_pass(altered_node, forward_pass_altered_nodes
+        reassign_backward_pass(altered_node, forward_pass_altered_nodes
 #ifdef CHECK_STATE_REASSIGN
-                           ,
-                           new_tree
+                               ,
+                               new_tree
 #endif
-    );
+                              );
     }
     for (const auto node : nodes_to_clean) {
         clean_up_src_states(node, forward_pass_altered_nodes);
@@ -169,7 +169,7 @@ void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t,
                      ,
                      new_tree
 #endif
-        );
+                    );
     }
 #ifdef CHECK_STATE_REASSIGN
     compare_mutation_tree(t, new_tree);
@@ -177,14 +177,14 @@ void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t,
     //filter out deleted nodes from nodes to search in the next round
     tbb::concurrent_vector<MAT::Node*> filtered;
     filtered.reserve(to_filter.size());
-    for(const auto node:to_filter){
+    for(const auto node:to_filter) {
         if (!deleted_node_ptrs.count((size_t)node)) {
             filtered.push_back(node);
         }
     }
     to_filter.swap(filtered);
     //delayed deletion of removed nodes (these are identified by there memory location, if freed to early, it can be reused)
-    for(auto node:deleted_node_ptrs){
+    for(auto node:deleted_node_ptrs) {
         t.all_nodes.erase(((MAT::Node*) node)->identifier);
         delete ((MAT::Node*) node);
     }

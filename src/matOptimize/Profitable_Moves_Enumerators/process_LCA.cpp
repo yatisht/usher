@@ -29,35 +29,35 @@ struct process_LCA_two_children_src_not_terminal {
         nuc_one_hot major_allele;
         // reconstitute both children
         int new_par_score = get_new_major_allele_binary_node(
-            is_src_left ? LCA_matching_mutation.get_left_child_state()
-                        : LCA_matching_mutation.get_right_child_state(),
-            dst_add_count.get_new_state(), major_allele);
+                                is_src_left ? LCA_matching_mutation.get_left_child_state()
+                                : LCA_matching_mutation.get_right_child_state(),
+                                dst_add_count.get_new_state(), major_allele);
         parsimony_score_change += register_change_from_new_state(
-            LCA_parent_mutation_count_change_out, new_par_score,
-            LCA_matching_mutation, major_allele);
+                                      LCA_parent_mutation_count_change_out, new_par_score,
+                                      LCA_matching_mutation, major_allele);
     }
     void LCA_src_dst_match(const MAT::Mutation &LCA_mutation,
                            const Mutation_Count_Change &src_count_change,
                            const Mutation_Count_Change &dst_count_change) {
         nuc_one_hot major_allele;
         int new_mut_count = get_new_major_allele_binary_node(
-            src_count_change.get_new_state(), dst_count_change.get_new_state(),
-            major_allele);
+                                src_count_change.get_new_state(), dst_count_change.get_new_state(),
+                                major_allele);
         parsimony_score_change += register_change_from_new_state(
-            LCA_parent_mutation_count_change_out, new_mut_count, LCA_mutation,
-            major_allele);
+                                      LCA_parent_mutation_count_change_out, new_mut_count, LCA_mutation,
+                                      major_allele);
     }
     void LCA_src_match(const MAT::Mutation &LCA_mutation,
                        const Mutation_Count_Change &src_count_change) {
         nuc_one_hot major_allele;
         int new_mut_count = get_new_major_allele_binary_node(
-            src_count_change.get_new_state(),
-            is_src_left ? LCA_mutation.get_right_child_state()
-                        : LCA_mutation.get_left_child_state(),
-            major_allele);
+                                src_count_change.get_new_state(),
+                                is_src_left ? LCA_mutation.get_right_child_state()
+                                : LCA_mutation.get_left_child_state(),
+                                major_allele);
         parsimony_score_change += register_change_from_new_state(
-            LCA_parent_mutation_count_change_out, new_mut_count, LCA_mutation,
-            major_allele);
+                                      LCA_parent_mutation_count_change_out, new_mut_count, LCA_mutation,
+                                      major_allele);
     }
 };
 // LCA originally only have 2 children, now only have dst_branch_node, so the
@@ -77,9 +77,9 @@ struct process_LCA_two_children_src_terminal {
           parsimony_score_change(parsimony_score_change) {}
     void LCA_no_match(const MAT::Mutation &LCA_mut) {
         nuc_one_hot major_allele = is_src_left ? LCA_mut.get_right_child_state()
-                                               : LCA_mut.get_left_child_state();
+                                   : LCA_mut.get_left_child_state();
         parsimony_score_change += register_change_from_new_state(
-            LCA_parent_mutation_count_change_out, 0, LCA_mut, major_allele);
+                                      LCA_parent_mutation_count_change_out, 0, LCA_mut, major_allele);
     }
     void LCA_dst_match(const MAT::Mutation &LCA_matching_mutation,
                        const Mutation_Count_Change &dst_add_count) {
@@ -87,8 +87,8 @@ struct process_LCA_two_children_src_terminal {
         nuc_one_hot major_allele;
         major_allele = dst_add_count.get_new_state();
         parsimony_score_change += register_change_from_new_state(
-            LCA_parent_mutation_count_change_out, 0, LCA_matching_mutation,
-            major_allele);
+                                      LCA_parent_mutation_count_change_out, 0, LCA_matching_mutation,
+                                      major_allele);
     }
     void LCA_src_dst_match(const MAT::Mutation &LCA_mutation,
                            const Mutation_Count_Change &src_count_change,
@@ -103,7 +103,7 @@ struct process_LCA_two_children_src_terminal {
                        const Mutation_Count_Change &src_count_change) {
         nuc_one_hot major_allele;
         major_allele = is_src_left ? LCA_mutation.get_right_child_state()
-                                   : LCA_mutation.get_left_child_state();
+                       : LCA_mutation.get_left_child_state();
         parsimony_score_change +=
             register_change_from_new_state(LCA_parent_mutation_count_change_out,
                                            0, LCA_mutation, major_allele);
@@ -138,8 +138,8 @@ struct process_LCA_more_than_two_src_terminal {
                                    LCA_matching_mutation.get_mut_one_hot(), 0,
                                    0, true);
         major_allele = dbl_inc_dec_mutations(
-            dst_add_count, temp, LCA_matching_mutation, parsimony_score_change,
-            LCA_parent_mutation_count_change_out);
+                           dst_add_count, temp, LCA_matching_mutation, parsimony_score_change,
+                           LCA_parent_mutation_count_change_out);
         parsimony_score_change--;
     }
     void LCA_src_dst_match(const MAT::Mutation &LCA_mutation,
@@ -179,8 +179,8 @@ struct process_LCA_more_than_two_src_not_terminal {
                        const Mutation_Count_Change &dst_add_count) {
         nuc_one_hot major_allele;
         major_allele = decrement_increment_mutation_count(
-            LCA_matching_mutation, dst_add_count,
-            LCA_parent_mutation_count_change_out, parsimony_score_change);
+                           LCA_matching_mutation, dst_add_count,
+                           LCA_parent_mutation_count_change_out, parsimony_score_change);
     }
     void LCA_src_dst_match(const MAT::Mutation &LCA_mutation,
                            const Mutation_Count_Change &src_count_change,
@@ -229,10 +229,10 @@ template <typename Functor> class process_LCA {
                  int end_pos, Functor &functor) {
 
         while (dst_add_count_iter &&
-               dst_add_count_iter->get_position() < end_pos) {
+                dst_add_count_iter->get_position() < end_pos) {
             LCA_no_match(dst_add_count_iter->get_position(), LCA_mut, functor);
             if (LCA_mut &&
-                LCA_mut->get_position() == dst_add_count_iter->get_position()) {
+                    LCA_mut->get_position() == dst_add_count_iter->get_position()) {
                 functor.LCA_dst_match(*LCA_mut, *dst_add_count_iter);
                 LCA_mut++;
             } else {
@@ -249,7 +249,7 @@ template <typename Functor> class process_LCA {
                   const Mutation_Count_Change &src_count_change,
                   const MAT::Mutation &LCA_mutation, Functor &functor) {
         if (dst_add_count_iter && dst_add_count_iter->get_position() ==
-                                      src_count_change.get_position()) {
+                src_count_change.get_position()) {
             functor.LCA_src_dst_match(LCA_mutation, src_count_change,
                                       *dst_add_count_iter);
             dst_add_count_iter++;
@@ -283,7 +283,7 @@ template <typename Functor> class process_LCA {
         // same for smaller LCA sensitive loci
         LCA_no_match(src_count_change.get_position(), LCA_mut, functor);
         if (LCA_mut &&
-            LCA_mut->get_position() == src_count_change.get_position()) {
+                LCA_mut->get_position() == src_count_change.get_position()) {
             LCA_src_match(dst_add_count_iter, src_count_change, *LCA_mut,
                           functor);
             LCA_mut++;
@@ -293,7 +293,7 @@ template <typename Functor> class process_LCA {
             // interact to change the major allele, as the allele change tend
             // toward cancelling
             if (dst_add_count_iter && dst_add_count_iter->get_position() ==
-                                          src_count_change.get_position()) {
+                    src_count_change.get_position()) {
                 functor.parsimony_score_change +=
                     dst_add_count_iter->get_default_change_internal();
                 dst_add_count_iter++;

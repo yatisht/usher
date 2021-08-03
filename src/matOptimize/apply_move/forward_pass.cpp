@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <vector>
-//Merge the changed state of a node toghether, persumably one coming from the forward pass of its ancestral nodes, 
+//Merge the changed state of a node toghether, persumably one coming from the forward pass of its ancestral nodes,
 //the other changed state list produced by backward pass at this node
 State_Change_Collection merge(const State_Change_Collection &in1,
                               const State_Change_Collection &in2) {
@@ -17,12 +17,12 @@ State_Change_Collection merge(const State_Change_Collection &in1,
         in1_iter++;
         assert(in2.begin()->position != NEW_MARK);
     } else {
-        if(in2.begin()->position != NEW_MARK){
+        if(in2.begin()->position != NEW_MARK) {
             if (in1_iter->position == NEW_SRC_MARK) {
                 in1_new = true;
                 in1_iter++;
                 assert(in2.begin()->position != NEW_SRC_MARK);
-            }else {
+            } else {
                 assert(in2.begin()->position==NEW_SRC_MARK);
             }
         }
@@ -34,7 +34,7 @@ State_Change_Collection merge(const State_Change_Collection &in1,
             continue;
         }
         while (in1_iter != in1_end &&
-               in1_iter->position < in2_change.position) {
+                in1_iter->position < in2_change.position) {
             out.push_back(*in1_iter);
             in1_iter++;
         }
@@ -44,7 +44,7 @@ State_Change_Collection merge(const State_Change_Collection &in1,
             if (in1_new) {
                 out.back().new_state = in1_iter->new_state;
             } else {
-            //The one produced by backward pass have accurate original parent state
+                //The one produced by backward pass have accurate original parent state
                 out.back().old_state = in1_iter->old_state;
             }
             if (out.back().new_state == out.back().old_state) {
@@ -75,7 +75,7 @@ class Forward_Pass_Heap {
         std::pop_heap(altered_nodes.begin(), altered_nodes.end(),
                       Forward_Pass_Comparator());
         while (altered_nodes.front().altered_node ==
-               altered_nodes.back().altered_node) {
+                altered_nodes.back().altered_node) {
             std::pop_heap(altered_nodes.begin(), altered_nodes.end() - 1,
                           Forward_Pass_Comparator());
             size_t last_idx = altered_nodes.size() - 1;
@@ -90,7 +90,7 @@ class Forward_Pass_Heap {
             if (altered_nodes.back().changed_states.empty()) {
                 altered_nodes.pop_back();
                 std::pop_heap(altered_nodes.begin(), altered_nodes.end(),
-                    Forward_Pass_Comparator());
+                              Forward_Pass_Comparator());
             }
             if (altered_nodes.size() <= 1) {
                 return;
@@ -106,9 +106,12 @@ class Forward_Pass_Heap {
         increment();
     }
 
-    Altered_Node_t &operator*() { return altered_nodes.back(); }
+    Altered_Node_t &operator*() {
+        return altered_nodes.back();
+    }
     void pop_back() {
-         altered_nodes.pop_back(); }
+        altered_nodes.pop_back();
+    }
 
     void push_back(Altered_Node_t &altered) {
         altered_nodes.push_back(altered);
@@ -126,8 +129,8 @@ class Forward_Pass_Heap {
 };
 
 /**
- * @brief insert chnge to original parent state, if its 
- parent node changed state, and this node have no mutation 
+ * @brief insert chnge to original parent state, if its
+ parent node changed state, and this node have no mutation
  at this loci from original state of parent node
  * @param node this_node
  * @param[out] new_mut new mutation vector to add mutation back to original parent state if necessary
@@ -139,18 +142,18 @@ void unmatched_parent_state_change(
     const state_change &change
 #ifdef CHECK_STATE_REASSIGN
     ,MAT::Mutations_Collection::const_iterator
-        &ref_iter,
+    &ref_iter,
     MAT::Mutations_Collection::const_iterator
-        &ref_end
+    &ref_end
 #endif
-        ) {
+) {
     MAT::Mutation mut(change.chr_idx, change.position, change.new_state,
                       change.old_state);
     //need to set boundary one allele specially for node with only one child
     if (node->children.size() <= 1) {
         mut.set_boundary_one_hot(0xf & (~mut.get_mut_one_hot()));
         if (mut.get_all_major_allele() !=
-            mut.get_par_one_hot()) {
+                mut.get_par_one_hot()) {
             new_mut.push_back(mut);
 #ifdef CHECK_STATE_REASSIGN
             assert(ref_iter != ref_end);
@@ -181,7 +184,7 @@ void set_state_from_parent(MAT::Node *node,
                            ,
                            MAT::Tree &new_tree
 #endif
-) {
+                          ) {
     node->changed=true;
     MAT::Mutations_Collection new_mut;
     auto iter = parent_altered.begin();
@@ -199,9 +202,9 @@ void set_state_from_parent(MAT::Node *node,
             //parental state change, but no old mutation at this loci
             unmatched_parent_state_change(node, new_mut, *iter
 #ifdef CHECK_STATE_REASSIGN
-            , ref_iter, ref_end
+                                          , ref_iter, ref_end
 #endif
-            );
+                                         );
             iter++;
         }
         if (iter != end && iter->position == node_mut.get_position()) {
@@ -217,8 +220,8 @@ void set_state_from_parent(MAT::Node *node,
             node_mut.set_par_mut(par_state, new_state);
             //add to mutation vector if necessary
             if (par_state != node_mut.get_all_major_allele() ||
-                (node_mut.get_boundary1_one_hot() &&
-                 node->children.size() > 1)) {
+                    (node_mut.get_boundary1_one_hot() &&
+                     node->children.size() > 1)) {
                 new_mut.push_back(node_mut);
 #ifdef CHECK_STATE_REASSIGN
                 assert(ref_iter != ref_end);
@@ -244,9 +247,9 @@ void set_state_from_parent(MAT::Node *node,
     while (iter != end) {
         unmatched_parent_state_change(node, new_mut, *iter
 #ifdef CHECK_STATE_REASSIGN
-        , ref_iter, ref_end
+                                      , ref_iter, ref_end
 #endif
-);
+                                     );
         iter++;
     }
 #ifdef CHECK_STATE_REASSIGN
@@ -260,7 +263,7 @@ void forward_pass(std::vector<Altered_Node_t> &in
                   ,
                   MAT::Tree &new_tree
 #endif
-) {
+                 ) {
 #ifdef CHECK_STATE_REASSIGN
     int last_dfs_idx=0;
 #endif
@@ -283,7 +286,7 @@ void forward_pass(std::vector<Altered_Node_t> &in
                                   ,
                                   new_tree
 #endif
-            );
+                                 );
             if (out.changed_states.size() > 1) {
                 //out have state change, so its children may have to have their state reset.
                 heap.push_back(out);

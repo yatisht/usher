@@ -1,10 +1,10 @@
 #include "optimize.hpp"
-#include <boost/program_options.hpp> 
+#include <boost/program_options.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
 #include "boost/filesystem.hpp"
-#include <time.h>  
-#include <set>  
+#include <time.h>
+#include <set>
 
 Timer timer;
 
@@ -14,46 +14,45 @@ po::variables_map check_options(int argc, char** argv) {
 
     po::options_description desc("optimize options");
     desc.add_options()
-        ("input-mat,i", po::value<std::string>()->required(),
-         "Input mutation-annotated tree file to optimize [REQUIRED].")
-        ("output-mat,o", po::value<std::string>()->required(),
-         "Output optimized mutation-annotated tree file [REQUIRED].") 
-        ("sample-names,f", po::value<std::string>()->default_value(""),
-         "File containing sample names whose ancestral nodes would be considered for optimization.") 
-        ("input-vcf,v", po::value<std::string>()->default_value(""),
-         "Input vcf filename to reassign resolved bases using Fitch-Sankoff initially.")
-        ("radius,r", po::value<uint32_t>()->default_value(10), \
-         "Radius in which to restrict the SPR moves.")
-        ("optimization-seconds,s", po::value<uint32_t>()->default_value(360000), \
-         "Approximate number of seconds to run a single iteration of the tree optimization stage. The iteration terminates as soon as the elapsed time exceeds this value.")
-        ("save-every-seconds,S", po::value<uint32_t>()->default_value(300), \
-         "Periodically save the optimized tree after every specified number of seconds have elapsed since the last save.") 
-        ("max-iterations,N", po::value<int>()->default_value(1000), \
-         "Maximum number of optimization iterations to perform.")
-        ("min-improvement,m", po::value<float>()->default_value(0.001), \
-         "Minimum improvement in the parsimony score as a fraction of the previous score in ordder to perform another iteration.")
-        ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
-        ("help,h", "Print help messages");
+    ("input-mat,i", po::value<std::string>()->required(),
+     "Input mutation-annotated tree file to optimize [REQUIRED].")
+    ("output-mat,o", po::value<std::string>()->required(),
+     "Output optimized mutation-annotated tree file [REQUIRED].")
+    ("sample-names,f", po::value<std::string>()->default_value(""),
+     "File containing sample names whose ancestral nodes would be considered for optimization.")
+    ("input-vcf,v", po::value<std::string>()->default_value(""),
+     "Input vcf filename to reassign resolved bases using Fitch-Sankoff initially.")
+    ("radius,r", po::value<uint32_t>()->default_value(10), \
+     "Radius in which to restrict the SPR moves.")
+    ("optimization-seconds,s", po::value<uint32_t>()->default_value(360000), \
+     "Approximate number of seconds to run a single iteration of the tree optimization stage. The iteration terminates as soon as the elapsed time exceeds this value.")
+    ("save-every-seconds,S", po::value<uint32_t>()->default_value(300), \
+     "Periodically save the optimized tree after every specified number of seconds have elapsed since the last save.")
+    ("max-iterations,N", po::value<int>()->default_value(1000), \
+     "Maximum number of optimization iterations to perform.")
+    ("min-improvement,m", po::value<float>()->default_value(0.001), \
+     "Minimum improvement in the parsimony score as a fraction of the previous score in ordder to perform another iteration.")
+    ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
+    ("help,h", "Print help messages");
 
     po::options_description all_options;
     all_options.add(desc);
     po::positional_options_description p;
     po::variables_map vm;
-    try{
+    try {
         po::store(po::command_line_parser(argc, argv)
-                .options(all_options)
-                .positional(p)
-                .run(), vm);
+                  .options(all_options)
+                  .positional(p)
+                  .run(), vm);
         po::notify(vm);
-    }
-    catch(std::exception &e){
+    } catch(std::exception &e) {
         std::cerr << desc << std::endl;
         // Return with error code 1 unless
         // the user specifies help
-            if (vm.count("help"))
-                exit(0);
-            else
-                exit(1);
+        if (vm.count("help"))
+            exit(0);
+        else
+            exit(1);
     }
     return vm;
 }
@@ -65,7 +64,7 @@ struct Pruned_Sample {
 
     // Assumes mutations are added in reverse chrono order
     void add_mutation (MAT::Mutation mut) {
-        // If not reversal to reference allele 
+        // If not reversal to reference allele
         if ((mut.ref_nuc != mut.mut_nuc) && (positions.find(mut.position) == positions.end())) {
             auto iter = std::lower_bound(sample_mutations.begin(), sample_mutations.end(), mut);
             mut.par_nuc = mut.ref_nuc;
@@ -86,7 +85,7 @@ inline std::string get_reversal_mutation(const std::string& mut_string) {
     std::vector<std::string> words;
     MAT::string_split(mut_string, words);
     assert(words.size() == 4);
-    return words[0] + "\t" + words[3] + "\t" + words[2] + "\t" + words[1]; 
+    return words[0] + "\t" + words[3] + "\t" + words[2] + "\t" + words[1];
 }
 
 size_t get_node_distance (const MAT::Tree& T, MAT::Node* source, MAT::Node* dest) {
@@ -97,18 +96,16 @@ size_t get_node_distance (const MAT::Tree& T, MAT::Node* source, MAT::Node* dest
     if (s_anc.size() <= d_anc.size()) {
         d_off = d_anc.size() - s_anc.size();
         num_iter = s_anc.size();
-    }
-    else {
+    } else {
         s_off = s_anc.size() - d_anc.size();
         num_iter = d_anc.size();
     }
-    
+
     auto distance = s_off+d_off;
     for (size_t i=0; i<num_iter; i++) {
         if (s_anc[s_off+i] == d_anc[d_off+i]) {
             break;
-        }
-        else {
+        } else {
             distance+=2;
         }
     }
@@ -142,23 +139,23 @@ int main(int argc, char** argv) {
     static tbb::affinity_partitioner ap;
 
     timer.Start();
-    fprintf(stderr, "Loading input MAT file %s.\n", input_mat_filename.c_str()); 
+    fprintf(stderr, "Loading input MAT file %s.\n", input_mat_filename.c_str());
 
     // Load input MAT and uncondense tree
     MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
-    
+
     std::unordered_map<std::string, bool> nid_has_changed;
     float last_improvement = 1.0;
 
     for (int iter=0; iter < max_iterations; iter++) {
         T.uncondense_leaves();
-    
+
         // If VCF specified, re-compute the assignments using Fitch-Sankoff
         if (input_vcf_filename != "") {
-            fprintf(stderr, "Computing parsimonious assignments for input variants.\n"); 
+            fprintf(stderr, "Computing parsimonious assignments for input variants.\n");
             timer.Start();
 
-            // Variables below used to store the different fields of the input VCF file 
+            // Variables below used to store the different fields of the input VCF file
             bool header_found = false;
             std::vector<std::string> variant_ids;
             std::vector<Missing_Sample> missing_samples;
@@ -189,89 +186,86 @@ int main(int argc, char** argv) {
                     instream.push(boost::iostreams::gzip_decompressor());
                 }
                 instream.push(infile);
-            }
-            catch(const boost::iostreams::gzip_error& e) {
+            } catch(const boost::iostreams::gzip_error& e) {
                 std::cout << e.what() << '\n';
             }
 
 
             // A TBB flow graph containing a single source_node (reader) connected
-            // to several mappers. The source_node sequentially reads in the different 
+            // to several mappers. The source_node sequentially reads in the different
             // lines of the input VCF file and constructs a mapper task for each
             // VCF line. Each mapper task takes a mapper_input as input, which stores
             // the alternate alleles, ambiguous bases and missing data (Ns) for
-            // different tree samples at the corresponding VCF line/position. The 
+            // different tree samples at the corresponding VCF line/position. The
             // mappers use Fitch-Sankoff algorithm to assign mutations at different
             // branches of the tree and update the mutation-annotated tree (T)
-            // accordingly. 
+            // accordingly.
             tbb::flow::graph mapper_graph;
 
             tbb::flow::function_node<mapper_input, int> mapper(mapper_graph, tbb::flow::unlimited, mapper_body());
             tbb::flow::source_node <mapper_input> reader (mapper_graph,
-                    [&] (mapper_input &inp) -> bool {
+            [&] (mapper_input &inp) -> bool {
 
-                    //check if reached end-of-file
-                    int curr_char = instream.peek();
-                    if(curr_char == EOF)
+                //check if reached end-of-file
+                int curr_char = instream.peek();
+                if(curr_char == EOF)
                     return false;
 
-                    std::string s;
-                    std::getline(instream, s);
-                    std::vector<std::string> words;
-                    MAT::string_split(s, words);
-                    inp.variant_pos = -1;
+                std::string s;
+                std::getline(instream, s);
+                std::vector<std::string> words;
+                MAT::string_split(s, words);
+                inp.variant_pos = -1;
 
-                    // Header is found when "POS" is the second word in the line
-                    if ((not header_found) && (words.size() > 1)) {
+                // Header is found when "POS" is the second word in the line
+                if ((not header_found) && (words.size() > 1)) {
                     if (words[1] == "POS") {
-                    // Sample names start from the 10th word in the header
-                    for (size_t j=9; j < words.size(); j++) {
-                    variant_ids.emplace_back(words[j]);
-                    // If sample name not in tree, add it to missing_samples
-                    if (bfs_idx.find(words[j]) == bfs_idx.end()) {
-                        missing_samples.emplace_back(Missing_Sample(words[j]));
-                    }
-                    }
-                    header_found = true;
-                    }
-                    }
-                    else if (header_found) {
-                        if (words.size() != 9+variant_ids.size()) {
-                            fprintf(stderr, "ERROR! Incorrect VCF format.\n");
-                            exit(1);
-                        }
-                        std::vector<std::string> alleles;
-                        alleles.clear();
-                        inp.variant_pos = std::stoi(words[1]); 
-                        MAT::string_split(words[4], ',', alleles);
-                        // T will be modified by the mapper with mutation
-                        // annotations
-                        inp.T = &T;
-                        inp.chrom = words[0];
-                        inp.bfs = &bfs;
-                        inp.bfs_idx = &bfs_idx;
-                        inp.variant_ids = &variant_ids;
-                        inp.missing_samples = &missing_samples;
-                        // Ref nuc id uses one-hot encoding (A:0b1, C:0b10, G:0b100,
-                        // T:0b1000)
-                        inp.ref_nuc = MAT::get_nuc_id(words[3][0]);
-                        assert((inp.ref_nuc & (inp.ref_nuc-1)) == 0); //check if it is power of 2
-                        inp.variants.clear();
+                        // Sample names start from the 10th word in the header
                         for (size_t j=9; j < words.size(); j++) {
-                            if (isdigit(words[j][0])) {
-                                int allele_id = std::stoi(words[j]);
-                                if (allele_id > 0) { 
-                                    std::string allele = alleles[allele_id-1];
-                                    inp.variants.emplace_back(std::make_tuple(j-9, MAT::get_nuc_id(allele[0])));
-                                }
-                            }
-                            else {
-                                inp.variants.emplace_back(std::make_tuple(j-9, MAT::get_nuc_id('N')));
+                            variant_ids.emplace_back(words[j]);
+                            // If sample name not in tree, add it to missing_samples
+                            if (bfs_idx.find(words[j]) == bfs_idx.end()) {
+                                missing_samples.emplace_back(Missing_Sample(words[j]));
                             }
                         }
+                        header_found = true;
                     }
-                    return true;
-                    }, true );
+                } else if (header_found) {
+                    if (words.size() != 9+variant_ids.size()) {
+                        fprintf(stderr, "ERROR! Incorrect VCF format.\n");
+                        exit(1);
+                    }
+                    std::vector<std::string> alleles;
+                    alleles.clear();
+                    inp.variant_pos = std::stoi(words[1]);
+                    MAT::string_split(words[4], ',', alleles);
+                    // T will be modified by the mapper with mutation
+                    // annotations
+                    inp.T = &T;
+                    inp.chrom = words[0];
+                    inp.bfs = &bfs;
+                    inp.bfs_idx = &bfs_idx;
+                    inp.variant_ids = &variant_ids;
+                    inp.missing_samples = &missing_samples;
+                    // Ref nuc id uses one-hot encoding (A:0b1, C:0b10, G:0b100,
+                    // T:0b1000)
+                    inp.ref_nuc = MAT::get_nuc_id(words[3][0]);
+                    assert((inp.ref_nuc & (inp.ref_nuc-1)) == 0); //check if it is power of 2
+                    inp.variants.clear();
+                    for (size_t j=9; j < words.size(); j++) {
+                        if (isdigit(words[j][0])) {
+                            int allele_id = std::stoi(words[j]);
+                            if (allele_id > 0) {
+                                std::string allele = alleles[allele_id-1];
+                                inp.variants.emplace_back(std::make_tuple(j-9, MAT::get_nuc_id(allele[0])));
+                            }
+                        } else {
+                            inp.variants.emplace_back(std::make_tuple(j-9, MAT::get_nuc_id('N')));
+                        }
+                    }
+                }
+                return true;
+            }, true );
             tbb::flow::make_edge(reader, mapper);
             mapper_graph.wait_for_all();
 
@@ -307,14 +301,14 @@ int main(int argc, char** argv) {
             }
 
             inline bool operator<(const Profitable_Node& n) {
-                  return (*this).nid < n.nid;
+                return (*this).nid < n.nid;
             }
-            
+
             inline bool operator==(const Profitable_Node& n) {
-                  return (*this).nid == n.nid;
+                return (*this).nid == n.nid;
             }
         };
-        
+
         std::vector<Profitable_Node> profitable_nodes;
 
         if (sample_name_filename != "") {
@@ -322,10 +316,10 @@ int main(int argc, char** argv) {
             if (!infile) {
                 fprintf(stderr, "ERROR: Could not open the sample name file: %s!\n", sample_name_filename.c_str());
                 exit(1);
-            }    
+            }
             std::string line;
 
-            fprintf(stderr, "Reading sample name file.\n"); 
+            fprintf(stderr, "Reading sample name file.\n");
             timer.Start();
             while (std::getline(infile, line)) {
                 std::vector<std::string> words;
@@ -338,10 +332,9 @@ int main(int argc, char** argv) {
                 if (n == NULL) {
                     fprintf(stderr, "WARNING: Node id %s not found in the tree!\n", words[0].c_str());
                     exit(1);
-                }
-                else {
+                } else {
                     for (auto anc: T.rsearch(words[0], true)) {
-                        if (anc->level >= 2) { 
+                        if (anc->level >= 2) {
                             profitable_nodes.emplace_back(Profitable_Node(anc->identifier, 0));
                         }
                     }
@@ -356,8 +349,7 @@ int main(int argc, char** argv) {
                 for (auto m: n->mutations) {
                     if (pos_to_nid.find(m.position) != pos_to_nid.end()) {
                         pos_to_nid[m.position].emplace_back(n->identifier);
-                    }
-                    else {
+                    } else {
                         pos_to_nid[m.position] = std::vector<std::string>();
                         pos_to_nid[m.position].emplace_back(n->identifier);
                     }
@@ -371,13 +363,13 @@ int main(int argc, char** argv) {
             }
             tbb::mutex tbb_lock;
             for (size_t it = 0; it < pos_to_nid.size(); it++) {
-                    auto cn = pos_to_nid.begin();
-                    std::advance(cn, it);
-                    size_t num_elem = cn->second.size();
-                    for (size_t i=0; i<num_elem; i++) {
+                auto cn = pos_to_nid.begin();
+                std::advance(cn, it);
+                size_t num_elem = cn->second.size();
+                for (size_t i=0; i<num_elem; i++) {
                     //__sync_fetch_and_add(&at, 1);
                     //tbb_lock.lock();
-                    fprintf(stderr, "\r%zu/%zu", ++at, total); 
+                    fprintf(stderr, "\r%zu/%zu", ++at, total);
                     //tbb_lock.unlock();
                     auto n = T.get_node(cn->second[i]);
                     if (n->level < 2) {
@@ -396,95 +388,97 @@ int main(int argc, char** argv) {
 
                     //bool has_inserted = false;
                     tbb::parallel_for(tbb::blocked_range<size_t>(0, num_elem),
-                        [&](tbb::blocked_range<size_t> r) {
+                    [&](tbb::blocked_range<size_t> r) {
                         for (size_t j = r.begin(); j < r.end(); j++) {
-                        auto n2 = T.get_node(cn->second[j]);
-                        if (n == n2) {
-                            continue;
+                            auto n2 = T.get_node(cn->second[j]);
+                            if (n == n2) {
+                                continue;
+                            }
+                            if ((nid_has_changed[n2->identifier] || nid_has_changed[n->identifier]) &&
+                                    //(!T.is_ancestor(n->identifier, n2->identifier)) &&
+                                    (get_node_distance(T, n, n2) <= radius)) {
+
+                                // Find mutations on the node to prune
+                                Pruned_Sample pruned_sample(n->identifier);
+
+                                auto node_to_root = T.rsearch(n->identifier, true);
+                                for (auto curr: node_to_root) {
+                                    for (auto m: curr->mutations) {
+                                        pruned_sample.add_mutation(m);
+                                    }
+                                }
+
+                                std::vector<MAT::Mutation> node_excess_mutations;
+                                std::vector<MAT::Mutation> imputed_mutations;
+
+                                size_t best_node_num_leaves = 0;
+                                int best_set_difference = 1e9;
+
+                                std::vector<bool> node_has_unique(1);
+                                size_t best_j = 0;
+                                bool best_node_has_unique = false;
+
+                                size_t best_distance = 1e9;
+
+                                std::vector<size_t> best_j_vec;
+
+                                size_t num_best = 1;
+                                MAT::Node* best_node = NULL;
+                                best_j_vec.emplace_back(0);
+
+                                size_t node_distance=0;
+
+                                mapper2_input inp;
+                                inp.T = &T;
+                                inp.node = n2;
+                                inp.missing_sample_mutations = &pruned_sample.sample_mutations;
+                                inp.excess_mutations = &node_excess_mutations;
+                                inp.imputed_mutations = &imputed_mutations;
+                                inp.best_node_num_leaves = &best_node_num_leaves;
+                                inp.best_set_difference = &best_set_difference;
+                                inp.best_node = &best_node;
+                                inp.best_j =  &best_j;
+                                inp.num_best = &num_best;
+                                inp.j = 0;
+                                inp.has_unique = &best_node_has_unique;
+
+                                inp.distance = node_distance;
+                                inp.best_distance = &best_distance;
+
+                                inp.best_j_vec = &best_j_vec;
+                                inp.node_has_unique = &(node_has_unique);
+
+                                mapper2_body(inp, false);
+
+                                int profit = n->mutations.size() - best_set_difference;
+                                if (profit > max_profit) {
+                                    tbb_lock.lock();
+                                    if (profit > max_profit) {
+                                        max_profit = profit;
+                                    }
+                                    tbb_lock.unlock();
+                                }
+
+                            }
                         }
-                        if ((nid_has_changed[n2->identifier] || nid_has_changed[n->identifier]) && 
-                               //(!T.is_ancestor(n->identifier, n2->identifier)) && 
-                               (get_node_distance(T, n, n2) <= radius)) {
-                            
-                           // Find mutations on the node to prune
-                           Pruned_Sample pruned_sample(n->identifier);
-
-                           auto node_to_root = T.rsearch(n->identifier, true); 
-                           for (auto curr: node_to_root) {
-                               for (auto m: curr->mutations) {
-                                   pruned_sample.add_mutation(m);
-                               }
-                           }
-
-                           std::vector<MAT::Mutation> node_excess_mutations;
-                           std::vector<MAT::Mutation> imputed_mutations;
-
-                           size_t best_node_num_leaves = 0;
-                           int best_set_difference = 1e9;
-
-                           std::vector<bool> node_has_unique(1);
-                           size_t best_j = 0;
-                           bool best_node_has_unique = false;
-
-                           size_t best_distance = 1e9;
-
-                           std::vector<size_t> best_j_vec;
-
-                           size_t num_best = 1;
-                           MAT::Node* best_node = NULL;
-                           best_j_vec.emplace_back(0);
-
-                           size_t node_distance=0;
-
-                           mapper2_input inp;
-                           inp.T = &T;
-                           inp.node = n2;
-                           inp.missing_sample_mutations = &pruned_sample.sample_mutations;
-                           inp.excess_mutations = &node_excess_mutations;
-                           inp.imputed_mutations = &imputed_mutations;
-                           inp.best_node_num_leaves = &best_node_num_leaves;
-                           inp.best_set_difference = &best_set_difference;
-                           inp.best_node = &best_node;
-                           inp.best_j =  &best_j;
-                           inp.num_best = &num_best;
-                           inp.j = 0;
-                           inp.has_unique = &best_node_has_unique;
-
-                           inp.distance = node_distance;
-                           inp.best_distance = &best_distance;
-
-                           inp.best_j_vec = &best_j_vec;
-                           inp.node_has_unique = &(node_has_unique);
-
-                           mapper2_body(inp, false);
-                           
-                           int profit = n->mutations.size() - best_set_difference;
-                           if (profit > max_profit) {
-                               tbb_lock.lock();
-                               if (profit > max_profit) {
-                                   max_profit = profit;
-                               }
-                               tbb_lock.unlock();
-                           }
-
-                        }
-                    }
                     }, ap);
-                    
+
                     if (max_profit > 0) {
                         //tbb_lock.lock();
                         profitable_nodes.emplace_back(Profitable_Node(n->identifier, max_profit));
                         //profitable_nodes.emplace_back(Profitable_Node(n2->identifier, max_profit));
                         //tbb_lock.unlock();
                     }
-                    }
+                }
             }
-            fprintf(stderr, "\n"); 
+            fprintf(stderr, "\n");
 
         }
 
-        tbb::parallel_sort(profitable_nodes.begin(), profitable_nodes.end(), 
-                [](const Profitable_Node& n1, const Profitable_Node& n2) {return n1.profit > n2.profit;}); 
+        tbb::parallel_sort(profitable_nodes.begin(), profitable_nodes.end(),
+        [](const Profitable_Node& n1, const Profitable_Node& n2) {
+            return n1.profit > n2.profit;
+        });
 
 
         std::vector<Profitable_Node> unique_profitable_nodes;
@@ -496,12 +490,12 @@ int main(int argc, char** argv) {
                 nodes_to_prune.insert(pn.nid);
             }
         }
-        
+
         fprintf(stderr, "%zu subtrees found to prune.\n", nodes_to_prune.size());
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 
         timer.Start();
-        fprintf(stderr, "Starting tree optimization.\n\n"); 
+        fprintf(stderr, "Starting tree optimization.\n\n");
 
         auto best_parsimony_score = T.get_parsimony_score();
 
@@ -521,7 +515,7 @@ int main(int argc, char** argv) {
             // Find mutations on the node to prune
             Pruned_Sample pruned_sample(nid_to_prune);
 
-            auto node_to_root = T.rsearch(nid_to_prune, true); 
+            auto node_to_root = T.rsearch(nid_to_prune, true);
             //std::reverse(root_to_node.begin(), root_to_node.end());
             for (auto curr: node_to_root) {
                 for (auto m: curr->mutations) {
@@ -530,7 +524,7 @@ int main(int argc, char** argv) {
             }
 
             // Now prune the node_to_prune from the tree
-            auto curr_parent = node_to_prune->parent; 
+            auto curr_parent = node_to_prune->parent;
             auto iter = std::find(curr_parent->children.begin(), curr_parent->children.end(), node_to_prune);
             assert (iter != curr_parent->children.end());
             curr_parent->children.erase(iter);
@@ -553,7 +547,7 @@ int main(int argc, char** argv) {
                 }
             }
 
-            // Move the remaining child one level up if it is the only child of its parent 
+            // Move the remaining child one level up if it is the only child of its parent
             if (curr_parent->children.size() == 1) {
                 auto child = curr_parent->children[0];
                 if (curr_parent->parent != NULL) {
@@ -562,8 +556,7 @@ int main(int argc, char** argv) {
                     for (auto n: T.breadth_first_expansion(child->identifier)) {
                         if (n == T.root) {
                             n->level = 1;
-                        }
-                        else {
+                        } else {
                             n->level = n->parent->level+1;
                         }
                     }
@@ -605,11 +598,11 @@ int main(int argc, char** argv) {
 
             static tbb::affinity_partitioner ap;
             tbb::parallel_for( tbb::blocked_range<size_t>(0, total_nodes),
-                    [&](tbb::blocked_range<size_t> r) {
-                    for (size_t k=r.begin(); k<r.end(); ++k){
+            [&](tbb::blocked_range<size_t> r) {
+                for (size_t k=r.begin(); k<r.end(); ++k) {
                     node_distance[k] = get_node_distance(T, source, bfs[k]);
                     if (node_distance[k] > radius) {
-                    continue;
+                        continue;
                     }
 
                     node_has_unique[k] = false;
@@ -635,10 +628,10 @@ int main(int argc, char** argv) {
                     inp.node_has_unique = &(node_has_unique);
 
                     mapper2_body(inp, false);
-                    }       
-                    }, ap); 
+                }
+            }, ap);
 
-            auto distance = node_distance[best_j]; 
+            auto distance = node_distance[best_j];
 
             // Clear current mutations of the node to prune
             node_to_prune->clear_mutations();
@@ -762,9 +755,8 @@ int main(int argc, char** argv) {
             if (new_parsimony_score == best_parsimony_score) {
                 fprintf(stderr, "Parsimony score of %zu unchanged after placement.\n", new_parsimony_score);
                 nid_has_changed[node_to_prune->identifier] = false;
-            }
-            else {
-                best_parsimony_score = new_parsimony_score; 
+            } else {
+                best_parsimony_score = new_parsimony_score;
                 fprintf(stderr, "Placement lowered parsimony score to %zu!\n", best_parsimony_score);
                 nid_has_changed[node_to_prune->identifier] = true;
                 nid_has_changed[source->identifier] = true;
@@ -778,13 +770,12 @@ int main(int argc, char** argv) {
             }
 
             if (elapsed_sec-last_update >= save_every) {
-                // Levels need to be adjusted after placement 
+                // Levels need to be adjusted after placement
                 bfs = T.depth_first_expansion();
                 for (auto n: bfs) {
                     if (n == T.root) {
                         n->level = 1;
-                    }
-                    else {
+                    } else {
                         n->level = n->parent->level+1;
                     }
                 }
@@ -799,13 +790,12 @@ int main(int argc, char** argv) {
             }
         }
 
-        // Levels need to be adjusted after placement 
+        // Levels need to be adjusted after placement
         bfs = T.breadth_first_expansion();
         for (auto n: bfs) {
             if (n == T.root) {
                 n->level = 1;
-            }
-            else {
+            } else {
                 n->level = n->parent->level+1;
             }
         }
@@ -815,7 +805,7 @@ int main(int argc, char** argv) {
         MAT::save_mutation_annotated_tree(T, output_mat_filename);
 
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
-        
+
         // Quit if parsimony score not improving by minimum threshold
         float new_parsimony = (float) T.get_parsimony_score();
         last_improvement = (curr_parsimony - new_parsimony)/curr_parsimony;

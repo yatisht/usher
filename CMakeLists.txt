@@ -85,12 +85,18 @@ if(DEFINED Protobuf_PATH)
         src/matOptimize/Mutation_Collection.cpp
         src/matOptimize/Fitch_Sankoff.cpp
         src/matOptimize/check_samples.cpp
+        src/matOptimize/transpose_vcf/transposed_vcf_patch.cpp
         #src/matOptimize/priority_conflict_resolver_cross_only.cpp
         src/matOptimize/priority_conflict_resolver.cpp
         ${patch_tree}
         ${New_Profitable_Moves_Enumerators}
         )
-	add_executable(transpose_vcf
+    add_executable(compareVCF
+        src/mutation_annotated_tree.cpp
+        src/compareVCF.cpp)
+
+
+        add_executable(transpose_vcf
         src/matOptimize/transpose_vcf/transpose_vcf_encode.cpp
         src/matOptimize/mutation_annotated_tree_nuc_util.cpp
         )
@@ -99,15 +105,22 @@ if(DEFINED Protobuf_PATH)
         src/matOptimize/mutation_annotated_tree_nuc_util.cpp
         )
 
-    add_executable(compareVCF
-        src/mutation_annotated_tree.cpp
-        src/compareVCF.cpp)
 
-    add_executable(rename_fasta
-        src/mutation_annotated_tree.cpp
-        src/matOptimize/rename_fasta.cpp)
+        protobuf_generate(
+        LANGUAGE cpp
+        TARGET ripples 
+        PROTOS parsimony.proto)
 
-    protobuf_generate(
+
+        protobuf_generate(
+        LANGUAGE cpp
+        TARGET compareVCF 
+        PROTOS parsimony.proto)
+
+
+
+
+        protobuf_generate(
         LANGUAGE cpp
         TARGET usher 
         PROTOS parsimony.proto)
@@ -168,13 +181,6 @@ else()
         ${PROTO_HDRS}
         )
 
-    add_executable(rename_fasta
-        src/mutation_annotated_tree.cpp
-        src/matOptimize/rename_fasta.cpp
-        ${PROTO_SRCS}
-        ${PROTO_HDRS}
-        )
-
     add_executable(matOptimize
         src/matOptimize/mutation_annotated_tree.cpp
         src/matOptimize/mutation_annotated_tree_node.cpp
@@ -231,9 +237,8 @@ TARGET_LINK_LIBRARIES(matOptimize PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPOR
 TARGET_LINK_LIBRARIES(transpose_vcf PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(transposed_vcf_to_vcf PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 
-# TARGET_LINK_LIBRARIES(rename_fasta PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
-# TARGET_LINK_LIBRARIES(usher PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
-# target_include_directories(usher PUBLIC "${PROJECT_BINARY_DIR}")
+TARGET_LINK_LIBRARIES(usher PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
+target_include_directories(usher PUBLIC "${PROJECT_BINARY_DIR}")
 
 TARGET_COMPILE_OPTIONS(matUtils PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
 TARGET_LINK_LIBRARIES(matUtils PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)

@@ -13,13 +13,13 @@
 #include <unordered_set>
 #include "../mutation_annotated_tree.hpp"
 
-int main(int argc, char** argv){
+int main(int argc, char** argv) {
     Parsimony::data data;
     struct stat stat_buf;
     stat(argv[1],&stat_buf);
     size_t file_size=stat_buf.st_size;
     auto fd=open(argv[1], O_RDONLY);
-    uint8_t* maped_file=(uint8_t*)mmap(nullptr, file_size, PROT_READ, MAP_SHARED,fd , 0);
+    uint8_t* maped_file=(uint8_t*)mmap(nullptr, file_size, PROT_READ, MAP_SHARED,fd, 0);
     close(fd);
     google::protobuf::io::CodedInputStream input(maped_file,file_size);
     input.SetTotalBytesLimit(file_size*4, file_size*4);
@@ -32,8 +32,8 @@ int main(int argc, char** argv){
     struct condensed_remap_t {
         std::string mapped_name;
         bool is_set;
-        condensed_remap_t(const std::string& name):mapped_name(name),is_set(false){}
-        condensed_remap_t():is_set(false){}
+        condensed_remap_t(const std::string& name):mapped_name(name),is_set(false) {}
+        condensed_remap_t():is_set(false) {}
     } ;
     std::unordered_map<std::string, std::string> condensed_map;
     std::unordered_set<std::string> written_condensed;
@@ -45,7 +45,7 @@ int main(int argc, char** argv){
             if (cn.node_name()=="node_1938_condensed_3_leaves") {
                 puts(cn.condensed_leaves(k).c_str());
             }
-           condensed_map.emplace(cn.condensed_leaves(k),cn.node_name());
+            condensed_map.emplace(cn.condensed_leaves(k),cn.node_name());
         }
     }
     FILE* fasta_in=fopen(argv[3], "r");
@@ -75,11 +75,11 @@ int main(int argc, char** argv){
                 fputc('>', fasta_out);
                 fputs(seqname, fasta_out);
                 write=true;
-            }else {
+            } else {
                 if (written_condensed.count(iter->second)) {
                     puts("skiped\n");
                     write=false;
-                }else {
+                } else {
                     written_condensed.emplace(iter->second);
                     fputc('>', fasta_out);
                     fputs(iter->second.c_str(), fasta_out);

@@ -22,7 +22,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <unordered_set>
-#include <boost/program_options.hpp> 
+#include <boost/program_options.hpp>
 #include <vector>
 #include <iostream>
 
@@ -37,14 +37,14 @@ bool interrupted;
 std::condition_variable progress_bar_cv;
 bool timed_print_progress;
 tbb::task_group_context search_context;
-void interrupt_handler(int){
+void interrupt_handler(int) {
     fputs("interrupted\n", stderr);
     search_context.cancel_group_execution();
     interrupted=true;
     fflush(movalbe_src_log);
 }
 
-void log_flush_handle(int){
+void log_flush_handle(int) {
     fflush(movalbe_src_log);
     progress_bar_cv.notify_all();
 }
@@ -52,17 +52,17 @@ void log_flush_handle(int){
 namespace po = boost::program_options;
 namespace MAT = Mutation_Annotated_Tree;
 MAT::Node* get_LCA(MAT::Node* src,MAT::Node* dst);
-static void make_output_path(std::string& path_template){
+static void make_output_path(std::string& path_template) {
     auto fd=mkstemps(const_cast<char*>(path_template.c_str()),3);
     close(fd);
 }
 
-void print_file_info(std::string info_msg,std::string error_msg,const std::string& filename){
+void print_file_info(std::string info_msg,std::string error_msg,const std::string& filename) {
     struct stat stat_buf;
     errno=0;
-    if(stat(filename.c_str(), &stat_buf)==0){
+    if(stat(filename.c_str(), &stat_buf)==0) {
         fprintf(stderr,"%s %s last modified: %s",info_msg.c_str(),filename.c_str(),ctime(&stat_buf.st_mtime));
-    }else {
+    } else {
         perror(("Error accessing "+error_msg+" "+filename+" :").c_str());
         exit(EXIT_FAILURE);
     }
@@ -83,27 +83,27 @@ int main(int argc, char **argv) {
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
     std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
     desc.add_options()
-        ("vcf,v", po::value<std::string>(&input_vcf_path)->default_value(""), "Input VCF file (in uncompressed or gzip-compressed .gz format) ")
-        ("tree,t", po::value<std::string>(&input_nh_path)->default_value(""), "Input tree file")
-        ("threads,T", po::value<uint32_t>(&num_threads)->default_value(num_cores), num_threads_message.c_str())
-        ("load-mutation-annotated-tree,i", po::value<std::string>(&input_pb_path)->default_value(""), "Load mutation-annotated tree object")
-        ("save-mutation-annotated-tree,o", po::value<std::string>(&output_path)->required(), "Save output mutation-annotated tree object to the specified filename [REQUIRED]")
-        ("save-intermediate-mutation-annotated-tree,m", po::value<std::string>(&intermediate_pb_base_name)->default_value(""), "Save intermediate mutation-annotated tree object to the specified filename")
-        ("radius,r", po::value<int32_t>(&radius)->default_value(10),
-         "Radius in which to restrict the SPR moves.")
-        ("profitable-src-log,S", po::value<std::string>(&profitable_src_log)->default_value("/dev/null"),
-         "The file to log from which node a profitable move can be found.")
-        ("ambi-protobuf,a", po::value<std::string>(&input_complete_pb_path)->default_value(""),
-         "Continue from intermediate protobuf")
-        ("max-queued-moves,q",po::value<size_t>(&max_queued_moves)->default_value(1000),"Maximium number of profitable moves found before applying these moves")
-        ("minutes-between-save,s",po::value<unsigned int>(&minutes_between_save)->default_value(10),"Maximium number of profitable moves found before applying these moves")
-        ("do-not-write-intermediate-files,n","Do not write intermediate files.")
-        ("exhaustive-mode,e","Search every non-root node as source node.")
-        ("max-hours,M",po::value(&max_optimize_hours)->default_value(0),"Maximium number of hours to run")
-        ("transposed-vcf-path,V",po::value(&transposed_vcf_path)->default_value(""),"Auxiliary transposed VCF for ambiguous bases, used in combination with usher protobuf (-i)")
-        ("version", "Print version number")
-        ("help,h", "Print help messages");
-        
+    ("vcf,v", po::value<std::string>(&input_vcf_path)->default_value(""), "Input VCF file (in uncompressed or gzip-compressed .gz format) ")
+    ("tree,t", po::value<std::string>(&input_nh_path)->default_value(""), "Input tree file")
+    ("threads,T", po::value<uint32_t>(&num_threads)->default_value(num_cores), num_threads_message.c_str())
+    ("load-mutation-annotated-tree,i", po::value<std::string>(&input_pb_path)->default_value(""), "Load mutation-annotated tree object")
+    ("save-mutation-annotated-tree,o", po::value<std::string>(&output_path)->required(), "Save output mutation-annotated tree object to the specified filename [REQUIRED]")
+    ("save-intermediate-mutation-annotated-tree,m", po::value<std::string>(&intermediate_pb_base_name)->default_value(""), "Save intermediate mutation-annotated tree object to the specified filename")
+    ("radius,r", po::value<int32_t>(&radius)->default_value(10),
+     "Radius in which to restrict the SPR moves.")
+    ("profitable-src-log,S", po::value<std::string>(&profitable_src_log)->default_value("/dev/null"),
+     "The file to log from which node a profitable move can be found.")
+    ("ambi-protobuf,a", po::value<std::string>(&input_complete_pb_path)->default_value(""),
+     "Continue from intermediate protobuf")
+    ("max-queued-moves,q",po::value<size_t>(&max_queued_moves)->default_value(1000),"Maximium number of profitable moves found before applying these moves")
+    ("minutes-between-save,s",po::value<unsigned int>(&minutes_between_save)->default_value(10),"Maximium number of profitable moves found before applying these moves")
+    ("do-not-write-intermediate-files,n","Do not write intermediate files.")
+    ("exhaustive-mode,e","Search every non-root node as source node.")
+    ("max-hours,M",po::value(&max_optimize_hours)->default_value(0),"Maximium number of hours to run")
+    ("transposed-vcf-path,V",po::value(&transposed_vcf_path)->default_value(""),"Auxiliary transposed VCF for ambiguous bases, used in combination with usher protobuf (-i)")
+    ("version", "Print version number")
+    ("help,h", "Print help messages");
+
     po::options_description all_options;
     all_options.add(desc);
     interrupted=false;
@@ -114,15 +114,13 @@ int main(int argc, char **argv) {
         std::cerr << desc << std::endl;
         return EXIT_FAILURE;
     }
-    try{
+    try {
         po::store(po::command_line_parser(argc, argv).options(all_options).run(), vm);
         po::notify(vm);
-    }
-    catch(std::exception &e){
+    } catch(std::exception &e) {
         if (vm.count("version")) {
             std::cout << "matOptimize (v" << PROJECT_VERSION << ")" << std::endl;
-        }
-        else {
+        } else {
             std::cerr << "matOptimize (v" << PROJECT_VERSION << ")" << std::endl;
             std::cerr << desc << std::endl;
         }
@@ -136,13 +134,13 @@ int main(int argc, char **argv) {
     //std::string cwd=get_current_dir_name();
     no_write_intermediate=vm.count("do-not-write-intermediate-files");
     bool search_all_nodes=vm.count("exhaustive-mode");
-        try{
+    try {
         auto output_path_dir_name=boost::filesystem::system_complete(output_path).parent_path();
-        if(!boost::filesystem::exists(output_path_dir_name)){
+        if(!boost::filesystem::exists(output_path_dir_name)) {
             boost::filesystem::create_directories(output_path_dir_name);
         }
         errno=0;
-    } catch(const boost::filesystem::filesystem_error& ex){
+    } catch(const boost::filesystem::filesystem_error& ex) {
         std::cerr<<"Cannot create parent directory of output path\n";
         std::cerr<<ex.what()<<std::endl;
         exit(EXIT_FAILURE);
@@ -151,7 +149,7 @@ int main(int argc, char **argv) {
     if (fd==-1) {
         perror(("Cannot create output file"+output_path).c_str());
         exit(EXIT_FAILURE);
-    }else {
+    } else {
         close(fd);
     }
 
@@ -166,29 +164,29 @@ int main(int argc, char **argv) {
     fputs("Summary:\n",stderr);
     if (input_complete_pb_path!="") {
         print_file_info("Continue from", "continuation protobut,-a", input_complete_pb_path);
-    }else if (input_pb_path!="") {
+    } else if (input_pb_path!="") {
         if (input_vcf_path=="") {
             print_file_info("Load both starting tree and sample variant from", "input protobut,-i", input_pb_path);
-        }else {
+        } else {
             print_file_info("Extract starting tree from", "input protobut,-i", input_pb_path);
             print_file_info("Load sample variant from", "sample vcf,-v", input_vcf_path);
         }
-    }else if (input_nh_path!=""&&input_vcf_path!=""){
+    } else if (input_nh_path!=""&&input_vcf_path!="") {
         print_file_info("Load starting tree from", "starting tree file,-t", input_nh_path);
         print_file_info("Load sample variant from", "sample vcf,-v", input_vcf_path);
-    }else {
+    } else {
         fputs("Input file not completely specified. Please either \n"
-            "1. Specify an intermediate protobuf from last run with -a to continue optimization, or\n"
-            "2. Specify a usher-compatible protobuf with -i, and both starting tree and sample variants will be extracted from it, or\n"
-            "3. Specify a usher-compatible protobuf with -i for starting tree, and a VCF with -v for sample variants, or\n"
-            "4. Specify the starting tree in newick format with -t, and a VCF with -v for sample variants.\n",stderr);
+              "1. Specify an intermediate protobuf from last run with -a to continue optimization, or\n"
+              "2. Specify a usher-compatible protobuf with -i, and both starting tree and sample variants will be extracted from it, or\n"
+              "3. Specify a usher-compatible protobuf with -i for starting tree, and a VCF with -v for sample variants, or\n"
+              "4. Specify the starting tree in newick format with -t, and a VCF with -v for sample variants.\n",stderr);
         std::cerr << desc << std::endl;
         exit(EXIT_FAILURE);
     }
     fprintf(stderr,"Will output final protobuf to %s .\n",output_path.c_str());
     if (no_write_intermediate) {
         fprintf(stderr,"Will not write intermediate file. WARNNING: It will not be possible to continue optimization if this program is killed in the middle.\n");
-    }else{
+    } else {
         fprintf(stderr,"Will output intermediate protobuf to %s. \n",intermediate_pb_base_name.c_str());
     }
     auto pid=getpid();
@@ -203,21 +201,21 @@ int main(int argc, char **argv) {
     }
     fprintf(stderr,"Will consider SPR moves within a radius of %d. \n",radius);
     if (max_queued_moves) {
-        fprintf(stderr, "Will stop search and apply all moves found when %zu moves are found\n",max_queued_moves);    
-    }else {
+        fprintf(stderr, "Will stop search and apply all moves found when %zu moves are found\n",max_queued_moves);
+    } else {
         max_queued_moves=std::numeric_limits<decltype(max_queued_moves)>::max();
     }
     if (minutes_between_save) {
         fprintf(stderr, "Will save intermediate result every %d minutes\n",minutes_between_save);
-        save_period=std::chrono::minutes(minutes_between_save);    
-    }else{
+        save_period=std::chrono::minutes(minutes_between_save);
+    } else {
         save_period=save_period.max();
     }
     fprintf(stderr,"Run kill -s SIGUSR2 %d to apply all the move found immediately, then output and exit.\n",pid);
     fprintf(stderr,"Using %d threads. \n",num_threads);
     if (search_all_nodes) {
         fprintf(stderr, "Exhaustive mode: Consider move all nodes.\n");
-    }else {
+    } else {
         fprintf(stderr, "Will only consider nodes carrying mutations that occured more than twice anywhere in the tree.\n");
     }
     std::chrono::steady_clock::duration max_optimize_duration=std::chrono::hours(max_optimize_hours);
@@ -227,15 +225,15 @@ int main(int argc, char **argv) {
     //Loading tree
     Original_State_t origin_states;
     Mutation_Annotated_Tree::Tree t;
-    
+
     if (input_complete_pb_path!="") {
         t.load_detatiled_mutations(input_complete_pb_path);
-    }else{
+    } else {
         if (input_vcf_path != "") {
             fputs("Loading input tree\n",stderr);
             if (input_nh_path != "") {
                 t = Mutation_Annotated_Tree::create_tree_from_newick(
-                    input_nh_path);
+                        input_nh_path);
                 fprintf(stderr, "Input tree have %zu nodes\n",t.all_nodes.size());
             } else {
                 t = MAT::load_mutation_annotated_tree(input_pb_path);
@@ -246,8 +244,8 @@ int main(int argc, char **argv) {
         } else {
             t = load_tree(input_pb_path, origin_states,transposed_vcf_path==""?nullptr:transposed_vcf_path.c_str());
         }
-    //scalable_allocation_command(TBBMALLOC_CLEAN_ALL_BUFFERS,0);
-        if(!no_write_intermediate){
+        //scalable_allocation_command(TBBMALLOC_CLEAN_ALL_BUFFERS,0);
+        if(!no_write_intermediate) {
             fputs("Checkpoint initial tree.\n",stderr);
             intermediate_writing=intermediate_template;
             make_output_path(intermediate_writing);
@@ -261,9 +259,9 @@ int main(int argc, char **argv) {
     size_t score_before;
     int stalled = 0;
 
-    #ifndef NDEBUG
+#ifndef NDEBUG
     check_samples(t.root, origin_states, &t);
-    #endif
+#endif
 
     score_before = t.get_parsimony_score();
     new_score = score_before;
@@ -278,51 +276,51 @@ int main(int argc, char **argv) {
         movalbe_src_log=fopen("/dev/null", "w");
     }
     bool isfirst=true;
-    while(stalled<1){
-    if (interrupted) {
-        break;
-    }
-    bfs_ordered_nodes = t.breadth_first_expansion();
-    if (search_all_nodes) {
-        nodes_to_search=tbb::concurrent_vector<MAT::Node*>(bfs_ordered_nodes.begin(),bfs_ordered_nodes.end());
-    }else{
-        fputs("Start Finding nodes to move \n",stderr);
-        find_nodes_to_move(bfs_ordered_nodes, nodes_to_search,isfirst,radius);
-    }
-    isfirst=false;
-    fprintf(stderr,"%zu nodes to search\n",nodes_to_search.size());
-    for(auto node:bfs_ordered_nodes){
-        node->changed=false;
-    }
-    if (nodes_to_search.empty()) {
-        break;
-    }
-    //Actual optimization loop
-    while (!nodes_to_search.empty()) {
+    while(stalled<1) {
         if (interrupted) {
             break;
         }
         bfs_ordered_nodes = t.breadth_first_expansion();
-        new_score =
-            optimize_tree(bfs_ordered_nodes, nodes_to_search, t,radius,movalbe_src_log
-            #ifndef NDEBUG
-            , origin_states
-            #endif
-            );
-        fprintf(stderr, "after optimizing:%zu\n\n", new_score);
-        auto save_start=std::chrono::steady_clock::now();
-        if(std::chrono::steady_clock::now()-last_save_time>=save_period){
-        if(!no_write_intermediate){
-            intermediate_writing=intermediate_template;
-            make_output_path(intermediate_writing);
-            t.save_detailed_mutations(intermediate_writing);
-            rename(intermediate_writing.c_str(), intermediate_pb_base_name.c_str());
-            last_save_time=std::chrono::steady_clock::now();
-            fprintf(stderr, "Took %ld second to save intermediate protobuf\n",std::chrono::duration_cast<std::chrono::seconds>(last_save_time-save_start).count());
+        if (search_all_nodes) {
+            nodes_to_search=tbb::concurrent_vector<MAT::Node*>(bfs_ordered_nodes.begin(),bfs_ordered_nodes.end());
+        } else {
+            fputs("Start Finding nodes to move \n",stderr);
+            find_nodes_to_move(bfs_ordered_nodes, nodes_to_search,isfirst,radius);
         }
-            last_save_time=std::chrono::steady_clock::now();
+        isfirst=false;
+        fprintf(stderr,"%zu nodes to search\n",nodes_to_search.size());
+        for(auto node:bfs_ordered_nodes) {
+            node->changed=false;
         }
-    }
+        if (nodes_to_search.empty()) {
+            break;
+        }
+        //Actual optimization loop
+        while (!nodes_to_search.empty()) {
+            if (interrupted) {
+                break;
+            }
+            bfs_ordered_nodes = t.breadth_first_expansion();
+            new_score =
+                optimize_tree(bfs_ordered_nodes, nodes_to_search, t,radius,movalbe_src_log
+#ifndef NDEBUG
+                              , origin_states
+#endif
+                             );
+            fprintf(stderr, "after optimizing:%zu\n\n", new_score);
+            auto save_start=std::chrono::steady_clock::now();
+            if(std::chrono::steady_clock::now()-last_save_time>=save_period) {
+                if(!no_write_intermediate) {
+                    intermediate_writing=intermediate_template;
+                    make_output_path(intermediate_writing);
+                    t.save_detailed_mutations(intermediate_writing);
+                    rename(intermediate_writing.c_str(), intermediate_pb_base_name.c_str());
+                    last_save_time=std::chrono::steady_clock::now();
+                    fprintf(stderr, "Took %ld second to save intermediate protobuf\n",std::chrono::duration_cast<std::chrono::seconds>(last_save_time-save_start).count());
+                }
+                last_save_time=std::chrono::steady_clock::now();
+            }
+        }
         if (new_score >= score_before) {
             stalled++;
         } else {
@@ -338,7 +336,7 @@ int main(int argc, char **argv) {
     fprintf(stderr, "Final Parsimony score %zu\n",t.get_parsimony_score());
     fclose(movalbe_src_log);
     save_final_tree(t, origin_states, output_path);
-    for(auto& pos:mutated_positions){
+    for(auto& pos:mutated_positions) {
         delete pos.second;
     }
     t.delete_nodes();

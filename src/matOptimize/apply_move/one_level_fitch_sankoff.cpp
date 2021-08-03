@@ -12,7 +12,9 @@ struct Allele_Count_t {
     //number of children having any non-parent major allele
     int node_cnt;
     //compatability function for getting position of allele count
-    int get_position() const { return base.get_position(); }
+    int get_position() const {
+        return base.get_position();
+    }
 
     //Merge 2 allele count toghether
     void operator+=(const Allele_Count_t &to_add) {
@@ -33,14 +35,14 @@ struct Allele_Count_t {
         node_cnt++;
     }
 
-    Allele_Count_t(){};
+    Allele_Count_t() {};
     //construct from a mutation, with base set and itsmajor allele counted
     Allele_Count_t(const MAT::Mutation &in)
         : base(in), count({0, 0, 0, 0}), node_cnt(0) {
         (*this) += in;
     };
 };
-//Function for merging some combination of allele count and mutation collection, 
+//Function for merging some combination of allele count and mutation collection,
 //use overloading for specifics of merging individual element
 template <typename type1, typename type2>
 static void merge_allele_count(const type1 &in1, const type2 &in2,
@@ -52,7 +54,7 @@ static void merge_allele_count(const type1 &in1, const type2 &in2,
 #endif
     for (const auto &other_mut : in2) {
         while (in1_iter != in1_end &&
-               in1_iter->get_position() < other_mut.get_position()) {
+                in1_iter->get_position() < other_mut.get_position()) {
             out.emplace_back(*in1_iter);
 #ifdef MERGE_ALLELE_CHECK_ORDER
             assert(last_in_pos < in1_iter->get_position());
@@ -66,7 +68,7 @@ static void merge_allele_count(const type1 &in1, const type2 &in2,
         last_in_pos = other_mut.get_position();
 #endif
         if (in1_iter != in1_end &&
-            in1_iter->get_position() == other_mut.get_position()) {
+                in1_iter->get_position() == other_mut.get_position()) {
             out.back() += *in1_iter;
             in1_iter++;
         }
@@ -167,8 +169,8 @@ bool get_major_allele_polytomy(MAT::Node *node,
             altered.set_auxillary(major_alleles, boundary1_major_allele >> 4);
             //add if have boundary allele or major allele is different from parent allele
             if ((altered.get_par_one_hot() != altered.get_all_major_allele()) ||
-                (altered.get_boundary1_one_hot() &&
-                 node->children.size() > 1)) {
+                    (altered.get_boundary1_one_hot() &&
+                     node->children.size() > 1)) {
                 new_major_alleles_out.push_back(altered);
             }
             iter++;
@@ -198,7 +200,7 @@ bool get_major_allele_polytomy(MAT::Node *node,
         if (iter->is_valid()) {
             new_major_alleles_out.push_back(*iter);
             new_major_alleles_out.back().set_auxillary(iter->get_mut_one_hot(),
-                                                       0);
+                    0);
         }
         iter++;
     }
