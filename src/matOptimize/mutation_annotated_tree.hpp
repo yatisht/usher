@@ -381,6 +381,7 @@ namespace Mutation_Annotated_Tree {
             bool changed;
             bool is_leaf() const;
             bool is_root();
+            bool have_masked;
             Node();
             Node(std::string id, float l);
             Node(std::string id, Node* p, float l);

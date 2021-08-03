@@ -649,6 +649,7 @@ Mutation_Annotated_Tree::Node::Node() {
     identifier = "";
     parent = NULL;
     branch_length = -1.0;
+    have_masked=false;
     clade_annotations.clear();
     mutations.clear();
 }
@@ -656,6 +657,7 @@ Mutation_Annotated_Tree::Node::Node() {
 Mutation_Annotated_Tree::Node::Node (std::string id, float len) {
     identifier = id;
     parent = NULL;
+    have_masked=false;
     level = 1;
     branch_length = len;
     mutations.clear();
@@ -663,6 +665,7 @@ Mutation_Annotated_Tree::Node::Node (std::string id, float len) {
 
 Mutation_Annotated_Tree::Node::Node (std::string id, Node* p, float len) {
     identifier = id;
+    have_masked=false;
     parent = p;
     level = p->level + 1;
     branch_length = len;

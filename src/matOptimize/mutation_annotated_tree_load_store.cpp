@@ -362,6 +362,7 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
                for (int k = 0; k < mutation_list.mutation_size(); k++) {
                   auto mut = mutation_list.mutation(k);
                   if (mut.position()<0) {
+                      node->have_masked=true;
                       continue;
                   }
                   char mut_one_hot=1<<mut.mut_nuc(0);
@@ -407,17 +408,18 @@ void Mutation_Annotated_Tree::save_mutation_annotated_tree (const Mutation_Annot
             meta->add_clade_annotations(dfs[idx]->clade_annotations[k]);
         }
         auto mutation_list = data.add_node_mutations();
+        if (dfs[idx]->have_masked) {
+            auto mut = mutation_list->add_mutation();
+            mut->set_position(-1);
+            mut->set_par_nuc(-1);
+            mut->set_ref_nuc(-1);
+        }
         for (auto m: dfs[idx]->mutations) {
 
             auto mut = mutation_list->add_mutation();
             mut->set_chromosome(m.get_chromosome());
             mut->set_position(m.get_position());
             
-            if (m.is_masked()) {
-                mut->set_ref_nuc(-1);
-                mut->set_par_nuc(-1);
-            }
-            else {
                 int8_t j = one_hot_to_two_bit(m.get_ref_one_hot()) ;
                 assert (j >= 0);
                 mut->set_ref_nuc(j);
@@ -438,7 +440,6 @@ void Mutation_Annotated_Tree::save_mutation_annotated_tree (const Mutation_Annot
                         }
                     }
                 }*/
-            }
         }
     }
 

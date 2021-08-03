@@ -52,6 +52,7 @@ static void clean_up_internal_nodes(MAT::Node* this_node,MAT::Tree& tree,std::un
         //promote all its children, no need to change their mutation vector, as this_node assumed to have no valid mutations
         for (MAT::Node *child : this_node_ori_children) {
             child->changed=true;
+            child->have_masked|=this_node->have_masked;
             child->parent = this_node->parent;
             parent_children.push_back(child);
         }
