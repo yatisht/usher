@@ -69,8 +69,7 @@ struct Codon {
     }
 };
 
-po::variables_map parse_translate_command(po::parsed_options parsed);
 std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::map<int, std::vector<std::shared_ptr<Codon>>> &codon_map);
-void translate_main(po::parsed_options parsed);
+void translate_main(MAT::Tree *T, std::string output_filename, std::string gff_filename, std::string fasta_filename );
 void cleanup_codon_map(std::map<int, std::vector<std::shared_ptr<Codon>>> &codon_map);
 void undo_mutations(std::vector<MAT::Mutation> &mutations, std::map<int, std::vector<std::shared_ptr<Codon>>> &codon_map);

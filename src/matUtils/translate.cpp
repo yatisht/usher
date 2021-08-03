@@ -1,44 +1,5 @@
 #include "translate.hpp"
 
-
-po::variables_map parse_translate_command(po::parsed_options parsed) {
-  
-    po::variables_map vm;
-    po::options_description filt_desc("translate options");
-    filt_desc.add_options()
-        ("input-mat,i", po::value<std::string>()->required(),
-         "Input mutation-annotated tree file [REQUIRED]")
-        ("output,o", po::value<std::string>()->required(),
-        "Name of the file to save the tsv output to [REQUIRED]")
-        ("input-fasta,f", po::value<std::string>()->required(),
-         "Input reference sequence fasta [REQUIRED]")
-        ("input-gff,g", po::value<std::string>()->required(),
-        "Input GFF file [REQUIRED]")
-        ("help,h", "Print help messages");
-   
-    // Collect all the unrecognized options from the first pass. This will include the
-    // (positional) command name, so we need to erase that.
-    std::vector<std::string> opts = po::collect_unrecognized(parsed.options, po::include_positional);
-    opts.erase(opts.begin());
-
-    // Run the parser, with try/catch for help
-    try{
-        po::store(po::command_line_parser(opts)
-                  .options(filt_desc)
-                  .run(), vm);
-        po::notify(vm);
-    }
-    catch(std::exception &e){
-        std::cerr << filt_desc << std::endl;
-        // Return with error code 1 unless the user specifies help
-        if (vm.count("help"))
-            exit(0);
-        else
-            exit(1);
-    }
-    return vm;
-}
-
 std::vector<std::string> split(const std::string &s, char delim) {
 	std::vector<std::string> result;
 	std::stringstream ss(s);
@@ -126,28 +87,16 @@ std::map<int, std::vector<std::shared_ptr<Codon>>> build_codon_map(std::ifstream
 }
 
 
-void translate_main(po::parsed_options parsed) {
-    po::variables_map vm = parse_translate_command(parsed);
-    std::string input_mat_filename = vm["input-mat"].as<std::string>();
-    std::string input_fasta_filename =  vm["input-fasta"].as<std::string>();
-    std::string input_gff_filename = vm["input-gff"].as<std::string>();
-    std::string output_filename = vm["output"].as<std::string>();
+void translate_main(MAT::Tree *T, std::string output_filename, std::string gff_filename, std::string fasta_filename ) {
 
-    // Load input MAT and uncondense tree
-    MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
-
-    if (T.condensed_nodes.size() > 0) {
-      T.uncondense_leaves();
-    }
-
-    std::ifstream fasta_file(input_fasta_filename);
+    std::ifstream fasta_file(fasta_filename);
     if (!fasta_file) {
-        fprintf(stderr, "ERROR: Could not open the fasta file: %s!\n", input_fasta_filename.c_str());
+        fprintf(stderr, "ERROR: Could not open the fasta file: %s!\n", fasta_filename.c_str());
         exit(1);
     }
-    std::ifstream gff_file(input_gff_filename);
+    std::ifstream gff_file(gff_filename);
     if (!gff_file) {
-        fprintf(stderr, "ERROR: Could not open the GFF file: %s!\n", input_gff_filename.c_str());
+        fprintf(stderr, "ERROR: Could not open the GFF file: %s!\n", gff_filename.c_str());
         exit(1);
     }
     std::ofstream output_file(output_filename);
@@ -155,10 +104,14 @@ void translate_main(po::parsed_options parsed) {
         fprintf(stderr, "ERROR: Could not open file for writing: %s!\n", output_filename.c_str());
         exit(1);
     }
-    
+
+    if (T->condensed_nodes.size() > 0) {
+      T->uncondense_leaves();
+    }
+
     std::string reference = build_reference(fasta_file);
 
-    output_file << "Node ID\tAmino acid mutations\tNucleotide mutations\tLeaves sharing mutations" << '\n';
+    output_file << "node_id\taa_mutations\tnt_mutations\tleaves_sharing_mutations" << '\n';
 
     // This maps each position in the reference to a vector of codons.
     // Some positions may be associated with multiple codons (frame shifts).
@@ -167,14 +120,14 @@ void translate_main(po::parsed_options parsed) {
 
     // Traverse the tree in depth-first order. As we descend the tree, mutations at
     // each node are applied to the respective codon(s) in codon_map.
-    auto dfs = T.depth_first_expansion();
+    auto dfs = T->depth_first_expansion();
     MAT::Node *last_visited = nullptr;
     for (auto node: dfs) {
         std::string mutation_result = "";
         if(last_visited != node->parent) {
             // Jumping across a branch, so we need to revert codon mutations up to
             // the LCA of this node and the last visited node
-            MAT::Node *last_common_ancestor = MAT::LCA(T, node->identifier, last_visited->identifier);
+            MAT::Node *last_common_ancestor = MAT::LCA(*T, node->identifier, last_visited->identifier);
             MAT::Node *trace_to_lca = last_visited;
             while (trace_to_lca != last_common_ancestor) {
                 undo_mutations(trace_to_lca->mutations, codon_map);        
@@ -184,7 +137,7 @@ void translate_main(po::parsed_options parsed) {
         
         mutation_result = do_mutations(node->mutations, codon_map);
         if (mutation_result != ""){
-            output_file << node->identifier << '\t' << mutation_result << '\t' << T.get_leaves(node->identifier).size() << '\n';
+            output_file << node->identifier << '\t' << mutation_result << '\t' << T->get_leaves(node->identifier).size() << '\n';
         }
         last_visited = node;
     }
