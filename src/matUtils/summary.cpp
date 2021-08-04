@@ -12,8 +12,8 @@ po::variables_map parse_summary_command(po::parsed_options parsed) {
     conv_desc.add_options()
     ("input-mat,i", po::value<std::string>()->required(),
      "Input mutation-annotated tree file [REQUIRED]. If only this argument is set, print the count of samples and nodes in the tree.")
-    ("input-gff,g", po::value<std::string>()->default_value(""),
-     "Input GFF annotation file. Required for --translate / -t")
+    ("input-gtf,g", po::value<std::string>()->default_value(""),
+     "Input GTF annotation file. Required for --translate / -t")
     ("input-fasta,f", po::value<std::string>()->default_value(""),
      "Input FASTA reference sequence. Required for --translate / -t")
     ("output-directory,d", po::value<std::string>()->default_value("./"),
@@ -166,6 +166,12 @@ void write_mutation_table(MAT::Tree* T, std::string filename) {
         mutfile << mut.first << "\t" << mut.second << "\n";
     }
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+}
+
+void write_translate_table(MAT::Tree* T, std::string output_filename, std::string gtf_filename, std::string fasta_filename) {
+        fprintf(stderr, "Writing aa and nt mutations per node to output %s\n", output_filename.c_str());
+        translate_main(T, output_filename, gtf_filename, fasta_filename);
+        fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 }
 
 void write_haplotype_table(MAT::Tree* T, std::string filename) {
@@ -445,7 +451,7 @@ void summary_main(po::parsed_options parsed) {
     std::string sample_clades = dir_prefix + vm["sample-clades"].as<std::string>();
     std::string mutations = dir_prefix + vm["mutations"].as<std::string>();
     std::string translate = dir_prefix + vm["translate"].as<std::string>();
-    std::string gff = dir_prefix + vm["input-gff"].as<std::string>();
+    std::string gtf = dir_prefix + vm["input-gtf"].as<std::string>();
     std::string fasta = dir_prefix + vm["input-fasta"].as<std::string>();
     std::string aberrant = dir_prefix + vm["aberrant"].as<std::string>();
     std::string roho = dir_prefix + vm["calculate-roho"].as<std::string>();
@@ -489,8 +495,8 @@ void summary_main(po::parsed_options parsed) {
     }
     if (translate != dir_prefix) {
         bool quit = false;
-        if (gff == dir_prefix) {
-            fprintf(stderr, "ERROR: You must specify a GFF file with -g\n");
+        if (gtf == dir_prefix) {
+            fprintf(stderr, "ERROR: You must specify a GTF file with -g\n");
             quit = true;
         }
         if (fasta == dir_prefix) {
@@ -500,7 +506,7 @@ void summary_main(po::parsed_options parsed) {
         if (quit) {
             exit(1);
         }
-        translate_main(&T, translate, gff, fasta);
+        write_translate_table(&T, translate, gtf, fasta);        
         no_print = false;
     }
     if (aberrant != dir_prefix) {
