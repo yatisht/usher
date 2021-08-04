@@ -203,35 +203,61 @@ void translate_main(MAT::Tree *T, std::string output_filename, std::string gtf_f
 std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::map<int, std::vector<std::shared_ptr<Codon>>> &codon_map) {
     std::string prot_string = "";
     std::string nuc_string = "";
-    for (auto m: mutations) {
-        nuc_string += m.get_string();
-        nuc_string += ';';
+    std::sort(mutations.begin(), mutations.end());
+    std::map<std::string, std::set<MAT::Mutation>> codon_to_nt_map;
+    std::map<std::string, std::string> orig_proteins;
+    std::vector<std::shared_ptr<Codon>> affected_codons;
+    
+    for (auto m : mutations) {
         char mutated_nuc = MAT::get_nuc(m.mut_nuc);
         int pos = m.position - 1;
-        auto it = codon_map.find(pos);
-        if (it == codon_map.end()) {
+        auto codon_map_it = codon_map.find(pos);
+        if (codon_map_it == codon_map.end()) {
             continue; // Not a coding mutation
         } else {
             // Mutate each codon associated with this position
-            for (auto codon_ptr : it->second) { 
-                prot_string += codon_ptr->orf_name + ":";
-                prot_string += codon_ptr->protein;
-                
+            for (auto codon_ptr : codon_map_it->second) {
+                std::string codon_id = codon_ptr->orf_name + ':' + std::to_string(codon_ptr->codon_number+1);
+                auto orig_it = orig_proteins.find(codon_id);
+                if (orig_it == orig_proteins.end()) {
+                    orig_proteins.insert({codon_id, std::string(1, codon_ptr->protein)});
+                }
+                if (std::find(affected_codons.begin(), affected_codons.end(), codon_ptr) == affected_codons.end()){
+                    affected_codons.push_back(codon_ptr);
+                }
                 codon_ptr->mutate(pos, mutated_nuc);
-
-                prot_string += std::to_string(codon_ptr->codon_number+1);
-                prot_string += codon_ptr->protein;
-                prot_string += ',';
-             }
-            prot_string.resize(prot_string.length() - 1);
-            prot_string += ';';
+                // Build a map of codons and their associated nt mutations
+                auto to_nt_it = codon_to_nt_map.find(codon_id);
+                if (to_nt_it == codon_to_nt_map.end()) {
+                    codon_to_nt_map.insert({codon_id, {m}});
+                } else {
+                    to_nt_it->second.insert(m);
+                }
+            }
         }
+    }
+
+    for (auto codon_ptr : affected_codons) {
+        std::string codon_id = codon_ptr->orf_name + ':' + std::to_string(codon_ptr->codon_number+1);
+        std::string orig_protein = orig_proteins.find(codon_id)->second;
+        prot_string += split(codon_id, ':')[0] + ':' + orig_protein + split(codon_id, ':')[1] + codon_ptr->protein + ';';
+        
+        auto codon_it = codon_to_nt_map.find(codon_id);
+        for (auto m : codon_it->second) {
+            nuc_string += m.get_string() + ",";
+        }
+
+        if (!nuc_string.empty() && nuc_string.back() == ',') {
+            nuc_string.resize(nuc_string.length() - 1); // remove trailing ','
+            nuc_string += ';';
+        }
+    }
+
+    if (!nuc_string.empty() && nuc_string.back() == ';') {
+        nuc_string.resize(nuc_string.length() - 1); // remove trailing ';'
     }
     if (!prot_string.empty() && prot_string.back() == ';') {
         prot_string.resize(prot_string.length() - 1); //remove trailing ';' 
-    }
-    if (!nuc_string.empty() && nuc_string.back() == ';') {
-        nuc_string.resize(nuc_string.length() - 1);
     }
     if (nuc_string.empty() || prot_string.empty()) {
         return "";
