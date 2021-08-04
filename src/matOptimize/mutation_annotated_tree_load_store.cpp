@@ -360,6 +360,7 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
                 auto mut = mutation_list.mutation(k);
                 if (mut.position()<0) {
                     node->have_masked=true;
+                    continue;
                 }
                 char mut_one_hot=1<<mut.mut_nuc(0);
                 char all_major_alleles=mut_one_hot;
