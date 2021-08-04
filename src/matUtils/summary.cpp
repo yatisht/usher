@@ -169,9 +169,9 @@ void write_mutation_table(MAT::Tree* T, std::string filename) {
 }
 
 void write_translate_table(MAT::Tree* T, std::string output_filename, std::string gtf_filename, std::string fasta_filename) {
-        fprintf(stderr, "Writing aa and nt mutations per node to output %s\n", output_filename.c_str());
-        translate_main(T, output_filename, gtf_filename, fasta_filename);
-        fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+    fprintf(stderr, "Writing aa and nt mutations per node to output %s\n", output_filename.c_str());
+    translate_main(T, output_filename, gtf_filename, fasta_filename);
+    fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 }
 
 void write_haplotype_table(MAT::Tree* T, std::string filename) {
@@ -506,7 +506,7 @@ void summary_main(po::parsed_options parsed) {
         if (quit) {
             exit(1);
         }
-        write_translate_table(&T, translate, gtf, fasta);        
+        write_translate_table(&T, translate, gtf, fasta);
         no_print = false;
     }
     if (aberrant != dir_prefix) {

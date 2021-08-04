@@ -1,7 +1,7 @@
 #include "common.hpp"
 
 static std::unordered_map<std::string, char> translation_map= {
- 	{"GCT", 'A'}, {"GCC", 'A'}, {"GCA", 'A'}, {"GCG", 'A'}, {"GCN", 'A'},
+    {"GCT", 'A'}, {"GCC", 'A'}, {"GCA", 'A'}, {"GCG", 'A'}, {"GCN", 'A'},
     {"TGT", 'C'}, {"TGC", 'C'}, {"TGY", 'C'},
     {"GAT", 'D'}, {"GAC", 'D'}, {"GAY", 'D'},
     {"GAA", 'E'}, {"GAG", 'E'}, {"GAR", 'E'},
@@ -43,7 +43,7 @@ struct Codon {
 
     inline void mutate(int nuc_pos, char mutated_nuc) {
         // The nt to mutate is the difference between the
-        // genomic coordinate of the mutated nt and the 
+        // genomic coordinate of the mutated nt and the
         // starting coordinate of the codon
         nucleotides[nuc_pos-start_position] = mutated_nuc;
         protein = translate_codon(nucleotides);
@@ -61,11 +61,11 @@ struct Codon {
     }
 
     inline std::string get_string() const {
-            return std::to_string(start_position) + ':'
-                + nucleotides[0]
-                + nucleotides[1]
-                + nucleotides[2] 
-                + '=' + protein;
+        return std::to_string(start_position) + ':'
+               + nucleotides[0]
+               + nucleotides[1]
+               + nucleotides[2]
+               + '=' + protein;
     }
 };
 
