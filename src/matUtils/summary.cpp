@@ -1,5 +1,6 @@
 #include "summary.hpp"
 #include "introduce.hpp" //for date parsing functions.
+#include "translate.hpp"
 #include <boost/date_time/gregorian/gregorian.hpp>
 
 po::variables_map parse_summary_command(po::parsed_options parsed) {
@@ -9,43 +10,48 @@ po::variables_map parse_summary_command(po::parsed_options parsed) {
     po::variables_map vm;
     po::options_description conv_desc("summary options");
     conv_desc.add_options()
-        ("input-mat,i", po::value<std::string>()->required(),
-         "Input mutation-annotated tree file [REQUIRED]. If only this argument is set, print the count of samples and nodes in the tree.")
-        ("output-directory,d", po::value<std::string>()->default_value("./"),
-        "Write output files to the target directory. Default is current directory.")
-        ("samples,s", po::value<std::string>()->default_value(""),
-        "Write a tsv listing all samples in the tree and their parsimony score (terminal branch length).")
-        ("clades,c", po::value<std::string>()->default_value(""),
-        "Write a tsv listing all clades and the (inclusive and exclusive of nested clades) count of associated samples.")
-        ("sample-clades,C", po::value<std::string>()->default_value(""),
-        "Write a tsv of all samples and their associated clade values")
-        ("mutations,m", po::value<std::string>()->default_value(""),
-        "Write a tsv listing all mutations in the tree and their occurrence count.")
-        ("aberrant,a", po::value<std::string>()->default_value(""),
-        "Write a tsv listing duplicate samples and internal nodes with no mutations and/or branch length 0.")
-        ("haplotype,H", po::value<std::string>()->default_value(""),
-        "Write a tsv listing haplotypes represented by comma-delimited sets of mutations and their total frequency across the tree.")
-        ("calculate-roho,R", po::value<std::string>()->default_value(""),
-        "Write a tsv containing the distribution of RoHO values calculated for all homoplasic mutations.")
-        ("get-all,A", po::bool_switch(),
-        "Use default filenames (samples.txt, clades.txt, etc) and save all summary tables to the output directory.")
-        ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
-        ("expanded-roho,E", po::bool_switch(),
-        "Use to include date and other contextual information in RoHO table output. Significantly slows calculation time.")
-        ("help,h", "Print help messages");
+    ("input-mat,i", po::value<std::string>()->required(),
+     "Input mutation-annotated tree file [REQUIRED]. If only this argument is set, print the count of samples and nodes in the tree.")
+    ("input-gff,g", po::value<std::string>()->default_value(""),
+     "Input GFF annotation file. Required for --translate / -t")
+    ("input-fasta,f", po::value<std::string>()->default_value(""),
+     "Input FASTA reference sequence. Required for --translate / -t")
+    ("output-directory,d", po::value<std::string>()->default_value("./"),
+     "Write output files to the target directory. Default is current directory.")
+    ("samples,s", po::value<std::string>()->default_value(""),
+     "Write a tsv listing all samples in the tree and their parsimony score (terminal branch length).")
+    ("clades,c", po::value<std::string>()->default_value(""),
+     "Write a tsv listing all clades and the (inclusive and exclusive of nested clades) count of associated samples.")
+    ("sample-clades,C", po::value<std::string>()->default_value(""),
+     "Write a tsv of all samples and their associated clade values")
+    ("mutations,m", po::value<std::string>()->default_value(""),
+     "Write a tsv listing all mutations in the tree and their occurrence count.")
+    ("translate,t", po::value<std::string>()->default_value(""),
+     "Write a tsv listing the amino acid and nucleotide mutations at each node.")
+    ("aberrant,a", po::value<std::string>()->default_value(""),
+     "Write a tsv listing duplicate samples and internal nodes with no mutations and/or branch length 0.")
+    ("haplotype,H", po::value<std::string>()->default_value(""),
+     "Write a tsv listing haplotypes represented by comma-delimited sets of mutations and their total frequency across the tree.")
+    ("calculate-roho,R", po::value<std::string>()->default_value(""),
+     "Write a tsv containing the distribution of RoHO values calculated for all homoplasic mutations.")
+    ("get-all,A", po::bool_switch(),
+     "Use default filenames (samples.txt, clades.txt, etc) and save all summary tables to the output directory.")
+    ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
+    ("expanded-roho,E", po::bool_switch(),
+     "Use to include date and other contextual information in RoHO table output. Significantly slows calculation time.")
+    ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
     // (positional) command name, so we need to erase that.
     std::vector<std::string> opts = po::collect_unrecognized(parsed.options, po::include_positional);
     opts.erase(opts.begin());
 
     // Run the parser, with try/catch for help
-    try{
+    try {
         po::store(po::command_line_parser(opts)
                   .options(conv_desc)
                   .run(), vm);
         po::notify(vm);
-    }
-    catch(std::exception &e){
+    } catch(std::exception &e) {
         std::cerr << conv_desc << std::endl;
         // Return with error code 1 unless the user specifies help
         if (vm.count("help"))
@@ -69,7 +75,7 @@ void write_sample_table(MAT::Tree* T, std::string filename) {
         if (s->is_leaf()) {
             //leaves are samples (on the uncondensed tree)
             samplefile << s->identifier << "\t" << s->mutations.size() << "\n";
-        }        
+        }
     }
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 }
@@ -114,7 +120,7 @@ void write_clade_table(MAT::Tree* T, std::string filename) {
                             first_encountered_a2 = false;
                         }
                     }
-                }                
+                }
             }
         }
     }
@@ -136,7 +142,7 @@ void write_mutation_table(MAT::Tree* T, std::string filename) {
 
     auto dfs = T->depth_first_expansion();
     for (auto s: dfs) {
-        //occurrence here is the number of times a mutation occurred 
+        //occurrence here is the number of times a mutation occurred
         //during the history of the pandemic
         //while the number of samples involved is interesting, sample
         //bias towards specific geographic regions (cough the UK cough)
@@ -202,7 +208,7 @@ void write_aberrant_table(MAT::Tree* T, std::string filename) {
     /*
     This function identifies nodes which have missing information or are otherwise potentially problematic.
     These nodes do not necessarily break matUtils or Usher in general, but they may need to be accounted for
-    in downstream analysis. Nodes like these can be created by the masking out of specific samples or by not 
+    in downstream analysis. Nodes like these can be created by the masking out of specific samples or by not
     collapsing trees constructed from bifurcated/fully resolved or other types of tree.
     */
     timer.Start();
@@ -224,7 +230,7 @@ void write_aberrant_table(MAT::Tree* T, std::string filename) {
         }
         if (num_annotations != n->clade_annotations.size()) {
             badfile << n->identifier << "\tclade-annotations (" << n->clade_annotations.size() <<
-              " not " << num_annotations << ")\n";
+                    " not " << num_annotations << ")\n";
         }
     }
 }
@@ -265,15 +271,15 @@ void write_roho_table(MAT::Tree* T, std::string roho_file, bool get_dates) {
     It is 1 when the mutation is irrelevant to growth, with a significant amount of stochasticity to it
     meaning homoplasy is required to replicate and give statistical significance.
 
-    This function calculates these ROHO values for every mutation which occurs across the entire tree, including single occurrences, where 
+    This function calculates these ROHO values for every mutation which occurs across the entire tree, including single occurrences, where
     possible, to allow for downstream analysis.
     */
     timer.Start();
     fprintf(stderr, "Calculating and writing RoHo values to output %s\n", roho_file.c_str());
     std::ofstream rhfile;
     rhfile.open(roho_file);
-    rhfile << "mutation\tparent_node\tchild_count\toccurrence_node\toffspring_with\tmedian_offspring_without\tsingle_roho"; 
-    //the above are the basic columns, the following are additional columns requested to help sort out roho output. 
+    rhfile << "mutation\tparent_node\tchild_count\toccurrence_node\toffspring_with\tmedian_offspring_without\tsingle_roho";
+    //the above are the basic columns, the following are additional columns requested to help sort out roho output.
     if (get_dates) {
         rhfile << "\tsister_clade_offspring_counts\tidentical_sample_sibling_count\tearliest_date\tlatest_date\tearliest_identical_sibling\tlatest_identical_sibling\tearliest_clade_sibling_dates\tlatest_clade_sibling_dates\n";
     } else {
@@ -372,7 +378,7 @@ void write_roho_table(MAT::Tree* T, std::string roho_file, bool get_dates) {
             }
             float med_non;
             std::sort(all_non.begin(), all_non.end());
-            if (all_non.size() %2 == 0){
+            if (all_non.size() %2 == 0) {
                 med_non = (all_non[all_non.size()/2-1] + all_non[all_non.size()/2]) / 2;
             } else {
                 med_non = all_non[all_non.size()/2];
@@ -392,7 +398,7 @@ void write_roho_table(MAT::Tree* T, std::string roho_file, bool get_dates) {
                     }
                 }
             }
-            
+
             rhfile << ms.first << "\t" << n->identifier << "\t" << ccheck.size() << "\t" << ms.second << "\t" << sum_wit << "\t" << med_non << "\t" << std::log10(sum_wit/med_non) << "\t";
             if (get_dates) {
                 std::string ns = nonstrs.str();
@@ -438,6 +444,9 @@ void summary_main(po::parsed_options parsed) {
     std::string clades = dir_prefix + vm["clades"].as<std::string>();
     std::string sample_clades = dir_prefix + vm["sample-clades"].as<std::string>();
     std::string mutations = dir_prefix + vm["mutations"].as<std::string>();
+    std::string translate = dir_prefix + vm["translate"].as<std::string>();
+    std::string gff = dir_prefix + vm["input-gff"].as<std::string>();
+    std::string fasta = dir_prefix + vm["input-fasta"].as<std::string>();
     std::string aberrant = dir_prefix + vm["aberrant"].as<std::string>();
     std::string roho = dir_prefix + vm["calculate-roho"].as<std::string>();
     std::string hapfile = dir_prefix + vm["haplotype"].as<std::string>();
@@ -456,7 +465,7 @@ void summary_main(po::parsed_options parsed) {
     tbb::task_scheduler_init init(num_threads);
 
     timer.Start();
-    fprintf(stderr, "Loading input MAT file %s.\n", input_mat_filename.c_str()); 
+    fprintf(stderr, "Loading input MAT file %s.\n", input_mat_filename.c_str());
     // Load input MAT and uncondense tree
     MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
     // record the number of condensed leaves in case its needed for printing later.
@@ -477,7 +486,23 @@ void summary_main(po::parsed_options parsed) {
     if (mutations != dir_prefix) {
         write_mutation_table(&T, mutations);
         no_print = false;
-    }  
+    }
+    if (translate != dir_prefix) {
+        bool quit = false;
+        if (gff == dir_prefix) {
+            fprintf(stderr, "ERROR: You must specify a GFF file with -g\n");
+            quit = true;
+        }
+        if (fasta == dir_prefix) {
+            fprintf(stderr, "ERROR: You must specify a FASTA reference file with -f\n");
+            quit = true;
+        }
+        if (quit) {
+            exit(1);
+        }
+        translate_main(&T, translate, gff, fasta);
+        no_print = false;
+    }
     if (aberrant != dir_prefix) {
         write_aberrant_table(&T, aberrant);
         no_print = false;
@@ -507,7 +532,7 @@ void summary_main(po::parsed_options parsed) {
         auto dfs = T.depth_first_expansion();
         for (auto s: dfs) {
             nodecount++;
-            if (s->is_leaf()){
+            if (s->is_leaf()) {
                 samplecount++;
             }
         }

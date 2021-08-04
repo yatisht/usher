@@ -15,7 +15,7 @@ struct intermediate_mut_functor {
         int &parent_parsimony_score_change)
         : parent_node_mutation_count_change(parent_node_mutation_count_change),
           parent_parsimony_score_change(parent_parsimony_score_change) {}
-    // There is a change in state count (by at most 1) at its children, but the current node is not 
+    // There is a change in state count (by at most 1) at its children, but the current node is not
     //sensitive at that loci (no allele have allele count difference less than 1 with major allele count),
     //so the state won't change, and increment parsimony score if it changed to a non-major allele.
     void T1_only(const T1::value_type &this_mut) {
@@ -43,7 +43,7 @@ struct intermediate_mut_functor_one_children {
           parent_parsimony_score_change(parent_parsimony_score_change) {}
     void T1_only(const T1::value_type &this_mut) {
         //specialization for nodes with one children, add the boundary one alleles (which is just all
-        // the alleles other than major allele), they are not recorded in the tree explicitly, otherwise for leaves, 
+        // the alleles other than major allele), they are not recorded in the tree explicitly, otherwise for leaves,
         //it is sensitive to all mutations, which unreasonably increase memory usage.
         MAT::Mutation this_node_mutation(this_mut.get_position());
         nuc_one_hot parent_state = this_mut.get_par_state();
@@ -98,7 +98,7 @@ struct get_two_child_intermediate_node_mutations {
             right_child_state = this_mut.get_new_state();
         }
         int new_count = get_new_major_allele_binary_node(
-            left_child_state, right_child_state, major_allele);
+                            left_child_state, right_child_state, major_allele);
         parent_parsimony_score_change +=
             register_change_from_new_state(parent_node_mutation_count_change,
                                            new_count, LCA_mut, major_allele);
@@ -116,13 +116,13 @@ void get_intermediate_nodes_mutations(
             parent_node_mutation_count_change, parent_parsimony_score_change);
         merge_func<intermediate_mut_functor_one_children>()(
             this_node_mutation_count_change, node->mutations, functor);
-    } else if(node->children.size()==2){
+    } else if(node->children.size()==2) {
         struct get_two_child_intermediate_node_mutations functor(
-        parent_node_mutation_count_change, parent_parsimony_score_change,
-        node, changed_child);
-    merge_func<struct get_two_child_intermediate_node_mutations>()(
-        this_node_mutation_count_change, node->mutations, functor);
-    }else{
+            parent_node_mutation_count_change, parent_parsimony_score_change,
+            node, changed_child);
+        merge_func<struct get_two_child_intermediate_node_mutations>()(
+            this_node_mutation_count_change, node->mutations, functor);
+    } else {
         intermediate_mut_functor functor(parent_node_mutation_count_change,
                                          parent_parsimony_score_change);
         merge_func<intermediate_mut_functor>()(this_node_mutation_count_change,

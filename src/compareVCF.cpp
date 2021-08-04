@@ -44,7 +44,7 @@ static int read_header(gzFile *fd, std::vector<std::string> &out) {
 }
 #define ZLIB_BUFSIZ 0x40000
 typedef tbb::flow::source_node<char *>
-    decompressor_node_t;
+decompressor_node_t;
 struct Decompressor {
     gzFile *fd;
     size_t cont_read_size;
@@ -73,7 +73,7 @@ struct VCFline {
 };
 static tbb::concurrent_hash_map<int, VCFline> parsed_lines;
 std::mutex print_lock;
-static void insert_line(int position,std::vector<int8_t>& variants,int file_idx){
+static void insert_line(int position,std::vector<int8_t>& variants,int file_idx) {
     std::vector<int8_t> other;
     tbb::concurrent_hash_map<int, VCFline>::accessor accessor;
     parsed_lines.insert(accessor,position);
@@ -81,7 +81,7 @@ static void insert_line(int position,std::vector<int8_t>& variants,int file_idx)
         accessor->second.alleles.swap(variants);
         accessor->second.file_idx=file_idx;
         accessor.release();
-    }else {
+    } else {
         assert(accessor->second.file_idx!=file_idx);
         other.swap(accessor->second.alleles);
         parsed_lines.erase(accessor);
@@ -133,19 +133,19 @@ struct line_parser {
             while (*line_in!='\t') {
                 allele_translated.push_back(MAT::get_nuc_id(*line_in));
                 line_in++;
-                if(*line_in==','){
+                if(*line_in==',') {
                     line_in++;
-                }else{
+                } else {
                     assert(*line_in=='\t');
                 }
             }
             line_in++;
             unsigned int field_idx=5;
             for (; field_idx < 9; field_idx++) {
-              while (*line_in != '\t') {
+                while (*line_in != '\t') {
+                    line_in++;
+                }
                 line_in++;
-              }
-              line_in++;
             }
             //samples
             bool is_last=false;
@@ -167,7 +167,7 @@ struct line_parser {
                 }
                 if (allele_idx>=(int)(allele_translated.size()+1)||allele_idx<0) {
                     out[index_translate[field_idx-SAMPLE_START_IDX]]=0xf;
-                }else {
+                } else {
                     out[index_translate[field_idx-SAMPLE_START_IDX]]=allele_translated[allele_idx];
                 }
                 field_idx++;
@@ -210,7 +210,7 @@ struct line_parser {
         delete[] start;
     }
 };
-static int  map_index(gzFile* fd1,gzFile* fd2,std::vector<unsigned int>& index_map1,std::vector<unsigned int>& index_map2){
+static int  map_index(gzFile* fd1,gzFile* fd2,std::vector<unsigned int>& index_map1,std::vector<unsigned int>& index_map2) {
     std::vector<std::string> header1;
     int header_size=read_header(fd1, header1);
     std::vector<std::string> header2;
@@ -229,20 +229,20 @@ static int  map_index(gzFile* fd1,gzFile* fd2,std::vector<unsigned int>& index_m
     }
     for (size_t i=0; i<header2.size()-line_parser::SAMPLE_START_IDX; i++) {
         auto iter=idx_map.find(header2[i+line_parser::SAMPLE_START_IDX]);
-        if(iter!=idx_map.end()){
+        if(iter!=idx_map.end()) {
             index_map2.push_back(iter->second);
             idx_map.erase(iter);
-        }else {
+        } else {
             printf("sample %s missing\n",header2[i+line_parser::SAMPLE_START_IDX].c_str());
         }
     }
-    for(auto s:idx_map){
-            printf("sample %s missing\n",s.first.c_str());
+    for(auto s:idx_map) {
+        printf("sample %s missing\n",s.first.c_str());
     }
     return header_size;
 }
 #define LINE_PER_BLOCK 5
-int main(int argc, char**argv){
+int main(int argc, char**argv) {
     gzFile fd1=gzopen(argv[1], "r");
     filenames[0]=argv[1];
     gzbuffer(fd1,ZLIB_BUFSIZ);

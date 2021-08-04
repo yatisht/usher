@@ -1,23 +1,23 @@
 #include "mutation_annotated_tree.hpp"
 #include <cstddef>
 #include <tbb/concurrent_vector.h>
-struct backward_pass_range{
-    union{
+struct backward_pass_range {
+    union {
         size_t first_child_bfs_idx;
         const std::string* identifier;
     };
     size_t child_size;
 };
 
-struct forward_pass_range{
+struct forward_pass_range {
     size_t parent_bfs_idx;
     size_t child_size;
     size_t left_child_idx;
     size_t right_child_idx;
 };
 typedef std::vector<std::pair<long, nuc_one_hot>> mutated_t;
-struct mutated_t_comparator{
-    bool operator()(const std::pair<long, nuc_one_hot>& lhs,const std::pair<long, nuc_one_hot>& rhs) const{
+struct mutated_t_comparator {
+    bool operator()(const std::pair<long, nuc_one_hot>& lhs,const std::pair<long, nuc_one_hot>& rhs) const {
         return lhs.first>rhs.first;
     }
 };

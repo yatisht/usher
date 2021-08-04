@@ -45,7 +45,7 @@ static void save_chrom_vector(Mutation_Detailed::meta &to_save) {
 //each mutation, serialization format is dependent on in-memory representation, as it write all the state information
 //toghether as a int, to save space, as protobuf don't have char data type
 static void serialize_mutation(const MAT::Mutation &m,
-                  Mutation_Detailed::detailed_mutation *out) {
+                               Mutation_Detailed::detailed_mutation *out) {
     out->set_position((uint32_t)m.position);
     uint32_t temp = *((uint32_t *)(&m) + 1);
     out->set_other_fields(temp);
@@ -72,7 +72,7 @@ u_int64_t save_meta(const MAT::Tree &tree, u_int64_t root_offset,
 }
 //serialize each node recursively, post-order traversl, so parent node know the offset of its children
 static std::pair<u_int64_t, u_int64_t> write_subtree(MAT::Node *root,const MAT::Tree& tree,
-                                                     std::ofstream &outfile) {
+        std::ofstream &outfile) {
     std::vector<u_int64_t> children_offset;
     std::vector<u_int64_t> children_length;
     Mutation_Detailed::node this_node;
@@ -82,13 +82,13 @@ static std::pair<u_int64_t, u_int64_t> write_subtree(MAT::Node *root,const MAT::
         this_node.add_children_lengths(temp.second);
     }
     this_node.set_identifier(root->identifier);
-    for(const auto& mut:root->mutations){
+    for(const auto& mut:root->mutations) {
         auto serialized_mut=this_node.add_node_mutations();
         serialize_mutation(mut, serialized_mut);
     }
     auto condensed_node_iter=tree.condensed_nodes.find(root->identifier);
-    if(condensed_node_iter!=tree.condensed_nodes.end()){
-        for(const auto& child_id:condensed_node_iter->second){
+    if(condensed_node_iter!=tree.condensed_nodes.end()) {
+        for(const auto& child_id:condensed_node_iter->second) {
             this_node.add_condensed_nodes(child_id);
         }
     }
@@ -131,7 +131,7 @@ struct Load_Subtree_pararllel : public tbb::task {
         out = new MAT::Node();
         out->parent = parent;
         google::protobuf::io::CodedInputStream inputi(file_start + start_offset,
-                                                      length);
+                length);
         Mutation_Detailed::node node;
         node.ParseFromCodedStream(&inputi);
         out->identifier = node.identifier();
@@ -158,7 +158,7 @@ struct Load_Subtree_pararllel : public tbb::task {
         empty->set_ref_count(child_size);
         for (size_t child_idx = 0; child_idx < child_size; child_idx++) {
             empty->spawn(*new (
-                empty->allocate_child()) Load_Subtree_pararllel{
+            empty->allocate_child()) Load_Subtree_pararllel{
                 out, file_start, node.children_offsets(child_idx),
                 node.children_lengths(child_idx), out->children[child_idx],condensed_nodes});
         }

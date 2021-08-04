@@ -40,7 +40,7 @@ void place_ori_mutation(mut_iter &iter,
 }
 /**
  * @brief Set par_nuc and mut_nuc of an allele that present in either child of a node and output it
-    , and copy over all valid old mutations preceeding it 
+    , and copy over all valid old mutations preceeding it
  * @param[in] to_set The mutation present in either child, with all_major_allele and boundary1_allele set
  * @param[inout] iter original mutation vector iterator from last invocation
  * @param[in] end end iterator of original mutation vector
@@ -84,7 +84,7 @@ static void set_major_allele_state_binary(
     }
     to_set.set_par_mut(par_nuc, new_state);
     if (new_state != par_nuc || major_allele != new_state ||
-        to_set.get_boundary1_one_hot()) {
+            to_set.get_boundary1_one_hot()) {
         major_alleles_out.push_back(to_set);
     }
     if (new_state != old_state) {

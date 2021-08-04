@@ -19,8 +19,8 @@ struct get_parsimony_score_from_add {
         //mutation unique to moved src, so the dst node have par_state
         nuc_one_hot major_allele;
         int new_score = get_new_major_allele_binary_node(
-            added_child_mutation.get_par_state(),
-            added_child_mutation.get_incremented(), major_allele);
+                            added_child_mutation.get_par_state(),
+                            added_child_mutation.get_incremented(), major_allele);
         have_not_shared = have_not_shared || (new_score);
         parsimony_score_change += new_score;
         if (major_allele != added_child_mutation.get_par_state()) {
@@ -45,8 +45,8 @@ struct get_parsimony_score_from_add {
                      const T2::value_type &sibling_addable) {
         nuc_one_hot major_alleles;
         int new_score = get_new_major_allele_binary_node(
-            sibling_addable.get_all_major_allele(),
-            added_child_mutation.get_incremented(), major_alleles);
+                            sibling_addable.get_all_major_allele(),
+                            added_child_mutation.get_incremented(), major_alleles);
         have_not_shared = have_not_shared || (new_score);
         parsimony_score_change += new_score;
         register_change_from_new_state(parent_added_mutations, new_score,
@@ -78,25 +78,25 @@ struct get_parent_altered_remove {
         : parent_mutation_count_change_out(parent_node_mutation_count_change),
           parent_parsimony_score_change(parent_parsimony_score_change) {}
     void T1_only(const T1::value_type &src_mut) {
-            //only src have this mutation, so decrement parsimony score if removing a valid mutation
-            if (src_mut.is_valid()) {
-                parent_parsimony_score_change--;
-            }
+        //only src have this mutation, so decrement parsimony score if removing a valid mutation
+        if (src_mut.is_valid()) {
+            parent_parsimony_score_change--;
+        }
     }
     void T2_only(const T2::value_type &parent_variable) {
-            Mutation_Count_Change temp(parent_variable,parent_variable.get_mut_one_hot(),0,0,true);
-            decrement_mutation_count(parent_mutation_count_change_out, parent_variable, temp,parent_parsimony_score_change);
-            //decrement_mutation_count manipulate parsimony score change only on how such change change the number of children able to have major allele state (as if src branch node is not removed), so need to decrement artificailly to account for src->parent have one less children
-            parent_parsimony_score_change--;
+        Mutation_Count_Change temp(parent_variable,parent_variable.get_mut_one_hot(),0,0,true);
+        decrement_mutation_count(parent_mutation_count_change_out, parent_variable, temp,parent_parsimony_score_change);
+        //decrement_mutation_count manipulate parsimony score change only on how such change change the number of children able to have major allele state (as if src branch node is not removed), so need to decrement artificailly to account for src->parent have one less children
+        parent_parsimony_score_change--;
     }
     void T1_T2_match(const T1::value_type &src_mut,
                      const T2::value_type &parent_variable) {
-            Mutation_Count_Change temp(src_mut,src_mut.get_all_major_allele(), 0, 0,true);
-            decrement_mutation_count(
-                parent_mutation_count_change_out, parent_variable, temp,
-                parent_parsimony_score_change);
-            //same as above
-            parent_parsimony_score_change--;
+        Mutation_Count_Change temp(src_mut,src_mut.get_all_major_allele(), 0, 0,true);
+        decrement_mutation_count(
+            parent_mutation_count_change_out, parent_variable, temp,
+            parent_parsimony_score_change);
+        //same as above
+        parent_parsimony_score_change--;
     }
 };
 /*
@@ -116,7 +116,7 @@ void get_parent_altered_remove(
     merge_func<struct get_parent_altered_remove>()(src->mutations,src->parent->mutations,functor);
 }
 
-//specialization when src->parent is binary, then it just have the same major allele set as its remaining children 
+//specialization when src->parent is binary, then it just have the same major allele set as its remaining children
 void get_child_removed_binary_node(
     Mutation_Count_Change_Collection &parent_mutation_count_change_out,
     const MAT::Node *src, int &parent_parsimony_score_change) {
@@ -125,10 +125,10 @@ void get_child_removed_binary_node(
     assert(removed_left_child || parent_node->children[1] == src);
     for (const auto &mutation : parent_node->mutations) {
         nuc_one_hot new_major_allele = removed_left_child
-                                           ? mutation.get_right_child_state()
-                                           : mutation.get_left_child_state();
+                                       ? mutation.get_right_child_state()
+                                       : mutation.get_left_child_state();
         int score_change = register_change_from_new_state(
-            parent_mutation_count_change_out, 0, mutation, new_major_allele);
+                               parent_mutation_count_change_out, 0, mutation, new_major_allele);
         parent_parsimony_score_change += score_change;
     }
 }

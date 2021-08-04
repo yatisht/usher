@@ -17,21 +17,21 @@ std::vector<MAT::Node*> get_common_nodes (std::vector<std::vector<MAT::Node*>> n
     return common_nodes;
 }
 
-std::vector<float> get_all_distances(MAT::Node* target, std::vector<std::vector<MAT::Node*>> paths){
+std::vector<float> get_all_distances(MAT::Node* target, std::vector<std::vector<MAT::Node*>> paths) {
     std::vector<float> distvs;
     for (size_t p=0; p<paths.size(); p++) {
         //for this path to the target common ancestor, count up distances from the start until it is reached
         float tdist = 0;
         assert (paths[p].size() > 0);
-        for (size_t i=0;i<paths[p].size();i++) {
+        for (size_t i=0; i<paths[p].size(); i++) {
             if (paths[p][i]->identifier == target->identifier) {
                 //stop iterating when its reached the indicated common ancestor (remember, path is sorted nearest to root)
                 break;
             }
             tdist += paths[p][i]->mutations.size();
 
-        //then record the total distance in distvs
-        distvs.emplace_back(tdist);
+            //then record the total distance in distvs
+            distvs.emplace_back(tdist);
         }
     }
     return distvs;
@@ -71,7 +71,7 @@ size_t get_neighborhood_size(std::vector<MAT::Node*> nodes, MAT::Tree* T) {
     assert (nodes.size() > 1);
     std::vector<std::vector<MAT::Node*>> parentvecs;
     for (size_t s=0; s<nodes.size(); s++) {
-        if (!nodes[s]->is_root()){
+        if (!nodes[s]->is_root()) {
             std::vector<MAT::Node*> npath;
             npath.emplace_back(nodes[s]); //include the node itself on the path so branch length is correctly accessed
             for (auto& it: T->rsearch(nodes[s]->identifier)) {
@@ -104,9 +104,9 @@ size_t get_neighborhood_size(std::vector<MAT::Node*> nodes, MAT::Tree* T) {
         float widest = 0.0;
         for (size_t i=0; i<distances.size(); i++) {
             for (size_t j=0; j<distances.size(); j++) {
-                if (i!=j){
+                if (i!=j) {
                     float spairdist = distances[i] + distances[j];
-                    if (spairdist > widest){
+                    if (spairdist > widest) {
                         widest = spairdist;
                     }
                 }
@@ -120,7 +120,7 @@ size_t get_neighborhood_size(std::vector<MAT::Node*> nodes, MAT::Tree* T) {
         //but I'm focusing on results first here
         //assign this longest pair path value to best_size if its smaller than any we've seen for other common ancestors
         size_t size_widest = static_cast<size_t>(widest);
-        if (size_widest < best_size){
+        if (size_widest < best_size) {
             best_size = size_widest;
         }
     }
@@ -144,7 +144,7 @@ std::vector<MAT::Node*> findEPPs (MAT::Tree* T, MAT::Node* node, size_t* nbest, 
     std::vector<MAT::Mutation> ancestral_mutations;
     std::vector<MAT::Node*> best_placements;
     //first load in the current mutations
-    for (auto m: node->mutations){
+    for (auto m: node->mutations) {
         if (m.is_masked() || (std::find(anc_positions.begin(), anc_positions.end(), m.position) == anc_positions.end())) {
             ancestral_mutations.emplace_back(m);
             if (!m.is_masked()) {
@@ -209,29 +209,29 @@ std::vector<MAT::Node*> findEPPs (MAT::Tree* T, MAT::Node* node, size_t* nbest, 
         // placements. Real action happens within mapper2_body
         auto grain_size = 400;
         tbb::parallel_for( tbb::blocked_range<size_t>(0, total_nodes, grain_size),
-                [&](tbb::blocked_range<size_t> r) {
-                for (size_t k=r.begin(); k<r.end(); ++k){
-                    if (dfs[k]->identifier != node->identifier) { //do not allow self-mapping (e.g. can't remap leaf as child of itself)
-                        mapper2_input inp;
-                        inp.T = T;
-                        inp.node = dfs[k];
-                        inp.missing_sample_mutations = &ancestral_mutations;
-                        inp.excess_mutations = &node_excess_mutations[k];
-                        inp.imputed_mutations = &node_imputed_mutations[k];
-                        inp.best_node_num_leaves = &best_node_num_leaves;
-                        inp.best_set_difference = &best_set_difference;
-                        inp.best_node = &best_node;
-                        inp.best_j =  &best_j;
-                        inp.num_best = &num_best;
-                        inp.j = k;
-                        inp.has_unique = &best_node_has_unique;
-                        inp.best_j_vec = &best_j_vec;
-                        inp.node_has_unique = &(node_has_unique);
+        [&](tbb::blocked_range<size_t> r) {
+            for (size_t k=r.begin(); k<r.end(); ++k) {
+                if (dfs[k]->identifier != node->identifier) { //do not allow self-mapping (e.g. can't remap leaf as child of itself)
+                    mapper2_input inp;
+                    inp.T = T;
+                    inp.node = dfs[k];
+                    inp.missing_sample_mutations = &ancestral_mutations;
+                    inp.excess_mutations = &node_excess_mutations[k];
+                    inp.imputed_mutations = &node_imputed_mutations[k];
+                    inp.best_node_num_leaves = &best_node_num_leaves;
+                    inp.best_set_difference = &best_set_difference;
+                    inp.best_node = &best_node;
+                    inp.best_j =  &best_j;
+                    inp.num_best = &num_best;
+                    inp.j = k;
+                    inp.has_unique = &best_node_has_unique;
+                    inp.best_j_vec = &best_j_vec;
+                    inp.node_has_unique = &(node_has_unique);
 
-                        mapper2_body(inp, false);
-                    }
+                    mapper2_body(inp, false);
                 }
-                });
+            }
+        });
         //assign the result to the input pointer for epps
         *nbest = num_best;
         //if the num_best is big enough and if the bool is set, get the neighborhood size value and assign it
@@ -319,7 +319,7 @@ void findEPPs_wrapper (MAT::Tree Tobj, std::string sample_file, std::string fepp
     //this specific function would probably be better optimized if the outer was parallelized and the inner was not
     //but having the inner loop parallelized lets me use parallelization when calculating EPPs for very few or single samples in the future
 
-    for (size_t s=0; s<samples.size(); s++){
+    for (size_t s=0; s<samples.size(); s++) {
         //get the node object.
         auto node = T->get_node(samples[s]);
         size_t num_best;
@@ -374,31 +374,30 @@ po::variables_map parse_uncertainty_command(po::parsed_options parsed) {
     po::variables_map vm;
     po::options_description ann_desc("uncertainty options");
     ann_desc.add_options()
-        ("input-mat,i", po::value<std::string>()->required(),
-         "Input mutation-annotated tree file [REQUIRED]")
-        ("samples,s", po::value<std::string>()->default_value(""),
-        "Path to a simple text file of sample names to calculate uncertainty for.")
-        ("find-epps,e", po::value<std::string>()->default_value(""),
-        "Name for an Auspice-compatible tsv file output of equally parsimonious placements and neighborhood sizes for input samples.")
-        ("record-placements,o", po::value<std::string>()->default_value(""),
-        "Name for an Auspice-compatible two-column tsv which records potential parents for each sample in the query set.")
-        ("dropout-mutations,d", po::value<std::string>()->default_value(""),
-        "Name a file to calculate and save mutations which may be associated with primer dropout [EXPERIMENTAL].")
-        ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
-        ("help,h", "Print help messages");
+    ("input-mat,i", po::value<std::string>()->required(),
+     "Input mutation-annotated tree file [REQUIRED]")
+    ("samples,s", po::value<std::string>()->default_value(""),
+     "Path to a simple text file of sample names to calculate uncertainty for.")
+    ("find-epps,e", po::value<std::string>()->default_value(""),
+     "Name for an Auspice-compatible tsv file output of equally parsimonious placements and neighborhood sizes for input samples.")
+    ("record-placements,o", po::value<std::string>()->default_value(""),
+     "Name for an Auspice-compatible two-column tsv which records potential parents for each sample in the query set.")
+    ("dropout-mutations,d", po::value<std::string>()->default_value(""),
+     "Name a file to calculate and save mutations which may be associated with primer dropout [EXPERIMENTAL].")
+    ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
+    ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
     // (positional) command name, so we need to erase that.
     std::vector<std::string> opts = po::collect_unrecognized(parsed.options, po::include_positional);
     opts.erase(opts.begin());
 
     // Run the parser, with try/catch for help
-    try{
+    try {
         po::store(po::command_line_parser(opts)
                   .options(ann_desc)
                   .run(), vm);
         po::notify(vm);
-    }
-    catch(std::exception &e){
+    } catch(std::exception &e) {
         std::cerr << ann_desc << std::endl;
         // Return with error code 1 unless the user specifies help
         if (vm.count("help"))
@@ -410,30 +409,30 @@ po::variables_map parse_uncertainty_command(po::parsed_options parsed) {
 }
 
 double fisher_test(unsigned a, unsigned b, unsigned c, unsigned d) {
-        //based on https://github.com/usuyama/fisher_exact_test/blob/master/fisher.hpp
-		unsigned N = a + b + c + d;
-		unsigned r = a + c;
-		unsigned n = c + d;
-		unsigned max_for_k;
-        if (r < n) {
-            max_for_k = r;
-        } else {
-            max_for_k = n;
-        }
-		unsigned min_for_k;
-        if (0 >= int(r+n-N)) {
-            min_for_k = unsigned(0);
-        } else {
-            min_for_k = unsigned(int(r+n-N));
-        }
-		boost::math::hypergeometric_distribution<> hgd(r, n, N);	
-		double cutoff = boost::math::pdf(hgd, c);
-		double tmp_p = 0.0;
-		for(int k = min_for_k;k < static_cast<int>(max_for_k + 1);k++) {
-				double p = boost::math::pdf(hgd, k);
-				if(p <= cutoff) tmp_p += p;
-		}
-		return tmp_p;
+    //based on https://github.com/usuyama/fisher_exact_test/blob/master/fisher.hpp
+    unsigned N = a + b + c + d;
+    unsigned r = a + c;
+    unsigned n = c + d;
+    unsigned max_for_k;
+    if (r < n) {
+        max_for_k = r;
+    } else {
+        max_for_k = n;
+    }
+    unsigned min_for_k;
+    if (0 >= int(r+n-N)) {
+        min_for_k = unsigned(0);
+    } else {
+        min_for_k = unsigned(int(r+n-N));
+    }
+    boost::math::hypergeometric_distribution<> hgd(r, n, N);
+    double cutoff = boost::math::pdf(hgd, c);
+    double tmp_p = 0.0;
+    for(int k = min_for_k; k < static_cast<int>(max_for_k + 1); k++) {
+        double p = boost::math::pdf(hgd, k);
+        if(p <= cutoff) tmp_p += p;
+    }
+    return tmp_p;
 }
 
 std::map<std::string,size_t> get_mutation_count(MAT::Tree* T, MAT::Node* A = NULL, bool by_location = false) {
@@ -468,7 +467,7 @@ void check_for_droppers(MAT::Tree* T, std::string outf) {
     auto gmap = get_mutation_count(T, NULL, false);
     size_t global_parsimony_score = 0;
     for (auto kv: gmap) {
-       global_parsimony_score += kv.second;
+        global_parsimony_score += kv.second;
     }
     size_t tests_performed = 0;
     for (auto n: T->depth_first_expansion()) {
@@ -530,7 +529,7 @@ void uncertainty_main(po::parsed_options parsed) {
     MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
     //T in this scope is the actual object and not a pointer
     if (T.condensed_nodes.size() > 0) {
-      T.uncondense_leaves();
+        T.uncondense_leaves();
     }
     if (dropmuts != "") {
         fprintf(stderr, "Identifying primer-dropout associated mutations.\n");
@@ -538,6 +537,6 @@ void uncertainty_main(po::parsed_options parsed) {
     }
     if (sample_file != "") {
         fprintf(stderr, "Calculating placement uncertainty\n");
-        findEPPs_wrapper(T, sample_file, fepps, flocs);    
+        findEPPs_wrapper(T, sample_file, fepps, flocs);
     }
 }

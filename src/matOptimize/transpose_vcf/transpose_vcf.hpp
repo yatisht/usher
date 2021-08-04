@@ -9,7 +9,7 @@
 //#include <vector>
 #define MAX_SIZ 0x30000
 
-struct partitioner{
+struct partitioner {
     const uint8_t*& last_out;
     const uint8_t* const end;
     const uint8_t* operator()(tbb::flow_control& fc)const {
@@ -21,10 +21,10 @@ struct partitioner{
         //fprintf(stderr, "%d\n",*(int*)out);
         unsigned int item_len=*(int*) out;
         last_out+=(item_len+4);
-        return out; 
+        return out;
     }
 };
-static unsigned int loadVariant(const uint8_t*& in){
+static unsigned int loadVariant(const uint8_t*& in) {
     unsigned int out=(*in&0x7f);
     int shamt=7;
     while (*in&0x80) {
@@ -36,28 +36,28 @@ static unsigned int loadVariant(const uint8_t*& in){
     return out;
 }
 template<typename output_t>
-const uint8_t* parse_buffer(const uint8_t* in,output_t& out_all){
+const uint8_t* parse_buffer(const uint8_t* in,output_t& out_all) {
     std::string sample_name;
-    while(*in!=0){
+    while(*in!=0) {
         sample_name.push_back(*in);
         in++;
     }
     auto out=out_all.set_name(std::move(sample_name));
     in++;
-    while(*in){
+    while(*in) {
         int pos1=loadVariant(in);
         assert(*in);
         if (*(in+1)) {
             int pos2=loadVariant(in);
             out.add_Not_N(pos1,(*in)&0xf);
             out.add_Not_N(pos2,0xf&((*in)>>4));
-        }else {
+        } else {
             out.add_Not_N(pos1,(*in)&0xf);
         }
         in++;
     }
     in++;
-    
+
     while (*in) {
         int first=loadVariant(in);
         auto after_first=in;
@@ -68,7 +68,7 @@ const uint8_t* parse_buffer(const uint8_t* in,output_t& out_all){
         int second=loadVariant(in);
         if (first>second) {
             out.add_N(second,first);
-        }else{
+        } else {
             out.add_N(first,first);
             in=after_first;
         }
@@ -77,9 +77,9 @@ const uint8_t* parse_buffer(const uint8_t* in,output_t& out_all){
     return in;
 }
 template<typename output_t>
-struct printer{
+struct printer {
     output_t& out;
-    void operator()(const uint8_t* in) const{
+    void operator()(const uint8_t* in) const {
         uint8_t buffer[MAX_SIZ];
         unsigned int item_len=*(int*) in;
         size_t out_len=MAX_SIZ;
@@ -87,13 +87,13 @@ struct printer{
         assert(uncompress_out==Z_OK);
         const uint8_t* start=buffer;
         auto end=buffer+out_len;
-        while(start!=end){
+        while(start!=end) {
             start=parse_buffer(start,out);
         }
     }
 };
 template<typename output_t>
-static void load_mutations(const char* path,int nthread,output_t& out){
+static void load_mutations(const char* path,int nthread,output_t& out) {
     auto fh=open(path, O_RDONLY);
     struct stat stat_buf;
     fstat(fh, &stat_buf);
@@ -102,7 +102,7 @@ static void load_mutations(const char* path,int nthread,output_t& out){
     const uint8_t* last_out=file;
     auto end=file+size;
     tbb::parallel_pipeline(nthread,tbb::make_filter<void,const uint8_t*>(tbb::filter::serial_in_order,partitioner{last_out,end})&
-        tbb::make_filter<const uint8_t*,void>(tbb::filter::parallel,printer<output_t>{out}));
+                           tbb::make_filter<const uint8_t*,void>(tbb::filter::parallel,printer<output_t> {out}));
 
     munmap((void*)file, size);
 }
