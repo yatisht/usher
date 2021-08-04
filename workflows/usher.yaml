@@ -1,0 +1,9 @@
+channels:
+  - defaults
+  - bioconda
+  - conda-forge
+dependencies:
+  - usher
+  - wget
+  - perl
+  - gzip
