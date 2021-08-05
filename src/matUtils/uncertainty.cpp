@@ -458,22 +458,25 @@ std::map<std::string,size_t> get_mutation_count(MAT::Tree* T, MAT::Node* A = NUL
 void check_for_droppers(MAT::Tree* T, std::string outf) {
     timer.Start();
     std::ofstream outfile (outf);
-    outfile << "mutation\tbranch\tpvalue\tcorrected_pvalue\toccurrences_in\toccurrences_out\tsplit_size\n";
+    outfile << "mutation\tbranch\tpvalue\tcorrected_pvalue\toccurrences_in\toccurrences_out\tsplit_size\tlocation_pvalue\tlocation_corrected_pvalue\n";
     std::map<std::string,double> pvals;
     std::map<std::string,std::string> nodetrack;
     std::map<std::string,size_t> ocintrack;
     std::map<std::string,size_t> splitstrack;
+    std::map<std::string,double> lpvals;
     //first, get the overall mutation map for the global tree.
     auto gmap = get_mutation_count(T, NULL, false);
+    auto locmap = get_mutation_count(T, NULL, true);
     size_t global_parsimony_score = 0;
     for (auto kv: gmap) {
         global_parsimony_score += kv.second;
     }
     size_t tests_performed = 0;
+    size_t loc_tests_performed = 0;
     for (auto n: T->depth_first_expansion()) {
         //timer.Start();
         //for each split point, get the subtree and the mutation count of that subtree.
-        auto lmap = get_mutation_count(T,n, false);
+        auto lmap = get_mutation_count(T, n, false);
         size_t local_parsimony_score = 0;
         for (auto kv: lmap) {
             local_parsimony_score += kv.second;
@@ -482,6 +485,7 @@ void check_for_droppers(MAT::Tree* T, std::string outf) {
             //totally arbitrary cutoff. No clue how important this will be.
             continue;
         }
+        auto mloc = get_mutation_count(T, n, true);
         //do a fisher's exact test on the counts of this mutation vs the total parsimony score of the outside vs the inside
         //for each mutation in lmap.
         for (auto kv: lmap) {
@@ -492,13 +496,19 @@ void check_for_droppers(MAT::Tree* T, std::string outf) {
             auto pv = fisher_test(kv.second, local_parsimony_score, gmap[kv.first]-kv.second, global_parsimony_score-local_parsimony_score);
             tests_performed++;
             if (pv < 0.05) {
+                //perform a secondary location-based test. 
+                //this will have less total tests performed as it is conditioned on the previous test.
+                auto lpv = fisher_test(mloc[kv.first], local_parsimony_score, locmap[kv.first]-mloc[kv.first], global_parsimony_score-local_parsimony_score);
+                loc_tests_performed++;
                 if (pvals.find(kv.first) == pvals.end()) {
                     pvals[kv.first] = pv;
+                    lpvals[kv.first] = lpv;
                     nodetrack[kv.first] = n->identifier;
                     ocintrack[kv.first] = kv.second;
                     splitstrack[kv.first] = local_parsimony_score;
                 } else if (pv < pvals[kv.first]) {
                     pvals[kv.first] = pv;
+                    lpvals[kv.first] = lpv;
                     nodetrack[kv.first] = n->identifier;
                     ocintrack[kv.first] = kv.second;
                     splitstrack[kv.first] = local_parsimony_score;
@@ -507,7 +517,7 @@ void check_for_droppers(MAT::Tree* T, std::string outf) {
         }
     }
     for (auto kv: pvals) {
-        outfile << kv.first << "\t" << nodetrack[kv.first] << "\t" << pvals[kv.first] << "\t" << (pvals[kv.first] * tests_performed) << "\t" << ocintrack[kv.first] << "\t" << gmap[kv.first] - ocintrack[kv.first] << "\t" << splitstrack[kv.first] << "\n";
+        outfile << kv.first << "\t" << nodetrack[kv.first] << "\t" << pvals[kv.first] << "\t" << (pvals[kv.first] * tests_performed) << "\t" << ocintrack[kv.first] << "\t" << gmap[kv.first] - ocintrack[kv.first] << "\t" << splitstrack[kv.first] << lpvals[kv.first] << "\t" << (lpvals[kv.first] * loc_tests_performed) << "\n";
     }
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 }
