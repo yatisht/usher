@@ -15,7 +15,7 @@ int usher_common(std::string dout_filename, std::string outdir, uint32_t num_thr
     uint32_t max_uncertainty, bool sort_before_placement_1, bool sort_before_placement_2, bool sort_before_placement_3,
     bool reverse_sort, bool collapse_tree, bool collapse_output_tree, bool print_uncondensed_tree, bool print_parsimony_scores,
     bool retain_original_branch_len, bool no_add, bool detailed_clades, size_t print_subtrees_size, size_t print_subtrees_single, 
-    std::vector<Missing_Sample>& missing_samples, std::vector<std::string> low_confidence_samples, MAT::Tree* loaded_MAT){
+    std::vector<Missing_Sample>& missing_samples, std::vector<std::string>& low_confidence_samples, MAT::Tree* loaded_MAT){
    
 /*
 
@@ -115,16 +115,18 @@ int usher_common(std::string dout_filename, std::string outdir, uint32_t num_thr
     std::vector<MAT::Tree> optimal_trees;
     // Tree pointer to point to some element in optimal_trees that would be
     // updated several times during the execution 
-    MAT::Tree* T = loaded_MAT;
+
     optimal_trees.emplace_back(std::move(*loaded_MAT));
+    MAT::Tree* T = &optimal_trees[0];
     // Since --multiple-placements can result in trees with different parsimony
     // scores, the vector below will be used to maintain the final parsimony
     // score of each tree 
     std::vector<size_t> tree_parsimony_scores;
-
+    
     auto num_trees = optimal_trees.size();
 
     //COPIED FROM usher.cpp around 475~1435
+    
     // Collapses the tree nodes not carrying a mutation and also condenses
     // identical sequences into a single node. 
     if (collapse_tree) {
@@ -209,13 +211,10 @@ int usher_common(std::string dout_filename, std::string outdir, uint32_t num_thr
                 std::vector<size_t> num_best_placements;
 
                 for (size_t s=0; s<missing_samples.size(); s++) {
-
                     //Sort the missing sample mutations by position
                     std::sort(missing_samples[s].mutations.begin(), missing_samples[s].mutations.end());
-
                     auto bfs = T->breadth_first_expansion();
                     size_t total_nodes = bfs.size();
-
                     // Stores the excess mutations to place the sample at each
                     // node of the tree in DFS order. When placement is as a
                     // child, it only contains parsimony-increasing mutations in
@@ -238,7 +237,6 @@ int usher_common(std::string dout_filename, std::string outdir, uint32_t num_thr
                     if (print_parsimony_scores) {
                         node_set_difference.resize(total_nodes);
                     }
-
                     size_t best_node_num_leaves = 0;
                     // The maximum number of mutations is bound by the number
                     // of mutations in the missing sample (place at root)
@@ -247,7 +245,6 @@ int usher_common(std::string dout_filename, std::string outdir, uint32_t num_thr
                     // this value since it forces placement as child but this
                     // could be changed later 
                     int best_set_difference = missing_samples[s].mutations.size() + T->root->mutations.size() + 1;
-
                     size_t best_j = 0;
                     size_t num_best = 1;
                     bool best_node_has_unique = false;
@@ -256,7 +253,6 @@ int usher_common(std::string dout_filename, std::string outdir, uint32_t num_thr
                     std::vector<bool> node_has_unique(total_nodes, false);
                     std::vector<size_t> best_j_vec;
                     best_j_vec.emplace_back(0);
-
                     // Parallel for loop to search for most parsimonious
                     // placements. Real action happens within mapper2_body
                     static tbb::affinity_partitioner ap;
@@ -282,7 +278,6 @@ int usher_common(std::string dout_filename, std::string outdir, uint32_t num_thr
                                 mapper2_body(inp, false);
                             }       
                     }, ap); 
-
                     best_parsimony_scores.emplace_back(best_set_difference);
                     num_best_placements.emplace_back(num_best);
                 }
@@ -563,6 +558,7 @@ int usher_common(std::string dout_filename, std::string outdir, uint32_t num_thr
                 if (print_parsimony_scores) {
                     for (size_t k = 0; k < total_nodes; k++) {
                         char is_optimal = (node_set_difference[k] == best_set_difference) ? 'y' : 'n';
+                        
                         fprintf (parsimony_scores_file, "%s\t%s\t%d\t\t%c\t", sample.c_str(), bfs[k]->identifier.c_str(), node_set_difference[k], is_optimal); 
                         if (node_set_difference[k] == best_set_difference) {
                             if (node_set_difference[k] == 0) {
@@ -581,6 +577,7 @@ int usher_common(std::string dout_filename, std::string outdir, uint32_t num_thr
                             fprintf(parsimony_scores_file, "N/A");
                         }
                         fprintf(parsimony_scores_file, "\n");
+
                     }
                 }
                 // Do placement only if number of parsimony-optimal placements

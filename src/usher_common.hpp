@@ -19,4 +19,4 @@ int usher_common(std::string dout_filename, std::string outdir, uint32_t num_thr
     uint32_t max_uncertainty, bool sort_before_placement_1, bool sort_before_placement_2, bool sort_before_placement_3,
     bool reverse_sort, bool collapse_tree, bool collapse_output_tree, bool print_uncondensed_tree, bool print_parsimony_scores,
     bool retain_original_branch_len, bool no_add, bool detailed_clades, size_t print_subtrees_size, size_t print_subtrees_single, 
-    std::vector<Missing_Sample>& missing_samples, std::vector<std::string> low_confidence_samples, MAT::Tree* loaded_MAT);
+    std::vector<Missing_Sample>& missing_samples, std::vector<std::string>& low_confidence_samples, MAT::Tree* loaded_MAT);

@@ -20,6 +20,7 @@ namespace MAT = Mutation_Annotated_Tree;
 
 
 int main(int argc, char** argv) {
+
     //Variables to load command-line options using Boost program_options
     std::string arg_filename;
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
@@ -27,7 +28,7 @@ int main(int argc, char** argv) {
     uint32_t sleep_length;
 
     desc.add_options()
-        //("list-mutation-annonated-trees,i", po::value<std::string>(&din_filename)->default_value(""), "List of mutation-annotated tree object");
+        //("list-mutation-annonated-trees,i", po::value<std::string>(&din_filename)->default_value(""), "List of mutation-annotated tree objects");
         //this will be used if multiple MATs were to be stored in future
         ("arguments,a", po::value<std::string>(&arg_filename)->required(), "Input argument file that will contain arguments for usher [REQUIRED]")
         ("sleep-length,s", po::value<uint32_t>(&sleep_length)->default_value(100), "Time in milliseconds that the program waits until checking for input in argument file")
@@ -331,7 +332,7 @@ int main(int argc, char** argv) {
             }
             curr_tree_avail = false;
             fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
-
+            std::vector<size_t> tree_parsimony_scores;
             int return_val = usher_common(dout_filename, outdir, num_threads, max_trees, max_uncertainty, 
             sort_before_placement_1, sort_before_placement_2, sort_before_placement_3, reverse_sort, collapse_tree, 
             collapse_output_tree, print_uncondensed_tree, print_parsimony_scores, retain_original_branch_len, no_add, 
