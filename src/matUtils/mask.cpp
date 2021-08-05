@@ -191,6 +191,7 @@ void restrictMutationsLocally (std::string mutations_filename, MAT::Tree* T, boo
         }
         MAT::string_split(line, delim, words);
         if ((words.size() == 1) || (global)) {
+            std::cerr << "Masking mutations globally.\n";
             mutlmap[words[0]] = rootid;
         } else {
             mutlmap[words[0]] = words[1];
@@ -201,16 +202,31 @@ void restrictMutationsLocally (std::string mutations_filename, MAT::Tree* T, boo
     //very simple loop. For each mutation-location pair, depth first from that point and mask all instances of that mutation.
     //then return the tree. 
     for (auto ml: mutlmap) {
-        for (auto n: T->depth_first_expansion(T->get_node(ml.second))) {
+        size_t instances_masked = 0;
+        MAT::Node* rn = T->get_node(ml.second);
+        if (rn == NULL) {
+            fprintf(stderr, "ERROR: Internal node %s requested for masking does not exist in the tree. Exiting\n", ml.second.c_str());
+            exit(1);
+        }
+        fprintf(stderr, "Masking mutation %s below node %s\n", ml.first.c_str(), ml.second.c_str());
+        for (auto n: T->depth_first_expansion(rn)) {
+            std::vector<MAT::Mutation> nmuts;
             for (auto& mut: n->mutations) {
                 if (mut.get_string() == ml.first) {
-                    mut.position = -1;
-                    mut.ref_nuc = 0;
-                    mut.par_nuc = 0;
-                    mut.mut_nuc = 0;
+                    MAT::Mutation nmut;
+                    nmut.position = -1;
+                    nmut.ref_nuc = 0;
+                    nmut.par_nuc = 0;
+                    nmut.mut_nuc = 0;
+                    nmuts.push_back(nmut);
+                    instances_masked++;
+                } else {
+                    nmuts.push_back(mut);
                 }
             }
+            n->mutations = nmuts;
         }
+        std::cerr << instances_masked << " mutations masked.\n";
     }
 }
 
