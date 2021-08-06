@@ -1095,6 +1095,9 @@ size_t Mutation_Annotated_Tree::Tree::get_parsimony_score() {
     auto dfs = depth_first_expansion();
     for (auto n: dfs) {
         score += n->mutations.size();
+        /*if ((!n->mutations.empty())&&n->mutations[0].is_masked()) {
+            score--;
+        }*/
     }
     return score;
 }

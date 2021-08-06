@@ -16,6 +16,7 @@
 #include <sys/mman.h>
 #include <google/protobuf/io/coded_stream.h>
 #include <string>
+#include <google/protobuf/io/zero_copy_stream_impl.h>
 std::vector<int8_t> Mutation_Annotated_Tree::get_nuc_vec_from_id (int8_t nuc_id) {
     return get_nuc_vec(get_nuc(nuc_id));
 }
@@ -327,17 +328,27 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
     Tree tree;
 
     Parsimony::data data;
-
-    struct stat stat_buf;
-    stat(filename.c_str(),&stat_buf);
-    size_t file_size=stat_buf.st_size;
-    auto fd=open(filename.c_str(), O_RDONLY);
-    uint8_t* maped_file=(uint8_t*)mmap(nullptr, file_size, PROT_READ, MAP_SHARED,fd, 0);
-    close(fd);
-    google::protobuf::io::CodedInputStream input(maped_file,file_size);
-    input.SetTotalBytesLimit(file_size*4, file_size*4);
+    #define BIG_SIZE 2000000000l
+    boost::iostreams::filtering_istream instream;
+    std::ifstream inpfile(filename, std::ios::in | std::ios::binary);
+    if (filename.find(".gz\0") != std::string::npos) {
+        if (!inpfile) {
+            fprintf(stderr, "ERROR: Could not load the mutation-annotated tree object from file: %s!\n", filename.c_str());
+            exit(1);
+        }
+        try {
+            instream.push(boost::iostreams::gzip_decompressor());
+            instream.push(inpfile);
+        } catch(const boost::iostreams::gzip_error& e) {
+            std::cout << e.what() << '\n';
+        }
+    } else {
+        instream.push(inpfile);
+    }
+    google::protobuf::io::IstreamInputStream stream(&instream);
+    google::protobuf::io::CodedInputStream input(&stream);
+    input.SetTotalBytesLimit(BIG_SIZE, BIG_SIZE);
     data.ParseFromCodedStream(&input);
-    munmap(maped_file, file_size);
     //check if the pb has a metadata field
     bool hasmeta = (data.metadata_size()>0);
     if (!hasmeta) {
@@ -358,12 +369,14 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
             }
             for (int k = 0; k < mutation_list.mutation_size(); k++) {
                 auto mut = mutation_list.mutation(k);
+                if (mut.position()<0) {
+                    node->have_masked=true;
+                    continue;
+                }
                 char mut_one_hot=1<<mut.mut_nuc(0);
                 char all_major_alleles=mut_one_hot;
-                if (mut.position()>0) {
-                    for (int n = 1; n < mut.mut_nuc_size(); n++) {
-                        all_major_alleles|= (1<<mut.mut_nuc(n));
-                    }
+                for (int n = 1; n < mut.mut_nuc_size(); n++) {
+                    all_major_alleles|= (1<<mut.mut_nuc(n));
                 }
                 Mutation m(mut.chromosome(),mut.position(),nuc_one_hot(mut_one_hot),two_bit_to_one_hot(mut.par_nuc()),all_major_alleles,two_bit_to_one_hot(mut.ref_nuc()));
                 node->add_mutation(m);
@@ -403,16 +416,18 @@ void Mutation_Annotated_Tree::save_mutation_annotated_tree (const Mutation_Annot
             meta->add_clade_annotations(dfs[idx]->clade_annotations[k]);
         }
         auto mutation_list = data.add_node_mutations();
+        if (dfs[idx]->have_masked) {
+            auto mut = mutation_list->add_mutation();
+            mut->set_position(-1);
+            mut->set_par_nuc(-1);
+            mut->set_ref_nuc(-1);
+        }
         for (auto m: dfs[idx]->mutations) {
 
             auto mut = mutation_list->add_mutation();
             mut->set_chromosome(m.get_chromosome());
             mut->set_position(m.get_position());
-
-            if (m.is_masked()) {
-                mut->set_ref_nuc(-1);
-                mut->set_par_nuc(-1);
-            } else {
+            
                 int8_t j = one_hot_to_two_bit(m.get_ref_one_hot()) ;
                 assert (j >= 0);
                 mut->set_ref_nuc(j);
@@ -433,7 +448,6 @@ void Mutation_Annotated_Tree::save_mutation_annotated_tree (const Mutation_Annot
                         }
                     }
                 }*/
-            }
         }
     }
 
