@@ -517,7 +517,7 @@ void check_for_droppers(MAT::Tree* T, std::string outf) {
         }
     }
     for (auto kv: pvals) {
-        outfile << kv.first << "\t" << nodetrack[kv.first] << "\t" << pvals[kv.first] << "\t" << (pvals[kv.first] * tests_performed) << "\t" << ocintrack[kv.first] << "\t" << gmap[kv.first] - ocintrack[kv.first] << "\t" << splitstrack[kv.first] << lpvals[kv.first] << "\t" << (lpvals[kv.first] * loc_tests_performed) << "\n";
+        outfile << kv.first << "\t" << nodetrack[kv.first] << "\t" << pvals[kv.first] << "\t" << (pvals[kv.first] * tests_performed) << "\t" << ocintrack[kv.first] << "\t" << gmap[kv.first] - ocintrack[kv.first] << "\t" << splitstrack[kv.first] << "\t" << lpvals[kv.first] << "\t" << (lpvals[kv.first] * loc_tests_performed) << "\n";
     }
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 }
