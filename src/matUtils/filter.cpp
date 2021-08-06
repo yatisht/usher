@@ -116,37 +116,8 @@ MAT::Tree resolve_all_polytomies(MAT::Tree T) {
     //go through the tree, identify every uncondensed polytomy
     //then resolve the polytomy positionally and save the results
     //this will conflict with condensing the tree but that's fine.
-    size_t removed_count = 0;
-    size_t skipped = 0;
     //step one is go through the tree and delete all single children nodes.
-    for (auto n: T.depth_first_expansion()) {
-        if (n->children.size() == 1) {
-            //remove nodes with only one child when resolving to a binary tree.
-            //this has to be accomplished by moving its child up one level to preserve information.
-            //and we have to add its mutations to the child to preserve total tree integrity
-            for (auto m: n->mutations) {
-                //we need to check that the child doesn't already have a mutation at this position before we add it
-                //or the parent version will overwrite the child version and we will lose information
-                bool skip = false;
-                for (auto cm: n->children[0]->mutations) {
-                    if ((cm.position == m.position) & (cm.chrom == m.chrom)) {
-                        skipped++;
-                        skip = true;
-                        break;
-                    }
-                }
-                if (!skip) {
-                    //if this mutation doesn't interfere with any mutations in the child, we add it
-                    n->children[0]->add_mutation(m);
-                }
-            }
-            T.move_node(n->children[0]->identifier, n->parent->identifier, true);
-            removed_count++;
-        }
-    }
-    if (removed_count > 0) {
-        fprintf(stderr, "%ld internal nodes with single children removed; %ld mutations are removed for overlap with child mutations.\n", removed_count, skipped);
-    }
+    T.collapse_tree();
     for (auto n: T.depth_first_expansion()) {
         //greater than 2 because a polytomy of two nodes is already resolved (unlike condenser, which can condense a polytomy of 2)
         if (n->children.size() > 2) {
