@@ -315,7 +315,7 @@ std::vector<std::string> get_sample_match(MAT::Tree* T, std::string substring) {
     return matchsamples;
 }
 
-std::vector<std::string> fill_random_samples(MAT::Tree* T, std::vector<std::string> current_samples, size_t target_size) {
+std::vector<std::string> fill_random_samples(MAT::Tree* T, std::vector<std::string> current_samples, size_t target_size, bool lca_limit) {
     //expand the current sample selection with random samples until it is the indicated size.
     //alternatively, prune random samples from the selection until it is the indicated size, as necessary.
     std::set<std::string> choices;
@@ -334,7 +334,14 @@ std::vector<std::string> fill_random_samples(MAT::Tree* T, std::vector<std::stri
         }
     } else if (current_samples.size() < target_size) {
         fprintf(stderr, "filling in with random samples\n");
-        auto all_leaves_ids = T->get_leaves_ids();
+        std::vector<std::string> all_leaves_ids;
+        if (lca_limit) {
+            std::string lca = MAT::get_subtree(*T, current_samples).root->identifier;
+            std::cerr << "Selecting only samples below " << lca << "\n";
+            all_leaves_ids = T->get_leaves_ids(lca);
+        } else {
+            all_leaves_ids = T->get_leaves_ids();
+        }
         choices.insert(current_samples.begin(), current_samples.end());
         for (size_t i = 0; i < all_leaves_ids.size(); i++) {
             auto l = all_leaves_ids.begin();
@@ -349,6 +356,9 @@ std::vector<std::string> fill_random_samples(MAT::Tree* T, std::vector<std::stri
         choices.insert(current_samples.begin(), current_samples.end());
     }
     std::vector<std::string> filled_samples (choices.begin(), choices.end());
-    assert (filled_samples.size() == target_size);
+    //assert (filled_samples.size() == target_size);
+    if ((filled_samples.size() < target_size) && (lca_limit)) {
+        fprintf(stderr, "WARNING: Less than the requested number of samples are available beneath the LCA; %ld samples included in output\n", filled_samples.size());
+    }
     return filled_samples;
 }
