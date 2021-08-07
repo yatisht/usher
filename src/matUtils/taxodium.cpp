@@ -3,20 +3,7 @@
 #include <google/protobuf/text_format.h>
 
 
-//#include taxodium pb
-
-
-// std::vector<std::unordered_map<std::string,std::unordered_map<std::string,std::string>>> convert_meta(std::vector<std::map<std::string,std::map<std::string,std::string>>> &catmeta) {
-//     std::vector<std::unordered_map<std::string,std::unordered_map<std::string,std::string>>> out;
-//     for (auto &m : catmeta) {
-        
-//         out.push_back()
-//     }
-// }
-
-void save_taxodium_tree (MAT::Tree &tree, std::string filename, std::vector<std::map<std::string,std::map<std::string,std::string>>> &catmeta) {
-
-    auto metadata = convert_meta(catmeta); // convert to use unordered_maps for faster lookup
+void save_taxodium_tree (MAT::Tree &tree, std::string filename, std::vector<std::unordered_map<std::string,std::unordered_map<std::string,std::string>>> &metadata) {
 
 
 	Taxodium::AllNodeData node_data;
@@ -25,26 +12,20 @@ void save_taxodium_tree (MAT::Tree &tree, std::string filename, std::vector<std:
     std::unordered_map<std::string, int32_t> country_map;
     std::unordered_map<std::string, int32_t> lineage_map;
     
-    std::vector<std::string> country_list;
-    std::vector<std::string> lineage_list; 
-
 
     for (auto m : metadata) {
         int ct = 0;
         for (auto &c : m["country"]) {
-            if (std::find(country_list.begin(), country_list.end(), c.second) == country_list.end()) {
-                // not yet in list
-                country_list.push_back(c.second);
-                country_map.insert({c.second, ct}); // map this country to a number
+            if (country_map.find(c.second) == country_map.end()) {
+                country_map.insert({c.second, ct});
                 all_data.add_country_mapping(c.second);
                 ct += 1;
             }
         }
         ct = 0;
         for (auto &c : m["pangolin_lineage"]) {
-            if (std::find(lineage_list.begin(), lineage_list.end(), c.second) == lineage_list.end()) {
-                lineage_list.push_back(c.second);
-                lineage_map.insert({c.second, ct}); 
+            if (lineage_map.find(c.second) == lineage_map.end()) {
+                lineage_map.insert({c.second, ct});
                 all_data.add_lineage_mapping(c.second);
                 ct += 1;
             }
@@ -64,8 +45,13 @@ void save_taxodium_tree (MAT::Tree &tree, std::string filename, std::vector<std:
 		count++;
 		MAT::Node *node = dfs[idx];
 		
-		node_data.add_names(node->identifier);
+        node_data.add_names(node->identifier);
 
+        if (node->identifier.substr(0,5) == "node_") {
+            continue;
+        }
+
+		
 
         bool found_genbank = false;
         for (auto m : metadata) {
