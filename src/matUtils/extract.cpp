@@ -508,15 +508,18 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         outfile.close();
         fprintf(stderr, "Completed in %ld msec\n\n", timer.Stop());
     }
+
     std::vector<std::unordered_map<std::string,std::unordered_map<std::string,std::string>>> catmeta;
-    if (meta_filename != "") {
-        std::vector<std::string> metav;
-        std::stringstream mns(meta_filename);
-        std::string m;
-        while (std::getline(mns,m,',')) {
-            metav.push_back(m);
-        }
-        assert (metav.size() > 0);
+    std::vector<std::string> metav;
+    std::stringstream mns(meta_filename);
+    std::string m;
+    while (std::getline(mns,m,',')) {
+        metav.push_back(m);
+    }
+    assert (metav.size() > 0);
+
+    // parse the metadata normally unless outputting to taxodium pb
+    if (meta_filename != "" && output_tax_filename != dir_prefix) {
         std::set<std::string> samples_included(samples.begin(), samples.end());
         for (auto mv: metav) {
             auto scm = read_metafile(mv, samples_included);
@@ -650,7 +653,7 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         if (!resolve_polytomies) {
             subtree.condense_leaves();
         }
-        save_taxodium_tree(subtree, output_tax_filename, catmeta);
+        save_taxodium_tree(subtree, output_tax_filename, metav);
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
 }
