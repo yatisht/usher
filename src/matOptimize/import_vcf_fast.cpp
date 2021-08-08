@@ -236,7 +236,6 @@ void VCF_input(const char * name,MAT::Tree& tree) {
     }
     line_parser_t parser(input_graph,tbb::flow::unlimited,line_parser{idx_map});
     //feed used buffer back to decompressor
-    tbb::flow::make_edge(decompressor,parser);
 
     std::vector<tbb::concurrent_vector<Mutation_Annotated_Tree::Mutation>> output(bfs_ordered_nodes.size());
     std::vector<backward_pass_range> child_idx_range;
@@ -244,6 +243,7 @@ void VCF_input(const char * name,MAT::Tree& tree) {
     Fitch_Sankoff_prep(bfs_ordered_nodes,child_idx_range, parent_idx);
     tbb::flow::function_node<Parsed_VCF_Line*> assign_state(input_graph,tbb::flow::unlimited,Assign_State{child_idx_range,parent_idx,output});
     tbb::flow::make_edge(tbb::flow::output_port<0>(parser),assign_state);
+    tbb::flow::make_edge(decompressor,parser);
     input_graph.wait_for_all();
     gzclose(fd);
     done=true;
