@@ -1,5 +1,7 @@
 #include "translate.hpp" 
  
+
+
 std::vector<std::string> split(const std::string &s, char delim) { 
     std::vector<std::string> result; 
     std::stringstream ss(s); 
@@ -20,7 +22,7 @@ std::string build_reference(std::ifstream &fasta_file) {
         } else { 
             for (auto & c: fasta_line) c = (char)toupper(c); 
             line_length = fasta_line.length(); 
-            if (fasta_line[line_length-1] == '\r') { 
+            if (fasta_line[line_length-1] == '\r') {
                 fasta_line.erase(line_length-1); 
             } 
             reference_output += fasta_line; 
@@ -145,8 +147,8 @@ std::map<int, std::vector<std::shared_ptr<Codon>>> build_codon_map(std::ifstream
     return codon_map; 
 } 
  
- 
-void translate_main(MAT::Tree *T, std::string output_filename, std::string gtf_filename, std::string fasta_filename ) { 
+
+void translate_main(MAT::Tree *T, std::string output_filename, std::string gtf_filename, std::string fasta_filename) {
     std::ifstream fasta_file(fasta_filename); 
     if (!fasta_file) { 
         fprintf(stderr, "ERROR: Could not open the fasta file: %s!\n", fasta_filename.c_str()); 
@@ -199,7 +201,56 @@ void translate_main(MAT::Tree *T, std::string output_filename, std::string gtf_f
         last_visited = node; 
     } 
 } 
+
+// This is used for taxodium output. It translates each node and saves metadata to node_data along the way
+void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, std::string fasta_filename, Taxodium::AllNodeData &node_data, std::unordered_map<std::string, std::vector<std::string>> metadata) {
+    std::ifstream fasta_file(fasta_filename); 
+    if (!fasta_file) { 
+        fprintf(stderr, "ERROR: Could not open the fasta file: %s!\n", fasta_filename.c_str()); 
+        exit(1); 
+    } 
+    std::ifstream gtf_file(gtf_filename); 
+    if (!gtf_file) { 
+        fprintf(stderr, "ERROR: Could not open the gtf file: %s!\n", gtf_filename.c_str()); 
+        exit(1); 
+    } 
+    std::ofstream output_file(output_filename); 
+    if (!output_file) { 
+        fprintf(stderr, "ERROR: Could not open file for writing: %s!\n", output_filename.c_str()); 
+        exit(1); 
+    } 
  
+    if (T->condensed_nodes.size() > 0) { 
+        T->uncondense_leaves(); 
+    } 
+ 
+    std::string reference = build_reference(fasta_file); 
+  
+    std::map<int, std::vector<std::shared_ptr<Codon>>> codon_map = build_codon_map(gtf_file, reference); 
+ 
+    auto dfs = T->depth_first_expansion();
+    std::mutation_counter++;
+    MAT::Node *last_visited = nullptr; 
+    for (auto node: dfs) { 
+        std::string mutation_result = ""; 
+        if(last_visited != node->parent) { 
+            MAT::Node *last_common_ancestor = MAT::LCA(*T, node->identifier, last_visited->identifier); 
+            MAT::Node *trace_to_lca = last_visited; 
+            while (trace_to_lca != last_common_ancestor) { 
+                undo_mutations(trace_to_lca->mutations, codon_map); 
+                trace_to_lca = trace_to_lca->parent; 
+            } 
+        }
+        
+        mutation_result = do_mutations(node->mutations, codon_map); 
+        if (mutation_result != "") { 
+            split(mutation_result, '\t')[0], 
+        }
+
+
+        last_visited = node; 
+    } 
+}
 std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::map<int, std::vector<std::shared_ptr<Codon>>> &codon_map) { 
     std::string prot_string = ""; 
     std::string nuc_string = ""; 

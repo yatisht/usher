@@ -82,14 +82,14 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
 }
 void save_taxodium_tree (MAT::Tree &tree, std::string out_filename, std::vector<std::string> meta_filenames) {
 
-	Taxodium::AllNodeData node_data;
+	Taxodium::AllNodeData *node_data = new Taxodium::AllNodeData();
 	Taxodium::AllData all_data;
 
     std::unordered_map<std::string, std::vector<std::string>> metadata = read_metafiles_tax(meta_filenames, all_data);
 	int count = 0;
 	TIMEIT();
 
-    auto dfs = tree.depth_first_expansion();
+    translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, std::string fasta_filename, Taxodium::AllNodeData &node_data, std::unordered_map<std::string, std::vector<std::string>> metadata);
 
     for (size_t idx = 0; idx < dfs.size(); idx++) {
 		if (count > 20) {
@@ -98,14 +98,14 @@ void save_taxodium_tree (MAT::Tree &tree, std::string out_filename, std::vector<
 		count++;
 		MAT::Node *node = dfs[idx];
 		
-        node_data.add_names(node->identifier);
+        node_data->add_names(node->identifier);
 
         if (node->identifier.substr(0,5) == "node_") {
-            node_data.add_x(0);
-            node_data.add_y(0);
-            node_data.add_countries(0); 
-            node_data.add_lineages(0); 
-            node_data.add_dates(0); 
+            node_data->add_x(0);
+            node_data->add_y(0);
+            node_data->add_countries(0); 
+            node_data->add_lineages(0); 
+            node_data->add_dates(0); 
             //internal nodes don't have country, lineage, date            
         }
 
@@ -114,14 +114,14 @@ void save_taxodium_tree (MAT::Tree &tree, std::string out_filename, std::vector<
             int32_t country = std::stoi(meta_fields[country_col]);
             int32_t lineage = std::stoi(meta_fields[lineage_col]);
             int32_t date = std::stoi(meta_fields[date_col]);
-            node_data.add_x(0);
-            node_data.add_y(0);
-            node_data.add_countries(country);
-            node_data.add_lineages(lineage); 
-            node_data.add_dates(date); 
+            node_data->add_x(0);
+            node_data->add_y(0);
+            node_data->add_countries(country);
+            node_data->add_lineages(lineage); 
+            node_data->add_dates(date); 
         }
     }
-    all_data.set_node_data(node_data);
+    all_data.set_allocated_node_data(node_data);
     // Boost library used to stream the contents to the output protobuf file in
     // uncompressed or compressed .gz format
     std::ofstream outfile(out_filename, std::ios::out | std::ios::binary);
@@ -132,7 +132,7 @@ void save_taxodium_tree (MAT::Tree &tree, std::string out_filename, std::vector<
             outbuf.push(boost::iostreams::gzip_compressor());
             outbuf.push(outfile);
             std::ostream outstream(&outbuf);
-            node_data.SerializeToOstream(&outstream);
+            node_data->SerializeToOstream(&outstream);
             std::string s;
             google::protobuf::TextFormat::PrintToString(all_data, &s);
             std::cout << s << '\n';
@@ -142,7 +142,7 @@ void save_taxodium_tree (MAT::Tree &tree, std::string out_filename, std::vector<
             std::cout << e.what() << '\n';
         }
     } else {
-        node_data.SerializeToOstream(&outfile);
+        node_data->SerializeToOstream(&outfile);
         std::string s;
         google::protobuf::TextFormat::PrintToString(all_data, &s);
         std::cout << s << '\n';

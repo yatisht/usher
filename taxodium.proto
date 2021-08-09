@@ -23,7 +23,7 @@ repeated int32 num_tips = 11;
 
 
 message AllData{
-  AllNodeData node_data= 1;
+  AllNodeData node_data = 1;
   repeated string country_mapping = 2;
   repeated string lineage_mapping = 3;
   repeated string mutation_mapping = 4;
