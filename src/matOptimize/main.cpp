@@ -241,8 +241,11 @@ int main(int argc, char **argv) {
             }
             fputs("Finished loading input tree, start reading VCF and assigning states \n",stderr);
             load_vcf_nh_directly(t, input_vcf_path, origin_states);
-        } else {
-            t = load_tree(input_pb_path, origin_states,transposed_vcf_path==""?nullptr:transposed_vcf_path.c_str());
+        } else if(transposed_vcf_path!=""){
+            t=MAT::load_mutation_annotated_tree(input_pb_path);
+            add_ambiguous_mutation(transposed_vcf_path.c_str(),t);
+        }else {
+            t = load_tree(input_pb_path, origin_states);
         }
         //scalable_allocation_command(TBBMALLOC_CLEAN_ALL_BUFFERS,0);
         if(!no_write_intermediate) {
