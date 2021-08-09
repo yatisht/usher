@@ -109,21 +109,19 @@ struct mut_iterator {
     }
     uint8_t get_allele(int position) {
         uint8_t ret_val = 0;
-        if (not_N_iter != not_N_end) {
             while (not_N_iter != not_N_end&&not_N_iter->position < position) {
                 not_N_iter++;
                 if (idx==p_idx) {
                     fprintf(stderr, "At %d, not_N incremented to %d, nuc %d\n",position,not_N_iter==not_N_end?INT_MAX:not_N_iter->position,ret_val);
                 }
             }
-            if (not_N_iter->position == position) {
+            if (not_N_iter != not_N_end&&not_N_iter->position == position) {
                 ret_val = not_N_iter->mut;
                 if (ret_val&0xf0) {
                     fprintf(stderr, "At %d, not_N match, nuc %d\n",position,ret_val);
                 }
             }
             //assert(not_N_iter == not_N_end || not_N_iter->position > position);
-        }
         assert(not_N_iter == not_N_begin ||
                (not_N_iter - 1)->position <= position);
         while (N_iter != N_end && N_iter->second < position) {
