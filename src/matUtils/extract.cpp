@@ -9,6 +9,10 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
     conv_desc.add_options()
     ("input-mat,i", po::value<std::string>()->required(),
      "Input mutation-annotated tree file [REQUIRED]")
+    ("input-gtf,g", po::value<std::string>(),
+     "Input GTF annotations file (only used with --taxodium)")
+    ("input-fasta,f", po::value<std::string>(),
+     "Input FASTA reference file (only used with --taxodium)")
     ("samples,s", po::value<std::string>()->default_value(""),
      "Select samples by explicitly naming them. One per line")
     ("metadata,M", po::value<std::string>()->default_value(""),
@@ -142,6 +146,9 @@ void extract_main (po::parsed_options parsed) {
     std::string output_tax_filename = dir_prefix + vm["write-taxodium"].as<std::string>();
     std::string json_filename = dir_prefix + vm["write-json"].as<std::string>();
     std::string meta_filename = vm["metadata"].as<std::string>();
+    std::string gtf_filename = dir_prefix + vm["input-gtf"].as<std::string>();
+    std::string fasta_filename = dir_prefix + vm["input-fasta"].as<std::string>();
+
 
     bool collapse_tree = vm["collapse-tree"].as<bool>();
     bool no_genotypes = vm["no-genotypes"].as<bool>();
@@ -646,6 +653,18 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
     }
     if (output_tax_filename != dir_prefix) {
         timer.Start();
+        bool quit = false;
+        if (gtf_filename == dir_prefix) {
+            fprintf(stderr, "ERROR: You must specify a GTF file with -g\n");
+            quit = true;
+        } 
+        if (fasta_filename == dir_prefix) {
+            fprintf(stderr, "ERROR: You must specify a FASTA reference file with -f\n");
+            quit = true;
+        }
+        if (quit) {
+            exit(1);
+        }
         fprintf(stderr, "Saving output MAT file in Taxodium format: %s.\n",  output_tax_filename.c_str());
         if (collapse_tree) {
             subtree.collapse_tree();
@@ -653,7 +672,7 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         if (!resolve_polytomies) {
             subtree.condense_leaves();
         }
-        save_taxodium_tree(subtree, output_tax_filename, metav);
+        save_taxodium_tree(subtree, output_tax_filename, metav, gtf_filename, fasta_filename);
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
 }

@@ -1,7 +1,5 @@
 #include "taxodium.hpp"
 
-enum Fields {genbank_col, date_col, country_col, host_col, completeness_col, length_col, clade_col, lineage_col};
-
 // Helper function to format one attribute in attributes into taxodium encoding. Modifies most parameters
 void populate_attribute(int attribute_column, std::vector<std::string> &attributes, std::unordered_map<std::string, std::string> &seen_map, int &encoding_counter, Taxodium::AllData &all_data) {
     if (seen_map.find(attributes[attribute_column]) == seen_map.end()) {
@@ -74,53 +72,24 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
             if (attributes.size()-1 >= lineage_col) {
                 populate_attribute(lineage_col, attributes, seen_lineages_map, lineage_ct, all_data);
             }
+            //add a column for index in dfs array
+            attributes.push_back("0");
             metadata[key] = attributes;
         }
        infile.close();
      }
     return metadata;
 }
-void save_taxodium_tree (MAT::Tree &tree, std::string out_filename, std::vector<std::string> meta_filenames) {
+void save_taxodium_tree (MAT::Tree &tree, std::string out_filename, std::vector<std::string> meta_filenames, std::string gtf_filename, std::string fasta_filename) {
 
 	Taxodium::AllNodeData *node_data = new Taxodium::AllNodeData();
 	Taxodium::AllData all_data;
 
     std::unordered_map<std::string, std::vector<std::string>> metadata = read_metafiles_tax(meta_filenames, all_data);
-	int count = 0;
 	TIMEIT();
 
-    translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, std::string fasta_filename, Taxodium::AllNodeData &node_data, std::unordered_map<std::string, std::vector<std::string>> metadata);
+    translate_and_populate_node_data(&tree, gtf_filename, fasta_filename, node_data, &all_data, metadata);
 
-    for (size_t idx = 0; idx < dfs.size(); idx++) {
-		if (count > 20) {
-			break;
-		}
-		count++;
-		MAT::Node *node = dfs[idx];
-		
-        node_data->add_names(node->identifier);
-
-        if (node->identifier.substr(0,5) == "node_") {
-            node_data->add_x(0);
-            node_data->add_y(0);
-            node_data->add_countries(0); 
-            node_data->add_lineages(0); 
-            node_data->add_dates(0); 
-            //internal nodes don't have country, lineage, date            
-        }
-
-        if (metadata.find(node->identifier) != metadata.end()) {
-            std::vector<std::string> meta_fields = metadata[node->identifier];
-            int32_t country = std::stoi(meta_fields[country_col]);
-            int32_t lineage = std::stoi(meta_fields[lineage_col]);
-            int32_t date = std::stoi(meta_fields[date_col]);
-            node_data->add_x(0);
-            node_data->add_y(0);
-            node_data->add_countries(country);
-            node_data->add_lineages(lineage); 
-            node_data->add_dates(date); 
-        }
-    }
     all_data.set_allocated_node_data(node_data);
     // Boost library used to stream the contents to the output protobuf file in
     // uncompressed or compressed .gz format

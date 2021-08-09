@@ -1,7 +1,5 @@
 #include "translate.hpp" 
  
-
-
 std::vector<std::string> split(const std::string &s, char delim) { 
     std::vector<std::string> result; 
     std::stringstream ss(s); 
@@ -194,7 +192,7 @@ void translate_main(MAT::Tree *T, std::string output_filename, std::string gtf_f
                 trace_to_lca = trace_to_lca->parent; 
             } 
         } // If we are visiting a child, we can continue mutating 
-        mutation_result = do_mutations(node->mutations, codon_map); 
+        mutation_result = do_mutations(node->mutations, codon_map, false); 
         if (mutation_result != "") { 
             output_file << node->identifier << '\t' << mutation_result << '\t' << T->get_leaves(node->identifier).size() << '\n'; 
         } 
@@ -203,7 +201,7 @@ void translate_main(MAT::Tree *T, std::string output_filename, std::string gtf_f
 } 
 
 // This is used for taxodium output. It translates each node and saves metadata to node_data along the way
-void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, std::string fasta_filename, Taxodium::AllNodeData &node_data, std::unordered_map<std::string, std::vector<std::string>> metadata) {
+void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, std::string fasta_filename, Taxodium::AllNodeData *node_data, Taxodium::AllData *all_data, std::unordered_map<std::string, std::vector<std::string>> &metadata) {
     std::ifstream fasta_file(fasta_filename); 
     if (!fasta_file) { 
         fprintf(stderr, "ERROR: Could not open the fasta file: %s!\n", fasta_filename.c_str()); 
@@ -214,11 +212,6 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
         fprintf(stderr, "ERROR: Could not open the gtf file: %s!\n", gtf_filename.c_str()); 
         exit(1); 
     } 
-    std::ofstream output_file(output_filename); 
-    if (!output_file) { 
-        fprintf(stderr, "ERROR: Could not open file for writing: %s!\n", output_filename.c_str()); 
-        exit(1); 
-    } 
  
     if (T->condensed_nodes.size() > 0) { 
         T->uncondense_leaves(); 
@@ -227,11 +220,21 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
     std::string reference = build_reference(fasta_file); 
   
     std::map<int, std::vector<std::shared_ptr<Codon>>> codon_map = build_codon_map(gtf_file, reference); 
- 
     auto dfs = T->depth_first_expansion();
-    std::mutation_counter++;
     MAT::Node *last_visited = nullptr; 
-    for (auto node: dfs) { 
+    std::unordered_map<std::string, std::string> seen_mutations_map;
+    int32_t count = 0;
+    int32_t mutation_counter = 0;
+
+    for (auto node: dfs) {
+        // update metadata with index in dfs, so
+        // child nodes can lookup parent indices
+        metadata[node->identifier][index_col] = std::to_string(count);
+
+    	if (count > 10) {
+			break;
+		}
+		count++;
         std::string mutation_result = ""; 
         if(last_visited != node->parent) { 
             MAT::Node *last_common_ancestor = MAT::LCA(*T, node->identifier, last_visited->identifier); 
@@ -242,16 +245,47 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
             } 
         }
         
-        mutation_result = do_mutations(node->mutations, codon_map); 
-        if (mutation_result != "") { 
-            split(mutation_result, '\t')[0], 
+        Taxodium::MutationList *mutation_list = node_data->add_mutations();
+        mutation_result = do_mutations(node->mutations, codon_map, true);
+        for (auto m : split(mutation_result, ';')) {
+            if (seen_mutations_map.find(m) == seen_mutations_map.end()) {
+                mutation_counter++;
+                std::string encoding_str = std::to_string(mutation_counter);
+                seen_mutations_map[m] = encoding_str;
+                all_data->add_mutation_mapping(m);
+                mutation_list->add_mutation(mutation_counter);
+            } else {
+                mutation_list->add_mutation(std::stoi(seen_mutations_map[m]));
+            }
         }
 
+        node_data->add_names(node->identifier);
+        node_data->add_parents(std::stoi(metadata[node->parent->identifier][index_col]));
 
+        if (node->identifier.substr(0,5) == "node_") {
+            node_data->add_x(0);
+            node_data->add_y(0);
+            node_data->add_countries(0); 
+            node_data->add_lineages(0); 
+            node_data->add_dates(0); 
+            //internal nodes don't have country, lineage, date            
+        }
+
+        if (metadata.find(node->identifier) != metadata.end()) {
+            std::vector<std::string> meta_fields = metadata[node->identifier];
+            int32_t country = std::stoi(meta_fields[country_col]);
+            int32_t lineage = std::stoi(meta_fields[lineage_col]);
+            int32_t date = std::stoi(meta_fields[date_col]);
+            node_data->add_x(0);
+            node_data->add_y(0);
+            node_data->add_countries(country);
+            node_data->add_lineages(lineage); 
+            node_data->add_dates(date); 
+        }
         last_visited = node; 
     } 
 }
-std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::map<int, std::vector<std::shared_ptr<Codon>>> &codon_map) { 
+std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::map<int, std::vector<std::shared_ptr<Codon>>> &codon_map, bool taxodium_format) { 
     std::string prot_string = ""; 
     std::string nuc_string = ""; 
     std::sort(mutations.begin(), mutations.end()); 
@@ -291,8 +325,11 @@ std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::map<int, st
     for (auto codon_ptr : affected_codons) { 
         std::string codon_id = codon_ptr->orf_name + ':' + std::to_string(codon_ptr->codon_number+1); 
         std::string orig_protein = orig_proteins.find(codon_id)->second; 
-        prot_string += split(codon_id, ':')[0] + ':' + orig_protein + split(codon_id, ':')[1] + codon_ptr->protein + ';'; 
- 
+        if (taxodium_format) {
+            prot_string += split(codon_id, ':')[0] + ':' + orig_protein + '_' + split(codon_id, ':')[1] + '_' + codon_ptr->protein + ';';
+        } else {
+            prot_string += split(codon_id, ':')[0] + ':' + orig_protein + split(codon_id, ':')[1] + codon_ptr->protein + ';'; 
+        }
         auto codon_it = codon_to_nt_map.find(codon_id); 
         for (auto m : codon_it->second) { 
             nuc_string += m.get_string() + ","; 
@@ -312,9 +349,11 @@ std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::map<int, st
     } 
     if (nuc_string.empty() || prot_string.empty()) { 
         return ""; 
-    } else { 
+    } else if(taxodium_format) { // format string for taxodium pb
+        return prot_string;
+    } else { // format string for TSV output
         return prot_string + '\t' + nuc_string; 
-    } 
+    }
 } 
  
 void undo_mutations(std::vector<MAT::Mutation> &mutations, std::map<int, std::vector<std::shared_ptr<Codon>>> &codon_map) { 
