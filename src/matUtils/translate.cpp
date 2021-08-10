@@ -225,10 +225,10 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
     std::unordered_map<std::string, std::string> seen_mutations_map;
     std::unordered_map<std::string, std::string> alt_parent_map;
     std::unordered_map<std::string, float> branch_length_map;
-    std::map<size_t, std::vector<Node *>> by_level;
+    std::map<size_t, std::vector<MAT::Node *>> by_level;
     int32_t count = 0;
     int32_t mutation_counter = 0;
-    float curr_branch_length = 0;
+    float curr_x_value = 0;
 
     for (auto node: dfs) {
         // update metadata with index in dfs, so
@@ -272,7 +272,6 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
 
         node_data->add_names(node->identifier);
         node_data->add_x(curr_x_value * 0.2);
-        node_data->add_y(curr_y_value / 4000);
         
         if (node->identifier.substr(0,5) == "node_") {
             node_data->add_countries(0); 
@@ -305,25 +304,27 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
 
     for (auto &node_list : by_level) {
         int32_t node_index;
-        if (metadata.find(node->parent->identifier) != metadata.end()) {
-            node_index = node_data->add_parents(std::stoi(metadata[node->parent->identifier][index_col]));
-        }
-        else {
-            node_index = node_data->add_parents(std::stoi(alt_parent_map[node->parent->identifier]));
-        }
-        float children_mean_y = 0;
-        for (auto &child : node_list->children){
-            int32_t child_index;
-            if (metadata.find(child->identifier) != metadata.end()) {
-                child_index = std::stoi(metadata[child][index_col]);
+        for (auto &bylevel_node : node_list) {
+            if (metadata.find(node->identifier) != metadata.end()) {
+                node_index = std::stoi(metadata[node->identifier][index_col]);
             }
             else {
-                child_index = std::stoi(alt_parent_map[child]);
+                node_index = std::stoi(alt_parent_map[node->identifier]);
             }
-            children_mean_y += child->y(child_index);
+            float children_mean_y = 0;
+            for (auto &child : node_list->children){
+                int32_t child_index;
+                if (metadata.find(child->identifier) != metadata.end()) {
+                    child_index = std::stoi(metadata[child][index_col]);
+                }
+                else {
+                    child_index = std::stoi(alt_parent_map[child]);
+                }
+                children_mean_y += child->y(child_index);
+            }
+            children_mean_y /= (node_list->children).size();
+            node_data->set_y(node_index, children_mean_y / 4000);
         }
-        children_mean_y /= by_level->
-        node_data->set_y(node_index, children_mean_y);
     }
 }
 std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::map<int, std::vector<std::shared_ptr<Codon>>> &codon_map, bool taxodium_format) { 
