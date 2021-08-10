@@ -10,9 +10,9 @@ po::variables_map parse_introduce_command(po::parsed_options parsed) {
     po::options_description filt_desc("introduce options");
     filt_desc.add_options()
     ("input-mat,i", po::value<std::string>()->required(),
-        "Input mutation-annotated tree file [REQUIRED]")
+    "Input mutation-annotated tree file [REQUIRED]")
     ("population-samples,s", po::value<std::string>()->required(), 
-        "Names of samples from the population of interest [REQUIRED].") 
+    "Names of samples from the population of interest [REQUIRED].") 
     ("additional-info,a", po::bool_switch(),
     "Set to calculate additional phylogenetic trait association statistics for whole regions and individual introductions. WARNING: Adds significantly to runtime.")
     ("clade-regions,c", po::value<std::string>()->default_value(""),
