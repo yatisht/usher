@@ -687,13 +687,15 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                 ldatestr = boost::gregorian::to_simple_string(ldates.first) + "\t" + boost::gregorian::to_simple_string(ldates.second);
                 diff = (ldates.second - ldates.first);
             }
+            if (recency_filter > ldates.second) {
+                continue;
+            }
             date_tracker[cs.first] = ldatestr;
             float gv;
             gv = static_cast<float>(cs.second.size()) / static_cast<float>((int)(diff.days()/7)+1);
             growthv.emplace_back(gv);
             cgm[gv].emplace_back(cs.first);
         }
-        //assert (growthv.size() == clusters.size());
         //sort by default goes from smallest to largest
         //I want to rank by largest to smallest, so this is reversed.
         //tiebreaker ordering has to do with the order of samples encountered.
