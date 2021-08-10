@@ -1207,7 +1207,7 @@ void Mutation_Annotated_Tree::Tree::collapse_tree() {
     }
 }
 
-void Mutation_Annotated_Tree::Tree::rotate_for_display() {
+void Mutation_Annotated_Tree::Tree::rotate_for_display(bool reverse) {
     auto dfs = depth_first_expansion();
 
     std::unordered_map<Node*, int> num_desc;
@@ -1222,10 +1222,17 @@ void Mutation_Annotated_Tree::Tree::rotate_for_display() {
     }
 
     for (auto n: dfs) {
-        tbb::parallel_sort(n->children.begin(), n->children.end(),
-        [&num_desc](Node* n1, Node* n2) {
-            return num_desc[n1] > num_desc[n2];
-        });
+        if (reverse) { 
+            tbb::parallel_sort(n->children.begin(), n->children.end(),
+            [&num_desc](Node* n1, Node* n2) {
+                return num_desc[n1] < num_desc[n2];
+            });
+        } else {
+            tbb::parallel_sort(n->children.begin(), n->children.end(),
+            [&num_desc](Node* n1, Node* n2) {
+                return num_desc[n1] > num_desc[n2];
+            });
+        }
     }
 }
 

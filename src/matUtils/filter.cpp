@@ -6,13 +6,14 @@ representing those samples in an optimal manner.
 */
 MAT::Tree filter_master(const MAT::Tree& T, std::vector<std::string> sample_names, bool prune, bool keep_clade_annotations) {
     MAT::Tree subtree;
+    assert (sample_names.size() > 0);
     if (prune) {
         subtree = prune_leaves(T, sample_names);
     } else if (sample_names.size() < 10000) {
         //for retaining only a subtree, get_subtree is the most effective method
         //for subtress up to about 10 thousand samples in size; after that, pruning
-        //all other nodes becomes more efficient, because get_subtree scales with
-        //the size of the input sample set, while prune takes a similar time for
+        //all other nodes becomes more efficient, because get_subtree scales with 
+        //the size of the input sample set, while prune takes a similar time for 
         //any sample set size, while scaling on total tree size
         subtree = get_sample_subtree(T, sample_names, keep_clade_annotations);
     } else {
@@ -28,8 +29,9 @@ MAT::Tree prune_leaves (const MAT::Tree& T, std::vector<std::string> sample_name
     auto subtree = MAT::get_tree_copy(T);
     for (auto s: sample_names) {
         if (subtree.get_node(s) == NULL) {
-            fprintf(stderr, "ERROR: Sample %s not found in the tree!\n", s.c_str());
-        } else {
+            fprintf(stderr, "ERROR: Sample %s not found in the tree!\n", s.c_str()); 
+        }
+        else {
             assert (subtree.get_node(s)->is_leaf());
             subtree.remove_node(s, true);
         }
@@ -50,7 +52,7 @@ MAT::Tree get_sample_subtree (const MAT::Tree& T, std::vector<std::string> sampl
 }
 
 MAT::Tree get_sample_prune (const MAT::Tree& T, std::vector<std::string> sample_names, bool keep_clade_annotations) {
-
+    
     timer.Start();
     fprintf(stderr, "Large sample input; building subtree by pruning all but %zu samples.\n", sample_names.size());
     //its going to be much quicker to check membership in a set then a vector O(logN)
@@ -70,7 +72,7 @@ MAT::Tree get_sample_prune (const MAT::Tree& T, std::vector<std::string> sample_
                 subtree.remove_node(s->identifier, false);
             }
         }
-    }
+    }    
     if (!keep_clade_annotations) {
         dfs = subtree.depth_first_expansion();
         for (auto s: dfs) {
@@ -114,37 +116,8 @@ MAT::Tree resolve_all_polytomies(MAT::Tree T) {
     //go through the tree, identify every uncondensed polytomy
     //then resolve the polytomy positionally and save the results
     //this will conflict with condensing the tree but that's fine.
-    size_t removed_count = 0;
-    size_t skipped = 0;
     //step one is go through the tree and delete all single children nodes.
-    for (auto n: T.depth_first_expansion()) {
-        if (n->children.size() == 1) {
-            //remove nodes with only one child when resolving to a binary tree.
-            //this has to be accomplished by moving its child up one level to preserve information.
-            //and we have to add its mutations to the child to preserve total tree integrity
-            for (auto m: n->mutations) {
-                //we need to check that the child doesn't already have a mutation at this position before we add it
-                //or the parent version will overwrite the child version and we will lose information
-                bool skip = false;
-                for (auto cm: n->children[0]->mutations) {
-                    if ((cm.position == m.position) & (cm.chrom == m.chrom)) {
-                        skipped++;
-                        skip = true;
-                        break;
-                    }
-                }
-                if (!skip) {
-                    //if this mutation doesn't interfere with any mutations in the child, we add it
-                    n->children[0]->add_mutation(m);
-                }
-            }
-            T.move_node(n->children[0]->identifier, n->parent->identifier, true);
-            removed_count++;
-        }
-    }
-    if (removed_count > 0) {
-        fprintf(stderr, "%ld internal nodes with single children removed; %ld mutations are removed for overlap with child mutations.\n", removed_count, skipped);
-    }
+    T.collapse_tree();
     for (auto n: T.depth_first_expansion()) {
         //greater than 2 because a polytomy of two nodes is already resolved (unlike condenser, which can condense a polytomy of 2)
         if (n->children.size() > 2) {
