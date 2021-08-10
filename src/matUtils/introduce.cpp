@@ -664,10 +664,16 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
             std::string ldatestr;
             MAT::Node* nn = T->get_node(cs.first);
             std::pair<boost::gregorian::date,boost::gregorian::date> ldates = get_nearest_date(T, nn, &sampleset, datemeta);
-            ldatestr = boost::gregorian::to_simple_string(ldates.first) + "\t" + boost::gregorian::to_simple_string(ldates.second);
+            boost::gregorian::days diff(0);
+            if ((ldates.first.is_not_a_date()) || (ldates.second.is_not_a_date())) {
+                fprintf(stderr, "WARNING: Cluster %s has no valid dates included among samples\n", cs.first.c_str());
+                ldatestr = "no-valid-date\tno-valid-date";
+            } else {
+                ldatestr = boost::gregorian::to_simple_string(ldates.first) + "\t" + boost::gregorian::to_simple_string(ldates.second);
+                diff = (ldates.second - ldates.first);
+            }
             date_tracker[cs.first] = ldatestr;
             float gv;
-            boost::gregorian::days diff(ldates.second - ldates.first);
             gv = static_cast<float>(cs.second.size()) / static_cast<float>((int)(diff.days()/7)+1);
             growthv.emplace_back(gv);
             cgm[gv].emplace_back(cs.first);
