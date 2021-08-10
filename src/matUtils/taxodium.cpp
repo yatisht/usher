@@ -62,7 +62,8 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
             MAT::string_split(line, delim, words);
             std::string key = words[0];
             std::vector<std::string> attributes(&words[1], &words[words.size()]);
-            attributes.push_back("0");
+            attributes.push_back("0"); // another column to track parents
+            attributes.push_back("0"); // to track branch length
 
             if (attributes.size()-1 >= country_col) {
                 populate_attribute(country_col, attributes, seen_countries_map, country_ct, all_data);

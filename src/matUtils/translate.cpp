@@ -224,8 +224,11 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
     MAT::Node *last_visited = nullptr; 
     std::unordered_map<std::string, std::string> seen_mutations_map;
     std::unordered_map<std::string, std::string> alt_parent_map;
+    std::unordered_map<std::string, float> branch_length_map;
+    std::map<size_t, std::vector<Node *>> by_level;
     int32_t count = 0;
     int32_t mutation_counter = 0;
+    float curr_branch_length = 0;
 
     for (auto node: dfs) {
         // update metadata with index in dfs, so
@@ -233,12 +236,12 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
         if (metadata.find(node->identifier) != metadata.end()) {
             metadata[node->identifier][index_col] = std::to_string(count);
         } else {
+            curr_x_value += node->branch_length;
             alt_parent_map[node->identifier] = std::to_string(count);
-        }
-    	if (count > 10) {
-			break;
-		}
-		count++;
+        } 
+
+        by_level[node->level].push_back(node);
+
         std::string mutation_result = ""; 
         if(last_visited != node->parent) { 
             MAT::Node *last_common_ancestor = MAT::LCA(*T, node->identifier, last_visited->identifier); 
@@ -246,8 +249,12 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
             while (trace_to_lca != last_common_ancestor) { 
                 undo_mutations(trace_to_lca->mutations, codon_map); 
                 trace_to_lca = trace_to_lca->parent; 
-            } 
+            }
+            curr_x_value = branch_length_map[trace_to_lca->identifier] + node->branch_length;
+        } else {
+            curr_x_value += node->branch_length;
         }
+        branch_length_map[node->identifier] = curr_x_value + node->branch_length;
         
         Taxodium::MutationList *mutation_list = node_data->add_mutations();
         mutation_result = do_mutations(node->mutations, codon_map, true);
@@ -264,11 +271,10 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
         }
 
         node_data->add_names(node->identifier);
+        node_data->add_x(curr_x_value * 0.2);
+        node_data->add_y(curr_y_value / 4000);
         
-
         if (node->identifier.substr(0,5) == "node_") {
-            node_data->add_x(0);
-            node_data->add_y(0);
             node_data->add_countries(0); 
             node_data->add_lineages(0); 
             node_data->add_dates(0); 
@@ -280,17 +286,45 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
             int32_t country = std::stoi(meta_fields[country_col]);
             int32_t lineage = std::stoi(meta_fields[lineage_col]);
             int32_t date = std::stoi(meta_fields[date_col]);
-            node_data->add_x(0);
-            node_data->add_y(0);
             node_data->add_countries(country);
             node_data->add_lineages(lineage); 
             node_data->add_dates(date); 
+        }
+
+        if (node->parent == nullptr) {
+            node_data->add_parents(count); // root node
+        } else if (metadata.find(node->parent->identifier) != metadata.end()) {
             node_data->add_parents(std::stoi(metadata[node->parent->identifier][index_col]));
-        } else {
+        }
+        else {
             node_data->add_parents(std::stoi(alt_parent_map[node->parent->identifier]));
         }
-        last_visited = node; 
-    } 
+        last_visited = node;
+        count++;
+    }
+
+    for (auto &node_list : by_level) {
+        int32_t node_index;
+        if (metadata.find(node->parent->identifier) != metadata.end()) {
+            node_index = node_data->add_parents(std::stoi(metadata[node->parent->identifier][index_col]));
+        }
+        else {
+            node_index = node_data->add_parents(std::stoi(alt_parent_map[node->parent->identifier]));
+        }
+        float children_mean_y = 0;
+        for (auto &child : node_list->children){
+            int32_t child_index;
+            if (metadata.find(child->identifier) != metadata.end()) {
+                child_index = std::stoi(metadata[child][index_col]);
+            }
+            else {
+                child_index = std::stoi(alt_parent_map[child]);
+            }
+            children_mean_y += child->y(child_index);
+        }
+        children_mean_y /= by_level->
+        node_data->set_y(node_index, children_mean_y);
+    }
 }
 std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::map<int, std::vector<std::shared_ptr<Codon>>> &codon_map, bool taxodium_format) { 
     std::string prot_string = ""; 
