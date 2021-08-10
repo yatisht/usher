@@ -1,13 +1,13 @@
 brew install cmake boost protobuf wget rsync
 
 # TBB
-wget https://github.com/oneapi-src/oneTBB/releases/download/2019_U9/tbb2019_20191006oss_mac.tgz
-tar -xvzf tbb2019_20191006oss_mac.tgz
+wget https://github.com/oneapi-src/oneTBB/archive/2019_U9.tar.gz 
+tar -xvzf 2019_U9.tar.gz
 
 # Build UShER
 mkdir -p build
 cd build
-cmake -DTBB_DIR=${PWD}/../tbb2019_20191006oss -DCMAKE_PREFIX_PATH=${PWD}/../tbb2019_20191006oss/cmake ..
+cmake -DTBB_DIR=${PWD}/../oneTBB-2019_U9 -DCMAKE_PREFIX_PATH=${PWD}/../oneTBB-2019_U9/cmake ..
 make -j2
 cd ..
 
