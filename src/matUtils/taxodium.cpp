@@ -62,7 +62,8 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
             MAT::string_split(line, delim, words);
             std::string key = words[0];
             std::vector<std::string> attributes(&words[1], &words[words.size()]);
-           
+            attributes.push_back("0");
+
             if (attributes.size()-1 >= country_col) {
                 populate_attribute(country_col, attributes, seen_countries_map, country_ct, all_data);
             }
@@ -73,7 +74,6 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
                 populate_attribute(lineage_col, attributes, seen_lineages_map, lineage_ct, all_data);
             }
             //add a column for index in dfs array
-            attributes.push_back("0");
             metadata[key] = attributes;
         }
        infile.close();

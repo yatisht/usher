@@ -223,14 +223,18 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
     auto dfs = T->depth_first_expansion();
     MAT::Node *last_visited = nullptr; 
     std::unordered_map<std::string, std::string> seen_mutations_map;
+    std::unordered_map<std::string, std::string> alt_parent_map;
     int32_t count = 0;
     int32_t mutation_counter = 0;
 
     for (auto node: dfs) {
         // update metadata with index in dfs, so
         // child nodes can lookup parent indices
-        metadata[node->identifier][index_col] = std::to_string(count);
-
+        if (metadata.find(node->identifier) != metadata.end()) {
+            metadata[node->identifier][index_col] = std::to_string(count);
+        } else {
+            alt_parent_map[node->identifier] = std::to_string(count);
+        }
     	if (count > 10) {
 			break;
 		}
@@ -260,7 +264,7 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
         }
 
         node_data->add_names(node->identifier);
-        node_data->add_parents(std::stoi(metadata[node->parent->identifier][index_col]));
+        
 
         if (node->identifier.substr(0,5) == "node_") {
             node_data->add_x(0);
@@ -281,6 +285,9 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
             node_data->add_countries(country);
             node_data->add_lineages(lineage); 
             node_data->add_dates(date); 
+            node_data->add_parents(std::stoi(metadata[node->parent->identifier][index_col]));
+        } else {
+            node_data->add_parents(std::stoi(alt_parent_map[node->parent->identifier]));
         }
         last_visited = node; 
     } 
