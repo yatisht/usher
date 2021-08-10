@@ -213,12 +213,6 @@ void restrictMutationsLocally (std::string mutations_filename, MAT::Tree* T, boo
             std::vector<MAT::Mutation> nmuts;
             for (auto& mut: n->mutations) {
                 if (mut.get_string() == ml.first) {
-                    MAT::Mutation nmut;
-                    nmut.position = -1;
-                    nmut.ref_nuc = 0;
-                    nmut.par_nuc = 0;
-                    nmut.mut_nuc = 0;
-                    nmuts.push_back(nmut);
                     instances_masked++;
                 } else {
                     nmuts.push_back(mut);
@@ -228,6 +222,7 @@ void restrictMutationsLocally (std::string mutations_filename, MAT::Tree* T, boo
         }
         //std::cerr << instances_masked << " mutations masked.\n";
     }
+    T->collapse_tree();
 }
 
 void restrictSamples (std::string samples_filename, MAT::Tree& T) {
