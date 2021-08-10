@@ -6,6 +6,8 @@
 #include <smmintrin.h>
 #include <string>
 #include <array>
+#include <tbb/blocked_range.h>
+#include <tbb/parallel_for.h>
 #include <unordered_map>
 #include <array>
 #include <vector>
@@ -200,7 +202,7 @@ void FS_backward_pass(const std::vector<backward_pass_range>& child_idx_range, s
     }
 }
 //add mutation for non-binary nodes
-static nuc_one_hot set_state(const forward_pass_range & this_range,uint8_t boundary1_major_allele,nuc_one_hot par_state,const MAT::Mutation& base,std::vector<Mutation_Annotated_Tree::Mutation>& output,MAT::Tree* try_similar) {
+static nuc_one_hot set_state(const forward_pass_range & this_range,uint8_t boundary1_major_allele,nuc_one_hot par_state,const MAT::Mutation& base,mut_vect_t& output,MAT::Tree* try_similar) {
     nuc_one_hot this_state;
     bool need_add=false;
     //follow parent if it can
@@ -240,7 +242,7 @@ static nuc_one_hot set_state(const forward_pass_range & this_range,uint8_t bound
     return this_state;
 }
 
-static nuc_one_hot set_binary_node_state(uint8_t this_boundary1_major_allele, nuc_one_hot par_state, nuc_one_hot left_child_major_allele,nuc_one_hot right_child_major_allele,const MAT::Mutation& base,std::vector<Mutation_Annotated_Tree::Mutation>& output,MAT::Tree* try_similar) {
+static nuc_one_hot set_binary_node_state(uint8_t this_boundary1_major_allele, nuc_one_hot par_state, nuc_one_hot left_child_major_allele,nuc_one_hot right_child_major_allele,const MAT::Mutation& base,mut_vect_t& output,MAT::Tree* try_similar) {
     nuc_one_hot this_major_allele=this_boundary1_major_allele&0xf;
     if (this_major_allele&par_state) {
         if (this_major_allele!=par_state||(this_boundary1_major_allele>>4)) {
@@ -272,7 +274,7 @@ void forward_per_node(
     const forward_pass_range & this_range,
     const std::vector<uint8_t> &boundary1_major_allele,
     const MAT::Mutation &base,
-    std::vector<std::vector<Mutation_Annotated_Tree::Mutation>>
+    std::vector<mut_vect_t>
     &output,
     std::vector<nuc_one_hot> &states, size_t node_idx,
     nuc_one_hot parent_state,MAT::Tree* try_similar) {
@@ -292,8 +294,7 @@ static void FS_forward_pass(
     const std::vector<forward_pass_range>& forward_pass_idx,
     const std::vector<uint8_t> &boundary1_major_allele,
     const MAT::Mutation &base,
-    std::vector<std::vector<Mutation_Annotated_Tree::Mutation>>
-    &output,MAT::Tree* try_similar) {
+    std::vector<mut_vect_t> &output,MAT::Tree* try_similar) {
     std::vector<nuc_one_hot> states(forward_pass_idx.size());
     //set state for root node
     forward_per_node(forward_pass_idx[0], boundary1_major_allele, base, output,
@@ -359,4 +360,35 @@ void Fitch_Sankoff_prep(const std::vector<Mutation_Annotated_Tree::Node*>& bfs_o
             parent_idx.back().right_child_idx=node->children[1]->bfs_index;
         }
     }
+}
+void deallocate_FS_cache(FS_result_per_thread_t& in){
+    for(auto& ele:in){
+        ele.minor_major_allele.clear();
+        ele.minor_major_allele.shrink_to_fit();
+    }
+}
+struct Mut_Filler{
+    FS_result_per_thread_t& in;
+    std::vector<MAT::Node*>& bfs_ordered_nodes;
+    void operator()(const tbb::blocked_range<size_t>& range) const{
+        for(size_t idx=range.begin();idx<range.end();idx++){
+            size_t mut_count=0;
+            for(auto& ele:in){
+                mut_count+=ele.output[idx].size();
+            }
+            auto this_node=bfs_ordered_nodes[idx];
+            this_node->mutations.clear();
+            this_node->mutations.reserve(mut_count);
+            for(auto& ele:in){
+                auto& other=ele.output[idx];
+                this_node->mutations.mutations.insert(this_node->mutations.mutations.end(),other.begin(),other.end());
+                other.clear();
+                other.shrink_to_fit();
+            }
+            std::sort(this_node->mutations.begin(),this_node->mutations.end());
+        }
+    }
+};
+void fill_muts(FS_result_per_thread_t& in, std::vector<MAT::Node*>& bfs_ordered_nodes){
+    tbb::parallel_for(tbb::blocked_range<size_t>(0,bfs_ordered_nodes.size()),Mut_Filler{in,bfs_ordered_nodes});
 }

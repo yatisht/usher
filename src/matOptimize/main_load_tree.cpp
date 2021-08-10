@@ -145,8 +145,6 @@ static void reassign_states(MAT::Tree& t, Original_State_t& origin_states) {
         //populate_mutated_pos(origin_states);
     }
     bfs_ordered_nodes = t.breadth_first_expansion();
-    std::vector<tbb::concurrent_vector<Mutation_Annotated_Tree::Mutation>>
-            output(bfs_ordered_nodes.size());
     //get mutation vector
     std::vector<backward_pass_range> child_idx_range;
     std::vector<forward_pass_range> parent_idx;
@@ -158,9 +156,12 @@ static void reassign_states(MAT::Tree& t, Original_State_t& origin_states) {
         }
     });
     Fitch_Sankoff_prep(bfs_ordered_nodes,child_idx_range, parent_idx);
+    FS_result_per_thread_t FS_result;
     tbb::parallel_for(
         tbb::blocked_range<size_t>(0,pos_mutated.size()),
-    [&output,&child_idx_range,&parent_idx,&pos_mutated](const tbb::blocked_range<size_t>& in) {
+    [&FS_result,&child_idx_range,&parent_idx,&pos_mutated](const tbb::blocked_range<size_t>& in) {
+        auto& this_result=FS_result.local();
+        this_result.init(child_idx_range.size());
         for (size_t idx=in.begin(); idx<in.end(); idx++) {
             if (pos_mutated[idx].second.empty()) {
                 continue;
@@ -169,22 +170,11 @@ static void reassign_states(MAT::Tree& t, Original_State_t& origin_states) {
             std::sort(mutated_nodes_idx.begin(),mutated_nodes_idx.end(),mutated_t_comparator());
             mutated_nodes_idx.emplace_back(0,0xf);
             Fitch_Sankoff_Whole_Tree(child_idx_range,parent_idx, pos_mutated[idx].first, mutated_nodes_idx,
-                                     output);
+                                     this_result);
 
         }
     });
-    tbb::affinity_partitioner ap;
-    //sort and fill
-    tbb::parallel_for(
-        tbb::blocked_range<size_t>(0, bfs_ordered_nodes.size()),
-    [&bfs_ordered_nodes, &output](tbb::blocked_range<size_t> r) {
-        for (size_t i = r.begin(); i < r.end(); i++) {
-            const auto &to_refill = output[i];
-            bfs_ordered_nodes[i]->refill(to_refill.begin(), to_refill.end(),
-                                         to_refill.size());
-        }
-    },
-    ap);
+    fill_muts(FS_result, bfs_ordered_nodes);
     size_t total_mutation_size=0;
     for(const auto node:bfs_ordered_nodes) {
         total_mutation_size+=node->mutations.size();

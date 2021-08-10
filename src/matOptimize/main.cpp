@@ -108,7 +108,7 @@ int main(int argc, char **argv) {
     all_options.add(desc);
     interrupted=false;
     signal(SIGUSR2,interrupt_handler);
-    signal(SIGUSR1, log_flush_handle);
+    //signal(SIGUSR1, log_flush_handle);
     po::variables_map vm;
     if (argc==1) {
         std::cerr << desc << std::endl;
@@ -243,7 +243,9 @@ int main(int argc, char **argv) {
             load_vcf_nh_directly(t, input_vcf_path, origin_states);
         } else if(transposed_vcf_path!=""){
             t=MAT::load_mutation_annotated_tree(input_pb_path);
+            kill(getpid(),SIGUSR1);
             add_ambiguous_mutation(transposed_vcf_path.c_str(),t);
+            kill(getpid(),SIGUSR1);
         }else {
             t = load_tree(input_pb_path, origin_states);
         }
