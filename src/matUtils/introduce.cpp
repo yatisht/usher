@@ -686,9 +686,9 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
             } else {
                 ldatestr = boost::gregorian::to_simple_string(ldates.first) + "\t" + boost::gregorian::to_simple_string(ldates.second);
                 diff = (ldates.second - ldates.first);
-            }
-            if (recency_filter > ldates.second) {
-                continue;
+                if (recency_filter > ldates.second) {
+                    continue;
+                }
             }
             date_tracker[cs.first] = ldatestr;
             float gv;
