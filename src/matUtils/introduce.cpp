@@ -398,7 +398,13 @@ std::pair<boost::gregorian::date,boost::gregorian::date> get_nearest_date(MAT::T
         if (in_samples->find(l) != in_samples->end()) {
             if (datemeta.size() > 0) {
                 if (datemeta.find(l) != datemeta.end()) {
-                    auto leafdate = boost::gregorian::from_string(datemeta.find(l)->second);
+                    boost::gregorian::date leafdate;
+                    try {
+                        leafdate = boost::gregorian::from_string(datemeta.find(l)->second);
+                    } catch (boost::bad_lexical_cast &e) {
+                        fprintf(stderr, "WARNING: Malformed date %s provided in date file for sample %s; ignoring sample date\n", datemeta.find(l)->second.c_str(), l.c_str());
+                        continue;
+                    }
                     if (leafdate < earliest) {
                         earliest = leafdate;
                     }
