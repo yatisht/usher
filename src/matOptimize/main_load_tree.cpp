@@ -166,7 +166,7 @@ static void reassign_states(MAT::Tree& t, Original_State_t& origin_states) {
             if (pos_mutated[idx].second.empty()) {
                 continue;
             }
-            std::vector<std::pair<long,nuc_one_hot>> mutated_nodes_idx(pos_mutated[idx].second.begin(),pos_mutated[idx].second.end());
+            mutated_t mutated_nodes_idx(pos_mutated[idx].second.begin(),pos_mutated[idx].second.end());
             std::sort(mutated_nodes_idx.begin(),mutated_nodes_idx.end(),mutated_t_comparator());
             mutated_nodes_idx.emplace_back(0,0xf);
             Fitch_Sankoff_Whole_Tree(child_idx_range,parent_idx, pos_mutated[idx].first, mutated_nodes_idx,

@@ -89,3 +89,4 @@ void populate_mutated_pos(const Original_State_t& origin_state);
 void add_ambuiguous_mutations(const char* path,Original_State_t& to_patch,Mutation_Annotated_Tree::Tree& tree);
 void recondense_tree(MAT::Tree& t);
 void add_ambiguous_mutation(const char *input_path,MAT::Tree& tree);
+void print_memory();

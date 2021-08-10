@@ -1,5 +1,6 @@
 #include <cstddef>
 #include <functional>
+#include <tbb/task_group.h>
 #include <thread>
 #define LOAD
 #include <cstdio>
@@ -14,6 +15,7 @@
 #include "transpose_vcf.hpp"
 #include <algorithm>
 #include <iterator>
+//#include <malloc.h>
 #include <string>
 #include <tbb/blocked_range.h>
 #include <tbb/enumerable_thread_specific.h>
@@ -157,12 +159,19 @@ typedef std::pair<std::vector<int>::const_iterator,
     iter_range;
 struct row_t {
     MAT::Mutation mut;
-    std::vector<std::pair<long, nuc_one_hot>> alleles;
+    mutated_t alleles;
     row_t() {}
     row_t(int pos) : mut(pos) {}
 };
 typedef tbb::flow::function_node<std::vector<row_t> *> assigner_t;
-void output_vcf_rows(size_t start_idx,size_t end_idx,const std::vector<int>& positions, assigner_t& out,const std::vector<Sample_Pos_Mut>& all_samples){
+#define CHUNK_SIZ 64
+struct output_vcf_rows{
+    size_t start_idx;
+    size_t end_idx;
+    const std::vector<int>& positions;
+    assigner_t& out;
+    const std::vector<Sample_Pos_Mut>& all_samples;
+    void operator()()const{
     size_t idx=start_idx;
     std::vector<mut_iterator> iters;
     for (const auto &samp : all_samples) {
@@ -170,8 +179,8 @@ void output_vcf_rows(size_t start_idx,size_t end_idx,const std::vector<int>& pos
     }
     while (idx<end_idx) {
         std::vector<row_t> *rows = new std::vector<row_t>;
-        rows->reserve(128);
-        for (int count = 0; count < 128; count++) {
+        rows->reserve(CHUNK_SIZ);
+        for (int count = 0; count < CHUNK_SIZ; count++) {
             if (idx == end_idx) {
                 break;
             }
@@ -188,7 +197,8 @@ void output_vcf_rows(size_t start_idx,size_t end_idx,const std::vector<int>& pos
         }
         out.try_put(rows);
     }
-}
+    }
+};
 struct Assigner {
     const std::vector<backward_pass_range> &child_idx_range;
     const std::vector<forward_pass_range> &parent_idx;
@@ -213,19 +223,6 @@ struct Assigner {
                                      row.alleles, this_content);
         }
         delete rows;
-    }
-};
-struct Pos_Iter_Gen {
-    std::vector<int>::const_iterator &last_pos_iter;
-    std::vector<int>::const_iterator end_iter;
-    iter_range operator()(tbb::flow_control &fc) const {
-        if (last_pos_iter == end_iter) {
-            fc.stop();
-        }
-        auto first = last_pos_iter;
-        auto second = std::min(end_iter, first + 64);
-        last_pos_iter = second;
-        return std::make_pair(first, second);
     }
 };
 void get_sample_mut(const char *input_path,std::vector<Sample_Pos_Mut>& all_samples, MAT::Tree &tree){
@@ -269,28 +266,28 @@ void assign_state(std::vector<Sample_Pos_Mut>& all_samples, MAT::Tree &tree,FS_r
     }
     tbb::flow::graph g;
     assigner_t assigner(g,tbb::flow::unlimited,Assigner{child_idx_range,parent_idx,output,bfs_ordered_nodes});
-    std::vector<std::thread> iterator_threads;
+    tbb::task_group transposer_group;
     size_t last_end_idx=0;
     int iter_thread_count=num_threads/6;
     fprintf(stderr, "Using %d transposer threads",iter_thread_count);
     size_t chunk_size=pos_mut_idx.size()/(iter_thread_count+1);
     for (int thread_idx=0; thread_idx<iter_thread_count; thread_idx++) {
         auto this_end_idx=last_end_idx+chunk_size;
-        iterator_threads.emplace_back(output_vcf_rows,last_end_idx,this_end_idx,std::ref(pos_mut_idx),std::ref(assigner),std::ref(all_samples));
+        transposer_group.run(output_vcf_rows{last_end_idx,this_end_idx,pos_mut_idx,assigner,all_samples});
         last_end_idx=this_end_idx;
     }
-    iterator_threads.emplace_back(output_vcf_rows,last_end_idx,pos_mut_idx.size(),std::ref(pos_mut_idx),std::ref(assigner),std::ref(all_samples));
+    transposer_group.run(output_vcf_rows{last_end_idx,pos_mut_idx.size(),pos_mut_idx,assigner,all_samples});
     fprintf(stderr, "last chunk size %zu, other chunk size %zu",pos_mut_idx.size()-last_end_idx,chunk_size);
-    for (auto& thread : iterator_threads) {
-        thread.join();
-    }
+    transposer_group.wait();
     g.wait_for_all();
     deallocate_FS_cache(output);
 }
 void asign_and_fill(std::vector<Sample_Pos_Mut>& all_samples, MAT::Tree &tree,std::vector<MAT::Node*> bfs_ordered_nodes){
     FS_result_per_thread_t output;
     assign_state(all_samples, tree, output, bfs_ordered_nodes);
-    kill(getpid(),SIGUSR1);
+    //raise(SIGUSR1);
+    print_memory();
+    //malloc_stats();
     fill_muts(output, bfs_ordered_nodes);
 }
 void add_ambiguous_mutation(const char *input_path, MAT::Tree &tree) {
@@ -304,6 +301,8 @@ void add_ambiguous_mutation(const char *input_path, MAT::Tree &tree) {
     asign_and_fill(all_samples, tree, bfs_ordered_nodes);
     auto par_score = tree.get_parsimony_score();
     fprintf(stderr, "Before condensing %zu\n", par_score);
-    kill(getpid(),SIGUSR1);
+    //raise(SIGUSR1);
+    print_memory();
+    //malloc_stats();
     recondense_tree(tree);
 }

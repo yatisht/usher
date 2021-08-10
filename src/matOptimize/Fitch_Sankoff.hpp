@@ -2,7 +2,6 @@
 #include <cstddef>
 #include <tbb/concurrent_vector.h>
 #include <tbb/enumerable_thread_specific.h>
-#include <tbb/scalable_allocator.h>
 #include <vector>
 namespace MAT=Mutation_Annotated_Tree;
 struct backward_pass_range {
@@ -25,7 +24,7 @@ struct mutated_t_comparator {
         return lhs.first>rhs.first;
     }
 };
-typedef std::vector<MAT::Mutation,tbb::scalable_allocator<MAT::Mutation>> mut_vect_t;
+typedef std::vector<MAT::Mutation> mut_vect_t;
 struct Fitch_Sankoff_Out_Container{
     std::vector<mut_vect_t> output;
     std::vector<uint8_t> minor_major_allele;

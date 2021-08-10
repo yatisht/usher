@@ -11,13 +11,13 @@
 #include <cstddef>
 #include <cstdlib>
 #include <ctime>
+//#include <malloc.h>
 #include <limits>
 #include <tbb/concurrent_vector.h>
 #include <tbb/task.h>
 #include <cstdio>
 #include <fcntl.h>
 #include <string>
-#include <tbb/scalable_allocator.h>
 #include <tbb/task_scheduler_init.h>
 #include <unistd.h>
 #include <sys/stat.h>
@@ -25,7 +25,13 @@
 #include <boost/program_options.hpp>
 #include <vector>
 #include <iostream>
+#include <sys/resource.h>
 
+void print_memory(){
+    struct rusage usage;
+    getrusage(RUSAGE_SELF, &usage);
+    fprintf(stderr, "Max resident %zu kb\n",usage.ru_maxrss);
+}
 uint32_t num_threads;
 std::chrono::time_point<std::chrono::steady_clock> last_save_time;
 bool no_write_intermediate;
@@ -48,7 +54,6 @@ void log_flush_handle(int) {
     fflush(movalbe_src_log);
     progress_bar_cv.notify_all();
 }
-
 namespace po = boost::program_options;
 namespace MAT = Mutation_Annotated_Tree;
 MAT::Node* get_LCA(MAT::Node* src,MAT::Node* dst);
@@ -108,7 +113,7 @@ int main(int argc, char **argv) {
     all_options.add(desc);
     interrupted=false;
     signal(SIGUSR2,interrupt_handler);
-    //signal(SIGUSR1, log_flush_handle);
+    signal(SIGUSR1, log_flush_handle);
     po::variables_map vm;
     if (argc==1) {
         std::cerr << desc << std::endl;
@@ -243,13 +248,16 @@ int main(int argc, char **argv) {
             load_vcf_nh_directly(t, input_vcf_path, origin_states);
         } else if(transposed_vcf_path!=""){
             t=MAT::load_mutation_annotated_tree(input_pb_path);
-            kill(getpid(),SIGUSR1);
+            //raise(SIGUSR1);
+            print_memory();
+            //malloc_stats();
             add_ambiguous_mutation(transposed_vcf_path.c_str(),t);
-            kill(getpid(),SIGUSR1);
+            //raise(SIGUSR1);
+            print_memory();
+            //malloc_stats();
         }else {
             t = load_tree(input_pb_path, origin_states);
         }
-        //scalable_allocation_command(TBBMALLOC_CLEAN_ALL_BUFFERS,0);
         if(!no_write_intermediate) {
             fputs("Checkpoint initial tree.\n",stderr);
             intermediate_writing=intermediate_template;
