@@ -272,11 +272,13 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
 
         node_data->add_names(node->identifier);
         node_data->add_x(curr_x_value * 0.2);
+        node_data->add_y(0); // temp value, set later
         
         if (node->identifier.substr(0,5) == "node_") {
             node_data->add_countries(0); 
             node_data->add_lineages(0); 
-            node_data->add_dates(0); 
+            node_data->add_dates(0);
+            node_data->add_genbanks("");
             //internal nodes don't have country, lineage, date            
         }
 
@@ -288,6 +290,7 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
             node_data->add_countries(country);
             node_data->add_lineages(lineage); 
             node_data->add_dates(date); 
+            node_data->add_genbanks(meta_fields[genbank_col]);
         }
 
         if (node->parent == nullptr) {
@@ -302,28 +305,41 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
         count++;
     }
 
-    for (auto &node_list : by_level) {
+    auto leaves = T->get_leaves();
+    for (size_t i = 0; i < leaves.size(); i++) {
+        auto leaf = leaves[i];
+        int leaf_index;
+        if (metadata.find(leaf->identifier) != metadata.end()) {
+            leaf_index = std::stoi(metadata[leaf->identifier][index_col]);
+        }
+        else {
+            leaf_index = std::stoi(alt_parent_map[leaf->identifier]);
+        }
+        node_data->set_y(leaf_index, i);
+    }
+
+    for (auto &node_list : by_level) { // in sorted order by level
         int32_t node_index;
-        for (auto &bylevel_node : node_list) {
-            if (metadata.find(node->identifier) != metadata.end()) {
-                node_index = std::stoi(metadata[node->identifier][index_col]);
+        for (auto &bylevel_node : node_list.second) {
+            if (metadata.find(bylevel_node->identifier) != metadata.end()) {
+                node_index = std::stoi(metadata[bylevel_node->identifier][index_col]);
             }
             else {
-                node_index = std::stoi(alt_parent_map[node->identifier]);
+                node_index = std::stoi(alt_parent_map[bylevel_node->identifier]);
             }
             float children_mean_y = 0;
-            for (auto &child : node_list->children){
+            for (auto &child : bylevel_node->children){
                 int32_t child_index;
                 if (metadata.find(child->identifier) != metadata.end()) {
-                    child_index = std::stoi(metadata[child][index_col]);
+                    child_index = std::stoi(metadata[child->identifier][index_col]);
                 }
                 else {
-                    child_index = std::stoi(alt_parent_map[child]);
+                    child_index = std::stoi(alt_parent_map[child->identifier]);
                 }
-                children_mean_y += child->y(child_index);
+                children_mean_y += child_index;
             }
-            children_mean_y /= (node_list->children).size();
-            node_data->set_y(node_index, children_mean_y / 4000);
+            children_mean_y /= (bylevel_node->children).size();
+            node_data->set_y(node_index, children_mean_y / 40000);
         }
     }
 }
