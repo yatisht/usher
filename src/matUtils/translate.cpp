@@ -225,7 +225,7 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
     std::unordered_map<std::string, std::string> seen_mutations_map;
     std::unordered_map<std::string, std::string> alt_parent_map;
     std::unordered_map<std::string, float> branch_length_map;
-    std::map<size_t, std::vector<MAT::Node *>> by_level;
+    std::map<size_t, std::vector<MAT::Node *>, std::greater<int>> by_level;
     int32_t count = 0;
     int32_t mutation_counter = 0;
     float curr_x_value = 0;
@@ -315,10 +315,12 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
         else {
             leaf_index = std::stoi(alt_parent_map[leaf->identifier]);
         }
-        node_data->set_y(leaf_index, i);
+        node_data->set_y(leaf_index, (i));
     }
 
+    std::cout << "here" << '\n';
     for (auto &node_list : by_level) { // in sorted order by level
+	std::cout << std::to_string(node_list.first) << '\n';
         int32_t node_index;
         for (auto &bylevel_node : node_list.second) {
             if (metadata.find(bylevel_node->identifier) != metadata.end()) {
@@ -328,6 +330,7 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
                 node_index = std::stoi(alt_parent_map[bylevel_node->identifier]);
             }
             float children_mean_y = 0;
+	    int num_children = (bylevel_node->children).size();
             for (auto &child : bylevel_node->children){
                 int32_t child_index;
                 if (metadata.find(child->identifier) != metadata.end()) {
@@ -336,9 +339,13 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
                 else {
                     child_index = std::stoi(alt_parent_map[child->identifier]);
                 }
-                children_mean_y += child_index;
+                children_mean_y += node_data->y(child_index);
             }
-            children_mean_y /= (bylevel_node->children).size();
+	    if (num_children != 0) {
+            	children_mean_y /= num_children;
+	    } else {
+		continue;
+	    }
             node_data->set_y(node_index, children_mean_y / 40000);
         }
     }
