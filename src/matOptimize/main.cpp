@@ -307,7 +307,7 @@ int main(int argc, char **argv) {
                               , origin_states
 #endif
                              );
-            fprintf(stderr, "after optimizing:%zu\n\n", new_score);
+            fprintf(stderr, "parsimony score after optimizing: %zu\n\n", new_score);
             auto save_start=std::chrono::steady_clock::now();
             if(std::chrono::steady_clock::now()-last_save_time>=save_period) {
                 if(!no_write_intermediate) {
