@@ -31,6 +31,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
      "Pass a text file of sample IDs and a number of the number of context samples, formatted as sample_file.txt:k.")
     ("set-size,z", po::value<size_t>()->default_value(0),
      "Automatically add or remove samples at random from the selected sample set until it is the indicated size.")
+    ("limit-to-lca,Z", po::bool_switch(),
+    "Use to limit random samples chosen with -z to below the most recent common ancestor of all other samples.")
     ("get-internal-descendents,I", po::value<std::string>()->default_value(""),
      "Select the set of samples descended from the indicated internal node.")
     ("get-representative,r", po::value<size_t>()->default_value(0),
@@ -121,6 +123,7 @@ void extract_main (po::parsed_options parsed) {
     bool usher_clades_txt = vm["usher-clades-txt"].as<bool>();
     size_t setsize = vm["set-size"].as<size_t>();
     size_t minimum_subtrees_size = vm["minimum-subtrees-size"].as<size_t>();
+    bool limit_lca = vm["limit-to-lca"].as<bool>();
 
     boost::filesystem::path path(dir_prefix);
     if (!boost::filesystem::exists(path)) {
@@ -333,7 +336,7 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         }
     }
     if (setsize > 0) {
-        samples = fill_random_samples(&T, samples, setsize);
+        samples = fill_random_samples(&T, samples, setsize, limit_lca);
     }
     //the final step of selection is to invert the set if prune is set
     //this is done by getting all sample names which are not in the samples vector.
