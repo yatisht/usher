@@ -199,14 +199,24 @@ int main(int argc, char** argv) {
             
 
             if(din_filename != loaded_MAT_name){
+
                 timer.Start();
                 fprintf(stderr, "Loading existing mutation-annotated tree object from file %s\n", din_filename.c_str());
        
-                // Load mutation-annotated tree and store it in optimal_trees
+                if(loaded_MAT_name != ""){ //if there is an existing trees, delete them 
+                    MAT::clear_tree(loaded_MAT);
+                }
+                if(curr_tree_avail){
+                    MAT::clear_tree(curr_tree);
+                }
+                // Load mutation-annotated tree and store it
                 loaded_MAT = MAT::load_mutation_annotated_tree(din_filename);
                 loaded_MAT_name = din_filename;
+                fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+                fprintf(stderr, "Copying the mutation-annotated tree object\n");
                 curr_tree = MAT::get_tree_copy(loaded_MAT);
                 fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+                
             }else if(!curr_tree_avail){
                 timer.Start();
                 fprintf(stderr, "Copying pre-loaded mutation-annotated tree object originally from file %s\n", din_filename.c_str());
@@ -337,6 +347,7 @@ int main(int argc, char** argv) {
             sort_before_placement_1, sort_before_placement_2, sort_before_placement_3, reverse_sort, collapse_tree, 
             collapse_output_tree, print_uncondensed_tree, print_parsimony_scores, retain_original_branch_len, no_add, 
             detailed_clades, print_subtrees_size, print_subtrees_single, missing_samples, low_confidence_samples, &curr_tree);
+            MAT::clear_tree(curr_tree);
             if(return_val != 0){
                 break;//if error encountered then stop reading the file for now
             }
