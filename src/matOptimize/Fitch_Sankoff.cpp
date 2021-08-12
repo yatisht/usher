@@ -2,6 +2,7 @@
 #include "src/matOptimize/mutation_annotated_tree.hpp"
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <smmintrin.h>
 #include <string>
@@ -48,8 +49,8 @@ static void set_state_2(uint8_t child1,uint8_t child2,uint8_t& boundary1_major_a
 static uint8_t movemask(int in) {
     return (1&in)|(2&(in>>3))|(4&(in>>6))|(8&(in>>9));
 }
-
 void set_state_from_cnt(const std::array<int,4>& data, uint8_t& boundary1_major_allele_out) {
+    #ifdef __x86_64__
     //load data
     __m128i ori=_mm_loadu_si128((__m128i*)data.data());
     //shufle it to 1,0,3,2 order
@@ -67,9 +68,22 @@ void set_state_from_cnt(const std::array<int,4>& data, uint8_t& boundary1_major_
     int is_boundary_1_raw=_mm_movemask_epi8(_mm_cmpeq_epi32(_mm_add_epi32(ori,one), max_values));
     uint8_t max_mask=movemask(is_max_raw);
     uint8_t boundary1_mask=movemask(is_boundary_1_raw);
+    #else
+    uint8_t max_mask=0;
+    uint8_t boundary1_mask=0;
+    int max_count=*std::max_element(data.begin(),data.end());
+    for (char nu_idx=0; nu_idx<4; nu_idx++) {
+        if (data[nu_idx]==max_count) {
+            max_mask|=(1<<nu_idx);
+        }
+        if (data[nu_idx]==(max_count-1)) {
+            boundary1_mask|=(1<<nu_idx);
+        }
+    }
+    #endif
     boundary1_major_allele_out=max_mask|(boundary1_mask<<4);
 }
-
+#ifdef __x86_64__
 //following are different specialization for get allele count for different number of children
 //all of them are shifting a mask for each allele, and then use popcnt to get count
 static void get_state_count8(size_t start_idx,size_t size, std::vector<uint8_t>& minor_major_allele,std::array<int,4>& nuc_count) {
@@ -94,7 +108,6 @@ static void get_state_count16(size_t start_idx,size_t size, std::vector<uint8_t>
         nuc_count[nuc_idx&3]+=__builtin_popcountl(mask&(child_states>>nuc_idx));
     }
 }
-
 static bool get_state_count32(size_t start_idx,size_t size, std::vector<uint8_t>& minor_major_allele,std::array<int,4>& nuc_count) {
     bool is_finished=false;
     __m128i child_states_after=_mm_loadu_si128((__m128i*)(&(minor_major_allele[start_idx+16])));
@@ -133,19 +146,6 @@ static bool get_state_count32(size_t start_idx,size_t size, std::vector<uint8_t>
 
     return is_finished;
 }
-
-#ifdef DETAIL_DEBUG_FITCH_SANKOFF
-std::array<int,4> count_right(MAT::Node* this_node, std::vector<uint8_t>& minor_major_allele) {
-    std::array<int,4> to_return{0,0,0,0};
-    for(auto child:this_node->children) {
-        for (char nu_idx=0; nu_idx<4; nu_idx++) {
-            if (minor_major_allele[child->bfs_index]&(1<<nu_idx)) {
-                to_return[nu_idx]++;
-            }
-        }
-    }
-    return to_return;
-}
 #endif
 
 void FS_backward_pass(const std::vector<backward_pass_range>& child_idx_range, std::vector<uint8_t>& boundary1_major_allele,const mutated_t& mutated,nuc_one_hot ref_nuc) {
@@ -176,6 +176,7 @@ void FS_backward_pass(const std::vector<backward_pass_range>& child_idx_range, s
             size_t child_end_idx=child_start_idx+child_size;
             //dispatch on children size
             std::array<int,4> nuc_count{0,0,0,0};
+            #ifdef __x86_64__
             while (true) {
                 auto child_left=child_end_idx-child_start_idx;
                 if (child_left<=8) {
@@ -192,6 +193,15 @@ void FS_backward_pass(const std::vector<backward_pass_range>& child_idx_range, s
                     }
                 }
             }
+            #else
+            for(size_t child_idx=child_start_idx;child_idx<child_end_idx;child_idx++) {
+                for (char nu_idx=0; nu_idx<4; nu_idx++) {
+                    if (boundary1_major_allele[child_idx]&(1<<nu_idx)) {
+                        nuc_count[nu_idx]++;
+                    }
+                }
+            }
+            #endif
 #ifdef DETAIL_DEBUG_FITCH_SANKOFF
             auto right_count=count_right(this_node, boundary1_major_allele);
             assert(nuc_count==right_count);
