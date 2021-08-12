@@ -32,7 +32,7 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
     ("set-size,z", po::value<size_t>()->default_value(0),
      "Automatically add or remove samples at random from the selected sample set until it is the indicated size.")
     ("limit-to-lca,Z", po::bool_switch(),
-    "Use to limit random samples chosen with -z to below the most recent common ancestor of all other samples.")
+     "Use to limit random samples chosen with -z to below the most recent common ancestor of all other samples.")
     ("get-internal-descendents,I", po::value<std::string>()->default_value(""),
      "Select the set of samples descended from the indicated internal node.")
     ("get-representative,r", po::value<size_t>()->default_value(0),

@@ -1222,7 +1222,7 @@ void Mutation_Annotated_Tree::Tree::rotate_for_display(bool reverse) {
     }
 
     for (auto n: dfs) {
-        if (reverse) { 
+        if (reverse) {
             tbb::parallel_sort(n->children.begin(), n->children.end(),
             [&num_desc](Node* n1, Node* n2) {
                 return num_desc[n1] < num_desc[n2];

@@ -77,8 +77,8 @@ static void print_progress(
         double seconds_left = elpased_time.count() *
                               (total_nodes - checked_nodes_temp) /
                               checked_nodes_temp;
-        if(((deferred_nodes->size())&&(std::chrono::steady_clock::now()-last_save_time)>=save_period)||deferred_nodes->size()>=max_queued_moves){
-                return;
+        if(((deferred_nodes->size())&&(std::chrono::steady_clock::now()-last_save_time)>=save_period)||deferred_nodes->size()>=max_queued_moves) {
+            return;
         }
         fprintf(stderr,"\rchecked %d nodes, estimated %f minutes left,found %zu nodes "
                 "profitable",

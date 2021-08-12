@@ -100,18 +100,18 @@ struct Node_Condenser {
         }
         //scheduler bypass to run continuation task if no task spawned
     }
-    void operator()(tbb::blocked_range<size_t> r) const{
+    void operator()(tbb::blocked_range<size_t> r) const {
         for (size_t idx=r.begin(); idx<r.end(); idx++) {
             condense(condensable_nodes[idx]);
         }
     }
 };
-void find_condensable_nodes(Mutation_Annotated_Tree::Node* root,std::vector<Mutation_Annotated_Tree::Node*>& condensable_nodes){
+void find_condensable_nodes(Mutation_Annotated_Tree::Node* root,std::vector<Mutation_Annotated_Tree::Node*>& condensable_nodes) {
     size_t child_count=0;
     for (auto child : root->children) {
         if (child->is_leaf()) {
             child_count++;
-        }else {
+        } else {
             find_condensable_nodes(child, condensable_nodes);
         }
     }

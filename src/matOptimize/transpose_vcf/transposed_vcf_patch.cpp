@@ -154,7 +154,7 @@ struct condesed_container {
             out.emplace(condensed_children, children.back());
         }
     }
-    ~condesed_container(){
+    ~condesed_container() {
         for (auto child : children) {
             delete child;
         }
