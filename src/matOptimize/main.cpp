@@ -26,7 +26,7 @@
 #include <vector>
 #include <iostream>
 #include <sys/resource.h>
-
+thread_local TlRng rng;
 void print_memory(){
     struct rusage usage;
     getrusage(RUSAGE_SELF, &usage);
@@ -81,6 +81,7 @@ int main(int argc, char **argv) {
     std::string intermediate_pb_base_name;
     std::string profitable_src_log;
     std::string transposed_vcf_path;
+    int drift_iter;
     unsigned int max_optimize_hours;
     int radius;
     unsigned int minutes_between_save;
@@ -107,6 +108,7 @@ int main(int argc, char **argv) {
     ("max-hours,M",po::value(&max_optimize_hours)->default_value(0),"Maximium number of hours to run")
     ("transposed-vcf-path,V",po::value(&transposed_vcf_path)->default_value(""),"Auxiliary transposed VCF for ambiguous bases, used in combination with usher protobuf (-i)")
     ("version", "Print version number")
+    ("drift_iter,d",po::value(&drift_iter)->default_value(1),"Number of iteration to continue if no parsimony improvement")
     ("help,h", "Print help messages");
 
     po::options_description all_options;
@@ -283,13 +285,14 @@ int main(int argc, char **argv) {
     tbb::concurrent_vector<MAT::Node *> nodes_to_search;
     std::vector<MAT::Node *> bfs_ordered_nodes;
     bfs_ordered_nodes = t.breadth_first_expansion();
-    movalbe_src_log=fopen(profitable_src_log.c_str(),"w");
+    movalbe_src_log=fopen(profitable_src_log.c_str(),"w");  
     if (!movalbe_src_log) {
         perror(("Error writing to log file "+profitable_src_log).c_str());
         movalbe_src_log=fopen("/dev/null", "w");
     }
     bool isfirst=true;
-    while(stalled<1) {
+    bool allow_drift=false;
+    while(stalled<drift_iter) {
         if (interrupted) {
             break;
         }
@@ -305,8 +308,8 @@ int main(int argc, char **argv) {
         for(auto node:bfs_ordered_nodes) {
             node->changed=false;
         }
-        if (nodes_to_search.empty()) {
-            break;
+        if (allow_drift) {
+            nodes_to_search=tbb::concurrent_vector<MAT::Node *>(bfs_ordered_nodes.begin(),bfs_ordered_nodes.end());
         }
         //Actual optimization loop
         while (!nodes_to_search.empty()) {
@@ -315,7 +318,7 @@ int main(int argc, char **argv) {
             }
             bfs_ordered_nodes = t.breadth_first_expansion();
             new_score =
-                optimize_tree(bfs_ordered_nodes, nodes_to_search, t,radius,movalbe_src_log
+                optimize_tree(bfs_ordered_nodes, nodes_to_search, t,radius,movalbe_src_log,allow_drift
 #ifndef NDEBUG
                               , origin_states
 #endif
@@ -335,6 +338,7 @@ int main(int argc, char **argv) {
             }
         }
         if (new_score >= score_before) {
+            allow_drift=true;
             stalled++;
         } else {
             score_before = new_score;

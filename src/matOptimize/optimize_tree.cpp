@@ -1,6 +1,7 @@
 #include "src/matOptimize/mutation_annotated_tree.hpp"
 #include "tree_rearrangement_internal.hpp"
 #include "priority_conflict_resolver.hpp"
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstdio>
@@ -15,7 +16,7 @@
 #include <unistd.h>
 #include "Profitable_Moves_Enumerators/Profitable_Moves_Enumerators.hpp"
 void find_profitable_moves(MAT::Node *src, output_t &out,int radius,
-                           stack_allocator<Mutation_Count_Change>& allocator
+                           stack_allocator<Mutation_Count_Change>& allocator,int starting_parsimony_score
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
                            ,MAT::Tree* tree
 #endif
@@ -84,7 +85,7 @@ static void print_progress(
 }
 size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
                      tbb::concurrent_vector<MAT::Node *> &nodes_to_search,
-                     MAT::Tree &t,int radius,FILE* log
+                     MAT::Tree &t,int radius,FILE* log,bool allow_drift
 #ifndef NDEBUG
                      , Original_State_t origin_states
 #endif
@@ -106,7 +107,7 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
     output_t out;
     tbb::parallel_for(tbb::blocked_range<size_t>(0, nodes_to_search.size()),
                       [&nodes_to_search, &resolver,
-                                         &deferred_nodes,radius,&checked_nodes
+                                         &deferred_nodes,radius,&checked_nodes,&allow_drift
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
                                          ,&t
 #endif
@@ -118,7 +119,7 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
             }
             if(((!deferred_nodes.size())||(std::chrono::steady_clock::now()-last_save_time)<save_period)&&deferred_nodes.size()<max_queued_moves) {
                 output_t out;
-                find_profitable_moves(nodes_to_search[i], out, radius,this_thread_FIFO_allocator
+                find_profitable_moves(nodes_to_search[i], out, radius,this_thread_FIFO_allocator,allow_drift?-1:0
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
                                       ,&t
 #endif
@@ -126,8 +127,12 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
                 assert(this_thread_FIFO_allocator.empty());
                 if (!out.moves.empty()) {
                     //resolve conflicts
+                    if (allow_drift) {
+                        std::shuffle(out.moves.begin(), out.moves.end(), rng);
+                    }else {
                     deferred_nodes.push_back(
-                        out.moves[0]->get_src());
+                        out.moves[0]->get_src());    
+                    }
                     resolver(out.moves);
                 }
                 checked_nodes.fetch_add(1,std::memory_order_relaxed);
@@ -162,7 +167,7 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
     int init_deferred=deferred_moves.size();
     int recycled=0;
     fputs("Start recycling conflicting moves\n",stderr);
-    while (!deferred_moves.empty()) {
+    while (!deferred_moves.empty()&&(!allow_drift)) {
         bfs_ordered_nodes=t.breadth_first_expansion();
         {
             Deferred_Move_t deferred_moves_next;
