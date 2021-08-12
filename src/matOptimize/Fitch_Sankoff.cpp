@@ -4,7 +4,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <smmintrin.h>
 #include <string>
 #include <array>
 #include <tbb/blocked_range.h>
@@ -12,7 +11,10 @@
 #include <unordered_map>
 #include <array>
 #include <vector>
+#ifdef __x86_64__
 #include <emmintrin.h>
+#include <smmintrin.h>
+#endif
 namespace MAT = Mutation_Annotated_Tree;
 //get state of ancestor at position
 nuc_one_hot get_this_state(MAT::Node* ancestor,int position) {
