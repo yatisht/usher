@@ -78,7 +78,10 @@ static void print_progress(
         double seconds_left = elpased_time.count() *
                               (total_nodes - checked_nodes_temp) /
                               checked_nodes_temp;
-        fprintf(stderr,"\rchecked %d nodes, estimate %f min left,found %zu nodes "
+        if(((deferred_nodes->size())&&(std::chrono::steady_clock::now()-last_save_time)>=save_period)||deferred_nodes->size()>=max_queued_moves) {
+            return;
+        }
+        fprintf(stderr,"\rchecked %d nodes, estimated %f minutes left,found %zu nodes "
                 "profitable",
                 checked_nodes_temp, seconds_left / 60, deferred_nodes->size());
     }
@@ -150,7 +153,7 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
     }
     auto searh_end=std::chrono::steady_clock::now();
     std::chrono::duration<double> elpased_time =searh_end-search_start;
-    fprintf(stderr, "Search took %f minutes\n",elpased_time.count()/60);
+    fprintf(stderr, "\nSearch took %f minutes\n",elpased_time.count()/60);
     //apply moves
     fputs("Start applying moves\n",stderr);
     std::vector<Profitable_Moves_ptr_t> all_moves;
@@ -162,7 +165,7 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
                );
     auto apply_end=std::chrono::steady_clock::now();
     elpased_time =apply_end-searh_end;
-    fprintf(stderr, "apply moves took %f s\n",elpased_time.count());
+    fprintf(stderr, "apply moves took %f seconds\n",elpased_time.count());
     //recycle conflicting moves
     int init_deferred=deferred_moves.size();
     int recycled=0;
@@ -216,7 +219,7 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
     nodes_to_search = std::move(deferred_nodes);
     progress_meter.join();
     fprintf(stderr, "recycled %f of conflicting moves \n",(double)recycled/(double)init_deferred);
-    fprintf(stderr, "recycling moves took %f s\n",elpased_time.count());
+    fprintf(stderr, "recycling moves took %f seconds\n",elpased_time.count());
     return t.get_parsimony_score();
 }
 tbb::concurrent_unordered_map<MAT::Mutation,

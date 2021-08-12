@@ -190,6 +190,6 @@ Mutation_Annotated_Tree::Tree load_tree(const std::string& path,Original_State_t
     fputs("Finished loading protobuf, start reassigning states\n",stderr);
     reassign_states(t, origin_states);
     fputs("Finished reassigning states\n",stderr);
-    fprintf(stderr, "original score:%zu\n", t.get_parsimony_score());
+    fprintf(stderr, "original parsimony score:%zu\n", t.get_parsimony_score());
     return t;
 }

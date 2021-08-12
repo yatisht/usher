@@ -323,7 +323,7 @@ int main(int argc, char **argv) {
                               , origin_states
 #endif
                              );
-            fprintf(stderr, "after optimizing:%zu\n\n", new_score);
+            fprintf(stderr, "parsimony score after optimizing: %zu\n\n", new_score);
             auto save_start=std::chrono::steady_clock::now();
             if(std::chrono::steady_clock::now()-last_save_time>=save_period) {
                 if(!no_write_intermediate) {
@@ -332,7 +332,7 @@ int main(int argc, char **argv) {
                     t.save_detailed_mutations(intermediate_writing);
                     rename(intermediate_writing.c_str(), intermediate_pb_base_name.c_str());
                     last_save_time=std::chrono::steady_clock::now();
-                    fprintf(stderr, "Took %ld second to save intermediate protobuf\n",std::chrono::duration_cast<std::chrono::seconds>(last_save_time-save_start).count());
+                    fprintf(stderr, "Took %lld second to save intermediate protobuf\n",std::chrono::duration_cast<std::chrono::seconds>(last_save_time-save_start).count());
                 }
                 last_save_time=std::chrono::steady_clock::now();
             }

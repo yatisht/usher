@@ -328,7 +328,7 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
     Tree tree;
 
     Parsimony::data data;
-    #define BIG_SIZE 2000000000l
+#define BIG_SIZE 2000000000l
     boost::iostreams::filtering_istream instream;
     std::ifstream inpfile(filename, std::ios::in | std::ios::binary);
     if (filename.find(".gz\0") != std::string::npos) {
@@ -427,27 +427,27 @@ void Mutation_Annotated_Tree::save_mutation_annotated_tree (const Mutation_Annot
             auto mut = mutation_list->add_mutation();
             mut->set_chromosome(m.get_chromosome());
             mut->set_position(m.get_position());
-            
-                int8_t j = one_hot_to_two_bit(m.get_ref_one_hot()) ;
-                assert (j >= 0);
-                mut->set_ref_nuc(j);
 
-                j = one_hot_to_two_bit(m.get_par_one_hot()) ;
-                assert(j >= 0);
-                mut->set_par_nuc(j);
+            int8_t j = one_hot_to_two_bit(m.get_ref_one_hot()) ;
+            assert (j >= 0);
+            mut->set_ref_nuc(j);
 
-                mut->clear_mut_nuc();
-                mut->add_mut_nuc(one_hot_to_two_bit(m.get_mut_one_hot()));
-                /*if (dfs[idx]->is_leaf()) {
-                    nuc_one_hot other_mut=m.get_all_major_allele()&(~m.get_mut_one_hot());
-                    if (other_mut) {
-                        for (int i=0; i<4; i++) {
-                            if ((1<<i)&other_mut) {
-                                mut->add_mut_nuc(i);
-                            }
+            j = one_hot_to_two_bit(m.get_par_one_hot()) ;
+            assert(j >= 0);
+            mut->set_par_nuc(j);
+
+            mut->clear_mut_nuc();
+            mut->add_mut_nuc(one_hot_to_two_bit(m.get_mut_one_hot()));
+            /*if (dfs[idx]->is_leaf()) {
+                nuc_one_hot other_mut=m.get_all_major_allele()&(~m.get_mut_one_hot());
+                if (other_mut) {
+                    for (int i=0; i<4; i++) {
+                        if ((1<<i)&other_mut) {
+                            mut->add_mut_nuc(i);
                         }
                     }
-                }*/
+                }
+            }*/
         }
     }
 
