@@ -8,11 +8,12 @@
 #include <tbb/concurrent_hash_map.h>
 #include <tbb/flow_graph.h>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 namespace MAT = Mutation_Annotated_Tree;
 static int read_header(gzFile *fd, std::vector<std::string> &out) {
     int header_len = 0;
-    char in = gzgetc(*fd);
+    int in = gzgetc(*fd);
     in = gzgetc(*fd);
     bool second_char_pong = (in == '#');
 
@@ -35,6 +36,7 @@ static int read_header(gzFile *fd, std::vector<std::string> &out) {
             }
             field.push_back(in);
             in = gzgetc(*fd);
+            assert(in>0);
             header_len++;
         }
         in = gzgetc(*fd);
@@ -99,8 +101,9 @@ struct line_parser {
     static const int REF_IDX = 3;
     static const int ALT_IDX = 4;
     static const int SAMPLE_START_IDX = 9;
-    const std::vector<unsigned int> index_translate;
+    const std::vector<long>& index_translate;
     int file_idx;
+    const long sample_size;
     void operator()(char *line_in) const {
         auto start=line_in;
         while (*line_in!=0) {
@@ -149,7 +152,7 @@ struct line_parser {
             }
             //samples
             bool is_last=false;
-            std::vector<int8_t> out(index_translate.size());
+            std::vector<int8_t> out(sample_size);
             while (!is_last) {
                 int allele_idx=(*line_in-'0');
                 line_in++;
@@ -165,10 +168,11 @@ struct line_parser {
                     }
                     line_in++;
                 }
+                auto translated_idx=index_translate[field_idx-SAMPLE_START_IDX];
                 if (allele_idx>=(int)(allele_translated.size()+1)||allele_idx<0) {
-                    out[index_translate[field_idx-SAMPLE_START_IDX]]=0xf;
+                    out[translated_idx]=0xf;
                 } else {
-                    out[index_translate[field_idx-SAMPLE_START_IDX]]=allele_translated[allele_idx];
+                    out[translated_idx]=allele_translated[allele_idx];
                 }
                 field_idx++;
                 line_in++;
@@ -210,22 +214,24 @@ struct line_parser {
         delete[] start;
     }
 };
-static int  map_index(gzFile* fd1,gzFile* fd2,std::vector<unsigned int>& index_map1,std::vector<unsigned int>& index_map2) {
+static std::pair<size_t,long> map_index(gzFile* fd1,gzFile* fd2,std::vector<long>& index_map1,std::vector<long>& index_map2) {
     std::vector<std::string> header1;
-    int header_size=read_header(fd1, header1);
+    size_t header_size=read_header(fd1, header1);
     std::vector<std::string> header2;
     read_header(fd2, header2);
 
-    std::unordered_map<std::string, unsigned int> idx_map;
+    std::unordered_map<std::string, long> idx_map;
     idx_map.reserve(2*header1.size());
+    size_t sample_size=0;
     for (size_t i=0; i<header1.size()-line_parser::SAMPLE_START_IDX; i++) {
         samples.push_back(header1[i+line_parser::SAMPLE_START_IDX]);
-        auto emplace_result=idx_map.emplace(header1[i+line_parser::SAMPLE_START_IDX],i);
+        auto emplace_result=idx_map.emplace(header1[i+line_parser::SAMPLE_START_IDX],sample_size);
         if (!emplace_result.second) {
-            printf( "%s\t %d repeated\n",emplace_result.first->first.c_str(),emplace_result.first->second);
+            printf( "%s\t %ld repeated,ignoring earlier one\n",emplace_result.first->first.c_str(),emplace_result.first->second);
+        }else {
+            sample_size++;    
         }
-        assert(emplace_result.second);
-        index_map1.push_back(i);
+        index_map1.push_back(emplace_result.first->second);
     }
     for (size_t i=0; i<header2.size()-line_parser::SAMPLE_START_IDX; i++) {
         auto iter=idx_map.find(header2[i+line_parser::SAMPLE_START_IDX]);
@@ -233,13 +239,13 @@ static int  map_index(gzFile* fd1,gzFile* fd2,std::vector<unsigned int>& index_m
             index_map2.push_back(iter->second);
             idx_map.erase(iter);
         } else {
-            printf("sample %s missing\n",header2[i+line_parser::SAMPLE_START_IDX].c_str());
+            printf("sample %s missing in file 1\n",header2[i+line_parser::SAMPLE_START_IDX].c_str());
         }
     }
     for(auto s:idx_map) {
-        printf("sample %s missing\n",s.first.c_str());
+        printf("sample %s missing in file 2\n",s.first.c_str());
     }
-    return header_size;
+    return std::make_pair(header_size,sample_size);
 }
 #define LINE_PER_BLOCK 5
 int main(int argc, char**argv) {
@@ -251,19 +257,20 @@ int main(int argc, char**argv) {
     filenames[1]=argv[2];
     gzbuffer(fd2,ZLIB_BUFSIZ);
 
-    std::vector<unsigned int> index_map1;
-    std::vector<unsigned int> index_map2;
-    size_t header_size=map_index(&fd1, &fd2, index_map1, index_map2);
-
+    std::vector<long> index_map1;
+    std::vector<long> index_map2;
+    auto temp=map_index(&fd1, &fd2, index_map1, index_map2);
+    size_t header_size=temp.first;
     tbb::flow::graph input_graph;
     decompressor_node_t decompressor1(input_graph,Decompressor{&fd1,LINE_PER_BLOCK*header_size,1*header_size});
     decompressor_node_t decompressor2(input_graph,Decompressor{&fd2,LINE_PER_BLOCK*header_size,1*header_size});
 
-    tbb::flow::function_node<char*,tbb::flow::continue_msg> parser1(input_graph,tbb::flow::unlimited,line_parser{index_map1,0});
-    tbb::flow::function_node<char*,tbb::flow::continue_msg> parser2(input_graph,tbb::flow::unlimited,line_parser{index_map2,1});
+    tbb::flow::function_node<char*,tbb::flow::continue_msg> parser1(input_graph,tbb::flow::unlimited,line_parser{index_map1,0,temp.second});
+    tbb::flow::function_node<char*,tbb::flow::continue_msg> parser2(input_graph,tbb::flow::unlimited,line_parser{index_map2,1,temp.second});
     tbb::flow::make_edge(decompressor1,parser1);
 
     tbb::flow::make_edge(decompressor2,parser2);
     input_graph.wait_for_all();
+    fprintf(stderr, "finished.\n");
 }
 
