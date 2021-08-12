@@ -221,6 +221,8 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
   
     std::map<int, std::vector<std::shared_ptr<Codon>>> codon_map = build_codon_map(gtf_file, reference); 
     auto dfs = T->depth_first_expansion();
+
+ 
     MAT::Node *last_visited = nullptr; 
     std::unordered_map<std::string, std::string> seen_mutations_map;
     std::unordered_map<std::string, std::string> alt_parent_map;
@@ -236,7 +238,6 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
         if (metadata.find(node->identifier) != metadata.end()) {
             metadata[node->identifier][index_col] = std::to_string(count);
         } else {
-            curr_x_value += node->branch_length;
             alt_parent_map[node->identifier] = std::to_string(count);
         } 
 
@@ -254,7 +255,7 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
         } else {
             curr_x_value += node->branch_length;
         }
-        branch_length_map[node->identifier] = curr_x_value + node->branch_length;
+        branch_length_map[node->identifier] = curr_x_value;
         
         Taxodium::MutationList *mutation_list = node_data->add_mutations();
         mutation_result = do_mutations(node->mutations, codon_map, true);
@@ -270,16 +271,20 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
             }
         }
 
-        node_data->add_names(node->identifier);
         node_data->add_x(curr_x_value * 0.2);
         node_data->add_y(0); // temp value, set later
+        node_data->add_epi_isl_numbers(0);
+        node_data->add_num_tips(1);
         
         if (node->identifier.substr(0,5) == "node_") {
+            node_data->add_names("");
             node_data->add_countries(0); 
             node_data->add_lineages(0); 
             node_data->add_dates(0);
             node_data->add_genbanks("");
             //internal nodes don't have country, lineage, date            
+        } else {
+            node_data->add_names(node->identifier);
         }
 
         if (metadata.find(node->identifier) != metadata.end()) {
@@ -304,7 +309,11 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
         last_visited = node;
         count++;
     }
-
+    
+    std::sort(dfs.begin(), dfs.end(),
+        [](const MAT::Node* lhs, const MAT::Node* rhs)
+            { return node_data->ylhs->children.size() < rhs->children.size(); });
+    
     auto leaves = T->get_leaves();
     for (size_t i = 0; i < leaves.size(); i++) {
         auto leaf = leaves[i];
@@ -315,7 +324,7 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
         else {
             leaf_index = std::stoi(alt_parent_map[leaf->identifier]);
         }
-        node_data->set_y(leaf_index, (i));
+        node_data->set_y(leaf_index, i);
     }
 
     std::cout << "here" << '\n';

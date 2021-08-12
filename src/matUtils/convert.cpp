@@ -673,3 +673,6 @@ void get_minimum_subtrees(MAT::Tree* T, std::vector<std::string> samples, size_t
     }
     tracker.close();
 }
+
+
+/// Taxodium protobuf output functions below

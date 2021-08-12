@@ -102,7 +102,7 @@ void save_taxodium_tree (MAT::Tree &tree, std::string out_filename, std::vector<
             outbuf.push(boost::iostreams::gzip_compressor());
             outbuf.push(outfile);
             std::ostream outstream(&outbuf);
-            node_data->SerializeToOstream(&outstream);
+            all_data.SerializeToOstream(&outstream);
             std::string s;
             google::protobuf::TextFormat::PrintToString(all_data, &s);
             std::cout << s << '\n';
@@ -112,7 +112,7 @@ void save_taxodium_tree (MAT::Tree &tree, std::string out_filename, std::vector<
             std::cout << e.what() << '\n';
         }
     } else {
-        node_data->SerializeToOstream(&outfile);
+        all_data.SerializeToOstream(&outfile);
         std::string s;
         google::protobuf::TextFormat::PrintToString(all_data, &s);
         std::cout << s << '\n';
