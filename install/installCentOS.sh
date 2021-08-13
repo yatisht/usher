@@ -2,6 +2,7 @@ sudo yum group install -y  "Development Tools"
 sudo yum install -y wget boost-devel rsync
 
 # create build directory
+startDir=$pwd
 cd $(dirname "$0")
 mkdir -p ../build
 cd ../build
@@ -39,9 +40,9 @@ tar -xvzf 2019_U9.tar.gz
 # build programs
 ../cmake-3.18.2/bin/cmake  -DTBB_DIR=${PWD}/oneTBB-2019_U9 -DTBB_ROOT=${PWD}/oneTBB-2019_U9 -DCMAKE_PREFIX_PATH=${PWD}/oneTBB-2019_U9/cmake  -DProtobuf_INCLUDE_DIRS=${PWD}/protobuf-3.12.3/install/include/ -DProtobuf_LIBRARIES=${PWD}/protobuf-3.12.3/cmake/build/libprotobuf.a -DProtobuf_PATH=${PWD}/protobuf-3.12.3/cmake/build/lib64/cmake/protobuf ..
 make -j4
-make install
 
 # install faToVcf
 rsync -aP rsync://hgdownload.soe.ucsc.edu/genome/admin/exe/linux.x86_64/faToVcf .
 chmod +x faToVcf
-mv faToVcf /usr/local/bin
+
+cd $startDir

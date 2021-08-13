@@ -1,8 +1,8 @@
-cd $(dirname "$0")
-
 brew install cmake boost protobuf wget rsync
 
 # create build directory
+startDir=$pwd
+cd $(dirname "$0")
 mkdir -p ../build
 cd ../build
 
@@ -13,12 +13,10 @@ tar -xvzf tbb2019_20191006oss_mac.tgz
 # Build UShER
 cmake -DTBB_DIR=${PWD}/tbb2019_20191006oss -DCMAKE_PREFIX_PATH=${PWD}/tbb2019_20191006oss/cmake ..
 make -j2
-make install
 
 # install faToVcf
 rsync -aP rsync://hgdownload.soe.ucsc.edu/genome/admin/exe/macOSX.x86_64/faToVcf .
 chmod +x faToVcf
-mv faToVcf /usr/local/bin/
 
 # install mafft
 if ! command -v mafft &> /dev/null; then 
@@ -29,3 +27,5 @@ mv mafft.bat /usr/local/bin/mafft; mv mafftdir /usr/local/bin/
 cd ..
 rm -rf mafft-mac
 fi
+
+cd $startDir
