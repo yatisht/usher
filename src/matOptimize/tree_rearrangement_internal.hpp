@@ -92,7 +92,7 @@ void add_ambuiguous_mutations(const char* path,Original_State_t& to_patch,Mutati
 void recondense_tree(MAT::Tree& t);
 void add_ambiguous_mutation(const char *input_path,MAT::Tree& tree);
 void print_memory();
-struct TlRng:public std::mt19937_64{
-    TlRng():std::mt19937_64(std::chrono::steady_clock::now().time_since_epoch().count()*std::hash<std::thread::id>()(std::this_thread::get_id())){}
+struct TlRng:public std::mt19937_64 {
+    TlRng():std::mt19937_64(std::chrono::steady_clock::now().time_since_epoch().count()*std::hash<std::thread::id>()(std::this_thread::get_id())) {}
 };
 extern thread_local TlRng rng;

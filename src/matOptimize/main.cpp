@@ -27,7 +27,7 @@
 #include <iostream>
 #include <sys/resource.h>
 thread_local TlRng rng;
-void print_memory(){
+void print_memory() {
     struct rusage usage;
     getrusage(RUSAGE_SELF, &usage);
     fprintf(stderr, "Max resident %zu kb\n",usage.ru_maxrss);
@@ -248,7 +248,7 @@ int main(int argc, char **argv) {
             }
             fputs("Finished loading input tree, start reading VCF and assigning states \n",stderr);
             load_vcf_nh_directly(t, input_vcf_path, origin_states);
-        } else if(transposed_vcf_path!=""){
+        } else if(transposed_vcf_path!="") {
             t=MAT::load_mutation_annotated_tree(input_pb_path);
             //raise(SIGUSR1);
             print_memory();
@@ -257,7 +257,7 @@ int main(int argc, char **argv) {
             //raise(SIGUSR1);
             print_memory();
             //malloc_stats();
-        }else {
+        } else {
             t = load_tree(input_pb_path, origin_states);
         }
         if(!no_write_intermediate) {
@@ -285,7 +285,7 @@ int main(int argc, char **argv) {
     tbb::concurrent_vector<MAT::Node *> nodes_to_search;
     std::vector<MAT::Node *> bfs_ordered_nodes;
     bfs_ordered_nodes = t.breadth_first_expansion();
-    movalbe_src_log=fopen(profitable_src_log.c_str(),"w");  
+    movalbe_src_log=fopen(profitable_src_log.c_str(),"w");
     if (!movalbe_src_log) {
         perror(("Error writing to log file "+profitable_src_log).c_str());
         movalbe_src_log=fopen("/dev/null", "w");

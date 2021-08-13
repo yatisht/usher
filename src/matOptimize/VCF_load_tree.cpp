@@ -162,7 +162,7 @@ char get_state(char* sample,int position) {
         }
     }
 }
-void recondense_tree(MAT::Tree& t){
+void recondense_tree(MAT::Tree& t) {
     std::unordered_set<std::string> changed_nodes;
     clean_tree_load(t, changed_nodes);
     t.condense_leaves();

@@ -228,8 +228,8 @@ static std::pair<size_t,long> map_index(gzFile* fd1,gzFile* fd2,std::vector<long
         auto emplace_result=idx_map.emplace(header1[i+line_parser::SAMPLE_START_IDX],sample_size);
         if (!emplace_result.second) {
             printf( "%s\t %ld repeated,ignoring earlier one\n",emplace_result.first->first.c_str(),emplace_result.first->second);
-        }else {
-            sample_size++;    
+        } else {
+            sample_size++;
         }
         index_map1.push_back(emplace_result.first->second);
     }
