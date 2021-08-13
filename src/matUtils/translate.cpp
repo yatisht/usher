@@ -29,13 +29,7 @@ std::string build_reference(std::ifstream &fasta_file) {
     return reference_output; 
 } 
 
-struct NodeYComparison {
-	NodeYComparison(std::unordered_map y_map) { this->y_map = y_map};
-	bool operator() (MAT::Node *lhs, MAT::Node *rhs) {
-		return y_map[lhs->identifier] < y_map[rhs->identifier];
-	}
-	std::unordered_map y_map;
-}
+
 
 // Maps a genomic coordinate to a list of codons it is part of 
 std::map<int, std::vector<std::shared_ptr<Codon>>> build_codon_map(std::ifstream &gtf_file, std::string reference) { 
@@ -152,7 +146,12 @@ std::map<int, std::vector<std::shared_ptr<Codon>>> build_codon_map(std::ifstream
     } 
     return codon_map; 
 } 
- 
+
+
+std::vector<MAT::Node *> postorder_iter() {
+    std::vector<MAT::Node *> stack;
+    
+}
 
 void translate_main(MAT::Tree *T, std::string output_filename, std::string gtf_filename, std::string fasta_filename) {
     std::ifstream fasta_file(fasta_filename); 
@@ -229,97 +228,68 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
   
     std::map<int, std::vector<std::shared_ptr<Codon>>> codon_map = build_codon_map(gtf_file, reference); 
     auto dfs = T->depth_first_expansion();
-
  
     MAT::Node *last_visited = nullptr; 
-    std::unordered_map<std::string, std::string> seen_mutations_map;
-    std::unordered_map<std::string, std::string> index_map; // map node id to index in protobuf arrays
+    std::unordered_map<std::string, int32_t> seen_mutations_map;
+    std::unordered_map<std::string, int32_t> index_map; // map node id to index in protobuf arrays
     std::unordered_map<std::string, float> y_map;
     std::unordered_map<std::string, float> branch_length_map;
     std::map<size_t, std::vector<MAT::Node *>, std::greater<int>> by_level;
     int32_t count = 0;
-    int32_t mutation_counter = 0;
     float curr_x_value = 0;
+
+    all_data->add_mutation_mapping(""); // no mutations
 
     // First step: DFS to translate aa mutations
     for (auto node: dfs) {
 
         by_level[node->level].push_back(node); // store nodes by level for later step
-
+        index_map[node->identifier] = count;
         // If we are jumping across a branch relative to the last visited node, reset mutations
         // and x-value to LCA of last node and this node
-        if(last_visited != node->parent) { 
+        if(last_visited != node->parent) {
             MAT::Node *last_common_ancestor = MAT::LCA(*T, node->identifier, last_visited->identifier); 
             MAT::Node *trace_to_lca = last_visited; 
             while (trace_to_lca != last_common_ancestor) { 
                 undo_mutations(trace_to_lca->mutations, codon_map); 
                 trace_to_lca = trace_to_lca->parent; 
             }
-            curr_x_value = branch_length_map[trace_to_lca->identifier] + node->branch_length;
+            curr_x_value = branch_length_map[trace_to_lca->identifier] + node->mutations.size();
+            //std::cout << "(1) X value at " << node->identifier << " = " << branch_length_map[trace_to_lca->identifier] << '+' << node->mutations.size() << '\n';
+
         } else {
-            curr_x_value += node->branch_length;
+            curr_x_value += node->mutations.size();
+            //std::cout << "(2) X value at " << node->identifier << " = " << node->mutations.size() << '\n';
         }
         branch_length_map[node->identifier] = curr_x_value;
         
         // Do mutations
+        int32_t mutation_counter = 0;
         Taxodium::MutationList *mutation_list = node_data->add_mutations();
         std::string mutation_result = ""; 
         mutation_result = do_mutations(node->mutations, codon_map, true);
+        if (mutation_result == "") {
+            mutation_list->add_mutation(0);
+        }
         for (auto m : split(mutation_result, ';')) {
             if (seen_mutations_map.find(m) == seen_mutations_map.end()) {
                 mutation_counter++;
-                std::string encoding_str = std::to_string(mutation_counter);
-                seen_mutations_map[m] = encoding_str;
+                seen_mutations_map[m] = mutation_counter;
                 all_data->add_mutation_mapping(m);
                 mutation_list->add_mutation(mutation_counter);
             } else {
-                mutation_list->add_mutation(std::stoi(seen_mutations_map[m]));
+                mutation_list->add_mutation(seen_mutations_map[m]);
             }
         }
-        last_visited = node;
-        count++;
-    }
 
-
-    // Ladderize leaves. TODO: Necessary?
-    auto leaves = T->get_leaves();
-    std::sort(leaves.begin(), leaves.end(),
-        [](const MAT::Node* lhs, const MAT::Node* rhs)
-            { return lhs->children.size() < rhs->children.size(); });
-    
-    // Set y-values
-    for (size_t i = 0; i < leaves.size(); i++) {
-        y_map[leaves[i]->identifier] = i;
-    }
-
-    for (auto &node_list : by_level) { // in descending order by level
-        for (auto &bylevel_node : node_list.second) {
-            float children_mean_y = 0;
-	        int num_children = (bylevel_node->children).size();
-            for (auto &child : bylevel_node->children){
-                children_mean_y += y_map[child->identifier];
-            }
-	    if (num_children != 0) {
-            	children_mean_y /= num_children;
-	    } else {
-		continue;
-	    }
-            y_map[bylevel_node->identifier] = children_mean_y / 40000;
-        }
-    }
-
-
-    auto y_sorted = dfs;
-    std::sort(y_sorted.begin(), y_sorted.end(), NodeYComparison(y_map));
-    
-
-    int32_t count = 0;
-    for (auto node : y_sorted) {
         node_data->add_x(branch_length_map[node->identifier] * 0.2);
-        node_data->add_y(y_map[node->identifier]); // temp value, set later
+        node_data->add_y(0); // temp value, set later
         node_data->add_epi_isl_numbers(0);
         node_data->add_num_tips(1);
         
+       // std::cout << "NODE\n";
+      //  std::cout << node->identifier << '\n';
+
         if (node->identifier.substr(0,5) == "node_" || metadata.find(node->identifier) == metadata.end()) {
             node_data->add_names("");
             node_data->add_countries(0); 
@@ -328,6 +298,8 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
             node_data->add_genbanks("");
             //internal nodes don't have country, lineage, date            
         } else {
+        //    std::cout << "found meta" << metadata[node->identifier][country_col] << '\n';
+
             std::vector<std::string> meta_fields = metadata[node->identifier];
             int32_t country = std::stoi(meta_fields[country_col]);
             int32_t lineage = std::stoi(meta_fields[lineage_col]);
@@ -342,20 +314,44 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
         if (node->parent == nullptr) {
             node_data->add_parents(count); // root node
         } else {
-            node_data->add_parents(std::stoi(index_map[node->parent->identifier]));
+            node_data->add_parents(index_map[node->parent->identifier]);
         }
-        count += 1;
+
+        last_visited = node;
+        count++;
     }
 
-    
-        
+    int32_t i = 0;
+    for (auto &leaf : T->get_leaves()){
+        std::cout << "leaf " << std::to_string(i) << ":" << leaf->identifier << '\n';
+        node_data->set_y(index_map[leaf->identifier], (float) i / 40000);
+        i++;
+    }
+    for (auto &node_list : by_level) { // in descending order by level
+        for (auto &bylevel_node : node_list.second) {
+         //   std::cout << "\nsetting y for " << bylevel_node->identifier << '\n';
+            float children_mean_y = 0;
+	        int num_children = (bylevel_node->children).size();
+            for (auto &child : bylevel_node->children){
+                children_mean_y += node_data->y(index_map[child->identifier]);
+            }
+            if (num_children > 0) {
+                children_mean_y /= num_children;
+           //     std::cout << "mean children y: " << std::to_string(children_mean_y) << '\n';
+            } else { // leaf
+           //     std::cout << "no children\n";
+                continue;
+            }
+            node_data->set_y(index_map[bylevel_node->identifier], children_mean_y);
+        }
+    }
 }
 std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::map<int, std::vector<std::shared_ptr<Codon>>> &codon_map, bool taxodium_format) { 
     std::string prot_string = ""; 
     std::string nuc_string = ""; 
     std::sort(mutations.begin(), mutations.end()); 
     std::map<std::string, std::set<MAT::Mutation>> codon_to_nt_map; 
-    std::map<std::string, std::string> orig_proteins; 
+    std::map<std::string, char> orig_proteins; 
     std::vector<std::shared_ptr<Codon>> affected_codons; 
  
     for (auto m : mutations) { 
@@ -370,7 +366,7 @@ std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::map<int, st
                 std::string codon_id = codon_ptr->orf_name + ':' + std::to_string(codon_ptr->codon_number+1); 
                 auto orig_it = orig_proteins.find(codon_id); 
                 if (orig_it == orig_proteins.end()) { 
-                    orig_proteins.insert({codon_id, std::string(1, codon_ptr->protein)}); 
+                    orig_proteins.insert({codon_id, codon_ptr->protein}); 
                 } 
                 if (std::find(affected_codons.begin(), affected_codons.end(), codon_ptr) == affected_codons.end()) { 
                     affected_codons.push_back(codon_ptr); 
@@ -389,8 +385,11 @@ std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::map<int, st
  
     for (auto codon_ptr : affected_codons) { 
         std::string codon_id = codon_ptr->orf_name + ':' + std::to_string(codon_ptr->codon_number+1); 
-        std::string orig_protein = orig_proteins.find(codon_id)->second; 
+        char orig_protein = orig_proteins.find(codon_id)->second; 
         if (taxodium_format) {
+            if (orig_protein == codon_ptr->protein) {
+                return "";
+            }
             prot_string += split(codon_id, ':')[0] + ':' + orig_protein + '_' + split(codon_id, ':')[1] + '_' + codon_ptr->protein + ';';
         } else {
             prot_string += split(codon_id, ':')[0] + ':' + orig_protein + split(codon_id, ':')[1] + codon_ptr->protein + ';'; 

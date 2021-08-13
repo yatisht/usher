@@ -54,7 +54,15 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
         if (f.find(".csv\0") != std::string::npos) {
             delim = ',';
         }
+        bool first = true;
         while (std::getline(infile, line)) {
+            if (line == "\n\r" || line == "\n") {
+                continue;
+            }
+            if (first) {
+                first = false;
+                continue;
+            }                
             std::vector<std::string> words;
             if (line[line.size()-1] == '\r') {
                 line = line.substr(0, line.size()-1);
