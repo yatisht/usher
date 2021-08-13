@@ -336,15 +336,6 @@ void write_header(std::vector<Sample_Pos_Mut>& all_samples,FILE* fh) {
     free(compressed_hdr.first);
 }
 namespace po = boost::program_options;
-void parse_rename_file(const std::string&  in_file_name, std::unordered_map<std::string,std::string>& mapping){
-	FILE* fd=fopen(in_file_name.c_str(),"r");
-	char sample_name[BUFSIZ];
-	char rename[BUFSIZ];
-	while(fscanf(fd,"%s	%s",sample_name,rename)!=EOF){
-		mapping[sample_name]=rename;
-	}
-	fclose(fd);
-}
 int main(int argc, char **argv) {
     po::options_description desc{"Options"};
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();

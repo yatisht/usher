@@ -1,4 +1,5 @@
 #include "../mutation_annotated_tree.hpp"
+#include "src/matOptimize/tree_rearrangement_internal.hpp"
 #include "transpose_vcf.hpp"
 #include <algorithm>
 #include <bits/types/FILE.h>
@@ -111,21 +112,6 @@ void load_reference(const char *ref_path, std::string &seq_name,
     }
 }
 namespace po = boost::program_options;
-size_t
-parse_rename_file(const std::string &in_file_name,
-                  std::unordered_map<std::string, std::string> &mapping) {
-    size_t max_name_len = 0;
-    FILE *fd = fopen(in_file_name.c_str(), "r");
-    char sample_name[BUFSIZ];
-    char rename_c[BUFSIZ];
-    while (fscanf(fd, "%s	%s", sample_name, rename_c) != EOF) {
-        std::string rename(rename_c);
-        max_name_len = std::max(max_name_len, rename.size());
-        mapping[sample_name] = std::move(rename);
-    }
-    fclose(fd);
-    return max_name_len;
-}
 size_t write_sample(uint8_t *out, const Sample_Pos_Mut &in,
                     const std::string &seq) {
     out[0] = '>';
@@ -199,6 +185,7 @@ struct Batch_Printer {
         }
     }
     void operator()(tbb::blocked_range<size_t> range) const{
+        //fprintf(stderr, "%zu ",range.size());
         init();
         stream.avail_out = OUT_BUF_SIZ;
         stream.next_out = outbuf;
@@ -269,9 +256,8 @@ int main(int argc, char **argv) {
             return 1;
     }
     std::unordered_map<std::string, std::string> rename_mapping;
-    size_t max_name_len=0;
     if (rename_file != "") {
-        max_name_len=parse_rename_file(rename_file, rename_mapping);
+        parse_rename_file(rename_file, rename_mapping);
     }
     tbb::task_scheduler_init init(num_threads);
     load_reference(reference.c_str(), chrom, ref);
@@ -283,9 +269,6 @@ int main(int argc, char **argv) {
             all_samples.insert(all_samples.end(),
                                std::make_move_iterator(sample_block.begin()),
                                std::make_move_iterator(sample_block.end()));
-        }
-        for(const auto& samp:all_samples){
-            max_name_len=std::max(max_name_len,samp.name.size());
         }
     } else {
         all_samples.reserve(rename_mapping.size());
@@ -304,10 +287,14 @@ int main(int argc, char **argv) {
     for (const auto &name : rename_mapping) {
         fprintf(stderr, "sample %s not found \n", name.first.c_str());
     }
+    size_t max_name_len=0;
+    for(const auto& samp:all_samples){
+        max_name_len=std::max(max_name_len,samp.name.size());
+    }
     auto inbuf_size=max_name_len+ref.size()+8;
     auto out_fd=open(output_fa_file.c_str(),O_WRONLY|O_CREAT|O_TRUNC,S_IRWXU|S_IRWXG|S_IRWXO);
     perror("");
     std::mutex f_mutex;
-    tbb::parallel_for(tbb::blocked_range<size_t>(0,all_samples.size()), Batch_Printer{all_samples,ref,inbuf_size,out_fd,f_mutex});
+    tbb::parallel_for(tbb::blocked_range<size_t>(0,all_samples.size(),all_samples.size()/num_threads), Batch_Printer{all_samples,ref,inbuf_size,out_fd,f_mutex});
     close(out_fd);
 }
