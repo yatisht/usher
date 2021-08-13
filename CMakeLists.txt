@@ -17,7 +17,7 @@ configure_file(src/version.hpp.in version.hpp)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native -mtune=native -std=c++11 -Wall -g -Wno-unused-function -Wno-deprecated-declarations")
 #-DDEBUG_PARSIMONY_SCORE_CHANGE_CORRECT 
-set(CMAKE_CXX_FLAGS_DEBUG "-O3 -fsanitize=address")
+set(CMAKE_CXX_FLAGS_DEBUG "-O0 -fsanitize=address")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-DNDEBUG -O3")
 set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O3")
 set(CMAKE_INCLUDE_CURRENT_DIR ON) 
@@ -215,6 +215,10 @@ else()
         src/matOptimize/transpose_vcf/transposed_vcf_to_vcf.cpp
         src/matOptimize/mutation_annotated_tree_nuc_util.cpp
         )
+        add_executable(transposed_vcf_to_fa
+        src/matOptimize/mutation_annotated_tree_nuc_util.cpp
+        src/matOptimize/transpose_vcf/transposed_vcf_to_fa.cpp
+        )
         add_executable(transposed_vcf_print_name
         src/matOptimize/transpose_vcf/transposed_vcf_print_name.cpp
         src/matOptimize/mutation_annotated_tree_nuc_util.cpp
@@ -240,6 +244,7 @@ TARGET_LINK_LIBRARIES(compareVCF PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORT
 TARGET_LINK_LIBRARIES(matOptimize PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(transpose_vcf PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(transposed_vcf_to_vcf PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
+TARGET_LINK_LIBRARIES(transposed_vcf_to_fa PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(transposed_vcf_print_name PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 
 TARGET_LINK_LIBRARIES(usher PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
