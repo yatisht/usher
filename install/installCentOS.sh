@@ -1,12 +1,17 @@
 sudo yum group install -y  "Development Tools"                                                                                                                                                                  
 sudo yum install -y wget boost-devel rsync
 
+# create build directory
+cd $(dirname "$0")
+mkdir -p ../build
+cd ../build
+
 # install cmake-3.18
 wget https://github.com/Kitware/CMake/releases/download/v3.18.2/cmake-3.18.2.tar.gz
 tar -xvzf cmake-3.18.2.tar.gz
 cd cmake-3.18.2
 ./bootstrap --prefix=${PWD} --  -DCMAKE_USE_OPENSSL=OFF
-make -j
+make -j4
 make install
 cd ..
 
@@ -32,13 +37,11 @@ wget https://github.com/oneapi-src/oneTBB/archive/2019_U9.tar.gz
 tar -xvzf 2019_U9.tar.gz
 
 # build programs
-mkdir -p build
-cd build
-../cmake-3.18.2/bin/cmake  -DTBB_DIR=${PWD}/../oneTBB-2019_U9 -DTBB_ROOT=${PWD}/../oneTBB-2019_U9 -DCMAKE_PREFIX_PATH=${PWD}/../oneTBB-2019_U9/cmake  -DProtobuf_INCLUDE_DIRS=${PWD}/../protobuf-3.12.3/install/include/ -DProtobuf_LIBRARIES=${PWD}/../protobuf-3.12.3/cmake/build/libprotobuf.a -DProtobuf_PATH=${PWD}/../protobuf-3.12.3/cmake/build/lib64/cmake/protobuf ..
+../cmake-3.18.2/bin/cmake  -DTBB_DIR=${PWD}/oneTBB-2019_U9 -DTBB_ROOT=${PWD}/oneTBB-2019_U9 -DCMAKE_PREFIX_PATH=${PWD}/oneTBB-2019_U9/cmake  -DProtobuf_INCLUDE_DIRS=${PWD}/protobuf-3.12.3/install/include/ -DProtobuf_LIBRARIES=${PWD}/protobuf-3.12.3/cmake/build/libprotobuf.a -DProtobuf_PATH=${PWD}/protobuf-3.12.3/cmake/build/lib64/cmake/protobuf ..
 make -j4
-cd ..
+make install
 
 # install faToVcf
 rsync -aP rsync://hgdownload.soe.ucsc.edu/genome/admin/exe/linux.x86_64/faToVcf .
 chmod +x faToVcf
-mv faToVcf build/
+mv faToVcf /usr/local/bin

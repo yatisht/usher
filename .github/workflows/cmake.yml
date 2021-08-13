@@ -15,13 +15,13 @@ jobs:
     steps:
     - uses: actions/checkout@master
     - name: install pre-reqs and build
-      run: sudo ./installUbuntu.sh
+      run: sudo ./install/installUbuntu.sh
     - name: test
       run: |
-        ./build/usher --help
-        ./build/matUtils --help
-        ./build/matOptimize --help
-        ./build/ripples --help
+        usher --help
+        matUtils --help
+        matOptimize --help
+        ripples --help
         command -v mafft
   
   ubuntu-20-04:
@@ -29,13 +29,13 @@ jobs:
     steps:
     - uses: actions/checkout@master
     - name: install pre-reqs and build
-      run: sudo ./installUbuntu.sh
+      run: sudo ./install/installUbuntu.sh
     - name: test
       run: |
-        ./build/usher --help
-        ./build/matUtils --help
-        ./build/matOptimize --help
-        ./build/ripples --help
+        usher --help
+        matUtils --help
+        matOptimize --help
+        ripples --help
         command -v mafft
 
   macOS-latest:
@@ -43,11 +43,11 @@ jobs:
     steps:
     - uses: actions/checkout@master
     - name: install pre-reqs and build
-      run: ./installMacOS.sh
+      run: ./install/installMacOS.sh
     - name: test
       run: |
-        ./build/usher --help
-        ./build/matUtils --help
-        ./build/matOptimize --help
-        ./build/ripples --help
+        usher --help
+        matUtils --help
+        matOptimize --help
+        ripples --help
         command -v mafft
