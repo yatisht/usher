@@ -223,7 +223,9 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
     if (T->condensed_nodes.size() > 0) { 
         T->uncondense_leaves(); 
     } 
- 
+
+	T->rotate_for_display(); 
+
     std::string reference = build_reference(fasta_file); 
   
     std::map<int, std::vector<std::shared_ptr<Codon>>> codon_map = build_codon_map(gtf_file, reference); 
@@ -239,9 +241,13 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
     float curr_x_value = 0;
 
     all_data->add_mutation_mapping(""); // no mutations
+    std::vector<MAT::Node *> leaves;
 
     // First step: DFS to translate aa mutations
     for (auto node: dfs) {
+	if (node->is_leaf()) {
+		leaves.push_back(node);
+	}	
 
         by_level[node->level].push_back(node); // store nodes by level for later step
         index_map[node->identifier] = count;
@@ -322,7 +328,8 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
     }
 
     int32_t i = 0;
-    for (auto &leaf : T->get_leaves()){
+    std::reverse(leaves.begin(), leaves.end());
+    for (auto &leaf : leaves){
         std::cout << "leaf " << std::to_string(i) << ":" << leaf->identifier << '\n';
         node_data->set_y(index_map[leaf->identifier], (float) i / 40000);
         i++;
