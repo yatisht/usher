@@ -496,7 +496,7 @@ void check_for_droppers(MAT::Tree* T, std::string outf) {
             auto pv = fisher_test(kv.second, local_parsimony_score, gmap[kv.first]-kv.second, global_parsimony_score-local_parsimony_score);
             tests_performed++;
             if (pv < 0.05) {
-                //perform a secondary location-based test. 
+                //perform a secondary location-based test.
                 //this will have less total tests performed as it is conditioned on the previous test.
                 std::string locstr = kv.first.substr(1, kv.first.size()-2);
                 auto lpv = fisher_test(mloc[locstr], local_parsimony_score, locmap[locstr]-mloc[locstr], global_parsimony_score-local_parsimony_score);

@@ -10,25 +10,25 @@ po::variables_map parse_introduce_command(po::parsed_options parsed) {
     po::options_description filt_desc("introduce options");
     filt_desc.add_options()
     ("input-mat,i", po::value<std::string>()->required(),
-    "Input mutation-annotated tree file [REQUIRED]")
-    ("population-samples,s", po::value<std::string>()->required(), 
-    "Names of samples from the population of interest [REQUIRED].") 
+     "Input mutation-annotated tree file [REQUIRED]")
+    ("population-samples,s", po::value<std::string>()->required(),
+     "Names of samples from the population of interest [REQUIRED].")
     ("additional-info,a", po::bool_switch(),
-    "Set to calculate additional phylogenetic trait association statistics for whole regions and individual introductions. WARNING: Adds significantly to runtime.")
+     "Set to calculate additional phylogenetic trait association statistics for whole regions and individual introductions. WARNING: Adds significantly to runtime.")
     ("clade-regions,c", po::value<std::string>()->default_value(""),
-    "Set to optionally record, for each clade root in the tree, the support for that clade root being IN each region in the input, as a tsv with the indicated name.")
+     "Set to optionally record, for each clade root in the tree, the support for that clade root being IN each region in the input, as a tsv with the indicated name.")
     ("date-metadata,M", po::value<std::string>()->default_value(""),
-    "Pass a TSV or CSV containing a 'date' column to use for date information. If not used, date will be inferred from the sample name where possible.")
+     "Pass a TSV or CSV containing a 'date' column to use for date information. If not used, date will be inferred from the sample name where possible.")
     ("output,o", po::value<std::string>()->required(),
-    "Name of the file to save the introduction information to.")
+     "Name of the file to save the introduction information to.")
     ("origin-confidence,C", po::value<float>()->default_value(0.5),
-    "Set the threshold for recording of putative origins of introductions. Default is 0.5")
+     "Set the threshold for recording of putative origins of introductions. Default is 0.5")
     ("evaluate-metadata,E", po::bool_switch(),
-    "Set to assign each leaf a confidence value based on ancestor distance and confidence.")
+     "Set to assign each leaf a confidence value based on ancestor distance and confidence.")
     ("dump-assignments,D", po::value<std::string>()->default_value(""),
-    "Indicate a directory to which two-column text files containing node assignment values should be dumped for downstream processing.")
+     "Indicate a directory to which two-column text files containing node assignment values should be dumped for downstream processing.")
     ("latest-date,l", po::value<std::string>()->default_value("1500/1/1"),
-    "Use to filter to clusters which have samples after the indicated date.")
+     "Use to filter to clusters which have samples after the indicated date.")
     // ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
     ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the

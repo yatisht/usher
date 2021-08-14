@@ -1,5 +1,6 @@
 #!/bin/bash
 set -xve
+cd ..
 test_path=$1
 radius=$2
 test_case_name=$(basename $1)
@@ -28,3 +29,4 @@ diff -s $outpath/refined.normalized.vcf $outpath/not-refined.normalized.vcf
 wc $outpath/refined.normalized.vcf
 wc $outpath/not-refined.normalized.vcf
 } &> $outpath/diff-out
+cd test/
