@@ -19,8 +19,8 @@ po::variables_map parse_introduce_command(po::parsed_options parsed) {
      "Set to optionally record, for each clade root in the tree, the support for that clade root being IN each region in the input, as a tsv with the indicated name.")
     ("date-metadata,M", po::value<std::string>()->default_value(""),
      "Pass a TSV or CSV containing a 'date' column to use for date information. If not used, date will be inferred from the sample name where possible.")
-    ("output,o", po::value<std::string>()->required(),
-     "Name of the file to save the introduction information to.")
+    ("full-output,o", po::value<std::string>()->required(),
+     "Name of the file to save by-sample introduction information to.")
     ("origin-confidence,C", po::value<float>()->default_value(0.5),
      "Set the threshold for recording of putative origins of introductions. Default is 0.5")
     ("evaluate-metadata,E", po::bool_switch(),
@@ -29,6 +29,8 @@ po::variables_map parse_introduce_command(po::parsed_options parsed) {
      "Indicate a directory to which two-column text files containing node assignment values should be dumped for downstream processing.")
     ("latest-date,l", po::value<std::string>()->default_value("1500/1/1"),
      "Use to filter to clusters which have samples after the indicated date.")
+    ("cluster-output,u", po::value<std::string>()->default_value(""),
+    "Write by-cluster summary output to the indicated file.")
     // ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
     ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
@@ -443,13 +445,14 @@ std::pair<boost::gregorian::date,boost::gregorian::date> get_nearest_date(MAT::T
     return std::pair<boost::gregorian::date,boost::gregorian::date> (earliest,latest);
 }
 
-std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, std::vector<std::string>> sample_regions, bool add_info, std::string clade_output, float min_origin_confidence, std::string dump_assignments, bool eval_uncertainty, std::string latest_date = "1700/1/1", std::map<std::string, std::string> datemeta = {}) {
+std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, std::vector<std::string>> sample_regions, bool add_info, std::string clade_output, float min_origin_confidence, std::string bycluster, std::string dump_assignments, bool eval_uncertainty, std::string latest_date = "1700/1/1", std::map<std::string, std::string> datemeta = {}) {
     //for every region, independently assign IN/OUT states
     //and save these assignments into a map of maps
     //so we can check membership of introduction points in each of the other groups
     //this allows us to look for migrant flow between regions
     std::map<std::string, std::map<std::string, float>> region_assignments;
     boost::gregorian::date recency_filter;
+    std::vector<std::string> bycluster_output;
     try {
         recency_filter = boost::gregorian::from_string(latest_date);
     } catch (const std::out_of_range& oor) {
@@ -527,6 +530,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
         std::map<std::string, size_t> recorded_mc;
         std::map<std::string, float> recorded_ai;
         std::map<std::string,std::map<std::string,std::string>> clusters;
+        std::map<std::string,std::string> clustermeta;
         //its time to identify introductions. we're going to do this by iterating
         //over all of the leaves. For each sample, rsearch back until it hits a 0 assignment
         //then record the last encountered 1 assignment as the point of introduction
@@ -639,29 +643,40 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                             recorded_ai[a->identifier] = ai;
                         }
                     }
+                    //ostr stores by-sample and cluster-specific information both together for the full output
                     std::stringstream ostr;
+                    //mcl stores just cluster-specific information for a separate output file.
+                    std::stringstream mcl;
                     if (region_assignments.size() == 1) {
                         ostr << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed << "\t" << a->mutations.size() << "\t" << intro_clades << "\t" << intro_mut_path;
+                        mcl << last_anc_state << "\t" << anc_state << "\t" << a->mutations.size() << "\t" << intro_clades << "\t" << intro_mut_path;
                         if (eval_uncertainty) {
                             ostr << "\t" << assignments.find(s)->second;
                         }
                         if (add_info) {
                             ostr << "\t" << mc << "\t" << ai << "\n";
+                            mcl << "\t" << mc << "\t" << ai << "\n";
                         } else {
                             ostr << "\n";
+                            mcl << "\n";
                         }
                     } else {
                         ostr << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed << "\t" << a->mutations.size() << "\t" << region << "\t" << origins << "\t" << origins_cons.str() << "\t" << intro_clades << "\t" << intro_mut_path;
+                        mcl << last_anc_state << "\t" << anc_state << "\t" << a->mutations.size() << "\t" << region << "\t" << origins << "\t" << origins_cons.str() << "\t" << intro_clades << "\t" << intro_mut_path;
                         if (eval_uncertainty) {
                             ostr << "\t" << assignments.find(s)->second;
                         }
                         if (add_info) {
                             ostr << "\t" << mc << "\t" << ai << "\n";
+                            mcl << "\t" << mc << "\t" << ai << "\n";
                         } else {
                             ostr << "\n";
+                            mcl << "\n";
                         }
                     }
                     clusters[last_encountered][s] = ostr.str();
+                    //keying the meta for clusters on each sample is redundant and gross, but I can't think of a better way to pass information from 
+                    clustermeta[last_encountered] = mcl.str();
                     total_processed++;
                     break;
                 } else {
@@ -731,6 +746,10 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                     span = T->get_node(cs[0])->mutations.size();
                 }
                 //yes, I'm iterating over this multiple times. Nothing is ever easy.
+                //new- store a single line describing cluster-unique attributes and counts. 
+                std::stringstream clo;
+                clo << cid << "\t" << clusters[cid].size() << "\t" << date_tracker[cid] << "\t" << gv << "\t" << span << "\t" << clustermeta[cid];
+                bycluster_output.push_back(clo.str());
                 rankr++;
                 for (auto ss: clusters[cid]) {
                     std::stringstream cout;
@@ -765,6 +784,22 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
             rof.close();
         }
     }
+    if (bycluster != "") {
+        std::ofstream cof(bycluster);
+        cof << "cluster_id\tsample_count\tearliest_date\tlatest_date\tgrowth_score\tspan\tintro_confidence\tparent_confidence\torigin_gap\t";
+        if (add_info) {
+            cof << "monophyletic_cladesize\tassociation_index\t";
+        }
+        if (region_assignments.size() == 1) {
+            cof << "clade\tmutation_path\n";
+        } else {
+            cof << "region\tinferred_origin\tinferred_origin_confidence\tclade\tmutation_path\n";
+        }
+        for (auto os: bycluster_output) {
+            cof << os;
+        }
+        cof.close();
+    }
     return outstrs;
 }
 
@@ -776,11 +811,11 @@ void introduce_main(po::parsed_options parsed) {
     std::string metafile = vm["date-metadata"].as<std::string>();
     std::string latest_date = vm["latest-date"].as<std::string>();
     bool add_info = vm["additional-info"].as<bool>();
-    std::string output_file = vm["output"].as<std::string>();
+    std::string output_file = vm["full-output"].as<std::string>();
     std::string dump_assignments = vm["dump-assignments"].as<std::string>();
     float moconf = vm["origin-confidence"].as<float>();
     bool leafconf = vm["evaluate-metadata"].as<bool>();
-
+    std::string clusterout = vm["cluster-output"].as<std::string>();
     // Load input MAT and uncondense tree
     MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
     //T here is the actual object.
@@ -802,7 +837,7 @@ void introduce_main(po::parsed_options parsed) {
             exit(1);
         }
     }
-    auto outstrings = find_introductions(&T, region_map, add_info, clade_regions, moconf, dump_assignments, leafconf, latest_date, datemeta);
+    auto outstrings = find_introductions(&T, region_map, add_info, clade_regions, moconf, clusterout, dump_assignments, leafconf, latest_date, datemeta);
 
     std::ofstream of;
     of.open(output_file);
