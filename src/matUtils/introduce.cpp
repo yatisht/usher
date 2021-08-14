@@ -3,8 +3,8 @@
 
 po::variables_map parse_introduce_command(po::parsed_options parsed) {
 
-    // uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
-    // std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
+    uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
+    std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
 
     po::variables_map vm;
     po::options_description filt_desc("introduce options");
@@ -33,7 +33,7 @@ po::variables_map parse_introduce_command(po::parsed_options parsed) {
     "Write by-cluster summary output to the indicated file.")
     ("earliest-date,L", po::value<std::string>()->default_value("1500/1/1"),
     "Use to filter to clusters which have ALL samples after the indicated date.")
-    // ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
+    ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
     ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
     // (positional) command name, so we need to erase that.
@@ -470,9 +470,18 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
     }
     //TODO: This could be parallel for a significant speedup when dozens or hundreds of regions are being passed in
     //I also suspect I could use pointers for the assignment maps to make this more memory efficient
-    for (auto ms: sample_regions) {
-        std::string region = ms.first;
-        std::vector<std::string> samples = ms.second;
+    std::vector<std::string> regions ;
+    for ( auto r : sample_regions ) regions.push_back( r.first ) ;
+
+    tbb::parallel_for(tbb::blocked_range<size_t>( 0, regions.size() ),
+    [&](const tbb::blocked_range<size_t> r) {
+      for ( int l = r.begin() ; l < r.end() ; l ++ ) {
+        //if ( sample_regions[regions[l]].size() < region_minimum ) continue ;
+        std::string region = regions[l] ;
+        std::vector<std::string> samples = sample_regions[regions[l]] ;
+    //for (auto ms: sample_regions) {
+    //    std::string region = ms.first;
+    //    std::vector<std::string> samples = ms.second;
         fprintf(stderr, "Processing region %s with %ld total samples\n", region.c_str(), samples.size());
         std::unordered_set<std::string> sample_set(samples.begin(), samples.end());
         auto assignments = get_assignments(T, sample_set, eval_uncertainty);
@@ -490,7 +499,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
         }
 
         region_assignments[region] = assignments;
-    }
+    }});
     //if requested, record the clade output
     if (clade_output.size() > 0) {
         fprintf(stderr, "Clade root region support requested; recording...\n");
@@ -836,6 +845,8 @@ void introduce_main(po::parsed_options parsed) {
     std::string clusterout = vm["cluster-output"].as<std::string>();
     // Load input MAT and uncondense tree
     MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
+    uint32_t num_threads = vm["threads"].as<uint32_t>();
+    tbb::task_scheduler_init init(num_threads);
     //T here is the actual object.
     if (T.condensed_nodes.size() > 0) {
         T.uncondense_leaves();
