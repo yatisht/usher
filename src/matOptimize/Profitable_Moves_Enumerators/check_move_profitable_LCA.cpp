@@ -15,12 +15,12 @@ static void added_no_match(const Mutation_Count_Change &mutation_to_add,
         major_allele =
             mutation_to_add.get_par_state() | mutation_to_add.get_incremented();
         out.emplace_back(mutation_to_add);
-        out.back().set_ori_state(mutation_to_add.get_par_state());
-        out.back().set_change(0, mutation_to_add.get_incremented(),
-                              major_allele);
+        out.back().set_change(0, mutation_to_add.get_incremented());
     }
 }
-
+static nuc_one_hot get_new_state_from_change(const MAT::Mutation& ori_mut,const Mutation_Count_Change & child_mut_change){
+    return (ori_mut.get_all_major_allele()|child_mut_change.get_incremented())&(~child_mut_change.get_decremented());
+}
 /**
  * @brief Calculate parsimony score change and fitch set change if the src node is moved directly under LCA (dst==LCA)
         LCA
@@ -69,7 +69,7 @@ bool LCA_place_mezzanine(
         //Override the Fitch set of src_branch_node if modified
         if (src_branch_node_change_iter != src_branch_node_change_end &&
                 src_branch_node_change_iter->get_position() == m.get_position()) {
-            major_allele = src_branch_node_change_iter->get_new_state();
+            major_allele = get_new_state_from_change(m, *src_branch_node_change_iter);
             src_branch_node_change_iter++;
         }
         //Coincide

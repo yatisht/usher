@@ -15,10 +15,7 @@ class Mutation_Count_Change {
     uint8_t chromIdx;
     nuc_one_hot decremented_allele;
     nuc_one_hot incremented_allele;
-    bool was_valid;
-    nuc_one_hot ori_state;
     nuc_one_hot par_state;
-    nuc_one_hot new_state;
 
   public:
     static const char VALID_MASK=1;
@@ -31,26 +28,16 @@ class Mutation_Count_Change {
     Mutation_Count_Change(const Mutation_Count_Change& child_mut_count,nuc_one_hot new_major_allele) {
         position=child_mut_count.position;
         chromIdx=child_mut_count.chromIdx;
-        ori_state=child_mut_count.par_state;
+        auto ori_state=child_mut_count.par_state;
         par_state=child_mut_count.par_state;
-        new_state=new_major_allele;
         incremented_allele=new_major_allele&(~ori_state);
         decremented_allele=ori_state&(~new_major_allele);
-        was_valid=child_mut_count.par_state!=child_mut_count.new_state;
     }
-    Mutation_Count_Change(const MAT::Mutation &pos,nuc_one_hot decremented,nuc_one_hot incremented,nuc_one_hot new_state,bool nocheck=false) {
+    Mutation_Count_Change(const MAT::Mutation &pos,nuc_one_hot decremented,nuc_one_hot incremented) {
         position = pos.get_position();
         chromIdx = pos.get_chromIdx();
-        was_valid=pos.is_valid();
-        ori_state=pos.get_all_major_allele();
         par_state=pos.get_par_one_hot();
-        set_change(decremented, incremented, new_state,nocheck);
-    }
-    operator bool() const {
-        return was_valid;
-    }
-    void set_valid(bool valid) {
-        was_valid=valid;
+        set_change(decremented, incremented);
     }
     int get_position() const {
         return position;
@@ -61,20 +48,9 @@ class Mutation_Count_Change {
     nuc_one_hot get_incremented() const { //assert(incremented_allele!=0xff);
         return incremented_allele;
     }
-    nuc_one_hot get_ori_state() const {
-        return ori_state;
-    }
-    void set_change(nuc_one_hot decremented, nuc_one_hot incremented,nuc_one_hot new_state,bool nocheck=false) {
+    void set_change(nuc_one_hot decremented, nuc_one_hot incremented) {
         decremented_allele = decremented;
         incremented_allele = incremented;
-        this->new_state=new_state;
-        //assert(nocheck||new_state==((ori_state|incremented)&(~decremented)));
-    }
-    void set_ori_state(nuc_one_hot ori_state) {
-        this->ori_state=ori_state;
-    }
-    nuc_one_hot get_new_state() const {
-        return new_state;
     }
     nuc_one_hot get_par_state() const {
         return par_state;

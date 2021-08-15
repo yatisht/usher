@@ -18,8 +18,7 @@ bool get_new_mut_binary(MAT::Mutation &base, nuc_one_hot left_branch,
         boundary1_alleles = (left_branch | right_branch) & (~major_allele);
     }
     //set anxillary states
-    base.set_children(boundary1_alleles, major_allele, left_branch,
-                      right_branch);
+    base.set_auxillary(major_allele,boundary1_alleles);
     return have_shared;
 }
 //update original mutations not present in mutation vector of either children (they are shared by both)
@@ -34,8 +33,7 @@ void place_ori_mutation(mut_iter &iter,
         major_alleles_out.push_back(*iter);
         nuc_one_hot major_allele = iter->get_mut_one_hot();
         //they didn't come up in children mutation vector, so no anxillary states
-        major_alleles_out.back().set_children(0, major_allele, major_allele,
-                                              major_allele);
+        major_alleles_out.back().set_auxillary(major_allele,0);
     }
 }
 /**

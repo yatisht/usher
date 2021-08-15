@@ -3,8 +3,8 @@
 static void register_change(Mutation_Count_Change_Collection &out,
                             const MAT::Mutation &pos,
                             nuc_one_hot decremented_allele,
-                            nuc_one_hot incremented_allele,nuc_one_hot new_state) {
-    out.emplace_back(pos,decremented_allele, incremented_allele,new_state);
+                            nuc_one_hot incremented_allele) {
+    out.emplace_back(pos,decremented_allele, incremented_allele);
 }
 nuc_one_hot decrement_mutation_count(Mutation_Count_Change_Collection &out,
                                      const MAT::Mutation &parent_mut,
@@ -30,7 +30,7 @@ nuc_one_hot decrement_mutation_count(Mutation_Count_Change_Collection &out,
             // Decremented major alleles are no longer tie, need to be removed
             // from parent of parent alleles count
             register_change(out, parent_mut, effectively_decremented_alleles,
-                            0,not_decremented);
+                            0);
             // Parsimony score change: If the allele is originally tied with
             // another allele, then they have same number of children that can
             // only be that state, the removed mutation is not one of those,
@@ -48,7 +48,7 @@ nuc_one_hot decrement_mutation_count(Mutation_Count_Change_Collection &out,
                 // Then everything become tie with the old boundary1 allele that
                 // aren't decremented
                 nuc_one_hot major_allele=boundary1_not_decremented|all_nuc;
-                register_change(out, parent_mut, 0, boundary1_not_decremented,major_allele);
+                register_change(out, parent_mut, 0, boundary1_not_decremented);
                 return major_allele;
             }
             // everything got decremented, major alleles stay the same, boundary
@@ -86,7 +86,7 @@ nuc_one_hot increment_mutation_count(Mutation_Count_Change_Collection &out,
             // Not incremented major alleles was originally counted in count of
             // children mutations by parent of parent, they do not change the
             // number of children whose state that can only be minor alleles
-            register_change(out, parent_mut, not_incremented, 0,effectively_incremented_alleles);
+            register_change(out, parent_mut, not_incremented, 0);
         }
         // it just increment everything, no change in tie
 
@@ -101,7 +101,7 @@ nuc_one_hot increment_mutation_count(Mutation_Count_Change_Collection &out,
             (parent_mut.get_boundary1_one_hot() & incremented_allele);
         register_change(out, parent_mut, 0,
                         parent_mut.get_boundary1_one_hot() &
-                        incremented_allele,tieing_alleles);
+                        incremented_allele);
         // Either the parent is original allele, or the new major allele, number
         // of children who cant follow parent state is the same, and may
         // increment if this is a new child
@@ -171,7 +171,7 @@ nuc_one_hot decrement_increment_mutation_count(
                 major_allele_not_decremented | (boundary1_state & incremented);
             register_change(parent_node_mutation_count_change, parent_mutation,
                             major_allele_decremented,
-                            boundary1_state & incremented,major_alleles);
+                            boundary1_state & incremented);
             // The number of children that can follow any of the major alleles
             // didn't change, as there are still same numbe of children that can
             // follow major_alleles
@@ -226,7 +226,7 @@ nuc_one_hot dbl_inc_dec_mutations(
     nuc_one_hot major_allele = all_mut;
 
     Mutation_Count_Change temp(src_count_change);
-    temp.set_change(any_decrement, any_increment,0,true);
+    temp.set_change(any_decrement, any_increment);
     major_allele = decrement_increment_mutation_count(
                        this_mut, temp, parent_mutation_change_out, score_change);
     return major_allele;

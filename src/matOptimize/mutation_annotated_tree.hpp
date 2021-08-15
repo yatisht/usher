@@ -107,7 +107,7 @@ class Mutation {
     uint8_t chrom_idx;
     uint8_t par_mut_nuc;
     uint8_t boundary1_all_major_allele; //boundary 1 alleles are alleles with allele count one less than major allele count
-    uint8_t child_muts;//left child state then right child state for binary nodes
+    //uint8_t child_muts;//left child state then right child state for binary nodes
     static tbb::concurrent_unordered_map<std::string, uint8_t> chromosome_map;
     static std::mutex ref_lock;//reference nuc are stored in a separate vector, need to be locked when adding new mutations
   public:
@@ -119,9 +119,9 @@ class Mutation {
 
     Mutation(const std::string& chromosome,int position,nuc_one_hot mut,nuc_one_hot par,nuc_one_hot tie,nuc_one_hot ref=0);
 
-    Mutation(int pos):position(pos),chrom_idx(0),par_mut_nuc(0),boundary1_all_major_allele(0),child_muts(0) {}
+    Mutation(int pos):position(pos),chrom_idx(0),par_mut_nuc(0),boundary1_all_major_allele(0) {}
 
-    Mutation(uint8_t chrom_idx,int pos,uint8_t par_nuc,uint8_t mut_nuc):position(pos),chrom_idx(chrom_idx),par_mut_nuc((par_nuc<<4)|mut_nuc),boundary1_all_major_allele(mut_nuc),child_muts(mut_nuc|(mut_nuc<<4)) {}
+    Mutation(uint8_t chrom_idx,int pos,uint8_t par_nuc,uint8_t mut_nuc):position(pos),chrom_idx(chrom_idx),par_mut_nuc((par_nuc<<4)|mut_nuc),boundary1_all_major_allele(mut_nuc) {}
 
     bool same_chrom(const Mutation& other) const {
         return chrom_idx==other.chrom_idx;
@@ -129,19 +129,6 @@ class Mutation {
 
     const std::string& get_chromosome() const {
         return chromosomes[chrom_idx];
-    }
-
-    void set_children(nuc_one_hot boundary1_alleles,nuc_one_hot tie_nuc,nuc_one_hot left_child_state,nuc_one_hot right_child_state) {
-        boundary1_all_major_allele=(boundary1_alleles<<4)|tie_nuc;
-        child_muts=(left_child_state<<4)|right_child_state;
-    }
-
-    uint8_t get_left_child_state()const {
-        return child_muts>>4;
-    }
-
-    uint8_t get_right_child_state()const {
-        return child_muts&0xf;
     }
 
     uint8_t get_chromIdx()const {
@@ -162,7 +149,7 @@ class Mutation {
                 return m;
             }
      */
-    Mutation():position(-1),chrom_idx(0),par_mut_nuc(0),boundary1_all_major_allele(0),child_muts(0) {
+    Mutation():position(-1),chrom_idx(0),par_mut_nuc(0),boundary1_all_major_allele(0){
     }
 
     nuc_one_hot get_ref_one_hot() const {

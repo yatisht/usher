@@ -34,7 +34,7 @@ void Mutations_Collection::merge_out(const Mutations_Collection &other,
                 out.mutations.back().set_par_one_hot(temp);
             }
             auto nuc=out.mutations.back().get_mut_one_hot();
-            out.mutations.back().set_children(0, nuc,nuc,nuc );
+            out.mutations.back().set_auxillary(nuc,0);
             other_iter++;
         }
         if (other_iter == other.mutations.end() ||
@@ -92,7 +92,7 @@ void Mutations_Collection::merge_out(const Mutations_Collection &other,
             out.mutations.back().set_par_one_hot(temp);
         }
         auto nuc=out.mutations.back().get_mut_one_hot();
-        out.mutations.back().set_children(0, nuc,nuc,nuc );
+        out.mutations.back().set_auxillary( nuc,0);
 
         other_iter++;
     }

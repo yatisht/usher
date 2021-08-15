@@ -66,9 +66,7 @@ bool merge_mutation_single_child(MAT::Node *node,
             if (iter->is_valid()) {
                 mutations.push_back(*iter);
                 //set left and right children both to the parent state as they inherits
-                mutations.back().set_children(0, iter->get_mut_one_hot(),
-                                              iter->get_mut_one_hot(),
-                                              iter->get_mut_one_hot());
+                mutations.back().set_auxillary(iter->get_mut_one_hot(),0);
             }
             iter++;
         }
@@ -89,9 +87,7 @@ bool merge_mutation_single_child(MAT::Node *node,
     while (iter != end) {
         if (iter->is_valid()) {
             mutations.push_back(*iter);
-            mutations.back().set_children(0, iter->get_mut_one_hot(),
-                                          iter->get_mut_one_hot(),
-                                          iter->get_mut_one_hot());
+            mutations.back().set_auxillary(iter->get_mut_one_hot(),0);
         }
         iter++;
     }

@@ -98,7 +98,7 @@ static int get_new_major_allele_binary_node(nuc_one_hot left_child,
     return 0;
 }
 //Helper function for adding Fitch set change from original state of a loci and changed state of a loci
-static int register_change_from_new_state(Mutation_Count_Change_Collection &out,
+static void register_change_from_new_state(Mutation_Count_Change_Collection &out,
         int new_mut_count, const MAT::Mutation &pos,
         nuc_one_hot new_state) {
     if (new_state != pos.get_all_major_allele()) {
@@ -106,17 +106,10 @@ static int register_change_from_new_state(Mutation_Count_Change_Collection &out,
             new_state & (~pos.get_all_major_allele());
         nuc_one_hot decremented_allele =
             pos.get_all_major_allele() & (~new_state);
-        out.emplace_back(pos,decremented_allele, incremented_allele,
-                         new_state);
+        out.emplace_back(pos,decremented_allele, incremented_allele);
     }
-    int old_mutation_count =
-        !(pos.get_left_child_state() & pos.get_right_child_state());
-    return new_mut_count - old_mutation_count;
 }
-//Specialization of get_parent_altered_remove for nodes with only 2 children
-void get_child_removed_binary_node(
-    Mutation_Count_Change_Collection &parent_mutation_count_change_out,
-    const MAT::Node *src, int &parent_parsimony_score_change);
+
 
 /**
  * @brief Caculate the fitch set change of LCA, if dst is not LCA

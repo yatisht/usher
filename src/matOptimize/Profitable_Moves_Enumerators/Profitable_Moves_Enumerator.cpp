@@ -50,7 +50,7 @@ merge_mutation_LCA_to_dst(MAT::Node *child,
         while (child_mutation_iter != child_mutation_end &&
                 *child_mutation_iter < m) {
             //newly encountered mutation to merge, add as back mutation
-            child_mutations.emplace_back(*child_mutation_iter,0,child_mutation_iter->get_par_one_hot(),child_mutation_iter->get_par_one_hot(),true);
+            child_mutations.emplace_back(*child_mutation_iter,0,child_mutation_iter->get_par_one_hot());
             //the par_nuc if src is moved under child
             child_mutations.back().set_par_nuc(
                 child_mutation_iter->get_mut_one_hot());
@@ -70,9 +70,9 @@ merge_mutation_LCA_to_dst(MAT::Node *child,
         }
     }
     while (child_mutation_iter != child_mutation_end) {
-        child_mutations.emplace_back(*child_mutation_iter,0,0,0,true);
+        child_mutations.emplace_back(*child_mutation_iter,0,0);
         child_mutations.back().set_change(
-            0, child_mutation_iter->get_par_one_hot(),child_mutation_iter->get_par_one_hot(),true);
+            0, child_mutation_iter->get_par_one_hot());
         child_mutations.back().set_par_nuc(
             child_mutation_iter->get_mut_one_hot());
         child_mutation_iter++;
@@ -195,7 +195,7 @@ merge_mutation_src_to_LCA(const MAT::Node *root,
             }
             iter++;
         } else {
-            merged_mutations.emplace_back(m,0, m.get_mut_one_hot(), m.get_mut_one_hot(),true);
+            merged_mutations.emplace_back(m,0, m.get_mut_one_hot());
         }
     }
     while (iter!=end) {
@@ -210,7 +210,7 @@ static void init_mutation_change(MAT::Node* src, Mutation_Count_Change_Collectio
     mutations.reserve(src->mutations.size());
     for (const auto &m : src->mutations) {
         if (m.is_valid()||m.get_all_major_allele()!=m.get_mut_one_hot()) {
-            mutations.emplace_back(m,0, m.get_all_major_allele(),m.get_all_major_allele());
+            mutations.emplace_back(m,0, m.get_all_major_allele());
         }
     }
 }
