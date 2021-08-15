@@ -134,7 +134,7 @@ size_t write_sample(uint8_t *out, const Sample_Pos_Mut &in,
     out[start_offset + seq.size()] = '\n';
     return start_offset + seq.size() + 1;
 }
-#define OUT_BUF_SIZ 0x10000
+#define OUT_BUF_SIZ 0x100000
 struct Batch_Printer {
     const std::vector<Sample_Pos_Mut> &in;
     const std::string &seq;
@@ -173,15 +173,16 @@ struct Batch_Printer {
         stream.avail_out=OUT_BUF_SIZ;
         stream.next_out=outbuf;
     }
-    void output(int flag)const{
-        while (stream.avail_out==0) {
+    void output()const{
+        if (stream.avail_out<OUT_BUF_SIZ/2) {
+            auto err = deflate(&stream, Z_FINISH);
+            assert(err==Z_STREAM_END);
             out_mutex.lock();
-            write(fd,outbuf,OUT_BUF_SIZ);
+            write(fd,outbuf,stream.next_out-outbuf);
             out_mutex.unlock();
+            deflateReset(&stream);
             stream.avail_out=OUT_BUF_SIZ;
             stream.next_out=outbuf;
-            auto err = deflate(&stream, flag);
-            assert(err==Z_OK||err==Z_STREAM_END);
         }
     }
     void operator()(tbb::blocked_range<size_t> range) const{
@@ -195,12 +196,15 @@ struct Batch_Printer {
                 stream.next_in=inbuf;
                 stream.avail_in=bytes_written;
                 auto err = deflate(&stream, Z_NO_FLUSH);
+                assert(stream.avail_out);
+                if (err!=Z_OK) {
+                    fprintf(stderr, "%d\n",err);
+                }
                 assert(err==Z_OK);
-                output(Z_NO_FLUSH);
+                output();
         }
         auto err = deflate(&stream, Z_FINISH);
-        assert(err==Z_OK||err==Z_STREAM_END);
-        output(Z_FINISH);
+        assert(err==Z_STREAM_END);
         out_mutex.lock();
         write(fd, outbuf, stream.next_out-outbuf);
         out_mutex.unlock();
@@ -293,7 +297,6 @@ int main(int argc, char **argv) {
     }
     auto inbuf_size=max_name_len+ref.size()+8;
     auto out_fd=open(output_fa_file.c_str(),O_WRONLY|O_CREAT|O_TRUNC,S_IRWXU|S_IRWXG|S_IRWXO);
-    perror("");
     std::mutex f_mutex;
     tbb::parallel_for(tbb::blocked_range<size_t>(0,all_samples.size(),all_samples.size()/num_threads), Batch_Printer{all_samples,ref,inbuf_size,out_fd,f_mutex});
     close(out_fd);
