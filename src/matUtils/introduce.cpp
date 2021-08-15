@@ -540,10 +540,17 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
         header += "\n";
     }
     outstrs.emplace_back(header);
-    for (auto ra: region_assignments) {
-        std::string region = ra.first;
-        auto assignments = ra.second;
-        std::vector<std::string> samples = sample_regions[region];
+    tbb::parallel_for(tbb::blocked_range<size_t>( 0, regions.size() ),
+    [&](const tbb::blocked_range<size_t> r) {
+      for ( int l = r.begin() ; l < r.end() ; l ++ ) {
+        //if ( sample_regions[regions[l]].size() < region_minimum ) continue ;
+        std::string region = regions[l] ;
+        std::vector<std::string> samples = sample_regions[regions[l]] ;
+        auto assignments = region_assignments[region];
+    //for (auto ra: region_assignments) {
+        //std::string region = ra.first;
+        //auto assignments = ra.second;
+        //std::vector<std::string> samples = sample_regions[region];
         std::set<std::string> sampleset (samples.begin(), samples.end());
         std::map<std::string, size_t> recorded_mc;
         std::map<std::string, float> recorded_ai;
@@ -791,7 +798,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
             }
         }
         fprintf(stderr, "Region %s complete, %d samples processed.\n", region.c_str(), total_processed);
-    }
+    }});
     if (dump_assignments != "") {
         boost::filesystem::path path(dump_assignments);
         if (!boost::filesystem::exists(path)) {
