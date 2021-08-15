@@ -685,10 +685,9 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                         }
                         if (add_info) {
                             ostr << "\t" << mc << "\t" << ai << "\n";
-                            mcl << "\t" << mc << "\t" << ai << "\n";
+                            mcl << "\t" << mc << "\t" << ai;
                         } else {
                             ostr << "\n";
-                            mcl << "\n";
                         }
                     } else {
                         ostr << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed << "\t" << a->mutations.size() << "\t" << region << "\t" << origins << "\t" << origins_cons.str() << "\t" << intro_clades << "\t" << intro_mut_path;
@@ -698,10 +697,9 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                         }
                         if (add_info) {
                             ostr << "\t" << mc << "\t" << ai << "\n";
-                            mcl << "\t" << mc << "\t" << ai << "\n";
+                            mcl << "\t" << mc << "\t" << ai;
                         } else {
                             ostr << "\n";
-                            mcl << "\n";
                         }
                     }
                     clusters[last_encountered][s] = ostr.str();
@@ -784,17 +782,25 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                     continue;
                 }
                 std::stringstream clo;
-                clo << cid << "\t" << clusters[cid].size() << "\t" << date_tracker[cid] << "\t" << gv << "\t" << span << "\t" << clustermeta[cid];
-                bycluster_output.push_back(clo.str());
+                clo << cid << "\t" << clusters[cid].size() << "\t" << date_tracker[cid] << "\t" << gv << "\t" << span << "\t" << clustermeta[cid] << "\t";
                 rankr++;
+                bool first = true;
                 for (auto ss: clusters[cid]) {
                     std::stringstream cout;
+                    if (first) {
+                        clo << ss.first;
+                        first = false;
+                    } else {
+                        clo << "," << ss.first;
+                    }
                     //in order, first seven columns are
                     //sample id, cluster id, cluster rank, cluster growth score, earliest date, latest date, cluster size
                     //then the rest are the by-sample information (path, distance of this specific sample, yadda yadda)
                     cout << ss.first << "\t" << cid << "\t" << rankr << "\t" << gv << "\t" << date_tracker[cid] << "\t" << clusters[cid].size() << "\t" << span << ss.second;
                     outstrs.push_back(cout.str());
                 }
+                clo << "\n";
+                bycluster_output.push_back(clo.str());
             }
         }
         fprintf(stderr, "Region %s complete, %d samples processed.\n", region.c_str(), total_processed);
@@ -824,9 +830,9 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
             cof << "monophyletic_cladesize\tassociation_index\t";
         }
         if (region_assignments.size() == 1) {
-            cof << "clade\tmutation_path\n";
+            cof << "clade\tmutation_path\tsamples\n";
         } else {
-            cof << "region\tinferred_origin\tinferred_origin_confidence\tclade\tmutation_path\n";
+            cof << "region\tinferred_origin\tinferred_origin_confidence\tclade\tmutation_path\tsamples\n";
         }
         for (auto os: bycluster_output) {
             cof << os;
