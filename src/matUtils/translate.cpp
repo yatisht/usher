@@ -185,7 +185,7 @@ void translate_main(MAT::Tree *T, std::string output_filename, std::string gtf_f
  
     // Traverse the tree in depth-first order. As we descend the tree, mutations at 
     // each node are applied to the respective codon(s) in codon_map. 
-    auto dfs = T->depth_first_expansion(); 
+    auto dfs = T->depth_first_expansion();
     MAT::Node *last_visited = nullptr; 
     for (auto node: dfs) { 
         std::string mutation_result = ""; 
@@ -240,14 +240,16 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
     int32_t count = 0;
     float curr_x_value = 0;
 
+
     all_data->add_mutation_mapping(""); // no mutations
     std::vector<MAT::Node *> leaves;
-
+    int32_t mutation_counter = 0;
+    
     // First step: DFS to translate aa mutations
     for (auto node: dfs) {
-	if (node->is_leaf()) {
-		leaves.push_back(node);
-	}	
+        if (node->is_leaf()) {
+            leaves.push_back(node);
+        }
 
         by_level[node->level].push_back(node); // store nodes by level for later step
         index_map[node->identifier] = count;
@@ -270,21 +272,23 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
         branch_length_map[node->identifier] = curr_x_value;
         
         // Do mutations
-        int32_t mutation_counter = 0;
         Taxodium::MutationList *mutation_list = node_data->add_mutations();
         std::string mutation_result = ""; 
+        std::cout << "node " << node->identifier << '\n';
         mutation_result = do_mutations(node->mutations, codon_map, true);
         if (mutation_result == "") {
-            mutation_list->add_mutation(0);
-        }
-        for (auto m : split(mutation_result, ';')) {
-            if (seen_mutations_map.find(m) == seen_mutations_map.end()) {
-                mutation_counter++;
-                seen_mutations_map[m] = mutation_counter;
-                all_data->add_mutation_mapping(m);
-                mutation_list->add_mutation(mutation_counter);
-            } else {
-                mutation_list->add_mutation(seen_mutations_map[m]);
+            ; //mutation_list->add_mutation(0);
+        } else {
+            std::cout << "raw mut: " << mutation_result << '\n';
+            for (auto m : split(mutation_result, ';')) {
+                if (seen_mutations_map.find(m) == seen_mutations_map.end()) {
+                    mutation_counter++;
+                    seen_mutations_map[m] = mutation_counter;
+                    all_data->add_mutation_mapping(m);
+                    mutation_list->add_mutation(mutation_counter);
+                } else {
+                    mutation_list->add_mutation(seen_mutations_map[m]);
+                }
             }
         }
 
@@ -296,16 +300,20 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
        // std::cout << "NODE\n";
       //  std::cout << node->identifier << '\n';
 
-        if (node->identifier.substr(0,5) == "node_" || metadata.find(node->identifier) == metadata.end()) {
+        if (node->identifier.substr(0,5) == "node_") {
             node_data->add_names("");
             node_data->add_countries(0); 
             node_data->add_lineages(0); 
             node_data->add_dates(0);
             node_data->add_genbanks("");
             //internal nodes don't have country, lineage, date            
+        } else if (metadata.find(node->identifier) == metadata.end()) {
+            node_data->add_names(node->identifier);
+            node_data->add_countries(0); 
+            node_data->add_lineages(0); 
+            node_data->add_dates(0);
+            node_data->add_genbanks("");
         } else {
-        //    std::cout << "found meta" << metadata[node->identifier][country_col] << '\n';
-
             std::vector<std::string> meta_fields = metadata[node->identifier];
             int32_t country = std::stoi(meta_fields[country_col]);
             int32_t lineage = std::stoi(meta_fields[lineage_col]);
@@ -330,7 +338,6 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
     int32_t i = 0;
     std::reverse(leaves.begin(), leaves.end());
     for (auto &leaf : leaves){
-        std::cout << "leaf " << std::to_string(i) << ":" << leaf->identifier << '\n';
         node_data->set_y(index_map[leaf->identifier], (float) i / 40000);
         i++;
     }
