@@ -447,11 +447,13 @@ std::pair<boost::gregorian::date,boost::gregorian::date> get_nearest_date(MAT::T
     return std::pair<boost::gregorian::date,boost::gregorian::date> (earliest,latest);
 }
 
-std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, std::vector<std::string>> sample_regions, bool add_info, std::string clade_output, float min_origin_confidence, std::string bycluster, std::string dump_assignments, bool eval_uncertainty, std::string earliest_date = "1500/1/1", std::string latest_date = "1500/1/1", std::map<std::string, std::string> datemeta = {}) {
+std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, std::vector<std::string>> sample_regions, bool add_info, std::string clade_output, float min_origin_confidence, std::string bycluster, std::string dump_assignments, bool eval_uncertainty, uint32_t num_threads, std::string earliest_date = "1500/1/1", std::string latest_date = "1500/1/1", std::map<std::string, std::string> datemeta = {}) {
     //for every region, independently assign IN/OUT states
     //and save these assignments into a map of maps
     //so we can check membership of introduction points in each of the other groups
     //this allows us to look for migrant flow between regions
+    tbb::task_scheduler_init init(num_threads);
+    static tbb::affinity_partitioner ap;
     std::map<std::string, std::map<std::string, float>> region_assignments;
     boost::gregorian::date recency_filter;
     boost::gregorian::date early_filter;
@@ -499,7 +501,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
         }
 
         region_assignments[region] = assignments;
-    }});
+    }}, ap);
     //if requested, record the clade output
     if (clade_output.size() > 0) {
         fprintf(stderr, "Clade root region support requested; recording...\n");
@@ -540,17 +542,17 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
         header += "\n";
     }
     outstrs.emplace_back(header);
-    tbb::parallel_for(tbb::blocked_range<size_t>( 0, regions.size() ),
-    [&](const tbb::blocked_range<size_t> r) {
-      for ( int l = r.begin() ; l < r.end() ; l ++ ) {
-        //if ( sample_regions[regions[l]].size() < region_minimum ) continue ;
-        std::string region = regions[l] ;
-        std::vector<std::string> samples = sample_regions[regions[l]] ;
-        auto assignments = region_assignments[region];
-    //for (auto ra: region_assignments) {
-        //std::string region = ra.first;
-        //auto assignments = ra.second;
-        //std::vector<std::string> samples = sample_regions[region];
+    //tbb::parallel_for(tbb::blocked_range<size_t>( 0, regions.size() ),
+    //[&](const tbb::blocked_range<size_t> r) {
+    //  for ( size_t l = r.begin() ; l < r.end() ; l ++ ) {
+    //    if ( sample_regions[regions[l]].size() < region_minimum ) continue ;
+    //    std::string region = regions[l] ;
+    //    std::vector<std::string> samples = sample_regions[regions[l]] ;
+    //    auto assignments = region_assignments[region];
+    for (auto ra: region_assignments) {
+        std::string region = ra.first;
+        auto assignments = ra.second;
+        std::vector<std::string> samples = sample_regions[region];
         std::set<std::string> sampleset (samples.begin(), samples.end());
         std::map<std::string, size_t> recorded_mc;
         std::map<std::string, float> recorded_ai;
@@ -804,7 +806,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
             }
         }
         fprintf(stderr, "Region %s complete, %d samples processed.\n", region.c_str(), total_processed);
-    }});
+    }//}, ap);
     if (dump_assignments != "") {
         boost::filesystem::path path(dump_assignments);
         if (!boost::filesystem::exists(path)) {
@@ -859,7 +861,7 @@ void introduce_main(po::parsed_options parsed) {
     // Load input MAT and uncondense tree
     MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
     uint32_t num_threads = vm["threads"].as<uint32_t>();
-    tbb::task_scheduler_init init(num_threads);
+    //tbb::task_scheduler_init init(num_threads);
     //T here is the actual object.
     if (T.condensed_nodes.size() > 0) {
         T.uncondense_leaves();
@@ -879,7 +881,7 @@ void introduce_main(po::parsed_options parsed) {
             exit(1);
         }
     }
-    auto outstrings = find_introductions(&T, region_map, add_info, clade_regions, moconf, clusterout, dump_assignments, leafconf, earliest_date, latest_date, datemeta);
+    auto outstrings = find_introductions(&T, region_map, add_info, clade_regions, moconf, clusterout, dump_assignments, leafconf, num_threads, earliest_date, latest_date, datemeta);
 
     std::ofstream of;
     of.open(output_file);
