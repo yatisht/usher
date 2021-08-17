@@ -33,6 +33,10 @@ po::variables_map parse_introduce_command(po::parsed_options parsed) {
     "Write by-cluster summary output to the indicated file.")
     ("earliest-date,L", po::value<std::string>()->default_value("1500/1/1"),
     "Use to filter to clusters which have ALL samples after the indicated date.")
+    ("num-to-report,r", po::value<size_t>()->default_value(1),
+    "Report the top r potential origins for any given cluster from a region in multi-region mode. Set to 0 to report as many as possible.")  
+    ("minimum-to-report,R", po::value<float>()->default_value(0.05),
+    "Set to never report origins below the indicated confidence value. Default 0.05.")
     ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
     ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
@@ -447,7 +451,7 @@ std::pair<boost::gregorian::date,boost::gregorian::date> get_nearest_date(MAT::T
     return std::pair<boost::gregorian::date,boost::gregorian::date> (earliest,latest);
 }
 
-std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, std::vector<std::string>> sample_regions, bool add_info, std::string clade_output, float min_origin_confidence, std::string bycluster, std::string dump_assignments, bool eval_uncertainty, uint32_t num_threads, std::string earliest_date = "1500/1/1", std::string latest_date = "1500/1/1", std::map<std::string, std::string> datemeta = {}) {
+std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, std::vector<std::string>> sample_regions, bool add_info, std::string clade_output, float min_origin_confidence, std::string bycluster, std::string dump_assignments, bool eval_uncertainty, uint32_t num_threads, std::string earliest_date = "1500/1/1", std::string latest_date = "1500/1/1", std::map<std::string, std::string> datemeta = {}, float minimum_reporting = 0.05, size_t num_to_report = 1) {
     //for every region, independently assign IN/OUT states
     //and save these assignments into a map of maps
     //so we can check membership of introduction points in each of the other groups
@@ -518,7 +522,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
     std::map<std::string, std::vector<std::string>> region_ins;
     for (auto ra: region_assignments) {
         for (auto ass: ra.second) {
-            if (ass.second > min_origin_confidence) {
+            if (ass.second > minimum_reporting) {
                 region_ins[ass.first].push_back(ra.first);
                 region_cons[ass.first].push_back(ass.second);
             }
@@ -598,17 +602,42 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                         auto assign_search = region_ins.find(a->identifier);
                         // float highest_conf = 0.0;
                         // std::string highest_conf_origin = "indeterminate";
+                        //instead of immediately reporting each that pass a high threshold,
+                        //collect the set of all that pass a low threshold, sort by confidence, and store only the top Z scores and associated strings.
+                        std::vector<std::pair<float,std::string>> oriscores;
                         if (assign_search != region_ins.end()) {
-                            for (auto r: assign_search->second) {
+                            for (auto i = 0; i < assign_search->second.size(); i++) {
+                                //vectors for confidence and region tags were generated in parallel and should remain aligned
+                                std::pair<float,std::string> dpair = std::make_pair(region_cons.find(a->identifier)->second[i], assign_search->second[i]);
+                                oriscores.push_back(dpair);
+                            }
+                            std::sort(oriscores.begin(),oriscores.end());
+                            std::reverse(oriscores.begin(),oriscores.end());
+                            //if num to report is set to 0, report ALL origins that pass the base threshold
+                            //else report just that many
+                            size_t count = oriscores.size();
+                            if (num_to_report > 0) {
+                                count = num_to_report;
+                            }
+                            for (auto i = 0; i < count; i++) {
                                 if (origins.size() == 0) {
-                                    origins += r;
+                                    origins += oriscores[i].second;
+                                    origins_cons << oriscores[i].first;
                                 } else {
-                                    origins += "," + r;
+                                    origins += "," + oriscores[i].second;
+                                    origins_cons << "," << oriscores[i].first;
                                 }
                             }
-                            for (auto v: region_cons.find(a->identifier)->second) {
-                                origins_cons << v << ",";
-                            }
+                            //for (auto r: assign_search->second) {
+                                // if (origins.size() == 0) {
+                                //     origins += r;
+                                // } else {
+                                //     origins += "," + r;
+                                // }
+                            //}
+                            //for (auto v: region_cons.find(a->identifier)->second) {
+                            //    origins_cons << v << ",";
+                            //}
                         } else {
                             origins = "indeterminate";
                             origins_cons << 0.0;
@@ -858,6 +887,8 @@ void introduce_main(po::parsed_options parsed) {
     float moconf = vm["origin-confidence"].as<float>();
     bool leafconf = vm["evaluate-metadata"].as<bool>();
     std::string clusterout = vm["cluster-output"].as<std::string>();
+    size_t num_to_report = vm["num-to-report"].as<size_t>();
+    float min_to_report = vm["minimum-to-report"].as<float>();
     // Load input MAT and uncondense tree
     MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
     uint32_t num_threads = vm["threads"].as<uint32_t>();
@@ -881,7 +912,7 @@ void introduce_main(po::parsed_options parsed) {
             exit(1);
         }
     }
-    auto outstrings = find_introductions(&T, region_map, add_info, clade_regions, moconf, clusterout, dump_assignments, leafconf, num_threads, earliest_date, latest_date, datemeta);
+    auto outstrings = find_introductions(&T, region_map, add_info, clade_regions, moconf, clusterout, dump_assignments, leafconf, num_threads, earliest_date, latest_date, datemeta, min_to_report, num_to_report);
 
     std::ofstream of;
     of.open(output_file);
