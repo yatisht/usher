@@ -23,14 +23,16 @@ int main(int argc, char** argv) {
 
     //Variables to load command-line options using Boost program_options
     std::string arg_filename;
+    std::string MAT_list_filename;
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
     po::options_description desc{"Options"};
     uint32_t sleep_length;
 
+
     desc.add_options()
-        //("list-mutation-annonated-trees,i", po::value<std::string>(&din_filename)->default_value(""), "List of mutation-annotated tree objects");
-        //this will be used if multiple MATs were to be stored in future
+        
         ("arguments,a", po::value<std::string>(&arg_filename)->required(), "Input argument file that will contain arguments for usher [REQUIRED]")
+        ("list-mutation-annonated-trees,i", po::value<std::string>(&MAT_list_filename)->default_value(""), "File containing list of mutation-annotated tree objects")
         ("sleep-length,s", po::value<uint32_t>(&sleep_length)->default_value(100), "Time in milliseconds that the program waits until checking for input in argument file")
         ("help,h", "Print help messages");
 
@@ -53,30 +55,68 @@ int main(int argc, char** argv) {
     }
 
     
-    MAT::Tree loaded_MAT;
+    MAT::Tree loaded_MAT;   
+    bool loaded_MAT_avail = false;//keep track if loaded_MAT is a new copy of MAT and can be used
     std::string loaded_MAT_name = "";
     if(!boost::filesystem::exists(arg_filename)){
         std::cout << "Arguments file not found" <<std::endl;
         return 1;
     }
+    
     boost::filesystem::path p = boost::filesystem::current_path();
     std::time_t modified_time(0);
-    MAT::Tree curr_tree; //MAT that is used for each time copy of MAT is needed
-    bool curr_tree_avail = false;//keep track if curr_tree is a new copy of MAT and can be used
+    MAT::Tree *curr_tree; //MAT that is used in the iteration
+    Timer timer; 
+    std::unordered_map<std::string, MAT::Tree> MAT_list; //store list of trees
+    std::unordered_map<std::string, bool> MAT_list_avail; //stores information on whether the MATs in the list are available for use
+    if(MAT_list_filename != ""){
+        if(!boost::filesystem::exists(MAT_list_filename)){
+            std::cout << "MAT list file not found" <<std::endl;
+            return 1;
+        }
+        std::string MAT_filename;
+        MAT::Tree temp_MAT;
+        std::ifstream MAT_list_file(MAT_list_filename);
+        while(std::getline(MAT_list_file, MAT_filename)){//set up MATs in the list
+            // Load mutation-annotated tree and store it
+            timer.Start();
+            fprintf(stderr, "Loading existing mutation-annotated tree object from file %s\n", MAT_filename.c_str());
+            MAT_list[MAT_filename] = MAT::load_mutation_annotated_tree(MAT_filename);
+            MAT_list_avail[MAT_filename] = true;
+            fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+        }
+        MAT_list_file.close();
+    }
+    
 
     // timer object to be used to measure runtimes of individual stages
-    Timer timer; 
+    
 
     while(true){
-        if(loaded_MAT_name != ""){
+        if((loaded_MAT_name != "") && (!loaded_MAT_avail)){
             timer.Start();
-            fprintf(stderr, "Copying pre-loaded mutation-annotated tree object originally from file %s\n", loaded_MAT_name.c_str());
-            curr_tree = MAT::get_tree_copy(loaded_MAT);
+            fprintf(stderr, "Loading existing mutation-annotated tree object from file %s\n", loaded_MAT_name.c_str());
+            // Load mutation-annotated tree and store it
+            MAT::clear_tree(loaded_MAT);
+            loaded_MAT = MAT::load_mutation_annotated_tree(loaded_MAT_name);
             fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
-            curr_tree_avail = true;
+            loaded_MAT_avail = true;
         }
-        while(boost::filesystem::last_write_time(p) == modified_time){
-            std::this_thread::sleep_for(std::chrono::milliseconds(sleep_length));
+        for(auto itr = MAT_list_avail.begin(); itr != MAT_list_avail.end(); itr++){
+            if(!(itr->second)){//if a MAT pointed by this iterator is not available, load
+                timer.Start();
+                fprintf(stderr, "Loading existing mutation-annotated tree object from file %s\n", (itr->first).c_str());
+                MAT::clear_tree(MAT_list[itr->first]);
+                MAT_list[itr->first] = MAT::load_mutation_annotated_tree(itr->first);
+                itr->second = true;
+                fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+            }
+        }
+        if(boost::filesystem::last_write_time(p) == modified_time){
+            fprintf(stderr, "Waiting for more arguments\n\n");
+            while(boost::filesystem::last_write_time(p) == modified_time){
+                std::this_thread::sleep_for(std::chrono::milliseconds(sleep_length));
+            }
         }
         
         modified_time = boost::filesystem::last_write_time(p);
@@ -171,6 +211,7 @@ int main(int argc, char** argv) {
                  "In clades.txt, write a histogram of annotated clades and counts across all equally parsimonious placements")
                 ("threads,T", po::value<uint32_t>(&num_threads)->default_value(num_cores), num_threads_message.c_str())
                 ("version", "Print version number")
+                ("reload", "Reload the MAT_list")
                 ("help,h", "Print help messages");
     
             po::options_description all_options;
@@ -184,21 +225,52 @@ int main(int argc, char** argv) {
             catch(std::exception &e){
                 if (vm.count("version")) {
                     std::cout << "UShER (v" << PROJECT_VERSION << ")" << std::endl;
-                }
-                else {
+                }else if(vm.count("reload")) {
+                    if(MAT_list_filename != ""){
+                        if(!boost::filesystem::exists(MAT_list_filename)){
+                            std::cout << "MAT list file not found" <<std::endl;
+                            return 1;
+                        }
+                        for(auto itr = MAT_list.begin(); itr != MAT_list.end(); itr++){
+                            MAT::clear_tree(itr->second);//delete all the trees in the list
+                        }
+                        MAT_list.clear();
+                        MAT_list_avail.clear();
+                        std::string MAT_filename;
+                        MAT::Tree temp_MAT;
+                        std::ifstream MAT_list_file(MAT_list_filename);
+                        while(std::getline(MAT_list_file, MAT_filename)){//set up MATs in the list
+                            // Load mutation-annotated tree and store it
+                            timer.Start();
+                            fprintf(stderr, "Loading existing mutation-annotated tree object from file %s\n", MAT_filename.c_str());
+                            MAT_list[MAT_filename] = MAT::load_mutation_annotated_tree(MAT_filename);
+                            MAT_list_avail[MAT_filename] = true;
+                            fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+                        }
+                        MAT_list_file.close();
+                    }
+                }else {
                     std::cerr << "UShER (v" << PROJECT_VERSION << ")" << std::endl;
                     std::cerr << desc << std::endl;
                 }
                 // Return with error code 1 unless the user specifies help or version
-                if(vm.count("help") || vm.count("version"))
+                if(vm.count("help") || vm.count("version") || vm.count("reload"))
                     continue;//if help or version then go to next line
                 else
                     break;//if error encountered then stop reading the file for now
             }
             //compare MAT and if same copy it
             
+            if(MAT_list.count(din_filename) != 0){//if the MAT is in the list
+                if(!(MAT_list_avail[din_filename])){//if the MAT is not available, load
+                    MAT::clear_tree(MAT_list[din_filename]);
+                    MAT_list[din_filename] = MAT::load_mutation_annotated_tree(din_filename);
+                }
 
-            if(din_filename != loaded_MAT_name){
+                curr_tree = &MAT_list[din_filename];
+                MAT_list_avail[din_filename] = false;
+
+            }else if(din_filename != loaded_MAT_name){
 
                 timer.Start();
                 fprintf(stderr, "Loading existing mutation-annotated tree object from file %s\n", din_filename.c_str());
@@ -206,22 +278,24 @@ int main(int argc, char** argv) {
                 if(loaded_MAT_name != ""){ //if there is an existing trees, delete them 
                     MAT::clear_tree(loaded_MAT);
                 }
-                if(curr_tree_avail){
-                    MAT::clear_tree(curr_tree);
-                }
                 // Load mutation-annotated tree and store it
                 loaded_MAT = MAT::load_mutation_annotated_tree(din_filename);
                 loaded_MAT_name = din_filename;
-                fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
-                fprintf(stderr, "Copying the mutation-annotated tree object\n");
-                curr_tree = MAT::get_tree_copy(loaded_MAT);
+                curr_tree = &loaded_MAT;
+                loaded_MAT_avail = false;
                 fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
                 
-            }else if(!curr_tree_avail){
+            }else if(!loaded_MAT_avail){
                 timer.Start();
-                fprintf(stderr, "Copying pre-loaded mutation-annotated tree object originally from file %s\n", din_filename.c_str());
-                    curr_tree = MAT::get_tree_copy(loaded_MAT);
+                fprintf(stderr, "Loading existing mutation-annotated tree object from file %s\n", din_filename.c_str());
+                MAT::clear_tree(loaded_MAT);
+                loaded_MAT = MAT::load_mutation_annotated_tree(din_filename);
+                curr_tree = &loaded_MAT;
+                loaded_MAT_avail = false;
                 fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+            }else{
+                curr_tree = &loaded_MAT;
+                loaded_MAT_avail = false;
             }
 
             
@@ -274,7 +348,7 @@ int main(int argc, char** argv) {
                     if (words[1] == "POS") {
                         for (size_t j=9; j < words.size(); j++) {
                             variant_ids.emplace_back(words[j]);
-                            if ((curr_tree.get_node(words[j]) == NULL) && (curr_tree.condensed_leaves.find(words[j]) == curr_tree.condensed_leaves.end())) {
+                            if ((curr_tree->get_node(words[j]) == NULL) && (curr_tree->condensed_leaves.find(words[j]) == curr_tree->condensed_leaves.end())) {
                                 missing_samples.emplace_back(Missing_Sample(words[j]));
                                 missing_idx.emplace_back(j);
                             }
@@ -340,14 +414,13 @@ int main(int argc, char** argv) {
                     }
                 }
             }
-            curr_tree_avail = false;
             fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
-            std::vector<size_t> tree_parsimony_scores;
+
             int return_val = usher_common(dout_filename, outdir, num_threads, max_trees, max_uncertainty, 
             sort_before_placement_1, sort_before_placement_2, sort_before_placement_3, reverse_sort, collapse_tree, 
             collapse_output_tree, print_uncondensed_tree, print_parsimony_scores, retain_original_branch_len, no_add, 
-            detailed_clades, print_subtrees_size, print_subtrees_single, missing_samples, low_confidence_samples, &curr_tree);
-            MAT::clear_tree(curr_tree);
+            detailed_clades, print_subtrees_size, print_subtrees_single, missing_samples, low_confidence_samples, curr_tree);
+
             if(return_val != 0){
                 break;//if error encountered then stop reading the file for now
             }
