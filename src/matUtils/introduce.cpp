@@ -604,30 +604,38 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                         // std::string highest_conf_origin = "indeterminate";
                         //instead of immediately reporting each that pass a high threshold,
                         //collect the set of all that pass a low threshold, sort by confidence, and store only the top Z scores and associated strings.
-                        std::vector<std::pair<float,std::string>> oriscores;
+                        //std::vector<std::pair<float,std::string>> oriscores;
+                        std::priority_queue<std::pair<float,std::string>, std::vector<std::pair<float,std::string>>, std::greater<std::pair<float,std::string>>> oriscores;
                         if (assign_search != region_ins.end()) {
-                            for (auto i = 0; i < assign_search->second.size(); i++) {
-                                //vectors for confidence and region tags were generated in parallel and should remain aligned
-                                std::pair<float,std::string> dpair = std::make_pair(region_cons.find(a->identifier)->second[i], assign_search->second[i]);
-                                oriscores.push_back(dpair);
-                            }
-                            std::sort(oriscores.begin(),oriscores.end());
-                            std::reverse(oriscores.begin(),oriscores.end());
-                            //if num to report is set to 0, report ALL origins that pass the base threshold
-                            //else report just that many
-                            size_t count = oriscores.size();
+                            size_t count = assign_search->second.size();
                             if (num_to_report > 0) {
                                 count = num_to_report;
                             }
-                            for (auto i = 0; i < count; i++) {
-                                if (origins.size() == 0) {
-                                    origins += oriscores[i].second;
-                                    origins_cons << oriscores[i].first;
-                                } else {
-                                    origins += "," + oriscores[i].second;
-                                    origins_cons << "," << oriscores[i].first;
+                            for (auto i = 0; i < assign_search->second.size(); i++) {
+                                //vectors for confidence and region tags were generated in parallel and should remain aligned
+                                if (assign_search->second[i] == region) {
+                                    //don't allow it to be its own point of origin, that's silly.
+                                    continue;
+                                }
+                                std::pair<float,std::string> dpair = std::make_pair(region_cons.find(a->identifier)->second[i], assign_search->second[i]);
+                                oriscores.push(dpair);
+                                if (oriscores.size() > count) {
+                                    //drop the lowest member if we're over count.
+                                    oriscores.pop();
                                 }
                             }
+                            while (!oriscores.empty()) {
+                                auto osp = oriscores.top();
+                                if (origins.size() == 0) {
+                                    origins += osp.second;
+                                    origins_cons << osp.first;
+                                } else {
+                                    origins += "," + osp.second;
+                                    origins_cons << "," << osp.first;
+                                }
+                                oriscores.pop();
+                            }
+                            std::cerr << "DEBUG: Successfully identified origins\n";
                             //for (auto r: assign_search->second) {
                                 // if (origins.size() == 0) {
                                 //     origins += r;
