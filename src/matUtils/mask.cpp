@@ -9,19 +9,19 @@ po::variables_map parse_mask_command(po::parsed_options parsed) {
     po::options_description filt_desc("mask options");
     filt_desc.add_options()
     ("input-mat,i", po::value<std::string>()->required(),
-    "Input mutation-annotated tree file [REQUIRED]")
+     "Input mutation-annotated tree file [REQUIRED]")
     ("output-mat,o", po::value<std::string>()->required(),
-    "Path to output masked mutation-annotated tree file [REQUIRED]")
+     "Path to output masked mutation-annotated tree file [REQUIRED]")
     ("simplify,S", po::bool_switch(),
-    "Use to automatically remove identifying information from the tree, including all sample names and private mutations.")
-    ("restricted-samples,s", po::value<std::string>()->default_value(""), 
-    "Sample names to restrict. Use to perform masking") 
-    ("rename-samples,r", po::value<std::string>()->default_value(""), 
-    "Name of the TSV file containing names of the samples to be renamed and their new names") 
+     "Use to automatically remove identifying information from the tree, including all sample names and private mutations.")
+    ("restricted-samples,s", po::value<std::string>()->default_value(""),
+     "Sample names to restrict. Use to perform masking")
+    ("rename-samples,r", po::value<std::string>()->default_value(""),
+     "Name of the TSV file containing names of the samples to be renamed and their new names")
     ("mask-mutations,m", po::value<std::string>()->default_value(""),
-    "Name of a TSV or CSV containing mutations to be masked in the first column and locations to mask downstream from in the second. If only one column is passed, all instances of that mutation on the tree are masked.")
-    ("condense-tree,c", po::bool_switch(), 
-    "Use to recondense the tree before saving.")
+     "Name of a TSV or CSV containing mutations to be masked in the first column and locations to mask downstream from in the second. If only one column is passed, all instances of that mutation on the tree are masked.")
+    ("condense-tree,c", po::bool_switch(),
+     "Use to recondense the tree before saving.")
     ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
     ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
@@ -198,9 +198,9 @@ void restrictMutationsLocally (std::string mutations_filename, MAT::Tree* T, boo
         }
     }
     infile.close();
-    //now that we have a map of mutations to mask plus the locations to mask downstream from, we proceed accordingly. 
+    //now that we have a map of mutations to mask plus the locations to mask downstream from, we proceed accordingly.
     //very simple loop. For each mutation-location pair, depth first from that point and mask all instances of that mutation.
-    //then return the tree. 
+    //then return the tree.
     for (auto ml: mutlmap) {
         size_t instances_masked = 0;
         MAT::Node* rn = T->get_node(ml.second);

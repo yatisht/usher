@@ -12,8 +12,8 @@ MAT::Tree filter_master(const MAT::Tree& T, std::vector<std::string> sample_name
     } else if (sample_names.size() < 10000) {
         //for retaining only a subtree, get_subtree is the most effective method
         //for subtress up to about 10 thousand samples in size; after that, pruning
-        //all other nodes becomes more efficient, because get_subtree scales with 
-        //the size of the input sample set, while prune takes a similar time for 
+        //all other nodes becomes more efficient, because get_subtree scales with
+        //the size of the input sample set, while prune takes a similar time for
         //any sample set size, while scaling on total tree size
         subtree = get_sample_subtree(T, sample_names, keep_clade_annotations);
     } else {
@@ -29,9 +29,8 @@ MAT::Tree prune_leaves (const MAT::Tree& T, std::vector<std::string> sample_name
     auto subtree = MAT::get_tree_copy(T);
     for (auto s: sample_names) {
         if (subtree.get_node(s) == NULL) {
-            fprintf(stderr, "ERROR: Sample %s not found in the tree!\n", s.c_str()); 
-        }
-        else {
+            fprintf(stderr, "ERROR: Sample %s not found in the tree!\n", s.c_str());
+        } else {
             assert (subtree.get_node(s)->is_leaf());
             subtree.remove_node(s, true);
         }
@@ -52,7 +51,7 @@ MAT::Tree get_sample_subtree (const MAT::Tree& T, std::vector<std::string> sampl
 }
 
 MAT::Tree get_sample_prune (const MAT::Tree& T, std::vector<std::string> sample_names, bool keep_clade_annotations) {
-    
+
     timer.Start();
     fprintf(stderr, "Large sample input; building subtree by pruning all but %zu samples.\n", sample_names.size());
     //its going to be much quicker to check membership in a set then a vector O(logN)
@@ -72,7 +71,7 @@ MAT::Tree get_sample_prune (const MAT::Tree& T, std::vector<std::string> sample_
                 subtree.remove_node(s->identifier, false);
             }
         }
-    }    
+    }
     if (!keep_clade_annotations) {
         dfs = subtree.depth_first_expansion();
         for (auto s: dfs) {

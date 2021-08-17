@@ -15,7 +15,7 @@ message(STATUS "${usher_VERSION}")
 
 configure_file(src/version.hpp.in version.hpp)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -msse4.1 -std=c++11 -Wall -g -Wno-unused-function -Wno-deprecated-declarations")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native -mtune=native -std=c++11 -Wall -g -Wno-unused-function -Wno-deprecated-declarations")
 #-DDEBUG_PARSIMONY_SCORE_CHANGE_CORRECT 
 set(CMAKE_CXX_FLAGS_DEBUG "-O3 -fsanitize=address")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-DNDEBUG -O3")
@@ -96,23 +96,23 @@ if(DEFINED Protobuf_PATH)
         src/compareVCF.cpp)
 
 
-        add_executable(transpose_vcf
+    add_executable(transpose_vcf
         src/matOptimize/transpose_vcf/transpose_vcf_encode.cpp
         src/matOptimize/mutation_annotated_tree_nuc_util.cpp
         )
-        add_executable(transposed_vcf_to_vcf
+    add_executable(transposed_vcf_to_vcf
         src/matOptimize/transpose_vcf/transposed_vcf_to_vcf.cpp
         src/matOptimize/mutation_annotated_tree_nuc_util.cpp
         )
 
 
-        protobuf_generate(
+    protobuf_generate(
         LANGUAGE cpp
         TARGET ripples 
         PROTOS parsimony.proto)
 
 
-        protobuf_generate(
+    protobuf_generate(
         LANGUAGE cpp
         TARGET compareVCF 
         PROTOS parsimony.proto)
@@ -120,7 +120,7 @@ if(DEFINED Protobuf_PATH)
 
 
 
-        protobuf_generate(
+    protobuf_generate(
         LANGUAGE cpp
         TARGET usher 
         PROTOS parsimony.proto)
@@ -129,7 +129,7 @@ if(DEFINED Protobuf_PATH)
         LANGUAGE cpp
         TARGET matUtils
         PROTOS parsimony.proto)
-    
+
     protobuf_generate(
         LANGUAGE cpp
         TARGET matOptimize
@@ -139,7 +139,7 @@ if(DEFINED Protobuf_PATH)
         LANGUAGE cpp
         TARGET matOptimize
         PROTOS mutation_detailed.proto)
-    
+
 else()
     protobuf_generate_cpp(
         PROTO_SRCS PROTO_HDRS
@@ -149,7 +149,7 @@ else()
         DETAILED_MUTATIONS_PROTO_SRCS
         DETAILED_MUTATIONS_PROTO_HDRS
         mutation_detailed.proto)
-    
+
     add_executable(usher
         src/mutation_annotated_tree.cpp
         src/usher_mapper.cpp
@@ -207,11 +207,11 @@ else()
         ${DETAILED_MUTATIONS_PROTO_SRCS}
         ${DETAILED_MUTATIONS_PROTO_HDRS}
         )
-        add_executable(transpose_vcf
+    add_executable(transpose_vcf
         src/matOptimize/transpose_vcf/transpose_vcf_encode.cpp
         src/matOptimize/mutation_annotated_tree_nuc_util.cpp
         )
-        add_executable(transposed_vcf_to_vcf
+    add_executable(transposed_vcf_to_vcf
         src/matOptimize/transpose_vcf/transposed_vcf_to_vcf.cpp
         src/matOptimize/mutation_annotated_tree_nuc_util.cpp
         )
