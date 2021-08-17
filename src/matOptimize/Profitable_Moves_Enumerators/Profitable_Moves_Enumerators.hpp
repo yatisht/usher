@@ -3,11 +3,17 @@
 #include "../tree_rearrangement_internal.hpp"
 #include "src/matOptimize/mutation_annotated_tree.hpp"
 #include <algorithm>
+#include <array>
 #include <iterator>
 #include <utility>
 #include <vector>
 #include "../stack_allocator.hpp"
-
+struct change_idx{
+    unsigned int bfs_idx;
+    //unsigned int level;
+};
+typedef std::vector<std::array<std::vector<unsigned int>, 4>> mutated_node_dfs_idx_t;
+extern mutated_node_dfs_idx_t mutated_node_dfs_idx; 
 namespace MAT = Mutation_Annotated_Tree;
 //Class for recording change in major allele set
 class Mutation_Count_Change {
@@ -21,6 +27,7 @@ class Mutation_Count_Change {
     static const char VALID_MASK=1;
     static const char END_MASK=2;
     Mutation_Count_Change() {
+        position=INT_MAX;
         decremented_allele=0;
         incremented_allele=0;
     }
@@ -37,6 +44,9 @@ class Mutation_Count_Change {
         position = pos.get_position();
         chromIdx = pos.get_chromIdx();
         par_state=pos.get_par_one_hot();
+        set_change(decremented, incremented);
+    }
+    Mutation_Count_Change(const Mutation_Count_Change &pos,nuc_one_hot decremented,nuc_one_hot incremented):Mutation_Count_Change(pos) {
         set_change(decremented, incremented);
     }
     int get_position() const {

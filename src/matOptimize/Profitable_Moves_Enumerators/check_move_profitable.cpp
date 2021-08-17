@@ -77,12 +77,6 @@ bool LCA_place_mezzanine(
     const Mutation_Count_Change_Collection &src_branch_node_mutations_altered,
     Mutation_Count_Change_Collection &out, int &parsimony_score_change
 ) ;
-void check_parsimony_score_change_above_LCA(MAT::Node *LCA, int &parsimony_score_change,
-        Mutation_Count_Change_Collection &parent_added,
-        const std::vector<MAT::Node *> &node_stack_from_src,
-        std::vector<MAT::Node *> &node_stack_above_LCA,
-        Mutation_Count_Change_Collection &parent_of_parent_added,
-        MAT::Node *ancestor);
 extern unsigned int early_stop_saving;
 /**
  * @brief Calculate Parsimony score change of this individual move without applying it

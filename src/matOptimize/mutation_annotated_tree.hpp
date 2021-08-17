@@ -2,6 +2,7 @@
 #define MUTATION_ANNOTATED_TREE
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <mutex>
 #include <sys/types.h>
 #include <unordered_map>
@@ -107,6 +108,7 @@ class Mutation {
     uint8_t chrom_idx;
     uint8_t par_mut_nuc;
     uint8_t boundary1_all_major_allele; //boundary 1 alleles are alleles with allele count one less than major allele count
+    uint8_t decrement_increment_effect;//Decrement which allele will increase parsimony score, then increment which allele may decrease parsimony score
     //uint8_t child_muts;//left child state then right child state for binary nodes
     static tbb::concurrent_unordered_map<std::string, uint8_t> chromosome_map;
     static std::mutex ref_lock;//reference nuc are stored in a separate vector, need to be locked when adding new mutations
@@ -116,7 +118,15 @@ class Mutation {
     void set_boundary_one_hot(nuc_one_hot boundary1) {
         boundary1_all_major_allele=(boundary1_all_major_allele&0xf)|(boundary1<<4);
     }
-
+    nuc_one_hot get_sensitive_decrement()const{
+        return decrement_increment_effect>>4;
+    }
+    nuc_one_hot get_sensitive_increment()const{
+        return decrement_increment_effect&0xf;
+    }
+    void set_sensitive_change(nuc_one_hot decrement,nuc_one_hot increment){
+        decrement_increment_effect=(decrement<<4)|increment;
+    }
     Mutation(const std::string& chromosome,int position,nuc_one_hot mut,nuc_one_hot par,nuc_one_hot tie,nuc_one_hot ref=0);
 
     Mutation(int pos):position(pos),chrom_idx(0),par_mut_nuc(0),boundary1_all_major_allele(0) {}

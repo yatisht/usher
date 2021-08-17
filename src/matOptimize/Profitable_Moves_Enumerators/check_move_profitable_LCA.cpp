@@ -1,12 +1,10 @@
 #include "process_each_node.hpp"
 #include "src/matOptimize/Profitable_Moves_Enumerators/Profitable_Moves_Enumerators.hpp"
 #include "src/matOptimize/mutation_annotated_tree.hpp"
-
 //Mutation added by moving src to LCA doesn't match any sensitive mutation on LCA. Spliting the edge is equivalent to adding a binary node with parent state and src state at this node
 static void added_no_match(const Mutation_Count_Change &mutation_to_add,
                            Mutation_Count_Change_Collection &out,
-                           int &parsimony_score_change,
-                           MAT::Node *src_branch_node) {
+                           int &parsimony_score_change) {
     //assert(mutation_to_add.get_par_state() ==get_parent_state(src_branch_node, mutation_to_add.get_position()));
     nuc_one_hot major_allele =
         mutation_to_add.get_par_state() & mutation_to_add.get_incremented();
@@ -58,7 +56,7 @@ bool LCA_place_mezzanine(
         //parsimony score as inserting here or its descendant, so cannot be the sole reason of trying here.
         while (added_iter < added_end &&
                 added_iter->get_position() < m.get_position()) {
-            added_no_match(*added_iter, out, parsimony_score_change, src_branch_node);
+            added_no_match(*added_iter, out, parsimony_score_change);
             //assert(added_iter < added_end );
             added_iter++;
         }
@@ -94,7 +92,7 @@ bool LCA_place_mezzanine(
         parsimony_score_change += score_change;
     }
     while (added_iter<added_end) {
-        added_no_match(*added_iter, out, parsimony_score_change, src_branch_node);
+        added_no_match(*added_iter, out, parsimony_score_change);
         added_iter++;
     }
     return have_not_shared;

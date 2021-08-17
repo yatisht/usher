@@ -29,6 +29,4 @@ nuc_one_hot dbl_inc_dec_mutations(
     const Mutation_Count_Change &src_count_change,
     const MAT::Mutation &this_mut, int &score_change,
     Mutation_Count_Change_Collection &parent_mutation_change_out);
-
-int get_new_major_allele_binary_node(nuc_one_hot left_child,nuc_one_hot right_child,nuc_one_hot& major_allele_out);
 #endif

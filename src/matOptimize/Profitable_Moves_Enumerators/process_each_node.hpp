@@ -129,3 +129,9 @@ void get_LCA_mutation(
     const Mutation_Count_Change_Collection &from_dst_add,
     Mutation_Count_Change_Collection &LCA_parent_mutation_count_change_out,
     int &parsimony_score_change);
+void check_parsimony_score_change_above_LCA(MAT::Node *LCA, int &parsimony_score_change,
+        Mutation_Count_Change_Collection &parent_added,
+        const std::vector<MAT::Node *> &node_stack_from_src,
+        std::vector<MAT::Node *> &node_stack_above_LCA,
+        Mutation_Count_Change_Collection &parent_of_parent_added,
+        MAT::Node *ancestor);
