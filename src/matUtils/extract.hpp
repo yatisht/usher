@@ -4,7 +4,6 @@
 #include "describe.hpp"
 #include "uncertainty.hpp"
 #include "select.hpp"
-#include "taxodium.hpp"
 
 po::variables_map parse_extract_command(po::parsed_options parsed);
 void extract_main (po::parsed_options parsed);
