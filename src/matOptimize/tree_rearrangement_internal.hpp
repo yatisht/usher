@@ -77,9 +77,9 @@ void find_nodes_to_move(const std::vector<MAT::Node *> &bfs_ordered_nodes,
 void add_root(MAT::Tree *tree) ;
 void VCF_input(const char * name,MAT::Tree& tree);
 
-size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
+std::pair<size_t, size_t> optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
                      tbb::concurrent_vector<MAT::Node *> &nodes_to_search,
-                     MAT::Tree &t,int radius,FILE* log,bool allow_drift
+                     MAT::Tree &t,int radius,FILE* log,bool allow_drift,int iteration
 #ifndef NDEBUG
                      , Original_State_t origin_states
 #endif
