@@ -266,7 +266,7 @@ std::vector<std::string> get_short_steppers(MAT::Tree* T, std::vector<std::strin
     return good_samples;
 }
 
-std::unordered_map<std::string,std::unordered_map<std::string,std::string>> read_metafile(std::string metainf, std::set<std::string> samples_to_use) {
+std::map<std::string,std::map<std::string,std::string>> read_metafile(std::string metainf, std::set<std::string> samples_to_use) {
     std::ifstream infile(metainf);
     if (!infile) {
         fprintf(stderr, "ERROR: Could not open the file: %s!\n", metainf.c_str());
@@ -278,7 +278,7 @@ std::unordered_map<std::string,std::unordered_map<std::string,std::string>> read
     if (metainf.find(".csv\0") != std::string::npos) {
         delim = ',';
     }
-    std::unordered_map<std::string,std::unordered_map<std::string,std::string>> metamap;
+    std::map<std::string,std::map<std::string,std::string>> metamap;
     std::vector<std::string> keys;
 
     while (std::getline(infile, line)) {

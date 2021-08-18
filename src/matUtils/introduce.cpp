@@ -391,7 +391,7 @@ std::map<std::string, float> get_assignments(MAT::Tree* T, std::unordered_set<st
     return assignments;
 }
 
-std::pair<boost::gregorian::date,boost::gregorian::date> get_nearest_date(MAT::Tree* T, MAT::Node* n, std::set<std::string>* in_samples, std::unordered_map<std::string, std::string> datemeta) {
+std::pair<boost::gregorian::date,boost::gregorian::date> get_nearest_date(MAT::Tree* T, MAT::Node* n, std::set<std::string>* in_samples, std::map<std::string, std::string> datemeta) {
     boost::gregorian::date earliest = boost::gregorian::day_clock::universal_day();
     boost::gregorian::date latest = boost::gregorian::date(1500,1,1);
     for (auto l: T->get_leaves_ids(n->identifier)) {
@@ -788,7 +788,7 @@ void introduce_main(po::parsed_options parsed) {
         T.uncondense_leaves();
     }
     auto region_map = read_two_column(samples_filename);
-    std::unordered_map<std::string,std::string> datemeta = {};
+    std::map<std::string,std::string> datemeta = {};
     if (metafile.size() > 0) {
         std::set<std::string> samples;
         for (auto kv: region_map) {

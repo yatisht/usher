@@ -395,7 +395,7 @@ MAT::Tree load_mat_from_json(std::string json_filename) {
     return T;
 }
 
-json get_json_entry(MAT::Node* n, std::vector<std::unordered_map<std::string,std::unordered_map<std::string,std::string>>>* catmeta, size_t div = 0, bool use_clade_zero = false, bool use_clade_one = false) {
+json get_json_entry(MAT::Node* n, std::vector<std::map<std::string,std::map<std::string,std::string>>>* catmeta, size_t div = 0, bool use_clade_zero = false, bool use_clade_one = false) {
     //each node has 3 constituent attributes
     //node_attrs, branch_attrs, and children. If its a leaf,
     //it also has a simple name attribute.
@@ -540,7 +540,7 @@ void write_json_from_mat(MAT::Tree* T, std::string output_filename, std::vector<
     out.close();
 }
 
-void get_minimum_subtrees(MAT::Tree* T, std::vector<std::string> samples, size_t nearest_subtree_size, std::string output_dir, std::vector<std::unordered_map<std::string,std::unordered_map<std::string,std::string>>>* catmeta, std::string json_n, std::string newick_n, bool retain_original_branch_len) {
+void get_minimum_subtrees(MAT::Tree* T, std::vector<std::string> samples, size_t nearest_subtree_size, std::string output_dir, std::vector<std::map<std::string,std::map<std::string,std::string>>>* catmeta, std::string json_n, std::string newick_n, bool retain_original_branch_len) {
     //get the minimum set of subtrees of the indicated size which cover all input samples
     //and write them to the indicated output directory, with the indicated prefix, along with a tsv indicating which trees contain the relevant samples.
     if ((json_n == output_dir) && (newick_n == output_dir)) {
@@ -548,11 +548,11 @@ void get_minimum_subtrees(MAT::Tree* T, std::vector<std::string> samples, size_t
         exit(1);
     }
     if (json_n != output_dir) {
-        std::unordered_map<std::string,std::string> sqm;
+        std::map<std::string,std::string> sqm;
         for (auto s: samples) {
             sqm[s] = "query";
         }
-        std::unordered_map<std::string,std::unordered_map<std::string,std::string>> csqm;
+        std::map<std::string,std::map<std::string,std::string>> csqm;
         csqm["query_sample"] = sqm;
         catmeta->emplace_back(csqm);
     }
@@ -735,10 +735,10 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
         }
         bool first = true;
         while (std::getline(infile, line)) {
-            if (line == "\n\r" || line == "\n") {
+            if (line.length() < 3) {
                 continue;
             }
-            if (first) {
+            if (first) { // header line
                 first = false;
                 continue;
             }                
@@ -770,15 +770,17 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
 }
 void save_taxodium_tree (MAT::Tree &tree, std::string out_filename, std::vector<std::string> meta_filenames, std::string gtf_filename, std::string fasta_filename) {
 
+    // These are the taxodium pb objects
 	Taxodium::AllNodeData *node_data = new Taxodium::AllNodeData();
 	Taxodium::AllData all_data;
 
     std::unordered_map<std::string, std::vector<std::string>> metadata = read_metafiles_tax(meta_filenames, all_data);
 	TIMEIT();
 
+    // Fill in the taxodium data while doing aa translations
     translate_and_populate_node_data(&tree, gtf_filename, fasta_filename, node_data, &all_data, metadata);
-
     all_data.set_allocated_node_data(node_data);
+
     // Boost library used to stream the contents to the output protobuf file in
     // uncompressed or compressed .gz format
     std::ofstream outfile(out_filename, std::ios::out | std::ios::binary);
@@ -800,5 +802,4 @@ void save_taxodium_tree (MAT::Tree &tree, std::string out_filename, std::vector<
         outfile.close();
     }
 }
-
 // end taxodium output functions

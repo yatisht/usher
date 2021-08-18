@@ -225,13 +225,13 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
     } 
 
 	T->rotate_for_display(); 
-
     std::string reference = build_reference(fasta_file); 
-  
     std::map<int, std::vector<std::shared_ptr<Codon>>> codon_map = build_codon_map(gtf_file, reference); 
     auto dfs = T->depth_first_expansion();
  
-    MAT::Node *last_visited = nullptr; 
+    MAT::Node *last_visited = nullptr;
+
+
     std::unordered_map<std::string, int32_t> seen_mutations_map;
     std::unordered_map<std::string, int32_t> index_map; // map node id to index in protobuf arrays
     std::unordered_map<std::string, float> y_map;
@@ -240,19 +240,18 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
     int32_t count = 0;
     float curr_x_value = 0;
 
-
     all_data->add_mutation_mapping(""); // no mutations
     std::vector<MAT::Node *> leaves;
     int32_t mutation_counter = 0;
     
-    // First step: DFS to translate aa mutations
+    // DFS to translate aa mutations, adding to Taxodium pb objects along the way
     for (auto node: dfs) {
         if (node->is_leaf()) {
             leaves.push_back(node);
         }
-
         by_level[node->level].push_back(node); // store nodes by level for later step
         index_map[node->identifier] = count;
+        
         // If we are jumping across a branch relative to the last visited node, reset mutations
         // and x-value to LCA of last node and this node
         if(last_visited != node->parent) {
@@ -263,23 +262,16 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
                 trace_to_lca = trace_to_lca->parent; 
             }
             curr_x_value = branch_length_map[trace_to_lca->identifier] + node->mutations.size();
-            //std::cout << "(1) X value at " << node->identifier << " = " << branch_length_map[trace_to_lca->identifier] << '+' << node->mutations.size() << '\n';
-
         } else {
             curr_x_value += node->mutations.size();
-            //std::cout << "(2) X value at " << node->identifier << " = " << node->mutations.size() << '\n';
         }
         branch_length_map[node->identifier] = curr_x_value;
         
         // Do mutations
         Taxodium::MutationList *mutation_list = node_data->add_mutations();
         std::string mutation_result = ""; 
-        std::cout << "node " << node->identifier << '\n';
         mutation_result = do_mutations(node->mutations, codon_map, true);
-        if (mutation_result == "") {
-            ; //mutation_list->add_mutation(0);
-        } else {
-            std::cout << "raw mut: " << mutation_result << '\n';
+        if (mutation_result != "") {
             for (auto m : split(mutation_result, ';')) {
                 if (seen_mutations_map.find(m) == seen_mutations_map.end()) {
                     mutation_counter++;
@@ -294,11 +286,8 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
 
         node_data->add_x(branch_length_map[node->identifier] * 0.2);
         node_data->add_y(0); // temp value, set later
-        node_data->add_epi_isl_numbers(0);
-        node_data->add_num_tips(1);
-        
-       // std::cout << "NODE\n";
-      //  std::cout << node->identifier << '\n';
+        node_data->add_epi_isl_numbers(0); // not currently set
+        node_data->add_num_tips(T->get_leaves(node->identifier).size());
 
         if (node->identifier.substr(0,5) == "node_") {
             node_data->add_names("");
@@ -335,15 +324,17 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
         count++;
     }
 
+    // Set a y-value for each leaf
     int32_t i = 0;
     std::reverse(leaves.begin(), leaves.end());
     for (auto &leaf : leaves){
         node_data->set_y(index_map[leaf->identifier], (float) i / 40000);
         i++;
     }
+
+    // Travel by level up the tree assigning y-values to each internal node
     for (auto &node_list : by_level) { // in descending order by level
         for (auto &bylevel_node : node_list.second) {
-         //   std::cout << "\nsetting y for " << bylevel_node->identifier << '\n';
             float children_mean_y = 0;
 	        int num_children = (bylevel_node->children).size();
             for (auto &child : bylevel_node->children){
@@ -351,11 +342,10 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
             }
             if (num_children > 0) {
                 children_mean_y /= num_children;
-           //     std::cout << "mean children y: " << std::to_string(children_mean_y) << '\n';
             } else { // leaf
-           //     std::cout << "no children\n";
                 continue;
             }
+            // y-value of a node is the average y-value of its children 
             node_data->set_y(index_map[bylevel_node->identifier], children_mean_y);
         }
     }

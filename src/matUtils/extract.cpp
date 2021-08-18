@@ -519,7 +519,7 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         fprintf(stderr, "Completed in %ld msec\n\n", timer.Stop());
     }
 
-    std::vector<std::unordered_map<std::string,std::unordered_map<std::string,std::string>>> catmeta;
+    std::vector<std::map<std::string,std::map<std::string,std::string>>> catmeta;
     std::vector<std::string> metav;
     std::stringstream mns(meta_filename);
     std::string m;
@@ -539,7 +539,7 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
     //if json output AND mutation context is requested, add an additional metadata column indicating whether each branch contains
     //the mutation of interest. the metadata map is not limited to leaf nodes.
     if ((json_filename != "") && (mutation_choice != "")) {
-        std::unordered_map<std::string,std::string> mutmap;
+        std::map<std::string,std::string> mutmap;
         std::vector<std::string> mutations;
         std::stringstream mns(mutation_choice);
         std::string m;
@@ -562,7 +562,7 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
             }
             mutmap[n->identifier] = metastr;
         }
-        std::unordered_map<std::string,std::unordered_map<std::string,std::string>> submet;
+        std::map<std::string,std::map<std::string,std::string>> submet;
         submet["mutation_of_interest"]=mutmap;
         catmeta.push_back(submet);
     }
@@ -613,13 +613,13 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
     }
     //if json output AND sample context is requested, add an additional metadata column which simply indicates the focal sample versus context
     if ((json_filename != "") && (nearest_k != "")) {
-        std::unordered_map<std::string,std::string> conmap;
+        std::map<std::string,std::string> conmap;
         for (auto s: samples) {
             if (s == sample_id) {
                 conmap[s] = "focal";
             }
         }
-        std::unordered_map<std::string,std::unordered_map<std::string,std::string>> submet;
+        std::map<std::string,std::map<std::string,std::string>> submet;
         submet["focal_view"] = conmap;
         catmeta.emplace_back(submet);
     }
