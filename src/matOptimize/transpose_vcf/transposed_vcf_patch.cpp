@@ -1,272 +1,308 @@
+#include <cstddef>
+#include <functional>
+#include <tbb/task_group.h>
+#include <thread>
 #define LOAD
-#include "../check_samples.hpp"
-#include <atomic>
-#include "src/matOptimize/mutation_annotated_tree.hpp"
-#include "src/matOptimize/tree_rearrangement_internal.hpp"
+#include <cstdio>
+#include <deque>
+#include <tbb/concurrent_vector.h>
+#include <tbb/flow_graph.h>
+#include <tbb/parallel_for.h>
+#include <tbb/pipeline.h>
+#include "../Fitch_Sankoff.hpp"
+#include "../mutation_annotated_tree.hpp"
+#include "../tree_rearrangement_internal.hpp"
 #include "transpose_vcf.hpp"
 #include <algorithm>
-#include <cstdint>
-#include <cstdio>
 #include <iterator>
+//#include <malloc.h>
 #include <string>
 #include <tbb/blocked_range.h>
-#include <tbb/parallel_for.h>
-#include <unordered_map>
+#include <tbb/enumerable_thread_specific.h>
+#include <utility>
 #include <vector>
+#include <sys/types.h>
+#include <signal.h>
+
 namespace MAT = Mutation_Annotated_Tree;
-struct Condesed_Muts {
-    std::atomic<char> set;
-    std::vector<MAT::Mutation> not_Ns;
-    std::vector<MAT::Mutation> Ns;
-    Condesed_Muts():set(0) {}
+struct Pos_Mut {
+    int position;
+    uint8_t mut;
+    Pos_Mut(int position, uint8_t mut) : position(position), mut(mut) {}
+    bool operator<(const Pos_Mut &other) const {
+        return position < other.position;
+    }
 };
-void check_consistent(Mutation_Set *old_muts, Mutation_Set &new_muts,
-                      const std::string *sample) {
-    for (const auto &mut : *old_muts) {
-        if (!new_muts.count(mut)) {
-            fprintf(
-                stderr,
-                "Inconsistent allele at %d of %s, %c in protobuf, %c in VCF\n",
-                mut.position, sample->c_str(),
-                MAT::get_nuc(mut.get_all_major_allele() & 0xf),
-                MAT::get_nuc(MAT::Mutation::refs[mut.position]));
-        }
+
+struct Sample_Pos_Mut {
+    size_t bfs_idx;
+    std::vector<Pos_Mut> not_Ns;
+    std::vector<std::pair<int, int>> Ns;
+    Sample_Pos_Mut(std::string &&name, MAT::Tree &tree) {
+        bfs_idx = tree.get_node(name)->bfs_index;
     }
-    for (auto &mut : new_muts) {
-        auto iter = old_muts->find(mut);
-        if (iter == old_muts->end()) {
-            if (!(mut.boundary1_all_major_allele &
-                    MAT::Mutation::refs[mut.position])) {
-                fprintf(stderr,
-                        "Inconsistent allele at %d of %s, %c in protobuf, %c "
-                        "in VCF\n",
-                        mut.position, sample->c_str(),
-                        MAT::get_nuc(MAT::Mutation::refs[mut.position]),
-                        MAT::get_nuc(mut.get_all_major_allele() & 0xf));
-            }
-        } else {
-            if (!(iter->boundary1_all_major_allele &
-                    mut.boundary1_all_major_allele)) {
-                if (!(mut.boundary1_all_major_allele &
-                        MAT::Mutation::refs[mut.position])) {
-                    fprintf(stderr,
-                            "Inconsistent allele at %d of %s, %c in protobuf, "
-                            "%c in VCF\n",
-                            mut.position, sample->c_str(),
-                            MAT::get_nuc(iter->get_all_major_allele()),
-                            MAT::get_nuc(mut.get_all_major_allele() & 0xf));
-                }
-            }
-        }
-    }
-}
-struct Adder {
-    Condesed_Muts *condensed_add;
-    Mutation_Set *uncondensed_add;
-    Mutation_Set staging;
-    std::unordered_set<int> set_positions;
-    const std::string *sample;
-    Adder(Condesed_Muts *condensed_add)
-        : condensed_add(condensed_add), uncondensed_add(nullptr) {}
-    Adder(Mutation_Set *uncondensed_add,const std::string* sample)
-        : condensed_add(nullptr), uncondensed_add(uncondensed_add),sample(sample) {}
-    Adder() : condensed_add(nullptr), uncondensed_add(nullptr) {}
-    void add_mut(MAT::Mutation &mutation,
-                 std::vector<MAT::Mutation> &condensed_out) {
-        if (mutation.position >= (int) MAT::Mutation::refs.size() ||
-                (!MAT::Mutation::refs[mutation.position])) {
-            return;
-        }
-        if (condensed_add) {
-            condensed_out.push_back(mutation);
-        } else if (uncondensed_add) {
-            // set_positions.insert(mutation.position);
-            staging.insert(mutation);
-            // insert_checking_consistent(uncondensed_add, mutation);
-        }
-    }
-    void add_Not_N(int position, char mut) {
-        MAT::Mutation mutation;
-        mutation.position = position;
-        mutation.boundary1_all_major_allele = mut;
-        add_mut(mutation, condensed_add->not_Ns);
+};
+
+struct Sample_Pos_Mut_Wrap {
+    Sample_Pos_Mut &content;
+    void add_Not_N(int position, uint8_t allele) {
+        assert(!(allele&0xf0));
+        content.not_Ns.emplace_back(position, allele);
     }
     void add_N(int first, int second) {
-        for (int pos = first; pos <= second; pos++) {
-            MAT::Mutation mutation;
-            mutation.position = pos;
-            mutation.boundary1_all_major_allele = 0xf;
-            add_mut(mutation, condensed_add->Ns);
-        }
-    }
-    ~Adder() {
-        if (uncondensed_add) {
-            check_consistent(uncondensed_add, staging, sample);
-            uncondensed_add->swap(staging);
-        }
+        content.Ns.emplace_back(first, second);
     }
 };
-struct copyable_atomic {
-    std::atomic<char> content;
-    copyable_atomic(const copyable_atomic& other):content(other.content.load()) {}
-    copyable_atomic(int other):content(other) {}
-    copyable_atomic() {}
+
+typedef tbb::enumerable_thread_specific<std::vector<Sample_Pos_Mut>>
+        sample_pos_mut_local_t;
+struct All_Sample_Appender {
+    MAT::Tree &tree;
+    sample_pos_mut_local_t& sample_pos_mut_local;
+    Sample_Pos_Mut_Wrap set_name(std::string &&name) {
+        sample_pos_mut_local_t::reference my_sample_pos_mut_local =
+            sample_pos_mut_local.local();
+        my_sample_pos_mut_local.emplace_back(std::move(name), tree);
+        return Sample_Pos_Mut_Wrap{my_sample_pos_mut_local.back()};
+    }
 };
-struct Sample_Adder {
-    const Original_State_t &not_condensed;
-    const std::unordered_map<std::string, Condesed_Muts *> &condensed;
-    std::unordered_map<std::string,copyable_atomic>& assigned;
-    Adder set_name(std::string &&name) {
-        auto not_condensed_iter = not_condensed.find(name);
-        char expected=0;
-        char to_swap=1;
-        if (not_condensed_iter != not_condensed.end()) {
-            auto& add_flag=assigned[name].content;
-            if(!atomic_compare_exchange_strong(&add_flag,&expected,to_swap)) {
-                return Adder();
+size_t p_idx;
+struct mut_iterator {
+#ifndef NDEBUG
+    std::vector<Pos_Mut>::const_iterator not_N_begin;
+#endif
+    size_t idx;
+    std::vector<Pos_Mut>::const_iterator not_N_iter;
+    std::vector<Pos_Mut>::const_iterator not_N_end;
+#ifndef NDEBUG
+    std::vector<std::pair<int, int>>::const_iterator N_begin;
+#endif
+    std::vector<std::pair<int, int>>::const_iterator N_iter;
+    std::vector<std::pair<int, int>>::const_iterator N_end;
+    mut_iterator() {}
+    mut_iterator(const Sample_Pos_Mut &mut_ele, int position) {
+        idx = mut_ele.bfs_idx;
+        not_N_end = mut_ele.not_Ns.end();
+        N_end = mut_ele.Ns.end();
+#ifndef NDEBUG
+        not_N_begin = mut_ele.not_Ns.begin();
+#endif
+        not_N_iter = std::lower_bound(mut_ele.not_Ns.begin(), not_N_end,
+                                      Pos_Mut{position, 0});
+        assert((mut_ele.not_Ns.begin() == not_N_iter) ||
+               (not_N_iter - 1)->position < position);
+        assert((mut_ele.not_Ns.end() == not_N_iter) ||
+               not_N_iter->position >= position);
+        N_iter = std::lower_bound(mut_ele.Ns.begin(), N_end,
+                                  std::make_pair(position, position),
+                                  [](const std::pair<int, int> &first,
+        const std::pair<int, int> &second) {
+            return first.first < second.first;
+        });
+#ifndef NDEBUG
+        N_begin = mut_ele.Ns.begin();
+#endif
+        assert((mut_ele.Ns.begin() == N_iter) ||
+               (N_iter - 1)->first < position);
+        assert((mut_ele.Ns.end() == N_iter) || N_iter->first >= position);
+        if (N_iter != N_end && N_iter->second < position) {
+            N_iter++;
+        }
+        if (N_iter != mut_ele.Ns.begin() && (N_iter - 1)->second >= position) {
+            N_iter--;
+        }
+    }
+    uint8_t get_allele(int position) {
+        uint8_t ret_val = 0;
+        while (not_N_iter != not_N_end&&not_N_iter->position < position) {
+            not_N_iter++;
+            if (idx==p_idx) {
+                fprintf(stderr, "At %d, not_N incremented to %d, nuc %d\n",position,not_N_iter==not_N_end?INT_MAX:not_N_iter->position,ret_val);
             }
-            return Adder{&(not_condensed_iter->second),&(not_condensed_iter->first)};
         }
-        auto condensed_iter = condensed.find(name);
-        if (condensed_iter == condensed.end()) {
-            //fprintf(stderr, "Sample %s not found in tree\n", name.c_str());
-            return Adder();
+        if (not_N_iter != not_N_end&&not_N_iter->position == position) {
+            ret_val = not_N_iter->mut;
+            if (ret_val&0xf0) {
+                fprintf(stderr, "At %d, not_N match, nuc %d\n",position,ret_val);
+            }
         }
-        auto& flag=condensed_iter->second->set;
-        if(!atomic_compare_exchange_strong(&flag,&expected,to_swap)) {
-            return Adder();
+        //assert(not_N_iter == not_N_end || not_N_iter->position > position);
+        assert(not_N_iter == not_N_begin ||
+               (not_N_iter - 1)->position <= position);
+        while (N_iter != N_end && N_iter->second < position) {
+            N_iter++;
+            if (idx==p_idx) {
+                fprintf(stderr, "At %d, N incremented to %d-%d, nuc %d\n",position,N_iter==N_end?INT_MAX:N_iter->first,position,N_iter==N_end?INT_MAX:N_iter->second,ret_val);
+            }
         }
-        return Adder(condensed_iter->second);
+        assert(N_iter <= N_end);
+        assert(N_iter == N_begin || (N_iter - 1)->second < position);
+        if(!(N_iter == N_end || N_iter->first >= position ||
+                N_iter->second >= position)) {
+            fprintf(stderr, "%d;%d;%d",position,N_iter->first,N_iter->second);
+            assert(false);
+        }
+        if (N_iter != N_end && N_iter->second >= position &&
+                position >= N_iter->first) {
+            ret_val = 0xf;
+            if (idx==p_idx) {
+                fprintf(stderr, "At %d, N match\n",position);
+            }
+        }
+        assert(!(ret_val & 0xf0));
+        return ret_val;
     }
 };
-struct condesed_container {
-    Mutation_Set *mut_set;
-    std::vector<Condesed_Muts *> children;
-    const std::string* sample;
-    condesed_container(
-        std::unordered_map<std::string, Condesed_Muts *> &out,
-        Original_State_t *ori_state,
-        const std::pair<std::string, std::vector<std::string>> &samp_name) {
-        sample=&samp_name.first;
-        mut_set = &(*ori_state)[samp_name.first];
-        for (const auto &condensed_children : samp_name.second) {
-            children.push_back(new Condesed_Muts);
-            out.emplace(condensed_children, children.back());
-        }
-    }
+
+typedef std::pair<std::vector<int>::const_iterator,
+        std::vector<int>::const_iterator>
+        iter_range;
+struct row_t {
+    MAT::Mutation mut;
+    mutated_t alleles;
+    row_t() {}
+    row_t(int pos) : mut(pos) {}
 };
-struct iter_heap {
-    struct Mut_Iter {
-        std::vector<MAT::Mutation>::const_iterator iter;
-        std::vector<MAT::Mutation>::const_iterator end;
-        Mut_Iter(const std::vector<MAT::Mutation> &muts) {
-            iter = muts.begin();
-            end = muts.end();
+typedef tbb::flow::function_node<std::vector<row_t> *> assigner_t;
+#define CHUNK_SIZ 64
+struct output_vcf_rows {
+    size_t start_idx;
+    size_t end_idx;
+    const std::vector<int>& positions;
+    assigner_t& out;
+    const std::vector<Sample_Pos_Mut>& all_samples;
+    void operator()()const {
+        size_t idx=start_idx;
+        std::vector<mut_iterator> iters;
+        for (const auto &samp : all_samples) {
+            iters.emplace_back(samp, positions[idx]);
         }
-        bool operator!() const {
-            return iter == end;
-        }
-        operator const MAT::Mutation &() const {
-            return *iter;
-        }
-        void operator++() {
-            iter++;
-        }
-        bool operator==(const MAT::Mutation &mut) const {
-            return iter->position == mut.position;
-        }
-        bool operator<(const Mut_Iter &other) const {
-            return iter->position > other.iter->position;
-        }
-        uint8_t get_allele() const {
-            return iter->get_all_major_allele();
-        }
-    };
-    std::vector<Mut_Iter> iters;
-    size_t size;
-    int lst;
-    iter_heap(std::vector<std::vector<MAT::Mutation>> &to_merge) {
-        lst = 0;
-        size = to_merge.size();
-        iters.reserve(to_merge.size());
-        for (const auto &one : to_merge) {
-            iters.emplace_back(one);
-        }
-        std::make_heap(iters.begin(), iters.end());
-        std::pop_heap(iters.begin(), iters.end());
-    }
-    void get_one(Mutation_Set *mut_set) {
-        MAT::Mutation mut = iters.back();
-        assert(mut.position > lst);
-        lst = mut.position;
-        size_t count = 0;
-        while (iters.back() == mut) {
-            auto &inc = iters.back();
-            count++;
-            mut.boundary1_all_major_allele &= inc.get_allele();
-            ++inc;
-            if (!inc) {
-                iters.pop_back();
-                if (iters.empty()) {
+        while (idx<end_idx) {
+            std::vector<row_t> *rows = new std::vector<row_t>;
+            rows->reserve(CHUNK_SIZ);
+            for (int count = 0; count < CHUNK_SIZ; count++) {
+                if (idx == end_idx) {
                     break;
                 }
-            } else {
-                std::push_heap(iters.begin(), iters.end());
+                rows->emplace_back(positions[idx]);
+                idx++;
             }
-            std::pop_heap(iters.begin(), iters.end());
+            for (size_t samp_idx = 0; samp_idx < iters.size(); samp_idx++) {
+                for (auto &row : *rows) {
+                    nuc_one_hot allele = iters[samp_idx].get_allele(row.mut.get_position());
+                    if (allele) {
+                        row.alleles.emplace_back(iters[samp_idx].idx, allele);
+                    }
+                }
+            }
+            out.try_put(rows);
         }
-        assert(count <= size);
-        if (count == size && mut.boundary1_all_major_allele !=
-                MAT::Mutation::refs[mut.position]) {
-            mut_set->insert(mut);
-        }
-    }
-    operator bool() const {
-        return !iters.empty();
     }
 };
-void add_ambuiguous_mutations(const char *path, Original_State_t &to_patch,
-                              Mutation_Annotated_Tree::Tree &tree) {
-    std::vector<condesed_container> condensed_children;
-    condensed_children.reserve(tree.condensed_nodes.size());
-    std::unordered_map<std::string, Condesed_Muts *> condensed_map;
-    for (const auto &condensed_one : tree.condensed_nodes) {
-        condensed_children.emplace_back(condensed_map, &to_patch,
-                                        condensed_one);
-    }
-    std::unordered_map<std::string,copyable_atomic> assigned;
-    assigned.reserve(to_patch.size());
-    for(const auto& ttt:to_patch) {
-        assigned.emplace(ttt.first,copyable_atomic{0});
-    }
-    Sample_Adder adder{to_patch, condensed_map,assigned};
-    load_mutations(path, num_threads, adder);
-    tbb::parallel_for(
-        tbb::blocked_range<size_t>(0, condensed_children.size()),
-    [&condensed_children](const tbb::blocked_range<size_t> &range) {
-        for (size_t idx = range.begin(); idx < range.end(); idx++) {
-            std::vector<std::vector<MAT::Mutation>> to_merge;
-            for (auto &c : condensed_children[idx].children) {
-                if (!c) {
-                    return;
+struct Assigner {
+    const std::vector<backward_pass_range> &child_idx_range;
+    const std::vector<forward_pass_range> &parent_idx;
+    FS_result_per_thread_t& fs_result;
+    const std::vector<MAT::Node*>& bfs_ordered_nodes;
+    void operator()(std::vector<row_t> *rows) const {
+        auto& this_content=fs_result.local();
+        this_content.init(child_idx_range.size());
+        for (auto &row : *rows) {
+            /*if (row.mut.position==3037) {
+                for (const auto& samp : row.alleles) {
+                    fprintf(stdout, "%s:%d\n",bfs_ordered_nodes[samp.first]->identifier.c_str(),samp.second);
                 }
-                if (c->not_Ns.empty() && c->Ns.empty()) {
-                    return;
-                }
-                std::vector<MAT::Mutation> this_merged;
-                std::merge(c->not_Ns.begin(), c->not_Ns.end(),
-                           c->Ns.begin(), c->Ns.end(),
-                           std::back_inserter(this_merged));
-                to_merge.push_back(std::move(this_merged));
+            }*/
+            if (row.alleles.empty()) {
+                continue;
             }
-            iter_heap heap(to_merge);
-            Mutation_Set mut_set_saging;
-            while (heap) {
-                heap.get_one(&mut_set_saging);
-            }
-            check_consistent(condensed_children[idx].mut_set,
-                             mut_set_saging,condensed_children[idx].sample);
-            condensed_children[idx].mut_set->swap(mut_set_saging);
+            std::sort(row.alleles.begin(), row.alleles.end(),
+                      mutated_t_comparator());
+            row.alleles.emplace_back(0, 0xf);
+            Fitch_Sankoff_Whole_Tree(child_idx_range, parent_idx, row.mut,
+                                     row.alleles, this_content);
         }
-    });
+        delete rows;
+    }
+};
+void get_sample_mut(const char *input_path,std::vector<Sample_Pos_Mut>& all_samples, MAT::Tree &tree) {
+    sample_pos_mut_local_t sample_pos_mut_local;
+    All_Sample_Appender appender{tree,sample_pos_mut_local};
+    load_mutations(input_path, 80, appender);
+    for (auto &sample_block : sample_pos_mut_local) {
+        all_samples.insert(all_samples.end(),
+                           std::make_move_iterator(sample_block.begin()),
+                           std::make_move_iterator(sample_block.end()));
+    }
+}
+void print_mut(const Sample_Pos_Mut& to_print) {
+    for (const auto& mut : to_print.not_Ns) {
+        fprintf(stderr, "%d:%d\t",mut.position,mut.mut);
+    }
+    for (const auto& mut : to_print.Ns) {
+        fprintf(stderr, "%d-%d:N\t",mut.first,mut.second);
+    }
+    fprintf(stderr, "\n");
+}
+void assign_state(std::vector<Sample_Pos_Mut>& all_samples, MAT::Tree &tree,FS_result_per_thread_t&output,const std::vector<MAT::Node*> bfs_ordered_nodes) {
+    std::vector<backward_pass_range> child_idx_range;
+    std::vector<forward_pass_range> parent_idx;
+    Fitch_Sankoff_prep(bfs_ordered_nodes, child_idx_range, parent_idx);
+    //size_t idx = 0;
+    std::vector<int> pos_mut_idx;
+    pos_mut_idx.reserve(MAT::Mutation::refs.size());
+    /*fprintf(stderr, "241:%d\n",MAT::Mutation::refs[241]);
+    fprintf(stderr, "3037:%d\n",MAT::Mutation::refs[3037]);
+    auto p_idx=tree.get_node("LR882438.1|260113|20-08-26")->bfs_index;
+    for (const auto& sample : all_samples) {
+        if (sample.bfs_idx==p_idx) {
+            print_mut(sample);
+        }
+    }*/
+    for (size_t idx = 0; idx < MAT::Mutation::refs.size(); idx++) {
+        if (MAT::Mutation::refs[idx]) {
+            pos_mut_idx.push_back(idx);
+        }
+    }
+    tbb::flow::graph g;
+    assigner_t assigner(g,tbb::flow::unlimited,Assigner{child_idx_range,parent_idx,output,bfs_ordered_nodes});
+    tbb::task_group transposer_group;
+    size_t last_end_idx=0;
+    int iter_thread_count=num_threads/6;
+    fprintf(stderr, "Using %d transposer threads",iter_thread_count);
+    size_t chunk_size=pos_mut_idx.size()/(iter_thread_count+1);
+    for (int thread_idx=0; thread_idx<iter_thread_count; thread_idx++) {
+        auto this_end_idx=last_end_idx+chunk_size;
+        transposer_group.run(output_vcf_rows{last_end_idx,this_end_idx,pos_mut_idx,assigner,all_samples});
+        last_end_idx=this_end_idx;
+    }
+    transposer_group.run(output_vcf_rows{last_end_idx,pos_mut_idx.size(),pos_mut_idx,assigner,all_samples});
+    fprintf(stderr, "last chunk size %zu, other chunk size %zu",pos_mut_idx.size()-last_end_idx,chunk_size);
+    transposer_group.wait();
+    g.wait_for_all();
+    deallocate_FS_cache(output);
+}
+void asign_and_fill(std::vector<Sample_Pos_Mut>& all_samples, MAT::Tree &tree,std::vector<MAT::Node*> bfs_ordered_nodes) {
+    FS_result_per_thread_t output;
+    assign_state(all_samples, tree, output, bfs_ordered_nodes);
+    //raise(SIGUSR1);
+    print_memory();
+    //malloc_stats();
+    fill_muts(output, bfs_ordered_nodes);
+}
+void add_ambiguous_mutation(const char *input_path, MAT::Tree &tree) {
+    tree.uncondense_leaves();
+    auto bfs_ordered_nodes = tree.breadth_first_expansion();
+    //p_idx=tree.get_node("LR882438.1|260113|20-08-26")->bfs_index;
+    p_idx=-1;
+    std::vector<Sample_Pos_Mut> all_samples;
+    get_sample_mut(input_path, all_samples, tree);
+    /*tbb::parallel_for(tbb::blocked_range<size_t>(0,pos_mut_idx.size(),100),Output_Genotypes{pos_mut_idx,all_samples,child_idx_range,parent_idx,output});*/
+    asign_and_fill(all_samples, tree, bfs_ordered_nodes);
+    auto par_score = tree.get_parsimony_score();
+    fprintf(stderr, "Before condensing %zu\n", par_score);
+    //raise(SIGUSR1);
+    print_memory();
+    //malloc_stats();
+    recondense_tree(tree);
 }
