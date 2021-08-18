@@ -137,6 +137,7 @@ clean_up_after_remove(MAT::Node *node, std::unordered_set<size_t> &deleted,
         if (merge_mutation_single_child(child, node->mutations)) {
             nodes_to_clean.push_back(child);
         }
+        child->have_masked|=node->have_masked;
         //fix boundary one alleles if child have only one child (parent of condensed node)
         if (child->children.size() <= 1) {
             auto &child_mut = child->mutations;

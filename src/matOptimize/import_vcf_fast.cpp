@@ -173,10 +173,12 @@ std::atomic<size_t> assigned_count;
 struct Assign_State {
     const std::vector<backward_pass_range>& child_idx_range;
     const std::vector<forward_pass_range>& parent_idx;
-    std::vector<tbb::concurrent_vector<Mutation_Annotated_Tree::Mutation>> &output;
+    FS_result_per_thread_t &output;
     void operator()(const Parsed_VCF_Line* vcf_line)const {
+        auto& this_out=output.local();
+        this_out.init(child_idx_range.size());
         assert(vcf_line->mutation.get_position()>0);
-        Fitch_Sankoff_Whole_Tree(child_idx_range,parent_idx,vcf_line->mutation,vcf_line->mutated,output);
+        Fitch_Sankoff_Whole_Tree(child_idx_range,parent_idx,vcf_line->mutation,vcf_line->mutated,this_out);
         assigned_count.fetch_add(1,std::memory_order_relaxed);
         delete vcf_line;
     }
@@ -236,30 +238,20 @@ void VCF_input(const char * name,MAT::Tree& tree) {
     }
     line_parser_t parser(input_graph,tbb::flow::unlimited,line_parser{idx_map});
     //feed used buffer back to decompressor
-    tbb::flow::make_edge(decompressor,parser);
 
-    std::vector<tbb::concurrent_vector<Mutation_Annotated_Tree::Mutation>> output(bfs_ordered_nodes.size());
     std::vector<backward_pass_range> child_idx_range;
     std::vector<forward_pass_range> parent_idx;
+    FS_result_per_thread_t output;
     Fitch_Sankoff_prep(bfs_ordered_nodes,child_idx_range, parent_idx);
     tbb::flow::function_node<Parsed_VCF_Line*> assign_state(input_graph,tbb::flow::unlimited,Assign_State{child_idx_range,parent_idx,output});
     tbb::flow::make_edge(tbb::flow::output_port<0>(parser),assign_state);
+    tbb::flow::make_edge(decompressor,parser);
     input_graph.wait_for_all();
     gzclose(fd);
     done=true;
     progress_bar_cv.notify_all();
-    //Filling mutation vector
-    tbb::affinity_partitioner ap;
-    tbb::parallel_for(
-        tbb::blocked_range<size_t>(0, bfs_ordered_nodes.size()),
-    [&bfs_ordered_nodes, &output](tbb::blocked_range<size_t> r) {
-        for (size_t i = r.begin(); i < r.end(); i++) {
-            const auto &to_refill = output[i];
-            bfs_ordered_nodes[i]->refill(to_refill.begin(), to_refill.end(),
-                                         to_refill.size());
-        }
-    },
-    ap);
+    deallocate_FS_cache(output);
+    fill_muts(output, bfs_ordered_nodes);
     size_t total_mutation_size=0;
     for(const auto node:bfs_ordered_nodes) {
         total_mutation_size+=node->mutations.size();

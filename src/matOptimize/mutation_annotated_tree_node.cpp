@@ -21,6 +21,7 @@ bool Mutation_Annotated_Tree::Node::is_root() {
 
 Mutation_Annotated_Tree::Node::Node() {
     identifier = "";
+    have_masked=false;
     parent = NULL;
     branch_length = -1.0;
     clade_annotations.clear();
@@ -29,6 +30,7 @@ Mutation_Annotated_Tree::Node::Node() {
 
 Mutation_Annotated_Tree::Node::Node (std::string id, float len) {
     identifier = id;
+    have_masked=false;
     parent = NULL;
     branch_length = len;
     mutations.clear();
@@ -37,6 +39,7 @@ Mutation_Annotated_Tree::Node::Node (std::string id, float len) {
 Mutation_Annotated_Tree::Node::Node (std::string id, Node* p, float len) {
     identifier = id;
     parent = p;
+    have_masked=false;
     branch_length = len;
     mutations.clear();
 }
@@ -60,6 +63,7 @@ Mutation_Annotated_Tree::Node::Node(const Node &other, Node *parent, Tree *tree,
     if (copy_mutations) {
         mutations=other.mutations;
     }
+    have_masked=other.have_masked;
     for (auto c : other.children) {
         children.push_back(new Node(*c, this, tree,copy_mutations));
     }
