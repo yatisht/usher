@@ -147,7 +147,6 @@ std::map<int, std::vector<std::shared_ptr<Codon>>> build_codon_map(std::ifstream
     return codon_map; 
 } 
 
-
 std::vector<MAT::Node *> postorder_iter() {
     std::vector<MAT::Node *> stack;
     
@@ -297,7 +296,7 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
             node_data->add_genbanks("");
             //internal nodes don't have country, lineage, date            
         } else if (metadata.find(node->identifier) == metadata.end()) {
-            node_data->add_names(node->identifier);
+            node_data->add_names(split(node->identifier, '|')[0]);
             node_data->add_countries(0); 
             node_data->add_lineages(0); 
             node_data->add_dates(0);
@@ -311,11 +310,11 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
             node_data->add_lineages(lineage); 
             node_data->add_dates(date); 
             node_data->add_genbanks(meta_fields[genbank_col]);
-            node_data->add_names(node->identifier);
+            node_data->add_names(split(node->identifier, '|')[0]);
         }
 
         if (node->parent == nullptr) {
-            node_data->add_parents(count); // root node
+            node_data->add_parents(0); // root node
         } else {
             node_data->add_parents(index_map[node->parent->identifier]);
         }
@@ -325,9 +324,13 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
     }
 
     // Set a y-value for each leaf
-    int32_t i = 0;
+    int32_t i = 1;
     std::reverse(leaves.begin(), leaves.end());
     for (auto &leaf : leaves){
+        if (leaf->identifier == "CHN/YN-0306-466/2020|MT396241.1|2020-03-06") {
+            node_data->set_y(index_map[leaf->identifier], 0.0);
+            continue;
+        }
         node_data->set_y(index_map[leaf->identifier], (float) i / 40000);
         i++;
     }
