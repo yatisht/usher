@@ -1,7 +1,11 @@
 #include "mutation_annotated_tree.hpp"
 #include "tbb/task.h"
 #include <atomic>
+#include <cstddef>
 #include <cstdio>
+#include <tbb/blocked_range.h>
+#include <tbb/parallel_for.h>
+#include <vector>
 //find mutated alleles shared by both of the input
 static void intersect_allele(const Mutation_Annotated_Tree::Mutations_Collection& in1, const Mutation_Annotated_Tree::Mutations_Collection& in2, Mutation_Annotated_Tree::Mutations_Collection& out) {
     if (in1.empty()||in2.empty()) {
@@ -45,41 +49,23 @@ static void get_common_mutations(std::vector<Mutation_Annotated_Tree::Node*>::co
 //Condense nodes, this parallelization is more
 //for getting around stack overflow than performance,
 //as condensing nodes doesn't take too long anyway
-struct Node_Condenser:public tbb::task {
-    Mutation_Annotated_Tree::Tree::condensed_node_t & condensed_nodes;
-    const std::vector<std::string>& missing_samples;
-    Mutation_Annotated_Tree::Node* root;
+struct Node_Condenser {
+    const std::vector<Mutation_Annotated_Tree::Node*>& condensable_nodes;
+    Mutation_Annotated_Tree::Tree::condensed_node_t& condensed_nodes;
     std::atomic<size_t>& condensed_nodes_count;
-    Node_Condenser(Mutation_Annotated_Tree::Tree::condensed_node_t & removed_nodes,const std::vector<std::string>& missing_samples,Mutation_Annotated_Tree::Node* root,std::atomic<size_t>& condensed_nodes_count):condensed_nodes(removed_nodes),missing_samples(missing_samples),root(root),condensed_nodes_count(condensed_nodes_count) {}
-    tbb::task* execute() override {
+    void condense(Mutation_Annotated_Tree::Node* root) const {
         //condensed children of root
         std::vector<Mutation_Annotated_Tree::Node*> polytomy_nodes;
-        //Task for each non-leaf node
-        std::vector<tbb::task*> to_spawn;
-        //continuation
-        tbb::empty_task* empty=new(allocate_continuation()) tbb::empty_task();
         //instead of removing,just copy children over
         std::vector<Mutation_Annotated_Tree::Node*> new_children;
         new_children.reserve(root->children.size());
         for(auto node:root->children) {
-            if (node->is_leaf()) {
-                if (std::find(missing_samples.begin(), missing_samples.end(), node->identifier) == missing_samples.end()
-                        &&node->no_valid_mutation()) {
-                    //have no valid mutation, so condense it
-                    polytomy_nodes.push_back(node);
-                } else {
-                    new_children.push_back(node);
-                }
+            if (node->is_leaf()&&node->no_valid_mutation()) {
+                //have no valid mutation, so condense it
+                polytomy_nodes.push_back(node);
             } else {
-                // a new task for non-leaf child
-                to_spawn.push_back(new (
-                                       empty->allocate_child()) Node_Condenser(condensed_nodes,missing_samples,node,condensed_nodes_count));
                 new_children.push_back(node);
             }
-        }
-        empty->set_ref_count(to_spawn.size());
-        for(auto task:to_spawn) {
-            empty->spawn(*task);
         }
         if (polytomy_nodes.size()>1) {
             Mutation_Annotated_Tree::Mutations_Collection new_shared_muts;
@@ -95,7 +81,7 @@ struct Node_Condenser:public tbb::task {
             }
 #endif
             //replace the first node to condense with the condensed node in place
-            std::vector<std::string> children_id{std::move(polytomy_nodes[0]->identifier)};
+            std::vector<std::string> children_id{polytomy_nodes[0]->identifier};
             children_id.reserve(polytomy_nodes.size());
             new_children.push_back(polytomy_nodes[0]);
             //get a new name for condensed node
@@ -103,30 +89,45 @@ struct Node_Condenser:public tbb::task {
             polytomy_nodes[0]->mutations.swap(new_shared_muts);
             //record original sample name
             for (size_t replaced_child_idx=1; replaced_child_idx<polytomy_nodes.size(); replaced_child_idx++) {
-                children_id.push_back(std::move(polytomy_nodes[replaced_child_idx]->identifier));
+                children_id.push_back(polytomy_nodes[replaced_child_idx]->identifier);
                 delete polytomy_nodes[replaced_child_idx];
             }
             //assert(res.second);
             root->children.swap(new_children);
             std::vector<std::string> temp;
             auto condensed_node_insert_result=condensed_nodes.emplace(polytomy_nodes[0]->identifier,temp);
-            //retry if failed to insert (shouldn't happen)
-            while (!condensed_node_insert_result.second) {
-                polytomy_nodes[0]->identifier="node_" + std::to_string(++condensed_nodes_count) + "_condensed_" + std::to_string(polytomy_nodes.size()) + "_leaves";
-                condensed_node_insert_result=condensed_nodes.emplace(polytomy_nodes[0]->identifier,temp);
-            }
             condensed_node_insert_result.first->second=std::move(children_id);
         }
         //scheduler bypass to run continuation task if no task spawned
-        return to_spawn.empty()?empty:nullptr;
+    }
+    void operator()(tbb::blocked_range<size_t> r) const {
+        for (size_t idx=r.begin(); idx<r.end(); idx++) {
+            condense(condensable_nodes[idx]);
+        }
     }
 };
+void find_condensable_nodes(Mutation_Annotated_Tree::Node* root,std::vector<Mutation_Annotated_Tree::Node*>& condensable_nodes) {
+    size_t child_count=0;
+    for (auto child : root->children) {
+        if (child->is_leaf()) {
+            child_count++;
+        } else {
+            find_condensable_nodes(child, condensable_nodes);
+        }
+    }
+    if (child_count>1) {
+        condensable_nodes.push_back(root);
+    }
+}
 void Mutation_Annotated_Tree::Tree::condense_leaves(std::vector<std::string> missing_samples) {
     if (condensed_nodes.size() > 0) {
         fprintf(stderr, "WARNING: tree contains condensed nodes. It may be condensed already!\n");
     }
+    std::vector<Mutation_Annotated_Tree::Node*> condensable_nodes;
+    find_condensable_nodes(root, condensable_nodes);
+
     std::atomic<size_t> condensed_nodes_count(0);
-    tbb::task::spawn_root_and_wait(*new(tbb::task::allocate_root()) Node_Condenser(condensed_nodes,missing_samples,root,condensed_nodes_count));
+    tbb::parallel_for(tbb::blocked_range<size_t>(0,condensable_nodes.size()),Node_Condenser{condensable_nodes,condensed_nodes,condensed_nodes_count});
     //assert(condensed_nodes_count.load()==condensed_nodes.size());
     for(const auto& condensed:condensed_nodes) {
         Mutation_Annotated_Tree::Node* ori_node=get_node(condensed.second[0]);
