@@ -1,4 +1,3 @@
-#include "src/matOptimize/mutation_annotated_tree.hpp"
 #include "tree_rearrangement_internal.hpp"
 #include <cstdio>
 #include <string>
@@ -162,10 +161,20 @@ char get_state(char* sample,int position) {
         }
     }
 }
-void recondense_tree(MAT::Tree& t) {
+void load_vcf_nh_directly( MAT::Tree& t,const std::string& vcf_path,Original_State_t& origin_states) {
+    //load VCF
+    auto start=std::chrono::steady_clock::now();
+    VCF_input(vcf_path.c_str(),t);
+    fputs("Finished loading from VCF and state assignment\n",stderr);
+    auto vcf_load_end=std::chrono::steady_clock::now();
+    std::chrono::duration<double>  elpased_time =vcf_load_end-start;
+    fprintf(stderr, "\nload vcf took %f minutes\n",elpased_time.count()/60.0);
     std::unordered_set<std::string> changed_nodes;
     clean_tree_load(t, changed_nodes);
     t.condense_leaves();
+#ifndef NDEBUG
+    check_samples(t.root, origin_states, &t);
+#endif
 #if defined (DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT) || defined (CHECK_STATE_REASSIGN)
     populate_mutated_pos(origin_states);
 #endif
@@ -178,18 +187,6 @@ void recondense_tree(MAT::Tree& t) {
         changed_nodes.insert(t.get_node(condensed.first)->parent->identifier);
     }
     clean_tree_load(t, changed_nodes);
-}
-void load_vcf_nh_directly( MAT::Tree& t,const std::string& vcf_path,Original_State_t& origin_states) {
-    //load VCF
-    auto start=std::chrono::steady_clock::now();
-    VCF_input(vcf_path.c_str(),t);
-    fputs("Finished loading from VCF and state assignment\n",stderr);
-    auto vcf_load_end=std::chrono::steady_clock::now();
-    std::chrono::duration<double>  elpased_time =vcf_load_end-start;
-    fprintf(stderr, "\nload vcf took %f minutes\n",elpased_time.count()/60.0);
-    auto par_score=t.get_parsimony_score();
-    fprintf(stderr, "Before condensing %zu\n",par_score);
-    recondense_tree(t);
     auto clean_tree_end=std::chrono::steady_clock::now();
     elpased_time =clean_tree_end-vcf_load_end;
     fprintf(stderr, "tree post processing took %f minutes\n",elpased_time.count()/60.0);

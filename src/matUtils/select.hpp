@@ -11,4 +11,4 @@ std::vector<std::string> get_nearby (MAT::Tree* T, std::string sample_id, int nu
 std::vector<std::string> get_short_steppers(MAT::Tree* T, std::vector<std::string> samples_to_check, int max_mutations);
 std::unordered_map<std::string,std::unordered_map<std::string,std::string>> read_metafile(std::string metainf, std::set<std::string> samples_to_use);
 std::vector<std::string> get_sample_match(MAT::Tree* T, std::string substring);
-std::vector<std::string> fill_random_samples(MAT::Tree* T, std::vector<std::string> current_samples, size_t target_size, bool lca_limit = false);
+std::vector<std::string> fill_random_samples(MAT::Tree* T, std::vector<std::string> current_samples, size_t target_size);

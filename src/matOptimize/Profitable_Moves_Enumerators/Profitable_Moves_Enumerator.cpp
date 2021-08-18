@@ -220,7 +220,7 @@ struct Profitable_Move_Comparator {
     }
 };
 void find_profitable_moves(MAT::Node *src, output_t &out,int radius,
-                           stack_allocator<Mutation_Count_Change>& allocator,int starting_parsimony_score
+                           stack_allocator<Mutation_Count_Change>& allocator
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
                            ,MAT::Tree* tree
 #endif
@@ -237,7 +237,7 @@ void find_profitable_moves(MAT::Node *src, output_t &out,int radius,
     Mutation_Count_Change_Collection alter_mutations;
     Mutation_Count_Change_Collection new_alter_mutations;
     std::vector<MAT::Node *> node_stack;
-    int parsimony_score_change = starting_parsimony_score;
+    int parsimony_score_change = 0;
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
     std::vector<Mutation_Count_Change_Collection> debug;
 #endif

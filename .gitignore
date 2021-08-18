@@ -14,4 +14,3 @@ test_data
 .cache
 *.pb
 a.out
-profile_heaps

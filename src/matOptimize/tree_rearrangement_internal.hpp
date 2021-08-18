@@ -1,11 +1,9 @@
 #include "mutation_annotated_tree.hpp"
 #include <chrono>
 #include <tbb/concurrent_unordered_map.h>
-#include <thread>
 #include <vector>
 #include <condition_variable>
 #include "check_samples.hpp"
-#include <random>
 #pragma once
 extern std::chrono::time_point<std::chrono::steady_clock> last_save_time;
 extern bool no_write_intermediate;
@@ -61,7 +59,7 @@ int individual_move(Mutation_Annotated_Tree::Node* src,Mutation_Annotated_Tree::
                     ,MAT::Tree* tree
 #endif
                    );
-Mutation_Annotated_Tree::Tree load_tree(const std::string& path,Original_State_t& origin_states);
+Mutation_Annotated_Tree::Tree load_tree(const std::string& path,Original_State_t& origin_states,const char* transposed_vcf_path);
 void load_vcf_nh_directly( MAT::Tree& t,const std::string& vcf_path,Original_State_t& origin_states);
 void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t,
                  std::vector<MAT::Node *> &bfs_ordered_nodes,
@@ -79,7 +77,7 @@ void VCF_input(const char * name,MAT::Tree& tree);
 
 size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
                      tbb::concurrent_vector<MAT::Node *> &nodes_to_search,
-                     MAT::Tree &t,int radius,FILE* log,bool allow_drift
+                     MAT::Tree &t,int radius,FILE* log
 #ifndef NDEBUG
                      , Original_State_t origin_states
 #endif
@@ -89,10 +87,3 @@ void save_final_tree(MAT::Tree &t, Original_State_t& origin_states,const std::st
 void clean_tree(MAT::Tree& t);
 void populate_mutated_pos(const Original_State_t& origin_state);
 void add_ambuiguous_mutations(const char* path,Original_State_t& to_patch,Mutation_Annotated_Tree::Tree& tree);
-void recondense_tree(MAT::Tree& t);
-void add_ambiguous_mutation(const char *input_path,MAT::Tree& tree);
-void print_memory();
-struct TlRng:public std::mt19937_64 {
-    TlRng():std::mt19937_64(std::chrono::steady_clock::now().time_since_epoch().count()*std::hash<std::thread::id>()(std::this_thread::get_id())) {}
-};
-extern thread_local TlRng rng;

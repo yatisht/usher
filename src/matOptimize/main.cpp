@@ -11,13 +11,13 @@
 #include <cstddef>
 #include <cstdlib>
 #include <ctime>
-//#include <malloc.h>
 #include <limits>
 #include <tbb/concurrent_vector.h>
 #include <tbb/task.h>
 #include <cstdio>
 #include <fcntl.h>
 #include <string>
+#include <tbb/scalable_allocator.h>
 #include <tbb/task_scheduler_init.h>
 #include <unistd.h>
 #include <sys/stat.h>
@@ -25,13 +25,7 @@
 #include <boost/program_options.hpp>
 #include <vector>
 #include <iostream>
-#include <sys/resource.h>
-thread_local TlRng rng;
-void print_memory() {
-    struct rusage usage;
-    getrusage(RUSAGE_SELF, &usage);
-    fprintf(stderr, "Max resident %zu kb\n",usage.ru_maxrss);
-}
+
 uint32_t num_threads;
 std::chrono::time_point<std::chrono::steady_clock> last_save_time;
 bool no_write_intermediate;
@@ -54,6 +48,7 @@ void log_flush_handle(int) {
     fflush(movalbe_src_log);
     progress_bar_cv.notify_all();
 }
+
 namespace po = boost::program_options;
 namespace MAT = Mutation_Annotated_Tree;
 MAT::Node* get_LCA(MAT::Node* src,MAT::Node* dst);
@@ -81,7 +76,6 @@ int main(int argc, char **argv) {
     std::string intermediate_pb_base_name;
     std::string profitable_src_log;
     std::string transposed_vcf_path;
-    int drift_iter;
     unsigned int max_optimize_hours;
     int radius;
     unsigned int minutes_between_save;
@@ -108,7 +102,6 @@ int main(int argc, char **argv) {
     ("max-hours,M",po::value(&max_optimize_hours)->default_value(0),"Maximium number of hours to run")
     ("transposed-vcf-path,V",po::value(&transposed_vcf_path)->default_value(""),"Auxiliary transposed VCF for ambiguous bases, used in combination with usher protobuf (-i)")
     ("version", "Print version number")
-    ("drift_iter,d",po::value(&drift_iter)->default_value(1),"Number of iteration to continue if no parsimony improvement")
     ("help,h", "Print help messages");
 
     po::options_description all_options;
@@ -248,18 +241,10 @@ int main(int argc, char **argv) {
             }
             fputs("Finished loading input tree, start reading VCF and assigning states \n",stderr);
             load_vcf_nh_directly(t, input_vcf_path, origin_states);
-        } else if(transposed_vcf_path!="") {
-            t=MAT::load_mutation_annotated_tree(input_pb_path);
-            //raise(SIGUSR1);
-            print_memory();
-            //malloc_stats();
-            add_ambiguous_mutation(transposed_vcf_path.c_str(),t);
-            //raise(SIGUSR1);
-            print_memory();
-            //malloc_stats();
         } else {
-            t = load_tree(input_pb_path, origin_states);
+            t = load_tree(input_pb_path, origin_states,transposed_vcf_path==""?nullptr:transposed_vcf_path.c_str());
         }
+        //scalable_allocation_command(TBBMALLOC_CLEAN_ALL_BUFFERS,0);
         if(!no_write_intermediate) {
             fputs("Checkpoint initial tree.\n",stderr);
             intermediate_writing=intermediate_template;
@@ -291,8 +276,7 @@ int main(int argc, char **argv) {
         movalbe_src_log=fopen("/dev/null", "w");
     }
     bool isfirst=true;
-    bool allow_drift=false;
-    while(stalled<drift_iter) {
+    while(stalled<1) {
         if (interrupted) {
             break;
         }
@@ -308,8 +292,8 @@ int main(int argc, char **argv) {
         for(auto node:bfs_ordered_nodes) {
             node->changed=false;
         }
-        if (allow_drift) {
-            nodes_to_search=tbb::concurrent_vector<MAT::Node *>(bfs_ordered_nodes.begin(),bfs_ordered_nodes.end());
+        if (nodes_to_search.empty()) {
+            break;
         }
         //Actual optimization loop
         while (!nodes_to_search.empty()) {
@@ -318,12 +302,12 @@ int main(int argc, char **argv) {
             }
             bfs_ordered_nodes = t.breadth_first_expansion();
             new_score =
-                optimize_tree(bfs_ordered_nodes, nodes_to_search, t,radius,movalbe_src_log,allow_drift
+                optimize_tree(bfs_ordered_nodes, nodes_to_search, t,radius,movalbe_src_log
 #ifndef NDEBUG
                               , origin_states
 #endif
                              );
-            fprintf(stderr, "parsimony score after optimizing: %zu\n\n", new_score);
+            fprintf(stderr, "after optimizing:%zu\n\n", new_score);
             auto save_start=std::chrono::steady_clock::now();
             if(std::chrono::steady_clock::now()-last_save_time>=save_period) {
                 if(!no_write_intermediate) {
@@ -332,13 +316,12 @@ int main(int argc, char **argv) {
                     t.save_detailed_mutations(intermediate_writing);
                     rename(intermediate_writing.c_str(), intermediate_pb_base_name.c_str());
                     last_save_time=std::chrono::steady_clock::now();
-                    fprintf(stderr, "Took %lld second to save intermediate protobuf\n",std::chrono::duration_cast<std::chrono::seconds>(last_save_time-save_start).count());
+                    fprintf(stderr, "Took %ld second to save intermediate protobuf\n",std::chrono::duration_cast<std::chrono::seconds>(last_save_time-save_start).count());
                 }
                 last_save_time=std::chrono::steady_clock::now();
             }
         }
         if (new_score >= score_before) {
-            allow_drift=true;
             stalled++;
         } else {
             score_before = new_score;

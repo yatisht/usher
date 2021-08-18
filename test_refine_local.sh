@@ -1,5 +1,4 @@
 #!/bin/bash
-cd ..
 mkdir -p testout
 rm -f testout/*
 build/usher --refine $3 -i $1 -v $2 -o testout/refined.pb
@@ -13,4 +12,3 @@ perl vcfNormalizeGt.pl testout/not-refined.vcf >testout/not-refined.normalized.v
 diff -s testout/refined.normalized.vcf testout/not-refined.normalized.vcf
 wc testout/refined.normalized.vcf
 wc testout/not-refined.normalized.vcf
-cd test/

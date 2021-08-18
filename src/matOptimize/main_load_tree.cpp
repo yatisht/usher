@@ -52,7 +52,6 @@ static void clean_up_internal_nodes(MAT::Node* this_node,MAT::Tree& tree,std::un
         //promote all its children, no need to change their mutation vector, as this_node assumed to have no valid mutations
         for (MAT::Node *child : this_node_ori_children) {
             child->changed=true;
-            child->have_masked|=this_node->have_masked;
             child->parent = this_node->parent;
             parent_children.push_back(child);
         }
@@ -134,7 +133,7 @@ void populate_mutated_pos(const Original_State_t& origin_state) {
     //clean up all mutexes
 }
 //Use Full fitch sankoff to reassign state from scratch
-static void reassign_states(MAT::Tree& t, Original_State_t& origin_states) {
+static void reassign_states(MAT::Tree& t, Original_State_t& origin_states,const char* transposed_vcf_path) {
     auto bfs_ordered_nodes = t.breadth_first_expansion();
 
     check_samples(t.root, origin_states, &t);
@@ -145,6 +144,11 @@ static void reassign_states(MAT::Tree& t, Original_State_t& origin_states) {
         //populate_mutated_pos(origin_states);
     }
     bfs_ordered_nodes = t.breadth_first_expansion();
+    std::vector<tbb::concurrent_vector<Mutation_Annotated_Tree::Mutation>>
+            output(bfs_ordered_nodes.size());
+    if( transposed_vcf_path) {
+        add_ambuiguous_mutations(transposed_vcf_path,origin_states,t);
+    }
     //get mutation vector
     std::vector<backward_pass_range> child_idx_range;
     std::vector<forward_pass_range> parent_idx;
@@ -156,25 +160,33 @@ static void reassign_states(MAT::Tree& t, Original_State_t& origin_states) {
         }
     });
     Fitch_Sankoff_prep(bfs_ordered_nodes,child_idx_range, parent_idx);
-    FS_result_per_thread_t FS_result;
     tbb::parallel_for(
         tbb::blocked_range<size_t>(0,pos_mutated.size()),
-    [&FS_result,&child_idx_range,&parent_idx,&pos_mutated](const tbb::blocked_range<size_t>& in) {
-        auto& this_result=FS_result.local();
-        this_result.init(child_idx_range.size());
+    [&output,&child_idx_range,&parent_idx,&pos_mutated](const tbb::blocked_range<size_t>& in) {
         for (size_t idx=in.begin(); idx<in.end(); idx++) {
             if (pos_mutated[idx].second.empty()) {
                 continue;
             }
-            mutated_t mutated_nodes_idx(pos_mutated[idx].second.begin(),pos_mutated[idx].second.end());
+            std::vector<std::pair<long,nuc_one_hot>> mutated_nodes_idx(pos_mutated[idx].second.begin(),pos_mutated[idx].second.end());
             std::sort(mutated_nodes_idx.begin(),mutated_nodes_idx.end(),mutated_t_comparator());
             mutated_nodes_idx.emplace_back(0,0xf);
             Fitch_Sankoff_Whole_Tree(child_idx_range,parent_idx, pos_mutated[idx].first, mutated_nodes_idx,
-                                     this_result);
+                                     output);
 
         }
     });
-    fill_muts(FS_result, bfs_ordered_nodes);
+    tbb::affinity_partitioner ap;
+    //sort and fill
+    tbb::parallel_for(
+        tbb::blocked_range<size_t>(0, bfs_ordered_nodes.size()),
+    [&bfs_ordered_nodes, &output](tbb::blocked_range<size_t> r) {
+        for (size_t i = r.begin(); i < r.end(); i++) {
+            const auto &to_refill = output[i];
+            bfs_ordered_nodes[i]->refill(to_refill.begin(), to_refill.end(),
+                                         to_refill.size());
+        }
+    },
+    ap);
     size_t total_mutation_size=0;
     for(const auto node:bfs_ordered_nodes) {
         total_mutation_size+=node->mutations.size();
@@ -183,13 +195,13 @@ static void reassign_states(MAT::Tree& t, Original_State_t& origin_states) {
 
 }
 //load from usher compatible pb
-Mutation_Annotated_Tree::Tree load_tree(const std::string& path,Original_State_t& origin_states) {
+Mutation_Annotated_Tree::Tree load_tree(const std::string& path,Original_State_t& origin_states,const char* transposed_vcf_path) {
     fputs("Start loading protobuf\n",stderr);
     Mutation_Annotated_Tree::Tree t =
         Mutation_Annotated_Tree::load_mutation_annotated_tree(path);
     fputs("Finished loading protobuf, start reassigning states\n",stderr);
-    reassign_states(t, origin_states);
+    reassign_states(t, origin_states,transposed_vcf_path);
     fputs("Finished reassigning states\n",stderr);
-    fprintf(stderr, "original parsimony score:%zu\n", t.get_parsimony_score());
+    fprintf(stderr, "original score:%zu\n", t.get_parsimony_score());
     return t;
 }

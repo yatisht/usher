@@ -1,6 +1,5 @@
 #include "common.hpp"
 #include <boost/date_time/gregorian/gregorian.hpp>
-#include <math.h>
 
 po::variables_map parse_introduce_command(po::parsed_options parsed);
 std::map<std::string, std::vector<std::string>> read_two_column (std::string sample_filename);

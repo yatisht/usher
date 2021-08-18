@@ -15,7 +15,7 @@ jobs:
     steps:
     - uses: actions/checkout@master
     - name: install pre-reqs and build
-      run: sudo ./install/installUbuntu.sh
+      run: sudo ./installUbuntu.sh
     - name: test
       run: |
         ./build/usher --help
@@ -29,7 +29,7 @@ jobs:
     steps:
     - uses: actions/checkout@master
     - name: install pre-reqs and build
-      run: sudo ./install/installUbuntu.sh
+      run: sudo ./installUbuntu.sh
     - name: test
       run: |
         ./build/usher --help
@@ -43,7 +43,7 @@ jobs:
     steps:
     - uses: actions/checkout@master
     - name: install pre-reqs and build
-      run: ./install/installMacOS.sh
+      run: ./installMacOS.sh
     - name: test
       run: |
         ./build/usher --help
