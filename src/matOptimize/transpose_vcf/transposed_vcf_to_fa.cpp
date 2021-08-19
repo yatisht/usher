@@ -2,7 +2,6 @@
 #include "src/matOptimize/tree_rearrangement_internal.hpp"
 #include "transpose_vcf.hpp"
 #include <algorithm>
-#include <bits/types/FILE.h>
 #include <boost/program_options.hpp>
 #include <boost/program_options/value_semantic.hpp>
 #include <climits>
