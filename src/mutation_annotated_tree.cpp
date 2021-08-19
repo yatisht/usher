@@ -1577,23 +1577,48 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (Mutation_Annotated_Tre
             }
 
             if (num_leaves > nearest_subtree_size) {
+                struct NodeDist {
+                    Mutation_Annotated_Tree::Node* node;
+                    uint32_t num_mut;
+                    
+                    NodeDist(Node* n, uint32_t d) {
+                        node = n;
+                        num_mut = d;
+                    }
+
+                    inline bool operator< (const NodeDist& n) const {
+                        return ((*this).num_mut < n.num_mut);
+                    }
+                };
+
                 for (auto l: T->get_leaves(last_anc->identifier)) {
                     leaves_to_keep.emplace_back(l->identifier);
                 }
-
-                std::vector<Mutation_Annotated_Tree::Node*> siblings;
-                for (auto child: anc->children) {
-                    if (child->identifier != last_anc->identifier) {
-                        siblings.emplace_back(child);
+                    
+                std::vector<NodeDist> node_distances;
+                for (auto l: T->get_leaves(anc->identifier)) {
+                    if (T->is_ancestor(last_anc->identifier, l->identifier)) {
+                        continue;
                     }
+
+                    uint32_t dist = 0;
+                    for (auto a: T->rsearch(l->identifier, true)) {
+                        if (a == anc) {
+                            break;
+                        }
+                        dist += a->mutations.size();
+                    }
+
+                    node_distances.emplace_back(NodeDist(l, dist));
                 }
 
-                for (size_t k=0; k<siblings.size(); k++) {
-                    for (auto l: T->get_leaves(siblings[k]->identifier)) {
-                        leaves_to_keep.emplace_back(l->identifier);
+                std::sort(node_distances.begin(), node_distances.end());
+                for (auto n: node_distances) {
+                    if (leaves_to_keep.size() == nearest_subtree_size) {
+                        break;
                     }
+                    leaves_to_keep.emplace_back(n.node->identifier); 
                 }
-                leaves_to_keep.resize(nearest_subtree_size);
             } else {
                 for (auto l: T->get_leaves(anc->identifier)) {
                     leaves_to_keep.emplace_back(l->identifier);
