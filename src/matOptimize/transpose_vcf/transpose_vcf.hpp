@@ -1,5 +1,6 @@
 #include <cstdint>
 #include <tbb/pipeline.h>
+#include <unordered_map>
 #include <zlib.h>
 #include <cassert>
 #include <string>
@@ -92,17 +93,43 @@ struct printer {
         }
     }
 };
-template<typename output_t>
-static void load_mutations(const char* path,int nthread,output_t& out) {
-    auto fh=open(path, O_RDONLY);
-    struct stat stat_buf;
-    fstat(fh, &stat_buf);
-    auto size=stat_buf.st_size;
-    const uint8_t* file=(uint8_t*) mmap(nullptr, size, PROT_READ, MAP_SHARED, fh, 0);
-    const uint8_t* last_out=file;
-    auto end=file+size;
-    tbb::parallel_pipeline(nthread,tbb::make_filter<void,const uint8_t*>(tbb::filter::serial_in_order,partitioner{last_out,end})&
-                           tbb::make_filter<const uint8_t*,void>(tbb::filter::parallel,printer<output_t> {out}));
+class mapped_file {
+    size_t size;
+    const uint8_t *map_start;
 
-    munmap((void*)file, size);
+  public:
+    mapped_file(const char *path) {
+        auto fh = open(path, O_RDONLY);
+        struct stat stat_buf;
+        fstat(fh, &stat_buf);
+        size = stat_buf.st_size;
+        map_start =
+            (uint8_t *)mmap(nullptr, size, PROT_READ, MAP_SHARED, fh, 0);
+    }
+    void get_mapped_range(const uint8_t *&start, const uint8_t *&end) const {
+        start = map_start;
+        end = map_start + size;
+    }
+    ~mapped_file() { munmap((void *)map_start, size); }
+};
+template <typename output_t>
+static void load_mutations(const char *path, int nthread, output_t &out) {
+    mapped_file f(path);
+    const uint8_t *last_out;
+    const uint8_t *end;
+    f.get_mapped_range(last_out, end);
+    tbb::parallel_pipeline(
+        nthread, tbb::make_filter<void, const uint8_t *>(
+                     tbb::filter::serial_in_order, partitioner{last_out, end}) &
+                     tbb::make_filter<const uint8_t *, void>(
+                         tbb::filter::parallel, printer<output_t>{out}));
+}
+static void parse_rename_file(const std::string&  in_file_name, std::unordered_map<std::string,std::string>& mapping){
+	FILE* fd=fopen(in_file_name.c_str(),"r");
+	char sample_name[BUFSIZ];
+	char rename[BUFSIZ];
+	while(fscanf(fd,"%s	%s",sample_name,rename)!=EOF){
+		mapping[sample_name]=rename;
+	}
+	fclose(fd);
 }

@@ -74,8 +74,6 @@ char Conflict_Resolver::operator()(std::vector<Profitable_Moves_ptr_t>& candidat
     char ret=0;
     Profitable_Moves_ptr_t selected_move=nullptr;
     for (Profitable_Moves_ptr_t& move : candidate_move) {
-        fprintf(log, "%s\t%s\n",move->src->identifier.c_str(),move->get_dst()->identifier.c_str());
-        //fflush(log);
         //don't need check-lock-check-set, as there is little contension on conflict resolver
         std::lock_guard<std::mutex> lk(register_lock);
         if (check_single_move_no_conflict(move)) {
@@ -104,7 +102,6 @@ char Conflict_Resolver::operator()(std::vector<Profitable_Moves_ptr_t>& candidat
 }
 //output all the nodes for apply
 void Conflict_Resolver::schedule_moves( std::vector<Profitable_Moves_ptr_t>& out) {
-    fputc('\n', log);
 #ifdef CONFLICT_RESOLVER_DEBUG
     std::unordered_map<size_t,std::pair<size_t,Profitable_Moves_ptr_t>> pushed_moves;
 #endif

@@ -1,5 +1,6 @@
 #include "apply_move.hpp"
 #include "src/matOptimize/mutation_annotated_tree.hpp"
+#include "src/matOptimize/tree_rearrangement_internal.hpp"
 #include <algorithm>
 #include <cstdio>
 #include <vector>
@@ -185,7 +186,7 @@ void set_state_from_parent(MAT::Node *node,
                            MAT::Tree &new_tree
 #endif
                           ) {
-    node->changed=true;
+    changed_nodes.push_back(node->identifier);
     MAT::Mutations_Collection new_mut;
     auto iter = parent_altered.begin();
     auto end = parent_altered.end();

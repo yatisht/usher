@@ -9,6 +9,7 @@
 #include <tbb/blocked_range.h>
 #include <tbb/concurrent_vector.h>
 #include <tbb/parallel_for.h>
+#include <tbb/parallel_sort.h>
 #include <unordered_set>
 #include <random>
 #include <utility>
@@ -43,23 +44,17 @@ void fix_condensed_nodes(MAT::Tree *tree) {
 }
 
 //see whether within radius of root have nodes that have same mutation as root and have changed in previous iteration (or this is the first iteration)
-static void check_changed_neighbor(int radius, MAT::Node* root, MAT::Node* exclude,bool& found,bool is_first,const std::unordered_set<int>& pos) {
-    if (root->changed) {
-        found=true;
-        return;
-    }
-    if (!radius||found) {
+static void mark_changed_neighbor(int radius, MAT::Node* root, MAT::Node* exclude) {
+    root->to_search=true;
+    if (!radius) {
         return;
     }
     if (root->parent&&root->parent!=exclude) {
-        check_changed_neighbor(radius-1, root->parent, root, found,is_first,pos);
+        mark_changed_neighbor(radius-1, root->parent, root);
     }
     for(auto node:root->children) {
-        if (found) {
-            return;
-        }
         if(node!=exclude) {
-            check_changed_neighbor(radius-1, node, root, found,is_first,pos);
+            mark_changed_neighbor(radius-1, node, root);
         }
     }
 }
@@ -67,33 +62,37 @@ static void check_changed_neighbor(int radius, MAT::Node* root, MAT::Node* exclu
 //find src node to search
 void find_nodes_to_move(const std::vector<MAT::Node *> &bfs_ordered_nodes,
                         tbb::concurrent_vector<MAT::Node *> &output,
-                        bool is_first, int radius) {
-    std::vector<MAT::Node*> first_pass_nodes(bfs_ordered_nodes);
+                        bool is_first, int radius,MAT::Tree &tree) {
     auto start=std::chrono::steady_clock::now();
-    std::shuffle(first_pass_nodes.begin(), first_pass_nodes.end(), rng);
-    //first_pass_nodes.reserve(nodes_with_recurrent_mutations.size()*2);
-    //add_ancestors(nodes_with_recurrent_mutations, pushed_nodes, first_pass_nodes);
-    fprintf(stderr, "First pass nodes: %zu \n",first_pass_nodes.size());
     if (is_first) {
-        output=tbb::concurrent_vector<MAT::Node*>(first_pass_nodes.begin(),first_pass_nodes.end());
+        output=tbb::concurrent_vector<MAT::Node*>(bfs_ordered_nodes.begin(),bfs_ordered_nodes.end());
+        for(auto node:bfs_ordered_nodes){
+            node->to_search=false;
+            node->last_searched_arcs=0;
+        }
     } else {
-        output.reserve(first_pass_nodes.size());
-        tbb::parallel_for(tbb::blocked_range<size_t>(0,first_pass_nodes.size()),[&first_pass_nodes,is_first,radius,&output](const tbb::blocked_range<size_t>& r) {
+        //mark surrounding of changed nodes
+        tbb::parallel_sort(changed_nodes.begin(),changed_nodes.end());
+        auto end_iter=std::unique(changed_nodes.begin(),changed_nodes.end());
+        changed_nodes.erase(end_iter,changed_nodes.end());
+        tbb::parallel_for(tbb::blocked_range<size_t>(0,changed_nodes.size()),[radius,&tree](const tbb::blocked_range<size_t>& r) {
             for (size_t idx=r.begin(); idx<r.end(); idx++) {
-                auto node=first_pass_nodes[idx];
-                std::unordered_set<int> pos;
-                pos.reserve(node->mutations.size()*4);
-                for(const auto& mut:node->mutations) {
-                    pos.insert(mut.get_position());
+                auto node=tree.get_node(changed_nodes[idx]);
+                if (!node) {
+                    continue;
                 }
-                bool found=false;
-                check_changed_neighbor(radius, node, nullptr, found, is_first, pos);
-                if (found) {
-                    output.push_back(node);
-                }
+                mark_changed_neighbor(radius, node, nullptr);
             }
         });
+        output.reserve(bfs_ordered_nodes.size());
+        for(auto node:bfs_ordered_nodes){
+            if (node->to_search) {
+                output.push_back(node);
+            }
+            node->to_search=false;
+        }
     }
+    changed_nodes.clear();
     fprintf(stderr, "Will search %f of nodes\n",(double)output.size()/(double)bfs_ordered_nodes.size());
     std::chrono::duration<double> elapsed_seconds = std::chrono::steady_clock::now()-start;
     fprintf(stderr, "Took %f s to find nodes to move\n",elapsed_seconds.count());

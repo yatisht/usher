@@ -22,9 +22,8 @@ struct Conflict_Resolver {
     Cross_t potential_crosses;
     //int& nodes_inside;
     Deferred_Move_t & deferred_moves;
-    FILE* log;
     std::mutex register_lock;
-    Conflict_Resolver(size_t node_count,Deferred_Move_t& deferred_moves,FILE* log):potential_crosses(node_count),deferred_moves(deferred_moves),log(log) {}
+    Conflict_Resolver(size_t node_count,Deferred_Move_t& deferred_moves):potential_crosses(node_count),deferred_moves(deferred_moves) {}
     bool check_single_move_no_conflict(Profitable_Moves_ptr_t& candidate_move)const;
     bool register_single_move_no_conflict(Profitable_Moves_ptr_t& candidate_move);
     //enqueuing a move
