@@ -4,6 +4,7 @@
 po::variables_map parse_introduce_command(po::parsed_options parsed) {
 
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
+    uint32_t num_threads;
     std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
 
     po::variables_map vm;
@@ -37,7 +38,7 @@ po::variables_map parse_introduce_command(po::parsed_options parsed) {
     "Report the top r potential origins for any given cluster from a region in multi-region mode. Set to 0 to report as many as possible.")  
     ("minimum-to-report,R", po::value<float>()->default_value(0.05),
     "Set to never report origins below the indicated confidence value. Default 0.05.")
-    ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
+    ("threads,T", po::value<uint32_t>(&num_threads)->default_value(num_cores), num_threads_message.c_str())
     ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
     // (positional) command name, so we need to erase that.
@@ -451,13 +452,11 @@ std::pair<boost::gregorian::date,boost::gregorian::date> get_nearest_date(MAT::T
     return std::pair<boost::gregorian::date,boost::gregorian::date> (earliest,latest);
 }
 
-std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, std::vector<std::string>> sample_regions, bool add_info, std::string clade_output, float min_origin_confidence, std::string bycluster, std::string dump_assignments, bool eval_uncertainty, uint32_t num_threads, std::string earliest_date = "1500/1/1", std::string latest_date = "1500/1/1", std::map<std::string, std::string> datemeta = {}, float minimum_reporting = 0.05, size_t num_to_report = 1) {
+std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, std::vector<std::string>> sample_regions, bool add_info, std::string clade_output, float min_origin_confidence, std::string bycluster, std::string dump_assignments, bool eval_uncertainty, std::string earliest_date = "1500/1/1", std::string latest_date = "1500/1/1", std::map<std::string, std::string> datemeta = {}, float minimum_reporting = 0.05, size_t num_to_report = 1) {
     //for every region, independently assign IN/OUT states
     //and save these assignments into a map of maps
     //so we can check membership of introduction points in each of the other groups
     //this allows us to look for migrant flow between regions
-    tbb::task_scheduler_init init(num_threads);
-    static tbb::affinity_partitioner ap;
     std::map<std::string, std::map<std::string, float>> region_assignments;
     boost::gregorian::date recency_filter;
     boost::gregorian::date early_filter;
@@ -478,7 +477,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
     //I also suspect I could use pointers for the assignment maps to make this more memory efficient
     std::vector<std::string> regions ;
     for ( auto r : sample_regions ) regions.push_back( r.first ) ;
-
+    static tbb::affinity_partitioner ap;
     tbb::parallel_for(tbb::blocked_range<size_t>( 0, regions.size() ),
     [&](const tbb::blocked_range<size_t> r) {
       for ( int l = r.begin() ; l < r.end() ; l ++ ) {
@@ -898,9 +897,10 @@ void introduce_main(po::parsed_options parsed) {
     size_t num_to_report = vm["num-to-report"].as<size_t>();
     float min_to_report = vm["minimum-to-report"].as<float>();
     // Load input MAT and uncondense tree
-    MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
     uint32_t num_threads = vm["threads"].as<uint32_t>();
-    //tbb::task_scheduler_init init(num_threads);
+    fprintf(stderr, "Initializing %u worker threads.\n\n", num_threads);
+    tbb::task_scheduler_init init(num_threads);
+    MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
     //T here is the actual object.
     if (T.condensed_nodes.size() > 0) {
         T.uncondense_leaves();
@@ -920,7 +920,7 @@ void introduce_main(po::parsed_options parsed) {
             exit(1);
         }
     }
-    auto outstrings = find_introductions(&T, region_map, add_info, clade_regions, moconf, clusterout, dump_assignments, leafconf, num_threads, earliest_date, latest_date, datemeta, min_to_report, num_to_report);
+    auto outstrings = find_introductions(&T, region_map, add_info, clade_regions, moconf, clusterout, dump_assignments, leafconf, earliest_date, latest_date, datemeta, min_to_report, num_to_report);
 
     std::ofstream of;
     of.open(output_file);
