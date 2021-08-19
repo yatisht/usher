@@ -1,7 +1,0 @@
-strain	genbank_accession	date	country	host	completeness	length	Nextstrain_clade	pangolin_lineage
-root	MW00001.1	01/01/01	China	Homo sapiens		29001	20A	B.1
-Sample1	MW00002.1	02/02/02	USA	Homo sapiens		29002	21A	B.2
-Sample2	MW00003.1	03/03/03	Japan	Homo sapiens		29003	22A	B.3
-Sample3	MW00004.1	04/04/04	Ireland	Homo sapiens		29004	23A	B.4
-Sample4	MW00005.1	05/05/05	Mexico	Homo sapiens		29005	24A	B.5
-Sample5	MW00006.1	06/06/06	Spain	Homo sapiens		29006	25A	B.6
