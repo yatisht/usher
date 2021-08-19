@@ -13,6 +13,7 @@ extern size_t max_queued_moves;
 extern uint32_t num_threads;
 extern std::chrono::steady_clock::duration save_period;
 namespace MAT = Mutation_Annotated_Tree;
+extern std::vector<std::string> changed_nodes;
 extern tbb::concurrent_unordered_map<MAT::Mutation, tbb::concurrent_unordered_map<std::string, nuc_one_hot>*,Mutation_Pos_Only_Hash,
        Mutation_Pos_Only_Comparator>
        mutated_positions;
@@ -73,7 +74,7 @@ void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t,
                 );
 void fix_condensed_nodes(MAT::Tree *tree) ;
 void find_nodes_to_move(const std::vector<MAT::Node *> &bfs_ordered_nodes,
-                        tbb::concurrent_vector<MAT::Node*> &output,bool is_first,int radius) ;
+                        tbb::concurrent_vector<MAT::Node*> &output,bool is_first,int radius,MAT::Tree &tree) ;
 void add_root(MAT::Tree *tree) ;
 void VCF_input(const char * name,MAT::Tree& tree);
 

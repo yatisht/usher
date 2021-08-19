@@ -311,18 +311,13 @@ int main(int argc, char **argv) {
         }
         bfs_ordered_nodes = t.breadth_first_expansion();
         fputs("Start Finding nodes to move \n",stderr);
+        find_nodes_to_move(bfs_ordered_nodes, nodes_to_search,isfirst,radius,t);
         if (radius<0&&(isfirst||nodes_seached_this_iter>nodes_seached_last_iter)) {
-            nodes_to_search=tbb::concurrent_vector<MAT::Node*>(bfs_ordered_nodes.begin(),bfs_ordered_nodes.end());
             radius*=2;
             nodes_seached_last_iter=nodes_seached_this_iter;
-        }else {
-            find_nodes_to_move(bfs_ordered_nodes, nodes_to_search,isfirst,radius);        
         }
         isfirst=false;
         fprintf(stderr,"%zu nodes to search\n",nodes_to_search.size());
-        for(auto node:bfs_ordered_nodes) {
-            node->changed=false;
-        }
         if (allow_drift) {
             nodes_to_search=tbb::concurrent_vector<MAT::Node *>(bfs_ordered_nodes.begin(),bfs_ordered_nodes.end());
         }

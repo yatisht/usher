@@ -134,11 +134,17 @@ std::pair<size_t, size_t> optimize_tree(std::vector<MAT::Node *> &bfs_ordered_no
             }
             if(((!deferred_nodes.size())||(std::chrono::steady_clock::now()-last_save_time)<save_period)&&deferred_nodes.size()<max_queued_moves) {
                 output_t out;
-                nodes_searched_this_batch+=find_profitable_moves(nodes_to_search[i], out, radius,this_thread_FIFO_allocator,allow_drift?-1:0
+                auto node=nodes_to_search[i];
+                auto this_node_searched=find_profitable_moves(node, out, radius,this_thread_FIFO_allocator,allow_drift?-1:0
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
                                       ,&t
 #endif
                                      );
+                if (this_node_searched>node->last_searched_arcs) {
+                    node->to_search=true;
+                    node->last_searched_arcs=this_node_searched;
+                }
+                nodes_searched_this_batch+=this_node_searched;
                 assert(this_thread_FIFO_allocator.empty());
                 if (!out.moves.empty()) {
                     //resolve conflicts

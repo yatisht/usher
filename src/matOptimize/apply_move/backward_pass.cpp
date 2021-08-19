@@ -1,5 +1,6 @@
 #include "apply_move.hpp"
 #include "src/matOptimize/mutation_annotated_tree.hpp"
+#include "src/matOptimize/tree_rearrangement_internal.hpp"
 #include <algorithm>
 #include <cstddef>
 #include <vector>
@@ -353,7 +354,7 @@ void reassign_backward_pass(
 #endif
                              );
         if (changed) {
-            heap->altered_node->changed=true;
+            changed_nodes.push_back(heap->altered_node->identifier);
         }
     } while (heap.next(changed));
 }
