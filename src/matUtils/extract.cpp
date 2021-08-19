@@ -9,10 +9,14 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
     conv_desc.add_options()
     ("input-mat,i", po::value<std::string>()->required(),
      "Input mutation-annotated tree file [REQUIRED]")
+    ("input-gtf,g", po::value<std::string>()->default_value(""),
+     "Input GTF annotations file (only used with --taxodium)")
+    ("input-fasta,f", po::value<std::string>()->default_value(""),
+     "Input FASTA reference file (only used with --taxodium)")
     ("samples,s", po::value<std::string>()->default_value(""),
      "Select samples by explicitly naming them. One per line")
     ("metadata,M", po::value<std::string>()->default_value(""),
-     "Comma-delineated paths to metadata tsv/csvs containing categorical metadata values for a json output. Used with -j only")
+     "Comma-delineated paths to metadata tsv/csvs containing categorical metadata values for a json or taxodium output. Used with -j and -l only")
     ("clade,c", po::value<std::string>()->default_value(""),
      "Select samples by membership in at least one of the indicated clade(s), comma delimited.")
     ("mutation,m", po::value<std::string>()->default_value(""),
@@ -63,6 +67,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
      "Write the tree as a JSON to the indicated file.")
     ("write-tree,t", po::value<std::string>()->default_value(""),
      "Use to write a newick tree to the indicated file.")
+    ("write-taxodium,l", po::value<std::string>()->default_value(""),
+     "Write protobuf in alternate format consumed by Taxodium.")
     ("retain-branch-length,E", po::bool_switch(),
      "Use to not recalculate branch lengths when saving newick output. Used only with -t")
     ("minimum-subtrees-size,N", po::value<size_t>()->default_value(0),
@@ -140,14 +146,19 @@ void extract_main (po::parsed_options parsed) {
     std::string tree_filename = dir_prefix + vm["write-tree"].as<std::string>();
     std::string vcf_filename = dir_prefix + vm["write-vcf"].as<std::string>();
     std::string output_mat_filename = dir_prefix + vm["write-mat"].as<std::string>();
+    std::string output_tax_filename = dir_prefix + vm["write-taxodium"].as<std::string>();
     std::string json_filename = dir_prefix + vm["write-json"].as<std::string>();
     std::string meta_filename = vm["metadata"].as<std::string>();
+    std::string gtf_filename = dir_prefix + vm["input-gtf"].as<std::string>();
+    std::string fasta_filename = dir_prefix + vm["input-fasta"].as<std::string>();
+
+
     bool collapse_tree = vm["collapse-tree"].as<bool>();
     bool no_genotypes = vm["no-genotypes"].as<bool>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
     //check that at least one of the output filenames (things which take dir_prefix)
     //are set before proceeding.
-    std::vector<std::string> outs = {sample_path_filename, clade_path_filename, all_path_filename, tree_filename, vcf_filename, output_mat_filename, json_filename, used_sample_filename};
+    std::vector<std::string> outs = {sample_path_filename, clade_path_filename, all_path_filename, tree_filename, vcf_filename, output_mat_filename, output_tax_filename, json_filename, used_sample_filename};
     if (!std::any_of(outs.begin(), outs.end(), [=](std::string f) {
     return f != dir_prefix;
 }) &&
@@ -507,9 +518,10 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         outfile.close();
         fprintf(stderr, "Completed in %ld msec\n\n", timer.Stop());
     }
+
     std::vector<std::map<std::string,std::map<std::string,std::string>>> catmeta;
+    std::vector<std::string> metav;
     if (meta_filename != "") {
-        std::vector<std::string> metav;
         std::stringstream mns(meta_filename);
         std::string m;
         while (std::getline(mns,m,',')) {
@@ -517,9 +529,12 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         }
         assert (metav.size() > 0);
         std::set<std::string> samples_included(samples.begin(), samples.end());
-        for (auto mv: metav) {
-            auto scm = read_metafile(mv, samples_included);
-            catmeta.emplace_back(scm);
+        if (output_tax_filename == dir_prefix) {
+            // Don't do this in the case of taxodium pb output
+            for (auto mv: metav) {
+                auto scm = read_metafile(mv, samples_included);
+                catmeta.emplace_back(scm);
+            }
         }
     }
     //if json output AND mutation context is requested, add an additional metadata column indicating whether each branch contains
@@ -636,7 +651,32 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         if (!resolve_polytomies) {
             subtree.condense_leaves();
         }
+
         MAT::save_mutation_annotated_tree(subtree, output_mat_filename);
+        fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+    }
+    if (output_tax_filename != dir_prefix) {
+        timer.Start();
+        bool quit = false;
+        if (gtf_filename == dir_prefix) {
+            fprintf(stderr, "ERROR: You must specify a GTF file with -g\n");
+            quit = true;
+        }
+        if (fasta_filename == dir_prefix) {
+            fprintf(stderr, "ERROR: You must specify a FASTA reference file with -f\n");
+            quit = true;
+        }
+        if (quit) {
+            exit(1);
+        }
+        fprintf(stderr, "Saving output MAT file in Taxodium format: %s.\n",  output_tax_filename.c_str());
+        if (collapse_tree) {
+            subtree.collapse_tree();
+        }
+        if (!resolve_polytomies) {
+            subtree.condense_leaves();
+        }
+        save_taxodium_tree(subtree, output_tax_filename, metav, gtf_filename, fasta_filename);
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
 }

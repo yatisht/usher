@@ -144,9 +144,9 @@ std::pair<size_t, size_t> optimize_tree(std::vector<MAT::Node *> &bfs_ordered_no
                     //resolve conflicts
                     if (allow_drift) {
                         std::shuffle(out.moves.begin(), out.moves.end(), rng);
-                    }else {
-                    deferred_nodes.push_back(
-                        out.moves[0]->get_src());    
+                    } else {
+                        deferred_nodes.push_back(
+                            out.moves[0]->get_src());
                     }
                     resolver(out.moves);
                 }
