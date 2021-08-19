@@ -9,9 +9,9 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
     conv_desc.add_options()
     ("input-mat,i", po::value<std::string>()->required(),
      "Input mutation-annotated tree file [REQUIRED]")
-    ("input-gtf,g", po::value<std::string>(),
+    ("input-gtf,g", po::value<std::string>()->default_value(""),
      "Input GTF annotations file (only used with --taxodium)")
-    ("input-fasta,f", po::value<std::string>(),
+    ("input-fasta,f", po::value<std::string>()->default_value(""),
      "Input FASTA reference file (only used with --taxodium)")
     ("samples,s", po::value<std::string>()->default_value(""),
      "Select samples by explicitly naming them. One per line")
@@ -521,19 +521,20 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
 
     std::vector<std::map<std::string,std::map<std::string,std::string>>> catmeta;
     std::vector<std::string> metav;
-    std::stringstream mns(meta_filename);
-    std::string m;
-    while (std::getline(mns,m,',')) {
-        metav.push_back(m);
-    }
-    assert (metav.size() > 0);
-
-    // parse the metadata normally unless outputting to taxodium pb
-    if (meta_filename != "" && output_tax_filename != dir_prefix) {
+    if (meta_filename != "") {
+        std::stringstream mns(meta_filename);
+        std::string m;
+        while (std::getline(mns,m,',')) {
+            metav.push_back(m);
+        }
+        assert (metav.size() > 0);
         std::set<std::string> samples_included(samples.begin(), samples.end());
-        for (auto mv: metav) {
-            auto scm = read_metafile(mv, samples_included);
-            catmeta.emplace_back(scm);
+        if (output_tax_filename == dir_prefix) {
+            // Don't do this in the case of taxodium pb output
+            for (auto mv: metav) {
+                auto scm = read_metafile(mv, samples_included);
+                catmeta.emplace_back(scm);
+            }
         }
     }
     //if json output AND mutation context is requested, add an additional metadata column indicating whether each branch contains
