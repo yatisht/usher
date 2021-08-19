@@ -394,8 +394,8 @@ std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::map<int, st
         std::string codon_id = codon_ptr->orf_name + ':' + std::to_string(codon_ptr->codon_number+1); 
         char orig_protein = orig_proteins.find(codon_id)->second; 
         if (taxodium_format) {
-            if (orig_protein == codon_ptr->protein) {
-                return "";
+            if (orig_protein == codon_ptr->protein) { // exclude synonymous mutations
+                continue;
             }
             prot_string += split(codon_id, ':')[0] + ':' + orig_protein + '_' + split(codon_id, ':')[1] + '_' + codon_ptr->protein + ';';
         } else {
