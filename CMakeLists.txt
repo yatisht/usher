@@ -139,7 +139,12 @@ if(DEFINED Protobuf_PATH)
         LANGUAGE cpp
         TARGET matOptimize
         PROTOS mutation_detailed.proto)
-
+   
+    protobuf_generate(
+        LANGUAGE cpp
+        TARGET matUtils
+        PROTOS taxodium.proto)
+        
 else()
     protobuf_generate_cpp(
         PROTO_SRCS PROTO_HDRS
@@ -150,6 +155,10 @@ else()
         DETAILED_MUTATIONS_PROTO_HDRS
         mutation_detailed.proto)
 
+    protobuf_generate_cpp(
+        TAXO_SRCS TAXO_HDRS
+        taxodium.proto)
+    
     add_executable(usher
         src/mutation_annotated_tree.cpp
         src/usher_mapper.cpp
@@ -164,7 +173,10 @@ else()
         ${MATUTIL_SRCS}
         ${PROTO_SRCS}
         ${PROTO_HDRS}
+        ${TAXO_SRCS}
+        ${TAXO_HDRS}
         )
+
     add_executable(ripples
         src/mutation_annotated_tree.cpp
         src/usher_mapper.cpp

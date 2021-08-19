@@ -1,4 +1,7 @@
 #include "common.hpp"
+#include "taxodium.pb.h"
+
+enum Fields {genbank_col, date_col, country_col, host_col, completeness_col, length_col, clade_col, lineage_col, index_col};
 
 static std::unordered_map<std::string, char> translation_map= {
     {"GCT", 'A'}, {"GCC", 'A'}, {"GCA", 'A'}, {"GCG", 'A'}, {"GCN", 'A'},
@@ -69,7 +72,8 @@ struct Codon {
     }
 };
 
-std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::map<int, std::vector<std::shared_ptr<Codon>>> &codon_map);
+std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::map<int, std::vector<std::shared_ptr<Codon>>> &codon_map, bool taxodium_format);
 void translate_main(MAT::Tree *T, std::string output_filename, std::string gff_filename, std::string fasta_filename);
+void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, std::string fasta_filename, Taxodium::AllNodeData *node_data, Taxodium::AllData *all_data, std::unordered_map<std::string, std::vector<std::string>> &metadata);
 void cleanup_codon_map(std::map<int, std::vector<std::shared_ptr<Codon>>> &codon_map);
 void undo_mutations(std::vector<MAT::Mutation> &mutations, std::map<int, std::vector<std::shared_ptr<Codon>>> &codon_map);
