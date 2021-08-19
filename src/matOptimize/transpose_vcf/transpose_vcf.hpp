@@ -84,7 +84,7 @@ struct printer {
         unsigned int item_len=*(int*) in;
         size_t out_len=MAX_SIZ;
         auto uncompress_out=uncompress(buffer, &out_len, in+4, item_len);
-        assert(uncompress_out==Z_OK);
+        if (uncompress_out==Z_OK) exit(1);
         const uint8_t* start=buffer;
         auto end=buffer+out_len;
         while(start!=end) {

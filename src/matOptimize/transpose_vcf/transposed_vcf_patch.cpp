@@ -132,7 +132,7 @@ struct mut_iterator {
         while (N_iter != N_end && N_iter->second < position) {
             N_iter++;
             if (idx==p_idx) {
-                fprintf(stderr, "At %d, N incremented to %d-%d, nuc %d\n",position,N_iter==N_end?INT_MAX:N_iter->first,position,N_iter==N_end?INT_MAX:N_iter->second,ret_val);
+                fprintf(stderr, "At %d, N incremented to %d - %d, nuc %d\n", position, N_iter==N_end?INT_MAX:N_iter->first, N_iter==N_end?INT_MAX:N_iter->second, ret_val);
             }
         }
         assert(N_iter <= N_end);

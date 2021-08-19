@@ -147,10 +147,10 @@ std::map<int, std::vector<std::shared_ptr<Codon>>> build_codon_map(std::ifstream
     return codon_map;
 }
 
-std::vector<MAT::Node *> postorder_iter() {
-    std::vector<MAT::Node *> stack;
-
-}
+//std::vector<MAT::Node *> postorder_iter() {
+//    std::vector<MAT::Node *> stack;
+//
+//}
 
 void translate_main(MAT::Tree *T, std::string output_filename, std::string gtf_filename, std::string fasta_filename) {
     std::ifstream fasta_file(fasta_filename);
