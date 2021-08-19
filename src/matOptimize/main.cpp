@@ -81,6 +81,7 @@ int main(int argc, char **argv) {
     std::string input_vcf_path;
     std::string intermediate_pb_base_name;
     std::string profitable_src_log;
+    std::chrono::steady_clock::duration ori_save_period;
     std::string transposed_vcf_path;
     int drift_iter;
     unsigned int max_optimize_hours;
@@ -222,14 +223,15 @@ int main(int argc, char **argv) {
     }
     if (minutes_between_save) {
         fprintf(stderr, "Will save intermediate result every %d minutes\n",minutes_between_save);
-        save_period=std::chrono::minutes(minutes_between_save);
+        ori_save_period=std::chrono::minutes(minutes_between_save);
     } else {
-        save_period=save_period.max();
+        ori_save_period=ori_save_period.max();
     }
     fprintf(stderr,"Run kill -s SIGUSR2 %d to apply all the move found immediately, then output and exit.\n",pid);
     fprintf(stderr,"Using %d threads. \n",num_threads);
-    std::chrono::steady_clock::duration max_optimize_duration=std::chrono::hours(max_optimize_hours);
+    std::chrono::steady_clock::duration max_optimize_duration=std::chrono::hours(max_optimize_hours)-std::chrono::minutes(30);
     auto start_time=std::chrono::steady_clock::now();
+    auto end_time=start_time+max_optimize_duration;
     tbb::task_scheduler_init init(num_threads);
 
     //Loading tree
@@ -331,12 +333,21 @@ int main(int argc, char **argv) {
                 break;
             }
             bfs_ordered_nodes = t.breadth_first_expansion();
+            if (max_optimize_hours) {
+                save_period=std::min(ori_save_period,end_time-std::chrono::steady_clock::now());
+            }else {
+                save_period=ori_save_period;
+            }
             auto res =
                 optimize_tree(bfs_ordered_nodes, nodes_to_search, t,std::abs(radius),movalbe_src_log,allow_drift,log_moves?iteration:-1
 #ifndef NDEBUG
                               , origin_states
 #endif
                              );
+            if (max_optimize_hours&&(std::chrono::steady_clock::now()-start_time>max_optimize_duration)) {
+                interrupted=true;
+                break;
+            }
             new_score=res.first;
             if (searched_full) {
                 nodes_seached_this_iter=res.second;
