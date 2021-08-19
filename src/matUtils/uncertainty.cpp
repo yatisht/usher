@@ -500,7 +500,7 @@ void check_for_droppers(MAT::Tree* T, std::string outf) {
                 //this will have less total tests performed as it is conditioned on the previous test.
                 std::string locstr = kv.first.substr(1, kv.first.size()-2);
                 auto lpv = fisher_test(mloc[locstr], local_parsimony_score, locmap[locstr]-mloc[locstr], global_parsimony_score-local_parsimony_score);
-                //std::cerr << "DEBUG: loc fisher " << lpv << " performed with: " << mloc[locstr] << "," << local_parsimony_score << "," << locmap[locstr]-mloc[locstr] << "," << global_parsimony_score-local_parsimony_score << "\n"; 
+                //std::cerr << "DEBUG: loc fisher " << lpv << " performed with: " << mloc[locstr] << "," << local_parsimony_score << "," << locmap[locstr]-mloc[locstr] << "," << global_parsimony_score-local_parsimony_score << "\n";
                 loc_tests_performed++;
                 if (pvals.find(kv.first) == pvals.end()) {
                     pvals[kv.first] = pv;

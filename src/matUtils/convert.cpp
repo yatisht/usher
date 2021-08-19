@@ -685,15 +685,15 @@ void populate_attribute(int attribute_column, std::vector<std::string> &attribut
         std::string encoding_str = std::to_string(encoding_counter);
         seen_map[attributes[attribute_column]] = encoding_str;
         switch(attribute_column) {
-            case country_col:
-                all_data.add_country_mapping(attributes[attribute_column]);
-                break;
-            case date_col:
-                all_data.add_date_mapping(attributes[attribute_column]);
-                break;
-            case lineage_col:
-                all_data.add_lineage_mapping(attributes[attribute_column]);
-                break;
+        case country_col:
+            all_data.add_country_mapping(attributes[attribute_column]);
+            break;
+        case date_col:
+            all_data.add_date_mapping(attributes[attribute_column]);
+            break;
+        case lineage_col:
+            all_data.add_lineage_mapping(attributes[attribute_column]);
+            break;
         }
         attributes[attribute_column] = encoding_str;
     } else {
@@ -703,11 +703,11 @@ void populate_attribute(int attribute_column, std::vector<std::string> &attribut
 
 // Store the metadata differently for taxodium pb format
 std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std::vector<std::string> filenames, Taxodium::AllData &all_data) {
-    
+
     int32_t country_ct = 0;
     int32_t date_ct = 0;
     int32_t lineage_ct = 0;
-    
+
     //The first index of theses lists in the pb indicates field is not present
     all_data.add_country_mapping("");
     all_data.add_date_mapping("");
@@ -716,7 +716,7 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
     // These three attributes are encoded as integers.
     // These maps map a country string to its integer representation
     // (as a string type so it fits in with other metadata)
-    std::unordered_map<std::string, std::string> seen_countries_map; 
+    std::unordered_map<std::string, std::string> seen_countries_map;
     std::unordered_map<std::string, std::string> seen_lineages_map;
     std::unordered_map<std::string, std::string> seen_dates_map;
 
@@ -741,7 +741,7 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
             if (first) { // header line
                 first = false;
                 continue;
-            }                
+            }
             std::vector<std::string> words;
             if (line[line.size()-1] == '\r') {
                 line = line.substr(0, line.size()-1);
@@ -764,18 +764,18 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
             //add a column for index in dfs array
             metadata[key] = attributes;
         }
-       infile.close();
-     }
+        infile.close();
+    }
     return metadata;
 }
 void save_taxodium_tree (MAT::Tree &tree, std::string out_filename, std::vector<std::string> meta_filenames, std::string gtf_filename, std::string fasta_filename) {
 
     // These are the taxodium pb objects
-	Taxodium::AllNodeData *node_data = new Taxodium::AllNodeData();
-	Taxodium::AllData all_data;
+    Taxodium::AllNodeData *node_data = new Taxodium::AllNodeData();
+    Taxodium::AllData all_data;
 
     std::unordered_map<std::string, std::vector<std::string>> metadata = read_metafiles_tax(meta_filenames, all_data);
-	TIMEIT();
+    TIMEIT();
 
     // Fill in the taxodium data while doing aa translations
     translate_and_populate_node_data(&tree, gtf_filename, fasta_filename, node_data, &all_data, metadata);

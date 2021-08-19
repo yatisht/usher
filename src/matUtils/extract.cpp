@@ -67,7 +67,7 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
      "Write the tree as a JSON to the indicated file.")
     ("write-tree,t", po::value<std::string>()->default_value(""),
      "Use to write a newick tree to the indicated file.")
-     ("write-taxodium,l", po::value<std::string>()->default_value(""),
+    ("write-taxodium,l", po::value<std::string>()->default_value(""),
      "Write protobuf in alternate format consumed by Taxodium.")
     ("retain-branch-length,E", po::bool_switch(),
      "Use to not recalculate branch lengths when saving newick output. Used only with -t")
@@ -651,7 +651,7 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         if (!resolve_polytomies) {
             subtree.condense_leaves();
         }
-        
+
         MAT::save_mutation_annotated_tree(subtree, output_mat_filename);
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
@@ -661,7 +661,7 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         if (gtf_filename == dir_prefix) {
             fprintf(stderr, "ERROR: You must specify a GTF file with -g\n");
             quit = true;
-        } 
+        }
         if (fasta_filename == dir_prefix) {
             fprintf(stderr, "ERROR: You must specify a FASTA reference file with -f\n");
             quit = true;
