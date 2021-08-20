@@ -53,16 +53,17 @@ std::vector<Mutation_Annotated_Tree::Node*> Mutation_Annotated_Tree::Tree::bread
     return traversal;
 }
 
-static void depth_first_expansion_helper(Mutation_Annotated_Tree::Node* node, std::vector<Mutation_Annotated_Tree::Node*>& vec, size_t& index) {
+static void depth_first_expansion_helper(Mutation_Annotated_Tree::Node* node, std::vector<Mutation_Annotated_Tree::Node*>& vec, size_t& index,size_t level) {
 #ifdef DETAIL_DEBUG_NO_LOOP
     assert(std::find(vec.begin(),vec.end(),node)==vec.end());
 #endif
     vec.push_back(node);
+    node->level=level;
     //assert(vec.size()-1==index);
     node->dfs_index=index;
     index++;
     for (auto c: node->children) {
-        depth_first_expansion_helper(c, vec,index);
+        depth_first_expansion_helper(c, vec,index,level+1);
     }
     node->dfs_end_index=index;
 }
@@ -77,7 +78,7 @@ std::vector<Mutation_Annotated_Tree::Node*> Mutation_Annotated_Tree::Tree::depth
     if (node == NULL) {
         return traversal;
     }
-    depth_first_expansion_helper(node, traversal,index);
+    depth_first_expansion_helper(node, traversal,index,0);
     return traversal;
 }
 

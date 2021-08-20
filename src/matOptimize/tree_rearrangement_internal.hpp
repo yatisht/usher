@@ -7,6 +7,7 @@
 #include "check_samples.hpp"
 #include <random>
 #pragma once
+extern bool use_bound; 
 extern std::chrono::time_point<std::chrono::steady_clock> last_save_time;
 extern bool no_write_intermediate;
 extern size_t max_queued_moves;
@@ -96,3 +97,11 @@ struct TlRng:public std::mt19937_64{
     TlRng():std::mt19937_64(std::chrono::steady_clock::now().time_since_epoch().count()*std::hash<std::thread::id>()(std::this_thread::get_id())){}
 };
 extern thread_local TlRng rng;
+struct node_info{
+    size_t dfs_idx;
+    size_t level;
+    bool operator<(const node_info& other)const{
+        return dfs_idx<other.dfs_idx;
+    }
+};
+extern std::vector<std::array<std::vector<node_info>,4>> addable_idxes;

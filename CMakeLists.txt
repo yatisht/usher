@@ -14,8 +14,8 @@ endif()
 message(STATUS "${usher_VERSION}")
 
 configure_file(src/version.hpp.in version.hpp)
-set_source_files_properties(src/matOptimize/possible_change.cpp PROPERTIES COMPILE_FLAGS -O0)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native -mtune=native -std=c++11 -Wall -g -Wno-unused-function -Wno-deprecated-declarations")
+#set_source_files_properties(src/matOptimize/possible_change.cpp PROPERTIES COMPILE_FLAGS -O0)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native -mtune=native -std=c++11 -Wall -g -Wno-unused-function -Wno-deprecated-declarations -DCHECK_BOUND")
 #-DDEBUG_PARSIMONY_SCORE_CHANGE_CORRECT 
 set(CMAKE_CXX_FLAGS_DEBUG "-O3 -fsanitize=address")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3")

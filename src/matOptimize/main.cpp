@@ -27,6 +27,7 @@
 #include <iostream>
 #include <sys/resource.h>
 thread_local TlRng rng;
+bool use_bound;
 void print_memory(){
     struct rusage usage;
     getrusage(RUSAGE_SELF, &usage);
@@ -311,6 +312,7 @@ int main(int argc, char **argv) {
         if (allow_drift) {
             nodes_to_search=tbb::concurrent_vector<MAT::Node *>(bfs_ordered_nodes.begin(),bfs_ordered_nodes.end());
         }
+        use_bound=true;
         //Actual optimization loop
         while (!nodes_to_search.empty()) {
             if (interrupted) {
@@ -336,6 +338,7 @@ int main(int argc, char **argv) {
                 }
                 last_save_time=std::chrono::steady_clock::now();
             }
+            use_bound=false;
         }
         if (new_score >= score_before) {
             allow_drift=true;

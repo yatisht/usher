@@ -380,6 +380,7 @@ class Node {
     size_t dfs_index; //index in dfs pre-order
     size_t dfs_end_index; //index in dfs pre-order
     size_t bfs_index; //index in bfs
+    size_t level;
     bool changed;
     bool have_masked;
     bool is_leaf() const;

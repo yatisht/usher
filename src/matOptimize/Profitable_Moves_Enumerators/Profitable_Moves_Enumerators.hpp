@@ -2,10 +2,6 @@
 #define PROFITABLE_MOVES_ENUMERATOR
 #include "../tree_rearrangement_internal.hpp"
 #include "src/matOptimize/mutation_annotated_tree.hpp"
-#include <algorithm>
-#include <array>
-#include <iterator>
-#include <utility>
 #include <vector>
 #include "../stack_allocator.hpp"
 struct change_idx{
@@ -105,6 +101,7 @@ static bool operator<(const MAT::Mutation &lhs, const Mutation_Count_Change &rhs
 typedef std::vector<Mutation_Count_Change,stack_allocator<Mutation_Count_Change>> Mutation_Count_Change_Collection_FIFO;
 
 typedef std::vector<Mutation_Count_Change> Mutation_Count_Change_Collection;
+typedef Mutation_Count_Change_Collection::const_iterator Mut_Change_Iter;
 //convience class for tracking iterator and its end position
 template <typename value_type> class range {
     const value_type* curr;
