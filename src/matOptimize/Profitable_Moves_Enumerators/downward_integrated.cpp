@@ -27,7 +27,7 @@ static void output_not_LCA(Mutation_Count_Change_Collection &parent_added,
                     int lower_bound, const src_side_info &src_side,
                     int radius) {
 #ifndef CHECK_BOUND
-    if (lower_bound > out.score_change) {
+    if (use_bound&&lower_bound > out.score_change) {
         return;
     }
 #endif
@@ -72,7 +72,14 @@ static void output_not_LCA(Mutation_Count_Change_Collection &parent_added,
         src_side.LCA, parsimony_score_change, parent_added,
         src_side.node_stack_from_src, node_stack_above_LCA,
         parent_of_parent_added, src_side.LCA->parent);
-    assert(parsimony_score_change >= lower_bound);
+    #ifdef CHECK_PAR_MAIN
+    output_t temp;
+    individual_move(src_side.src, dst_node, src_side.LCA, temp);
+    assert(temp.score_change==parsimony_score_change);
+    #endif
+    #ifdef CHECK_BOUND
+    assert((!use_bound)||parsimony_score_change >= lower_bound);
+#endif
     output_result(src_side.src, dst_node, src_side.LCA, parsimony_score_change,
                   src_side.out, src_side.node_stack_from_src,
                   node_stack_from_dst, node_stack_above_LCA, radius);
@@ -82,8 +89,10 @@ static void add_mut(const Mutation_Count_Change_W_Lower_Bound &mut, int radius_l
              MAT::Node *node, int &descendant_lower_bound,
              Bounded_Mut_Change_Collection &mut_out) {
     mut_out.push_back(mut);
+    if (use_bound) {
     if (!mut_out.back().to_decendent(node, radius_left)) {
         descendant_lower_bound++;
+    }
     }
 }
 
@@ -150,7 +159,7 @@ static int downward_integrated(MAT::Node *node, int radius_left,
         iter++;
     }
 #ifdef CHECK_BOUND
-    assert(par_score_from_split_lower_bound >= prev_lower_bound);
+    assert((!use_bound)||par_score_from_split_lower_bound >= prev_lower_bound);
 #endif
     output_not_LCA(split_allele_cnt_change, node, par_score_from_split,
                    par_score_from_split_lower_bound, src_side, radius_left);
@@ -167,7 +176,7 @@ void search_subtree_bounded(MAT::Node *node, const src_side_info &src_side,
         return;
     }
 #ifndef CHECK_BOUND
-    if (lower_bound > src_side.out.score_change) {
+    if (use_bound&&lower_bound > src_side.out.score_change) {
         return;
     }
 #endif

@@ -313,6 +313,7 @@ int main(int argc, char **argv) {
             nodes_to_search=tbb::concurrent_vector<MAT::Node *>(bfs_ordered_nodes.begin(),bfs_ordered_nodes.end());
         }
         use_bound=true;
+        adjust_all(t); 
         //Actual optimization loop
         while (!nodes_to_search.empty()) {
             if (interrupted) {

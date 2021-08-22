@@ -21,7 +21,8 @@ std::vector<std::array<std::vector<node_info>,4>> addable_idxes;
 namespace MAT = Mutation_Annotated_Tree;
 short default_decrement_effect[4];
 short default_increment_effect[4];
-static void init() {
+struct initer {
+    initer(){
     for (int nuc_idx = 0; nuc_idx < 4; nuc_idx++) {
         default_increment_effect[nuc_idx] = 0;
         default_decrement_effect[nuc_idx] = 0;
@@ -32,7 +33,9 @@ static void init() {
             }
         }
     }
-}
+    }
+};
+initer init;
 
 struct Sensitive_Alleles {
     int postion;
@@ -196,7 +199,7 @@ struct Walker : public tbb::task {
 void output_addable_idxes(pos_tree_t& in){
     addable_idxes=std::vector<std::array<std::vector<node_info>,4>>(MAT::Mutation::refs.size());
     tbb::parallel_for(tbb::blocked_range<size_t>(0,MAT::Mutation::refs.size()),[&in](tbb::blocked_range<size_t>& range){
-        for (int idx=range.begin(); idx<range.end(); idx++) {
+        for (size_t idx=range.begin(); idx<range.end(); idx++) {
             for (int nu_idx=0; nu_idx<4; nu_idx++) {
                 addable_idxes[idx][nu_idx]=std::vector<node_info>(in[idx][nu_idx].begin(),in[idx][nu_idx].end());
                 std::sort(addable_idxes[idx][nu_idx].begin(),addable_idxes[idx][nu_idx].end());
@@ -207,7 +210,6 @@ void output_addable_idxes(pos_tree_t& in){
 void adjust_all(MAT::Tree &tree) {
     fprintf(stderr, "start\n");
     auto start = std::chrono::steady_clock::now();
-    init();
     pos_tree_t pos_tree(MAT::Mutation::refs.size());
     auto task_root = new (tbb::task::allocate_root()) Walker(tree.root,pos_tree);
     for (auto &mut : tree.root->mutations) {
@@ -232,6 +234,7 @@ void adjust_all(MAT::Tree &tree) {
                 std::chrono::steady_clock::now() - start)
                 .count());
 }
+#ifdef TEST
 struct change_log {
     MAT::Mutation *relevant_mut;
     int score_change;
@@ -297,3 +300,4 @@ int main(int argc, char **argv) {
     tbb::parallel_for(tbb::blocked_range<size_t>(0, bfs_ordered_nodes.size()),
                       checker{bfs_ordered_nodes});
 }
+#endif

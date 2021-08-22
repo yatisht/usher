@@ -105,3 +105,4 @@ struct node_info{
     }
 };
 extern std::vector<std::array<std::vector<node_info>,4>> addable_idxes;
+void adjust_all(MAT::Tree &tree) ;

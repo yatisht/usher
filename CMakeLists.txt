@@ -15,9 +15,9 @@ message(STATUS "${usher_VERSION}")
 
 configure_file(src/version.hpp.in version.hpp)
 #set_source_files_properties(src/matOptimize/possible_change.cpp PROPERTIES COMPILE_FLAGS -O0)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native -mtune=native -std=c++11 -Wall -g -Wno-unused-function -Wno-deprecated-declarations -DCHECK_BOUND")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native -mtune=native -std=c++11 -Wall -ggdb3 -Wno-unused-function -Wno-deprecated-declarations -DCHECK_PAR_MAIN -DCHECK_BOUND")
 #-DDEBUG_PARSIMONY_SCORE_CHANGE_CORRECT 
-set(CMAKE_CXX_FLAGS_DEBUG "-O3 -fsanitize=address")
+set(CMAKE_CXX_FLAGS_DEBUG "-O0 -fsanitize=address")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3")
 set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O3")
 set(CMAKE_INCLUDE_CURRENT_DIR ON) 
@@ -196,6 +196,7 @@ else()
         src/matOptimize/main_helper.cpp
         src/matOptimize/Mutation_Collection.cpp
         src/matOptimize/Fitch_Sankoff.cpp
+        src/matOptimize/possible_change.cpp
         src/matOptimize/check_samples.cpp
         #src/matOptimize/priority_conflict_resolver_cross_only.cpp
         src/matOptimize/priority_conflict_resolver.cpp
@@ -223,7 +224,7 @@ else()
         src/matOptimize/transpose_vcf/transposed_vcf_print_name.cpp
         src/matOptimize/mutation_annotated_tree_nuc_util.cpp
         )
-        add_executable(test_sensitive_nuc
+        #[[add_executable(test_sensitive_nuc
         src/matOptimize/possible_change.cpp
         src/matOptimize/mutation_annotated_tree.cpp
         src/matOptimize/mutation_annotated_tree_node.cpp
@@ -236,7 +237,7 @@ else()
         ${PROTO_HDRS}
         ${DETAILED_MUTATIONS_PROTO_SRCS}
         ${DETAILED_MUTATIONS_PROTO_HDRS}
-        )
+        )]]#
 endif()
 
 if(SAVE_PROFILE)
@@ -260,7 +261,7 @@ TARGET_LINK_LIBRARIES(transpose_vcf PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMP
 TARGET_LINK_LIBRARIES(transposed_vcf_to_vcf PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(transposed_vcf_to_fa PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(transposed_vcf_print_name PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
-TARGET_LINK_LIBRARIES(test_sensitive_nuc PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
+#TARGET_LINK_LIBRARIES(test_sensitive_nuc PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 
 TARGET_LINK_LIBRARIES(usher PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 target_include_directories(usher PUBLIC "${PROJECT_BINARY_DIR}")

@@ -115,19 +115,15 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
                                          ,&t
 #endif
                       ](tbb::blocked_range<size_t> r) {
-        stack_allocator<Mutation_Count_Change> this_thread_FIFO_allocator(FIFO_allocator_state);
+        //stack_allocator<Mutation_Count_Change> this_thread_FIFO_allocator(FIFO_allocator_state);
         for (size_t i = r.begin(); i < r.end(); i++) {
             if (search_context.is_group_execution_cancelled()) {
                 break;
             }
             if(((!deferred_nodes.size())||(std::chrono::steady_clock::now()-last_save_time)<save_period)&&deferred_nodes.size()<max_queued_moves) {
                 output_t out;
-                find_profitable_moves(nodes_to_search[i], out, radius,this_thread_FIFO_allocator,allow_drift?-1:0
-#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-                                      ,&t
-#endif
-                                     );
-                assert(this_thread_FIFO_allocator.empty());
+                find_moves_bounded(nodes_to_search[i], out,radius);
+                //assert(this_thread_FIFO_allocator.empty());
                 if (!out.moves.empty()) {
                     //resolve conflicts
                     if (allow_drift) {
