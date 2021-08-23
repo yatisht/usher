@@ -39,7 +39,13 @@ struct Sample_Pos_Mut {
     std::vector<Pos_Mut> not_Ns;
     std::vector<std::pair<int, int>> Ns;
     Sample_Pos_Mut(std::string &&name, MAT::Tree &tree) {
-        bfs_idx = tree.get_node(name)->bfs_index;
+        auto node=tree.get_node(name);
+        if (node) {
+            bfs_idx = node->bfs_index;
+        }else {
+            bfs_idx=-1;
+        }
+        
     }
 };
 
@@ -132,7 +138,7 @@ struct mut_iterator {
         while (N_iter != N_end && N_iter->second < position) {
             N_iter++;
             if (idx==p_idx) {
-                fprintf(stderr, "At %d, N incremented to %d-%d, nuc %d\n",position,N_iter==N_end?INT_MAX:N_iter->first,position,N_iter==N_end?INT_MAX:N_iter->second,ret_val);
+                fprintf(stderr, "At %d, N incremented to %d - %d, nuc %d\n", position, N_iter==N_end?INT_MAX:N_iter->first, N_iter==N_end?INT_MAX:N_iter->second, ret_val);
             }
         }
         assert(N_iter <= N_end);
@@ -175,7 +181,9 @@ struct output_vcf_rows {
         size_t idx=start_idx;
         std::vector<mut_iterator> iters;
         for (const auto &samp : all_samples) {
-            iters.emplace_back(samp, positions[idx]);
+            if (samp.bfs_idx!=-1) {                
+                iters.emplace_back(samp, positions[idx]);
+            }
         }
         while (idx<end_idx) {
             std::vector<row_t> *rows = new std::vector<row_t>;

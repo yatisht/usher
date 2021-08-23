@@ -33,25 +33,25 @@ static bool no_valid_mut(MAT::Node* node) {
  * @param[out] changed_nodes nodes with their children set changed, need fitch sankoff backward pass
  * @param[out] node_with_inconsistent_state nodes with parent state change, need forward pass
  */
-static void clean_up_internal_nodes(MAT::Node* this_node,MAT::Tree& tree,std::unordered_set<std::string>& changed_nodes,std::unordered_set<std::string>& node_with_inconsistent_state) {
+static void clean_up_internal_nodes(MAT::Node* this_node,MAT::Tree& tree,std::unordered_set<std::string>& changed_nodes_local,std::unordered_set<std::string>& node_with_inconsistent_state) {
 
     std::vector<MAT::Node *> &parent_children = this_node->parent->children;
     std::vector<MAT::Node *> this_node_ori_children = this_node->children;
     if (this_node->parent&&(((!this_node->is_leaf())&&no_valid_mut(this_node)))) {
         //Remove this node
-        this_node->parent->changed=true;
+        changed_nodes.push_back(this_node->parent->identifier);
         auto iter = std::find(parent_children.begin(), parent_children.end(),
                               this_node);
         assert(iter != parent_children.end());
         parent_children.erase(iter);
-        changed_nodes.erase(this_node->identifier);
+        changed_nodes_local.erase(this_node->identifier);
         node_with_inconsistent_state.erase(this_node->identifier);
         //its parent have changed children set
-        changed_nodes.insert(this_node->parent->identifier);
+        changed_nodes_local.insert(this_node->parent->identifier);
         tree.all_nodes.erase(this_node->identifier);
         //promote all its children, no need to change their mutation vector, as this_node assumed to have no valid mutations
         for (MAT::Node *child : this_node_ori_children) {
-            child->changed=true;
+            changed_nodes.push_back(child->identifier);
             child->have_masked|=this_node->have_masked;
             child->parent = this_node->parent;
             parent_children.push_back(child);
@@ -62,7 +62,7 @@ static void clean_up_internal_nodes(MAT::Node* this_node,MAT::Tree& tree,std::un
 
     for (MAT::Node *child : this_node_ori_children) {
         //recurse down
-        clean_up_internal_nodes(child, tree,changed_nodes,node_with_inconsistent_state);
+        clean_up_internal_nodes(child, tree,changed_nodes_local,node_with_inconsistent_state);
     }
 }
 //For removing nodes with no valid mutations between rounds

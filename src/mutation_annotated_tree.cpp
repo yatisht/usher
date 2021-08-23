@@ -8,6 +8,8 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <google/protobuf/io/coded_stream.h>
+#include <google/protobuf/io/zero_copy_stream_impl.h>
 
 // Uses one-hot encoding if base is unambiguous
 // A:1,C:2,G:4,T:8
@@ -495,42 +497,27 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
     Tree tree;
 
     Parsimony::data data;
-
-    // Boost library used to stream the contents of the input protobuf file in
-    // uncompressed or compressed .gz format
+#define BIG_SIZE 2000000000l
+    boost::iostreams::filtering_istream instream;
+    std::ifstream inpfile(filename, std::ios::in | std::ios::binary);
     if (filename.find(".gz\0") != std::string::npos) {
-        std::ifstream inpfile(filename, std::ios::in | std::ios::binary);
         if (!inpfile) {
             fprintf(stderr, "ERROR: Could not load the mutation-annotated tree object from file: %s!\n", filename.c_str());
             exit(1);
         }
-        boost::iostreams::filtering_istream instream;
         try {
             instream.push(boost::iostreams::gzip_decompressor());
             instream.push(inpfile);
         } catch(const boost::iostreams::gzip_error& e) {
             std::cout << e.what() << '\n';
         }
-
-        data.ParseFromIstream(&instream);
-        inpfile.close();
     } else {
-        struct stat stat_buf;
-        stat(filename.c_str(),&stat_buf);
-        size_t file_size=stat_buf.st_size;
-        auto fd=open(filename.c_str(), O_RDONLY);
-        if (fd < 0) {
-            fprintf(stderr, "ERROR: can't open file %s\n", filename.c_str());
-            exit(1);
-        }
-        uint8_t* maped_file=(uint8_t*)mmap(nullptr, file_size, PROT_READ, MAP_SHARED,fd, 0);
-        close(fd);
-        google::protobuf::io::CodedInputStream input(maped_file,file_size);
-        input.SetTotalBytesLimit(file_size*4, file_size*4);
-        data.ParseFromCodedStream(&input);
-        munmap(maped_file, file_size);
+        instream.push(inpfile);
     }
-
+    google::protobuf::io::IstreamInputStream stream(&instream);
+    google::protobuf::io::CodedInputStream input(&stream);
+    input.SetTotalBytesLimit(BIG_SIZE, BIG_SIZE);
+    data.ParseFromCodedStream(&input);
     //check if the pb has a metadata field
     bool hasmeta = (data.metadata_size()>0);
     if (!hasmeta) {
@@ -1577,23 +1564,48 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (Mutation_Annotated_Tre
             }
 
             if (num_leaves > nearest_subtree_size) {
+                struct NodeDist {
+                    Mutation_Annotated_Tree::Node* node;
+                    uint32_t num_mut;
+                    
+                    NodeDist(Node* n, uint32_t d) {
+                        node = n;
+                        num_mut = d;
+                    }
+
+                    inline bool operator< (const NodeDist& n) const {
+                        return ((*this).num_mut < n.num_mut);
+                    }
+                };
+
                 for (auto l: T->get_leaves(last_anc->identifier)) {
                     leaves_to_keep.emplace_back(l->identifier);
                 }
-
-                std::vector<Mutation_Annotated_Tree::Node*> siblings;
-                for (auto child: anc->children) {
-                    if (child->identifier != last_anc->identifier) {
-                        siblings.emplace_back(child);
+                    
+                std::vector<NodeDist> node_distances;
+                for (auto l: T->get_leaves(anc->identifier)) {
+                    if (T->is_ancestor(last_anc->identifier, l->identifier)) {
+                        continue;
                     }
+
+                    uint32_t dist = 0;
+                    for (auto a: T->rsearch(l->identifier, true)) {
+                        if (a == anc) {
+                            break;
+                        }
+                        dist += a->mutations.size();
+                    }
+
+                    node_distances.emplace_back(NodeDist(l, dist));
                 }
 
-                for (size_t k=0; k<siblings.size(); k++) {
-                    for (auto l: T->get_leaves(siblings[k]->identifier)) {
-                        leaves_to_keep.emplace_back(l->identifier);
+                std::sort(node_distances.begin(), node_distances.end());
+                for (auto n: node_distances) {
+                    if (leaves_to_keep.size() == nearest_subtree_size) {
+                        break;
                     }
+                    leaves_to_keep.emplace_back(n.node->identifier); 
                 }
-                leaves_to_keep.resize(nearest_subtree_size);
             } else {
                 for (auto l: T->get_leaves(anc->identifier)) {
                     leaves_to_keep.emplace_back(l->identifier);

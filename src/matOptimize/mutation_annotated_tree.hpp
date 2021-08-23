@@ -18,7 +18,6 @@
 #else
 #  define TIMEIT()
 #endif
-
 static uint8_t one_hot_to_two_bit(uint8_t arg) {
     return 31-__builtin_clz((unsigned int)arg);
 }
@@ -383,7 +382,8 @@ class Node {
     size_t dfs_index; //index in dfs pre-order
     size_t dfs_end_index; //index in dfs pre-order
     size_t bfs_index; //index in bfs
-    bool changed;
+    size_t last_searched_arcs;
+    bool to_search;
     bool have_masked;
     bool is_leaf() const;
     bool is_root();
