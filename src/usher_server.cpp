@@ -14,8 +14,17 @@
 #include "parsimony.pb.h"
 #include "version.hpp"
 #include "usher_common.hpp"
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 namespace po = boost::program_options;
 namespace MAT = Mutation_Annotated_Tree;
+#ifdef _WIN32
+    #define stat _stat 
+#endif
 
 
 
@@ -63,7 +72,7 @@ int main(int argc, char** argv) {
         return 1;
     }
     
-    boost::filesystem::path p = boost::filesystem::current_path();
+    //boost::filesystem::path p = boost::filesystem::current_path();
     std::time_t modified_time(0);
     MAT::Tree *curr_tree; //MAT that is used in the iteration
     Timer timer; 
@@ -112,7 +121,10 @@ int main(int argc, char** argv) {
                 fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
             }
         }
-        if(boost::filesystem::last_write_time(p) == modified_time){
+        
+        
+        
+        /*if(boost::filesystem::last_write_time(p) == modified_time){
             fprintf(stderr, "Waiting for more arguments\n\n");
             while(boost::filesystem::last_write_time(p) == modified_time){
                 std::this_thread::sleep_for(std::chrono::milliseconds(sleep_length));
@@ -120,6 +132,24 @@ int main(int argc, char** argv) {
         }
         
         modified_time = boost::filesystem::last_write_time(p);
+
+        */
+
+       
+
+        struct stat arg_file_stat;
+        stat(arg_filename.c_str(), &arg_file_stat);
+        if(arg_file_stat.st_mtime == modified_time){
+            fprintf(stderr, "Waiting for more arguments\n\n");
+            while(arg_file_stat.st_mtime == modified_time){
+                stat(arg_filename.c_str(), &arg_file_stat);
+                std::this_thread::sleep_for(std::chrono::milliseconds(sleep_length));
+            }
+        }
+
+        modified_time = arg_file_stat.st_mtime;
+
+
         std::ifstream arguments_file(arg_filename);
         if (!arguments_file) {
             fprintf(stderr, "ERROR: Could not open the arguments file: %s!\n", arg_filename.c_str());
@@ -263,13 +293,15 @@ int main(int argc, char** argv) {
             
             if(MAT_list.count(din_filename) != 0){//if the MAT is in the list
                 if(!(MAT_list_avail[din_filename])){//if the MAT is not available, load
+                    timer.Start();
+                    fprintf(stderr, "Loading existing mutation-annotated tree object from file %s\n", din_filename.c_str());
                     MAT::clear_tree(MAT_list[din_filename]);
                     MAT_list[din_filename] = MAT::load_mutation_annotated_tree(din_filename);
+                    fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
                 }
-
                 curr_tree = &MAT_list[din_filename];
                 MAT_list_avail[din_filename] = false;
-
+                
             }else if(din_filename != loaded_MAT_name){
 
                 timer.Start();
@@ -425,6 +457,5 @@ int main(int argc, char** argv) {
                 break;//if error encountered then stop reading the file for now
             }
         }
-        arguments_file.close();
     }
 }
