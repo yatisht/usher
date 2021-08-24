@@ -5,6 +5,8 @@
 #include "src/matOptimize/mutation_annotated_tree.hpp"
 #include "src/matOptimize/tree_rearrangement_internal.hpp"
 #include <algorithm>
+#include <climits>
+#include <cstdio>
 typedef Bounded_Mut_Change_Collection::const_iterator Bounded_Mut_Iter;
 static void
 add_remaining_dst_to_LCA_nodes(MAT::Node *cur, const MAT::Node *LCA,
@@ -30,12 +32,17 @@ static void output_not_LCA(Mutation_Count_Change_Collection &parent_added,
     if (use_bound&&lower_bound > out.score_change) {
         return;
     }
+#else
+    Mutation_Count_Change_Collection parent_backup(parent_added);
 #endif
     std::vector<MAT::Node *> node_stack_from_dst;
     Mutation_Count_Change_Collection parent_of_parent_added;
     parent_of_parent_added.reserve(parent_added.size());
     node_stack_from_dst.push_back(dst_node);
-    auto this_node = dst_node;
+    auto this_node = dst_node->parent;
+    if (dst_node->dfs_index==82) {
+        //fputc('a', stderr);
+    }
     while (this_node != src_side.LCA) {
         parent_of_parent_added.clear();
         get_intermediate_nodes_mutations(this_node, node_stack_from_dst.back(),
@@ -54,7 +61,7 @@ static void output_not_LCA(Mutation_Count_Change_Collection &parent_added,
     parent_of_parent_added.reserve(
         parent_added.size() + src_side.allele_count_change_from_src.size());
     // Adjust LCA node and above
-
+    parent_of_parent_added.clear();
     bool is_src_terminal = src_side.src->parent == src_side.LCA;
     if ((!(src_side.allele_count_change_from_src.empty() &&
            parent_added.empty())) ||
@@ -68,17 +75,22 @@ static void output_not_LCA(Mutation_Count_Change_Collection &parent_added,
     }
     node_stack_above_LCA.push_back(src_side.LCA);
     parent_added.swap(parent_of_parent_added);
+    parent_of_parent_added.clear();
     check_parsimony_score_change_above_LCA(
         src_side.LCA, parsimony_score_change, parent_added,
         src_side.node_stack_from_src, node_stack_above_LCA,
         parent_of_parent_added, src_side.LCA->parent);
     #ifdef CHECK_PAR_MAIN
     output_t temp;
-    individual_move(src_side.src, dst_node, src_side.LCA, temp);
-    assert(temp.score_change==parsimony_score_change);
+    auto refout=individual_move(src_side.src, dst_node, src_side.LCA, temp);
+    if (refout>=0) {
+        assert(parsimony_score_change>=0);
+    }else {
+        assert(parsimony_score_change==refout);
+    }
     #endif
     #ifdef CHECK_BOUND
-    assert((!use_bound)||parsimony_score_change >= lower_bound);
+    assert((!use_bound)||(parsimony_score_change >= lower_bound)||(parsimony_score_change>=0));
 #endif
     output_result(src_side.src, dst_node, src_side.LCA, parsimony_score_change,
                   src_side.out, src_side.node_stack_from_src,
@@ -108,7 +120,9 @@ static int downward_integrated(MAT::Node *node, int radius_left,
 ) {
     Bounded_Mut_Iter iter = from_parent.begin();
     Bounded_Mut_Iter end = from_parent.end();
-
+    if (node->dfs_index==56) {
+        fputc('a', stderr);
+    }
     Mutation_Count_Change_Collection split_allele_cnt_change;
     split_allele_cnt_change.reserve(
         std::min(from_parent.size(), node->mutations.size()));
@@ -121,43 +135,54 @@ static int downward_integrated(MAT::Node *node, int radius_left,
         while (iter->get_position() < mut.get_position()) {
             auto have_not_shared = add_node_split(
                 *iter, split_allele_cnt_change, par_score_from_split);
-            if (have_not_shared & (!iter->offsetable)) {
+            if (have_not_shared && (!iter->offsetable)) {
                 par_score_from_split_lower_bound++;
             }
             add_mut(*iter, radius_left, node, descendant_lower_bound, mut_out);
+            mut_out.back().offsetable=false;
             iter++;
         }
         if (iter->get_position() == mut.get_position()) {
             auto have_not_shared = add_node_split(
                 mut, mut.get_all_major_allele(), iter->get_incremented(),
                 split_allele_cnt_change, par_score_from_split);
-            if (have_not_shared & (!iter->offsetable)) {
+            if (have_not_shared && (!iter->offsetable)) {
                 par_score_from_split_lower_bound++;
             }
 
-            add_mut(*iter, radius_left, node, descendant_lower_bound, mut_out);
+            //add_mut(*iter, radius_left, node, descendant_lower_bound, mut_out);
+            mut_out.push_back(*iter);
             mut_out.back().set_par_nuc(mut.get_mut_one_hot());
+            if (!mut_out.back().to_decendent(node, radius_left)) {
+                descendant_lower_bound++;
+            }
+            mut_out.back().offsetable=mut.get_sensitive_increment()&iter->get_incremented();
+            //assert((!mut_out.back().offsetable)||mut_out.back().have_content);
             iter++;
         } else {
             if (mut.is_valid()) {
                 mut_out.emplace_back(mut, 0, mut.get_par_one_hot());
                 mut_out.back().set_par_nuc(mut.get_mut_one_hot());
+                mut_out.back().offsetable=mut.get_sensitive_increment()&mut.get_par_one_hot();
                 if (!mut_out.back().init(node, radius_left)) {
                     descendant_lower_bound++;
                 }
+                //assert((!mut_out.back().offsetable)||mut_out.back().have_content);
             }
             add_node_split(mut, split_allele_cnt_change, par_score_from_split);
         }
     }
-    while (iter != end) {
+    while (iter ->get_position()!=INT_MAX) {
         auto have_not_shared = add_node_split(*iter, split_allele_cnt_change,
                                               par_score_from_split);
         if (have_not_shared & (!iter->offsetable)) {
             par_score_from_split_lower_bound++;
         }
         add_mut(*iter, radius_left, node, descendant_lower_bound, mut_out);
+        mut_out.back().offsetable=false;
         iter++;
     }
+    mut_out.emplace_back();
 #ifdef CHECK_BOUND
     assert((!use_bound)||par_score_from_split_lower_bound >= prev_lower_bound);
 #endif

@@ -114,15 +114,12 @@ int check_move_profitable_dst_not_LCA(
     //assert(dst);
     Mutation_Count_Change_Collection dst_added;
     //Going up from dst node to LCA node to adjust state assignment
-    if(!dst_branch(LCA, mutations, parsimony_score_change,
+    dst_branch(LCA, mutations, parsimony_score_change,
                    node_stack_from_dst, dst, dst_added,src->parent==LCA?src->mutations.size():0
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
                    , debug_from_dst
 #endif
-                  )) {
-        return 1;
-    }
-
+                  );
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
     std::vector<Mutation_Count_Change_Collection> debug_above_LCA;
 #endif
@@ -167,9 +164,7 @@ int check_move_profitable_LCA(
     std::vector<MAT::Node *> node_stack_above_LCA;
     Mutation_Count_Change_Collection parent_of_parent_added;
     parent_of_parent_added.reserve(mutations.size()+root_mutations_altered.size());
-    if(!LCA_place_mezzanine(node_stack_from_src.back(), mutations, root_mutations_altered, parent_of_parent_added, parsimony_score_change)) {
-        return 1;
-    }
+    LCA_place_mezzanine(node_stack_from_src.back(), mutations, root_mutations_altered, parent_of_parent_added, parsimony_score_change);
     //No need to go to parent, the node from branch splitting is the actual LCA
     Mutation_Count_Change_Collection parent_added;
     parent_added.reserve(parent_of_parent_added.size());

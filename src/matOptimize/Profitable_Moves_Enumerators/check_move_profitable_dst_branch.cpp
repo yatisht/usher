@@ -38,11 +38,9 @@ bool dst_branch(const MAT::Node *LCA,
     node_stack_from_dst.push_back(this_node);
     //Check whether the dst have any mutation not shared by src, if not, stop here, as moving to a child of dst will be at least as profitable, if there is any.
     //Also register parsimony score contributed by dst->src edge, and major allele state change of dst.
-    if(!get_parsimony_score_change_from_add(this_node, mutations, parent_added,
+    get_parsimony_score_change_from_add(this_node, mutations, parent_added,
                                             parsimony_score_change
-                                           )&&(!this_node->is_leaf())) {
-        return false;
-    }
+                                           )&&(!this_node->is_leaf());
     this_node = this_node->parent;
 
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT

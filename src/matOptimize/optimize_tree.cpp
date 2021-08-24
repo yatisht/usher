@@ -104,11 +104,11 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
     bool done=false;
     std::mutex done_mutex;
     auto search_start= std::chrono::steady_clock::now();
-    std::thread progress_meter(print_progress,&checked_nodes,search_start, nodes_to_search.size(), &deferred_nodes,&done,&done_mutex);
+    //std::thread progress_meter(print_progress,&checked_nodes,search_start, nodes_to_search.size(), &deferred_nodes,&done,&done_mutex);
     fputs("Start searching for profitable moves\n",stderr);
     //Actual search of profitable moves
     output_t out;
-    tbb::parallel_for(tbb::blocked_range<size_t>(0, nodes_to_search.size()),
+    /*tbb::parallel_for(tbb::blocked_range<size_t>(0, nodes_to_search.size()),
                       [&nodes_to_search, &resolver,
                                          &deferred_nodes,radius,&checked_nodes,&allow_drift
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
@@ -116,7 +116,8 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
 #endif
                       ](tbb::blocked_range<size_t> r) {
         //stack_allocator<Mutation_Count_Change> this_thread_FIFO_allocator(FIFO_allocator_state);
-        for (size_t i = r.begin(); i < r.end(); i++) {
+        for (size_t i = r.begin(); i < r.end(); i++) {*/
+        for (size_t i = 0; i < nodes_to_search.size(); i++) {
             if (search_context.is_group_execution_cancelled()) {
                 break;
             }
@@ -139,7 +140,7 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
                 deferred_nodes.push_back(nodes_to_search[i]);
             }
         }
-    },search_context);
+    //},search_context);
     {
         //stop the progress bar
         //std::unique_lock<std::mutex> done_lock(done_mutex);
@@ -213,7 +214,7 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
     check_samples(t.root, origin_states, &t);
 #endif
     nodes_to_search = std::move(deferred_nodes);
-    progress_meter.join();
+    //progress_meter.join();
     fprintf(stderr, "recycled %f of conflicting moves \n",(double)recycled/(double)init_deferred);
     fprintf(stderr, "recycling moves took %f seconds\n",elpased_time.count());
     return t.get_parsimony_score();

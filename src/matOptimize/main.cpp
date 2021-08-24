@@ -1,5 +1,6 @@
 #include "Fitch_Sankoff.hpp"
 #include "check_samples.hpp"
+#include "src/matOptimize/Profitable_Moves_Enumerators/Profitable_Moves_Enumerators.hpp"
 #include "version.hpp"
 #include "src/matOptimize/mutation_annotated_tree.hpp"
 #include "tree_rearrangement_internal.hpp"
@@ -282,7 +283,6 @@ int main(int argc, char **argv) {
     score_before = t.get_parsimony_score();
     new_score = score_before;
     fprintf(stderr, "after state reassignment:%zu\n", score_before);
-
     tbb::concurrent_vector<MAT::Node *> nodes_to_search;
     std::vector<MAT::Node *> bfs_ordered_nodes;
     bfs_ordered_nodes = t.breadth_first_expansion();
@@ -314,6 +314,8 @@ int main(int argc, char **argv) {
         }
         use_bound=true;
         adjust_all(t); 
+        output_t temp;
+        find_moves_bounded(t.get_node("Japan_Hu_DP_Kng_19-027_2020"), temp, 10);
         //Actual optimization loop
         while (!nodes_to_search.empty()) {
             if (interrupted) {
