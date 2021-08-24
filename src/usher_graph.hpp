@@ -13,21 +13,21 @@
 namespace MAT = Mutation_Annotated_Tree;
 
 class Timer {
-    private:
-        struct timeval m_StartTime, m_EndTime;
-    public:
-        void Start() {
-            gettimeofday(&m_StartTime, NULL);
-        }
-        long Stop() {
-            long useconds, seconds, mseconds;
-            gettimeofday(&m_EndTime, NULL);
-            useconds = m_EndTime.tv_usec - m_StartTime.tv_usec;
-            seconds = m_EndTime.tv_sec - m_StartTime.tv_sec;
-            mseconds = ((seconds) * 1000 + useconds/1000.0 + 0.5);
-            return mseconds;
-        }
-        
+  private:
+    struct timeval m_StartTime, m_EndTime;
+  public:
+    void Start() {
+        gettimeofday(&m_StartTime, NULL);
+    }
+    long Stop() {
+        long useconds, seconds, mseconds;
+        gettimeofday(&m_EndTime, NULL);
+        useconds = m_EndTime.tv_usec - m_StartTime.tv_usec;
+        seconds = m_EndTime.tv_sec - m_StartTime.tv_sec;
+        mseconds = ((seconds) * 1000 + useconds/1000.0 + 0.5);
+        return mseconds;
+    }
+
 };
 
 struct Missing_Sample {
@@ -41,13 +41,11 @@ struct Missing_Sample {
         num_ambiguous = 0;
     }
 
-    bool operator==(const Missing_Sample& other) const
-    {
-            return (*this).name == other.name;
+    bool operator==(const Missing_Sample& other) const {
+        return (*this).name == other.name;
     }
-    bool operator<(const Missing_Sample& other) const
-    {
-            return (*this).num_ambiguous < other.num_ambiguous;
+    bool operator<(const Missing_Sample& other) const {
+        return (*this).num_ambiguous < other.num_ambiguous;
     }
 
     std::vector<std::string> best_clade_assignment;
@@ -63,7 +61,7 @@ struct mapper_input {
     std::unordered_map<std::string, size_t>* bfs_idx;
     std::vector<std::tuple<size_t, int8_t>> variants;
     std::vector<std::string>* variant_ids;
-    
+
     std::vector<Missing_Sample>* missing_samples;
     //std::vector<std::vector<MAT::Mutation>>* missing_sample_mutations;
 };
@@ -77,7 +75,7 @@ struct mapper2_input {
     MAT::Tree* T;
     MAT::Node* node;
     std::vector<MAT::Mutation>* missing_sample_mutations;
-    
+
     int* best_set_difference;
     int* set_difference;
     size_t* best_node_num_leaves;
@@ -90,7 +88,7 @@ struct mapper2_input {
 
     std::vector<bool>* node_has_unique;
     std::vector<size_t>* best_j_vec;
-    
+
     bool* has_unique;
 
     std::vector<MAT::Mutation>* excess_mutations;
@@ -102,4 +100,4 @@ struct mapper2_input {
     }
 };
 
-void mapper2_body(mapper2_input& inp, bool compute_parsimony_scores);
+void mapper2_body(mapper2_input& inp, bool compute_parsimony_scores, bool compute_vecs = true);

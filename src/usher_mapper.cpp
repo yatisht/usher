@@ -4,7 +4,7 @@ tbb::mutex data_lock;
 
 int mapper_body::operator()(mapper_input input) {
     TIMEIT();
-    
+
     // Valid variants should have positions >= 0
     if (input.variant_pos >= 0) {
         data_lock.lock();
@@ -51,7 +51,7 @@ int mapper_body::operator()(mapper_input input) {
             if (input.bfs_idx->find(nid) != input.bfs_idx->end()) {
                 size_t idx= (*input.bfs_idx)[nid];
                 // Initialize scores for bases corresponding to alternate
-                // alleles to 0 and remaining to a high value (num_nodes) 
+                // alleles to 0 and remaining to a high value (num_nodes)
                 for (int j=0; j<4; j++) {
                     scores[idx][j] = (int) num_nodes;
                     if (((1 << j) & nuc) != 0) {
@@ -69,8 +69,7 @@ int mapper_body::operator()(mapper_input input) {
                 m.ref_nuc = input.ref_nuc;
                 if (nuc == 15) {
                     m.is_missing = true;
-                }
-                else {
+                } else {
                     m.is_missing = false;
                     assert ((nuc > 0) && (nuc < 15));
                     m.mut_nuc = nuc;
@@ -97,8 +96,7 @@ int mapper_body::operator()(mapper_input input) {
                             int c_s;
                             if (k==j) {
                                 c_s = scores[c_idx][k];
-                            }
-                            else {
+                            } else {
                                 c_s = scores[c_idx][k]+1;
                             }
                             if (c_s < min_s) {
@@ -122,8 +120,7 @@ int mapper_body::operator()(mapper_input input) {
                 auto par_id = par->identifier;
                 auto par_idx = (*input.bfs_idx)[par_id];
                 par_state = states[par_idx];
-            }
-            else {
+            } else {
                 par_state = MAT::get_nt(input.ref_nuc);
                 assert (par_state >= 0);
             }
@@ -142,7 +139,7 @@ int mapper_body::operator()(mapper_input input) {
                 }
             }
             states[node_idx] = state;
-            
+
             if (state != par_state) {
                 MAT::Mutation m;
                 m.chrom = input.chrom;
@@ -164,12 +161,12 @@ int mapper_body::operator()(mapper_input input) {
 
 // Used to do a parallel search for the parsimony-optimal placement node. If
 // compute_parsimony_scores is not set, the function can return early if the
-// parsimony score at the current input node exceeds the smallest parsimony 
+// parsimony score at the current input node exceeds the smallest parsimony
 // score encountered during the parallel search
-void mapper2_body(mapper2_input& input, bool compute_parsimony_scores) {
+void mapper2_body(mapper2_input& input, bool compute_parsimony_scores, bool compute_vecs) {
     //    TIMEIT();
 
-    // Variable to store the number of parsimony-increasing mutations to 
+    // Variable to store the number of parsimony-increasing mutations to
     // place sample at the current node
     int set_difference = 0;
 
@@ -188,7 +185,7 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores) {
 
     // For non-root nodes, add mutations common to current node (branch) to
     // excess mutations. Set has_unique to true if a mutation unique to current
-    // node not in new sample is found. 
+    // node not in new sample is found.
     if (!input.node->is_root()) {
         size_t start_index = 0;
         for (auto m1: input.node->mutations) {
@@ -200,7 +197,7 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores) {
                 has_unique = true;
                 break;
             }
-            assert (((anc_nuc-1) & anc_nuc) == 0); 
+            assert (((anc_nuc-1) & anc_nuc) == 0);
             bool found = false;
             bool found_pos = false;
             for (size_t k = start_index; k < input.missing_sample_mutations->size(); k++) {
@@ -211,8 +208,7 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores) {
                     if (m2.is_missing) {
                         found = true;
                         num_common_mut++;
-                    }
-                    else {
+                    } else {
                         auto nuc = m2.mut_nuc;
                         if ((nuc & anc_nuc) != 0) {
                             MAT::Mutation m;
@@ -223,10 +219,12 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores) {
                             m.mut_nuc = anc_nuc;
 
                             ancestral_mutations.emplace_back(m);
-                            anc_positions.emplace_back(m1.position);
+                            anc_positions.emplace_back(m.position);
                             assert((m.mut_nuc & (m.mut_nuc-1)) == 0);
-                            (*input.excess_mutations).emplace_back(m);
-                            
+                            if (compute_vecs) {
+                                (*input.excess_mutations).emplace_back(m);
+                            }
+
                             // Ambiguous base
                             //if ((nuc & (nuc-1)) != 0) {
                             //    (*input.imputed_mutations).emplace_back(m);
@@ -251,19 +249,19 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores) {
                     m.mut_nuc = anc_nuc;
 
                     ancestral_mutations.emplace_back(m);
-                    anc_positions.emplace_back(m1.position);
+                    anc_positions.emplace_back(m.position);
                     assert((m.mut_nuc & (m.mut_nuc-1)) == 0);
-                    (*input.excess_mutations).emplace_back(m);
-                    
+                    if (compute_vecs) {
+                        (*input.excess_mutations).emplace_back(m);
+                    }
+
                     num_common_mut++;
-                }
-                else {
+                } else {
                     has_unique = true;
                 }
             }
         }
-    }
-    else {
+    } else {
         for (auto m: input.node->mutations) {
             ancestral_mutations.emplace_back(m);
             anc_positions.emplace_back(m.position);
@@ -273,11 +271,14 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores) {
     // Add ancestral mutations to ancestral mutations. When multiple mutations
     // at same position are found in the path leading from the root to the
     // current node, add only the most recent mutation to the vector
-    for (auto n: input.T->rsearch(input.node->identifier)) {
-        for (auto m: n->mutations) {
-            if (m.is_masked() || (std::find(anc_positions.begin(), anc_positions.end(), m.position) == anc_positions.end())) {
-                ancestral_mutations.emplace_back(m);
-                if (!m.is_masked()) {
+    //for (auto n: input.T->rsearch(input.node->identifier)) {
+    {
+        auto n = input.node;
+        while (n->parent != NULL) {
+            n = n->parent;
+            for (auto m: n->mutations) {
+                if (!m.is_masked() && (std::find(anc_positions.begin(), anc_positions.end(), m.position) == anc_positions.end())) {
+                    ancestral_mutations.emplace_back(m);
                     anc_positions.emplace_back(m.position);
                 }
             }
@@ -319,10 +320,10 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores) {
             }
         }
         if (found) {
-            // If mutation is found in ancestral_mutations 
+            // If mutation is found in ancestral_mutations
             // and if the missing sample base was ambiguous,
             // add it to imputed_mutations
-            if ((m1.mut_nuc & (m1.mut_nuc - 1)) != 0) {
+            if (compute_vecs && ((m1.mut_nuc & (m1.mut_nuc - 1)) != 0)) {
                 MAT::Mutation m;
                 m.chrom = m1.chrom;
                 m.position = m1.position;
@@ -338,7 +339,7 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores) {
         // imputed_mutations for the sample (it's not a parsimony-increasing
         // mutation)
         else if (!found_pos && has_ref) {
-            if ((m1.mut_nuc & (m1.mut_nuc - 1)) != 0) {
+            if (compute_vecs && ((m1.mut_nuc & (m1.mut_nuc - 1)) != 0)) {
                 MAT::Mutation m;
                 m.chrom = m1.chrom;
                 m.position = m1.position;
@@ -360,8 +361,7 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores) {
             m.par_nuc = anc_nuc;
             if (has_ref) {
                 m.mut_nuc = m1.ref_nuc;
-            }
-            else {
+            } else {
                 for (int j=0; j < 4; j++) {
                     if (((1 << j) & m1.mut_nuc) != 0) {
                         m.mut_nuc = (1 << j);;
@@ -372,11 +372,13 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores) {
             assert((m.mut_nuc & (m.mut_nuc-1)) == 0);
             // If the missing sample base is ambiguous, add it to
             // imputed_mutations
-            if ((m1.mut_nuc & (m1.mut_nuc - 1)) != 0) {
+            if (compute_vecs && ((m1.mut_nuc & (m1.mut_nuc - 1)) != 0)) {
                 input.imputed_mutations->emplace_back(m);
             }
             if (m.mut_nuc != m.par_nuc) {
-                input.excess_mutations->emplace_back(m);
+                if (compute_vecs) {
+                    input.excess_mutations->emplace_back(m);
+                }
                 set_difference += 1;
                 if (!compute_parsimony_scores && (set_difference > best_set_difference)) {
                     return;
@@ -387,7 +389,7 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores) {
 
     // For loop to add back-mutations for cases in which a mutation from the
     // root to the current node consists of a non-reference allele but no such
-    // variant is found in the missing sample 
+    // variant is found in the missing sample
     for (auto m1: ancestral_mutations) {
         size_t start_index = 0;
         bool found = false;
@@ -395,7 +397,7 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores) {
         auto anc_nuc = m1.mut_nuc;
         for (size_t k = start_index; k < input.missing_sample_mutations->size(); k++) {
             // If ancestral mutation is masked, terminate the search for
-            // identical mutation 
+            // identical mutation
             if (m1.is_masked()) {
                 break;
             }
@@ -417,15 +419,12 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores) {
         // with mutation in the same position is found having reference allele, do
         // nothing. If same position is found but not with the same allele, do
         // nothing since the mutation must be added to excess mutations already
-        // in the previous loop. In all remaining cases, add the mutation to 
-        // excess_mutations. 
+        // in the previous loop. In all remaining cases, add the mutation to
+        // excess_mutations.
         if (found) {
-        }
-        else if (!found_pos && !m1.is_masked() && (anc_nuc == m1.ref_nuc)) {
-        }
-        else if (found_pos && !found) {
-        }
-        else {
+        } else if (!found_pos && !m1.is_masked() && (anc_nuc == m1.ref_nuc)) {
+        } else if (found_pos && !found) {
+        } else {
             MAT::Mutation m;
             m.chrom = m1.chrom;
             m.position = m1.position;
@@ -438,7 +437,9 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores) {
                 if (!compute_parsimony_scores && (set_difference > best_set_difference)) {
                     return;
                 }
-                (*input.excess_mutations).emplace_back(m);
+                if (compute_vecs) {
+                    (*input.excess_mutations).emplace_back(m);
+                }
             }
         }
     }
@@ -451,7 +452,7 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores) {
     // if sibling of internal node or leaf, ensure it is not equivalent to placing under parent
     // if child of internal node, ensure all internal node mutations are present in the sample
     if (input.node->is_root() || ((has_unique && !input.node->is_leaf() && (num_common_mut > 0) && (node_num_mut != num_common_mut)) || \
-            (input.node->is_leaf() && (num_common_mut > 0)) || (!has_unique && !input.node->is_leaf() && (node_num_mut == num_common_mut)))) { 
+                                  (input.node->is_leaf() && (num_common_mut > 0)) || (!has_unique && !input.node->is_leaf() && (node_num_mut == num_common_mut)))) {
         data_lock.lock();
         if (set_difference > *input.best_set_difference) {
             data_lock.unlock();
@@ -461,7 +462,7 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores) {
         if (set_difference < *input.best_set_difference) {
             *input.best_set_difference = set_difference;
             *input.best_node = input.node;
-            *input.best_node_num_leaves = num_leaves; 
+            *input.best_node_num_leaves = num_leaves;
             *input.best_j = input.j;
             *input.num_best = 1;
             *input.has_unique = has_unique;
@@ -469,27 +470,25 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores) {
             (*input.node_has_unique)[input.j] = has_unique;
             input.best_j_vec->clear();
             input.best_j_vec->emplace_back(input.j);
-        }
-        else if (set_difference == *input.best_set_difference) {
-            bool is_best_node_ancestor = (input.node->parent == (*input.best_node)); 
-            bool is_best_node_descendant = ((*input.best_node)->parent == input.node); 
-            
+        } else if (set_difference == *input.best_set_difference) {
+            bool is_best_node_ancestor = (input.node->parent == (*input.best_node));
+            bool is_best_node_descendant = ((*input.best_node)->parent == input.node);
+
             // Tie breaking strategy when multiple parsimony-optimal placements
-            // are found. it picks the node with a greater number of descendant 
-            // leaves for placement. However, if the choice is between a parent 
-            // and its child node, it picks the parent node if the number of 
-            // descendant leaves of the parent that are not shared with the child 
-            // node exceed the number of descendant leaves of the child. 
-            if (((input.distance == *input.best_distance) && 
-                        ((is_best_node_ancestor && (2*num_leaves > *input.best_node_num_leaves)) ||
-                         (is_best_node_descendant && (num_leaves >= 2*(*input.best_node_num_leaves))) ||
-                         (!is_best_node_ancestor && !is_best_node_descendant && (num_leaves > *input.best_node_num_leaves)) ||
-                         (!is_best_node_ancestor && !is_best_node_descendant && (num_leaves == *input.best_node_num_leaves) && (*input.best_j < input.j))))
-                    || (input.distance < *input.best_distance))
-            {
+            // are found. it picks the node with a greater number of descendant
+            // leaves for placement. However, if the choice is between a parent
+            // and its child node, it picks the parent node if the number of
+            // descendant leaves of the parent that are not shared with the child
+            // node exceed the number of descendant leaves of the child.
+            if (((input.distance == *input.best_distance) &&
+                    ((is_best_node_ancestor && (2*num_leaves > *input.best_node_num_leaves)) ||
+                     (is_best_node_descendant && (num_leaves >= 2*(*input.best_node_num_leaves))) ||
+                     (!is_best_node_ancestor && !is_best_node_descendant && (num_leaves > *input.best_node_num_leaves)) ||
+                     (!is_best_node_ancestor && !is_best_node_descendant && (num_leaves == *input.best_node_num_leaves) && (*input.best_j < input.j))))
+                    || (input.distance < *input.best_distance)) {
                 *input.best_set_difference = set_difference;
                 *input.best_node = input.node;
-                *input.best_node_num_leaves = num_leaves; 
+                *input.best_node_num_leaves = num_leaves;
                 *input.best_j = input.j;
                 *input.has_unique = has_unique;
                 *input.best_distance = input.distance;
@@ -499,10 +498,9 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores) {
             input.best_j_vec->emplace_back(input.j);
         }
         data_lock.unlock();
-    }
-    else if (compute_parsimony_scores) {
-        // Add 1 to the parsimony score for this node 
-        // as its current best placement is equivalent  
+    } else if (compute_parsimony_scores) {
+        // Add 1 to the parsimony score for this node
+        // as its current best placement is equivalent
         // to placing at parent/child
         *input.set_difference = set_difference + 1;
     }

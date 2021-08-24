@@ -1,7 +1,7 @@
 #include "annotate.hpp"
 
 
-po::variables_map parse_annotate_command(po::parsed_options parsed) {    
+po::variables_map parse_annotate_command(po::parsed_options parsed) {
 
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
     std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
@@ -9,45 +9,46 @@ po::variables_map parse_annotate_command(po::parsed_options parsed) {
     po::variables_map vm;
     po::options_description ann_desc("annotate options");
     ann_desc.add_options()
-        ("input-mat,i", po::value<std::string>()->required(),
-         "Input mutation-annotated tree file [REQUIRED]")
-        ("output-mat,o", po::value<std::string>()->required(),
-         "Path to output processed mutation-annotated tree file [REQUIRED]")
-        ("clade-names,c", po::value<std::string>()->default_value(""),
-         "Path to a file containing clade asssignments of samples. An algorithm automatically locates and annotates clade root nodes")
-        ("clade-to-nid,C", po::value<std::string>()->default_value(""),
-         "Path to a tsv file mapping clades to their respective internal node identifiers.")
-        ("allele-frequency,f", po::value<float>()->default_value(0.8),
-         "Minimum allele frequency in input samples for finding the best clade root. Used only with -c")
-        ("mask-frequency,m", po::value<float>()->default_value(0.2),
-         "Minimum allele frequency below -f in input samples that should be masked for finding the best clade root. Used only with -c")
-        ("set-overlap,s", po::value<float>()->default_value(0.6),
-        "Minimum fraction of the clade samples that should be desecendants of the assigned clade root. Used only with -c")
-        ("clip-sample-frequency,p", po::value<float>()->default_value(0.1),
-         "Maximum proportion of samples in a branch that are exemplars from -c to consider when sorting candidate clade root nodes")
-        ("clear-current,l", po::bool_switch(),
-        "Use to remove current annotations before applying new values.")
-        ("output-directory,d", po::value<std::string>()->default_value("./"),
-         "Write output files to the target directory. Default is current directory.")
-        ("write-mutations,u", po::value<std::string>()->default_value(""),
-         "Write a tsv listing each clade and the mutations found in at least [-f] of samples. Used only with -c")
-        ("write-details,D", po::value<std::string>()->default_value(""),
-         "Write a tsv with details about the nodes considered for each clade root. Used only with -c")
-        ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
-        ("help,h", "Print help messages");
+    ("input-mat,i", po::value<std::string>()->required(),
+     "Input mutation-annotated tree file [REQUIRED]")
+    ("output-mat,o", po::value<std::string>()->required(),
+     "Path to output processed mutation-annotated tree file [REQUIRED]")
+    ("clade-names,c", po::value<std::string>()->default_value(""),
+     "Path to a tsv file containing clade assignments of samples. An algorithm automatically locates and annotates clade root nodes")
+    ("clade-to-nid,C", po::value<std::string>()->default_value(""),
+     "Path to a tsv file mapping clades to their respective internal node identifiers.")
+    ("clade-paths,P", po::value<std::string>()->default_value(""),
+     "Path to a tsv file mapping clades to mutation paths which must exist in tree.  Format is the same as the first and third columns of the output of matUtils extract --clade-paths.")
+    ("allele-frequency,f", po::value<float>()->default_value(0.8),
+     "Minimum allele frequency in input samples for finding the best clade root. Used only with -c")
+    ("mask-frequency,m", po::value<float>()->default_value(0.2),
+     "Minimum allele frequency below -f in input samples that should be masked for finding the best clade root. Used only with -c")
+    ("set-overlap,s", po::value<float>()->default_value(0.6),
+     "Minimum fraction of the clade samples that should be desecendants of the assigned clade root. Used only with -c")
+    ("clip-sample-frequency,p", po::value<float>()->default_value(0.1),
+     "Maximum proportion of samples in a branch that are exemplars from -c to consider when sorting candidate clade root nodes")
+    ("clear-current,l", po::bool_switch(),
+     "Use to remove current annotations before applying new values.")
+    ("output-directory,d", po::value<std::string>()->default_value("./"),
+     "Write output files to the target directory. Default is current directory.")
+    ("write-mutations,u", po::value<std::string>()->default_value(""),
+     "Write a tsv listing each clade and the mutations found in at least [-f] of samples. Used only with -c")
+    ("write-details,D", po::value<std::string>()->default_value(""),
+     "Write a tsv with details about the nodes considered for each clade root. Used only with -c")
+    ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
+    ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
     // (positional) command name, so we need to erase that.
     std::vector<std::string> opts = po::collect_unrecognized(parsed.options, po::include_positional);
     opts.erase(opts.begin());
 
     // Run the parser, with try/catch for help
-    try{
+    try {
         po::store(po::command_line_parser(opts)
                   .options(ann_desc)
                   .run(), vm);
         po::notify(vm);
-    }
-    catch(std::exception &e){
+    } catch(std::exception &e) {
         std::cerr << ann_desc << std::endl;
         // Return with error code 1 unless the user specifies help
         if (vm.count("help"))
@@ -95,6 +96,7 @@ void annotate_main(po::parsed_options parsed) {
     std::string output_mat_filename = add_out_dir(dir_prefix, vm["output-mat"].as<std::string>());
     std::string clade_filename = vm["clade-names"].as<std::string>();
     std::string clade_to_nid_filename = vm["clade-to-nid"].as<std::string>();
+    std::string clade_paths_filename = vm["clade-paths"].as<std::string>();
     std::string mutations_filename = add_out_dir(dir_prefix, vm["write-mutations"].as<std::string>());
     std::string details_filename = add_out_dir(dir_prefix, vm["write-details"].as<std::string>());
     bool clear_current = vm["clear-current"].as<bool>();
@@ -104,27 +106,39 @@ void annotate_main(po::parsed_options parsed) {
     float clip_sample_frequency = vm["clip-sample-frequency"].as<float>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
 
+    int clade_spec_count = 0;
+    if (clade_filename != "") {
+        clade_spec_count++;
+    }
+    if (clade_to_nid_filename != "") {
+        clade_spec_count++;
+    }
+    if (clade_paths_filename != "") {
+        clade_spec_count++;
+    }
+    if (clade_spec_count != 1) {
+        fprintf(stderr, "ERROR: must specify exactly one of --clade-names, --clade-to-nid or --clade-paths!\n");
+        exit(1);
+    }
+
     tbb::task_scheduler_init init(num_threads);
 
     // Load input MAT and uncondense tree
+    fprintf(stderr, "Loading input MAT file %s.\n", input_mat_filename.c_str());
+    timer.Start();
     MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
     //T here is the actual object.
     if (T.condensed_nodes.size() > 0) {
-      T.uncondense_leaves();
+        T.uncondense_leaves();
     }
-    if (((clade_filename != "") && (clade_to_nid_filename != "")) ||
-            ((clade_filename == "") && (clade_to_nid_filename == ""))) {
-        fprintf(stderr, "ERROR: must specify either --clade-names or --clade-to-nid!\n");
-        exit(1);
-    }
-    else {
-        fprintf(stderr, "Annotating Lineage Root Nodes\n");
-        if (clade_filename != "") {
-            assignLineages(T, clade_filename, allele_frequency, mask_frequency, set_overlap, clip_sample_frequency, clear_current, mutations_filename, details_filename);
-        }
-        else {
-            assignLineages(T, clade_to_nid_filename, clear_current);
-        }
+    fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+    fprintf(stderr, "Annotating Lineage Root Nodes\n");
+    if (clade_filename != "") {
+        assignLineages(T, clade_filename, allele_frequency, mask_frequency, set_overlap, clip_sample_frequency, clear_current, mutations_filename, details_filename);
+    } else if (clade_paths_filename != "") {
+        assignLineagesFromPaths(T, clade_paths_filename, clear_current);
+    } else {
+        assignLineages(T, clade_to_nid_filename, clear_current);
     }
 
     //condense_leaves() expects some samples to ignore. We don't have any such samples
@@ -139,57 +153,48 @@ void annotate_main(po::parsed_options parsed) {
     }
 }
 
-void assignLineages (MAT::Tree& T, const std::string& clade_to_nid_filename, bool clear_current) {
-    fprintf(stderr, "Copying tree with uncondensed leaves.\n"); 
-    timer.Start();
-    auto uncondensed_T = MAT::get_tree_copy(T);
-    uncondensed_T.uncondense_leaves();
-    
-    auto dfs = T.depth_first_expansion();
+void init_annotations(std::vector<MAT::Node*>& dfs, bool clear_current) {
     size_t total_nodes = dfs.size();
-
-    
-    std::unordered_map<std::string, size_t> dfs_idx;
     for (size_t idx = 0; idx < total_nodes; idx++) {
         //remove the current annotations if unwanted.
         if (clear_current) {
             dfs[idx]->clade_annotations.clear();
         }
-
-        dfs_idx[dfs[idx]->identifier] = idx;
         // Add a new entry in annotations
         dfs[idx]->clade_annotations.emplace_back("");
     }
+}
+
+void assignLineages (MAT::Tree& T, const std::string& clade_to_nid_filename, bool clear_current) {
+    auto dfs = T.depth_first_expansion();
+    init_annotations(dfs, clear_current);
     size_t num_annotations = T.get_num_annotations();
-    fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
-    
+
     std::ifstream infile(clade_to_nid_filename);
     if (!infile) {
-        fprintf(stderr, "ERROR: Could not open the clade to node id asssignment file: %s!\n", clade_to_nid_filename.c_str());
+        fprintf(stderr, "ERROR: Could not open the clade to node id assignment file: %s!\n", clade_to_nid_filename.c_str());
         exit(1);
-    }    
+    }
     std::string line;
 
-    fprintf(stderr, "Reading clade to node id assignment file and completing assignments.\n"); 
+    fprintf(stderr, "Reading clade to node id assignment file and completing assignments.\n");
     timer.Start();
     while (std::getline(infile, line)) {
         std::vector<std::string> words;
-        MAT::string_split(line, words);
+        MAT::string_split(line, '\t', words);
         if ((words.size() > 2) || (words.size() == 1)) {
-            fprintf(stderr, "ERROR: Incorrect format for clade to node id asssignment file: %s!\n", clade_to_nid_filename.c_str());
+            fprintf(stderr, "ERROR: Incorrect format for clade to node id assignment file: %s!\n", clade_to_nid_filename.c_str());
             exit(1);
         }
         auto n = T.get_node(words[1]);
         if (n == NULL) {
             fprintf(stderr, "ERROR: Node id %s not found!\n", words[1].c_str());
             exit(1);
-        }
-        else if (n->clade_annotations[num_annotations-1] != "") {
-            fprintf(stderr, "WARNING: Assigning clade %s to node %s failed as the node is already assigned to clade %s!\n", 
+        } else if (n->clade_annotations[num_annotations-1] != "") {
+            fprintf(stderr, "WARNING: Assigning clade %s to node %s failed as the node is already assigned to clade %s!\n",
                     words[0].c_str(), words[1].c_str(), n->clade_annotations[num_annotations-1].c_str());
 
-        }
-        else {
+        } else {
             n->clade_annotations[num_annotations-1] = words[0];
         }
     }
@@ -247,13 +252,13 @@ void get_freq_overlap(MAT::Tree& T, MAT::Node* node, std::vector<MAT::Node*>clad
     size_t num_desc = 0;
 
     tbb::parallel_for(tbb::blocked_range<size_t>(0, clade_samples.size()),
-                      [&](const tbb::blocked_range<size_t> r) {
-                        for (size_t i=r.begin(); i<r.end(); ++i){
-                          if (T.is_ancestor(node->identifier, clade_samples[i]->identifier)) {
-                            __sync_fetch_and_add(&num_desc, 1.0);
-                          }
-                        }
-                      }, ap);
+    [&](const tbb::blocked_range<size_t> r) {
+        for (size_t i=r.begin(); i<r.end(); ++i) {
+            if (T.is_ancestor(node->identifier, clade_samples[i]->identifier)) {
+                __sync_fetch_and_add(&num_desc, 1.0);
+            }
+        }
+    }, ap);
 
     *freq = (static_cast<float>(num_desc) / T.get_num_leaves(node));
     *overlap = (static_cast<float>(num_desc) / clade_samples.size());
@@ -261,12 +266,12 @@ void get_freq_overlap(MAT::Tree& T, MAT::Node* node, std::vector<MAT::Node*>clad
 
 void assignLineages (MAT::Tree& T, const std::string& clade_filename, float min_freq, float mask_freq, float set_overlap, float clip_sample_frequency, bool clear_current, const std::string& mutations_filename, const std::string& details_filename) {
     static tbb::affinity_partitioner ap;
-    
-    fprintf(stderr, "Copying tree with uncondensed leaves.\n"); 
+
+    fprintf(stderr, "Copying tree with uncondensed leaves.\n");
     timer.Start();
     auto uncondensed_T = MAT::get_tree_copy(T);
     uncondensed_T.uncondense_leaves();
-    
+
     auto dfs = T.depth_first_expansion();
     size_t total_nodes = dfs.size();
     FILE *mutations_file = NULL, *details_file = NULL;
@@ -282,48 +287,40 @@ void assignLineages (MAT::Tree& T, const std::string& clade_filename, float min_
                 "already_assigned\tfinal_overlap\texemplar_count\tbest_node_path\n");
     }
 
-    
+
+    init_annotations(dfs, clear_current);
     std::unordered_map<std::string, size_t> dfs_idx;
     for (size_t idx = 0; idx < total_nodes; idx++) {
-        //remove the current annotations if unwanted.
-        if (clear_current) {
-            dfs[idx]->clade_annotations.clear();
-        }
-
         dfs_idx[dfs[idx]->identifier] = idx;
-        // Add a new entry in annotations
-        dfs[idx]->clade_annotations.emplace_back("");
     }
     size_t num_annotations = T.get_num_annotations();
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
-    
+
     std::map<std::string, std::vector<MAT::Node*>> clade_map;
     std::ifstream infile(clade_filename);
     if (!infile) {
-        fprintf(stderr, "ERROR: Could not open the clade asssignment file: %s!\n", clade_filename.c_str());
+        fprintf(stderr, "ERROR: Could not open the clade assignment file: %s!\n", clade_filename.c_str());
         exit(1);
-    }    
+    }
     std::string line;
 
     //Read the clade assignment file line by line and fill up map values
-    fprintf(stderr, "Reading clade assignment file.\n"); 
+    fprintf(stderr, "Reading clade assignment file.\n");
     timer.Start();
     while (std::getline(infile, line)) {
         std::vector<std::string> words;
-        MAT::string_split(line, words);
+        MAT::string_split(line, '\t', words);
         if ((words.size() > 2) || (words.size() == 1)) {
-            fprintf(stderr, "ERROR: Incorrect format for clade asssignment file: %s!\n", clade_filename.c_str());
+            fprintf(stderr, "ERROR: Incorrect format for clade assignment file: %s!\n", clade_filename.c_str());
             exit(1);
-        }
-        else if (words.size() == 2) {
+        } else if (words.size() == 2) {
             auto n = uncondensed_T.get_node(words[1]);
             if (n != NULL) {
                 if (clade_map.find(words[0]) == clade_map.end()) {
                     clade_map[words[0]] = std::vector<MAT::Node*>();;
                 }
                 clade_map[words[0]].emplace_back(n);
-            }
-            else {
+            } else {
                 fprintf(stderr, "WARNING: Sample %s not found in input MAT!\n", words[1].c_str());
             }
         }
@@ -336,8 +333,7 @@ void assignLineages (MAT::Tree& T, const std::string& clade_filename, float min_
         float freq;
         float overlap;
         float freq_clipped;
-        Node_freq (size_t a, float b, float c, float clip_freq)
-        {
+        Node_freq (size_t a, float b, float c, float clip_freq) {
             best_j = a;
             freq = b;
             overlap = c;
@@ -373,15 +369,15 @@ void assignLineages (MAT::Tree& T, const std::string& clade_filename, float min_
         const char* clade_c_str = it.first.c_str();
         fprintf(stderr, "Finding best node for clade %s.\n", clade_c_str);
         timer.Start();
-        
+
         std::map<std::string, int> mutation_counts;
 
         tbb::mutex tbb_lock;
         tbb::parallel_for(tbb::blocked_range<size_t>(0, it.second.size()),
         [&](const tbb::blocked_range<size_t> r) {
-            for (size_t i=r.begin(); i<r.end(); ++i){
+            for (size_t i=r.begin(); i<r.end(); ++i) {
                 auto n = it.second[i];
-                std::vector<int> anc_positions;                                                                                                                                                                 
+                std::vector<int> anc_positions;
                 std::vector<MAT::Mutation> ancestral_mutations;
 
                 // Add ancestral mutations to ancestral mutations. When multiple mutations
@@ -400,16 +396,15 @@ void assignLineages (MAT::Tree& T, const std::string& clade_filename, float min_
 
                 for (auto m: ancestral_mutations) {
                     if (m.ref_nuc != m.mut_nuc) {
-                        std::string mut_string = m.chrom + "\t" + std::to_string(m.ref_nuc) + "\t" + 
-                                      std::to_string(m.position) + "\t" + std::to_string(m.mut_nuc);
-                            tbb_lock.lock();
-                            if (mutation_counts.find(mut_string) == mutation_counts.end()) {
-                                mutation_counts[mut_string] = 1;
-                            }
-                            else {
-                                mutation_counts[mut_string] += 1;
-                            }
-                            tbb_lock.unlock();
+                        std::string mut_string = m.chrom + "\t" + std::to_string(m.ref_nuc) + "\t" +
+                                                 std::to_string(m.position) + "\t" + std::to_string(m.mut_nuc);
+                        tbb_lock.lock();
+                        if (mutation_counts.find(mut_string) == mutation_counts.end()) {
+                            mutation_counts[mut_string] = 1;
+                        } else {
+                            mutation_counts[mut_string] += 1;
+                        }
+                        tbb_lock.unlock();
                     }
                 }
             }
@@ -423,18 +418,17 @@ void assignLineages (MAT::Tree& T, const std::string& clade_filename, float min_
                 MAT::Mutation m;
                 m.chrom = words[0];
                 m.ref_nuc = static_cast<int8_t>(std::stoi(words[1]));
-                m.par_nuc = m.ref_nuc; 
+                m.par_nuc = m.ref_nuc;
                 m.position = std::stoi(words[2]);
                 m.mut_nuc = static_cast<int8_t>(std::stoi(words[3]));
                 clade_mutations.emplace_back(m);
-            }
-            else if (static_cast<float>(mc.second)/it.second.size() >= mask_freq) {
+            } else if (static_cast<float>(mc.second)/it.second.size() >= mask_freq) {
                 std::vector<std::string> words;
                 MAT::string_split(mc.first, words);
                 MAT::Mutation m;
                 m.chrom = words[0];
                 m.ref_nuc = static_cast<int8_t>(std::stoi(words[1]));
-                m.par_nuc = m.ref_nuc; 
+                m.par_nuc = m.ref_nuc;
                 m.position = std::stoi(words[2]);
                 m.mut_nuc = MAT::get_nuc_id('N');
                 clade_mutations.emplace_back(m);
@@ -446,16 +440,16 @@ void assignLineages (MAT::Tree& T, const std::string& clade_filename, float min_
         write_mutations(stderr, clade_mutations);
         fputc('\n', stderr);
         if (mutations_file) {
-          fprintf(mutations_file, "%s\t", clade_c_str);
-          write_mutations(mutations_file, clade_mutations, true, false);
-          fputc('\n', mutations_file);
+            fprintf(mutations_file, "%s\t", clade_c_str);
+            write_mutations(mutations_file, clade_mutations, true, false);
+            fputc('\n', mutations_file);
         }
-        
+
         size_t best_node_num_leaves = 0;
-        int best_set_difference = 1e9; 
+        int best_set_difference = 1e9;
         size_t best_j = 0;
         bool best_node_has_unique = false;
-                
+
         std::vector<std::vector<MAT::Mutation>> node_excess_mutations(total_nodes);
         std::vector<std::vector<MAT::Mutation>> node_imputed_mutations(total_nodes);
 
@@ -469,28 +463,28 @@ void assignLineages (MAT::Tree& T, const std::string& clade_filename, float min_
         // Find the best placement(s)
         static tbb::affinity_partitioner ap;
         tbb::parallel_for( tbb::blocked_range<size_t>(0, total_nodes),
-                [&](tbb::blocked_range<size_t> r) {
-                for (size_t k=r.begin(); k<r.end(); ++k){
-                   mapper2_input inp;
-                   inp.T = &T;
-                   inp.node = dfs[k];
-                   inp.missing_sample_mutations = &clade_mutations;
-                   inp.excess_mutations = &node_excess_mutations[k];
-                   inp.imputed_mutations = &node_imputed_mutations[k];
-                   inp.best_node_num_leaves = &best_node_num_leaves;
-                   inp.best_set_difference = &best_set_difference;
-                   inp.best_node = &best_node;
-                   inp.best_j =  &best_j;
-                   inp.num_best = &num_best;
-                   inp.j = k;
-                   inp.has_unique = &best_node_has_unique;
+        [&](tbb::blocked_range<size_t> r) {
+            for (size_t k=r.begin(); k<r.end(); ++k) {
+                mapper2_input inp;
+                inp.T = &T;
+                inp.node = dfs[k];
+                inp.missing_sample_mutations = &clade_mutations;
+                inp.excess_mutations = &node_excess_mutations[k];
+                inp.imputed_mutations = &node_imputed_mutations[k];
+                inp.best_node_num_leaves = &best_node_num_leaves;
+                inp.best_set_difference = &best_set_difference;
+                inp.best_node = &best_node;
+                inp.best_j =  &best_j;
+                inp.num_best = &num_best;
+                inp.j = k;
+                inp.has_unique = &best_node_has_unique;
 
-                   inp.best_j_vec = &best_j_vec;
-                   inp.node_has_unique = &(node_has_unique);
+                inp.best_j_vec = &best_j_vec;
+                inp.node_has_unique = &(node_has_unique);
 
-                   mapper2_body(inp, false);
-                }       
-        }, ap); 
+                mapper2_body(inp, false);
+            }
+        }, ap);
 
         fprintf(stderr, "Parsimony score at the best node: %d\n", best_set_difference);
         // Show the paths to placement node(s)
@@ -505,29 +499,28 @@ void assignLineages (MAT::Tree& T, const std::string& clade_filename, float min_
         if (num_best > 1) {
             fprintf(stderr, "WARNING: found %zu possible assignments\n", num_best);
         }
-        
+
         float freq = 0;
         float overlap = 0;
         float best_freq = -1.0;
-            
+
         std::stable_sort(best_j_vec.begin(), best_j_vec.end());
 
         for (auto j: best_j_vec) {
-           // for each placement, this for loop traverses the ancestors of the
-           // placement node all the way up the the root as long as the
-           // frequency at which the clade sammples occur in each descendants
-           // monotonically increases, and adds each of those ancestors to clade
-           // assignments for consideration.
-           for (auto anc: T.rsearch(dfs[j]->identifier, true)) {
-               get_freq_overlap(T, anc, it.second, &freq, &overlap);
-               if ((freq >= best_freq) && (overlap >= set_overlap)) {
-                   clade_assignments[curr_idx].best_node_frequencies.push_back(Node_freq(dfs_idx[anc->identifier], freq, overlap, clip_sample_frequency));
-                   best_freq = freq;
-               }
-               else {
-                   break;
-               }
-           }
+            // for each placement, this for loop traverses the ancestors of the
+            // placement node all the way up the the root as long as the
+            // frequency at which the clade sammples occur in each descendants
+            // monotonically increases, and adds each of those ancestors to clade
+            // assignments for consideration.
+            for (auto anc: T.rsearch(dfs[j]->identifier, true)) {
+                get_freq_overlap(T, anc, it.second, &freq, &overlap);
+                if ((freq >= best_freq) && (overlap >= set_overlap)) {
+                    clade_assignments[curr_idx].best_node_frequencies.push_back(Node_freq(dfs_idx[anc->identifier], freq, overlap, clip_sample_frequency));
+                    best_freq = freq;
+                } else {
+                    break;
+                }
+            }
         }
         if (clade_assignments[curr_idx].best_node_frequencies.size() == 0) {
             fprintf(stderr, "WARNING: %s: no placement node or ancestor passed thresholds.\n", clade_c_str);
@@ -537,7 +530,7 @@ void assignLineages (MAT::Tree& T, const std::string& clade_filename, float min_
                 fprintf(stderr, "fail node\t%s\t%s\t%f\t%f\n", clade_c_str, node->identifier.c_str(), freq, overlap);
             }
         }
-        
+
         // prioritize the assignments with the highest frequency and overlap
         std::stable_sort(clade_assignments[curr_idx].best_node_frequencies.begin(), clade_assignments[curr_idx].best_node_frequencies.end());
 
@@ -582,8 +575,7 @@ void assignLineages (MAT::Tree& T, const std::string& clade_filename, float min_
         if (!assigned) {
             if (c.best_node_frequencies.size() > 0) {
                 fprintf(stderr, "\nWARNING: Could not assign a node to clade %s with %zu samples since all possible nodes were already assigned some other clade!\n", c.clade_name.c_str(), c.clade_size);
-            }
-            else {
+            } else {
                 fprintf(stderr, "\nWARNING: Could not assign a node to clade %s with %zu samples since placement node(s) did not overlap with enough clade samples!\n", c.clade_name.c_str(), c.clade_size);
             }
         }
@@ -631,3 +623,94 @@ void assignLineages (MAT::Tree& T, const std::string& clade_filename, float min_
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 }
 
+bool node_has_muts(MAT::Node *node, std::vector<std::string>& muts) {
+    // Return true if node's mutations are the same as muts, where each string in muts is
+    // of the form <par_nuc><position><mut_nuc>.  Mutations can appear in different orders.
+    // The length of muts is expected to be very small (typically 1, usually < 5).
+    if (node->mutations.size() != muts.size()) {
+        return false;
+    }
+    std::vector<std::string> node_muts(node->mutations.size());
+    for (MAT::Mutation node_mut: node->mutations) {
+        bool got_it = false;
+        std::string node_mut_string = node_mut.get_string();
+        for (std::string mut: muts) {
+            if (mut == node_mut_string) {
+                got_it = true;
+                break;
+            }
+        }
+        if (! got_it) {
+            return false;
+        }
+    }
+    return true;
+}
+
+void assignLineagesFromPaths(MAT::Tree& T, const std::string& clade_paths_filename, bool clear_current) {
+    // Read in a tsv file of clade names and mutation paths like first and third columns of the
+    // output of matUtils extract --clade-paths e.g. "B\t" (B, no mutations) or
+    // "A\t> T28144C > C8782T" or B.52\tC8090T > A1904G,C10789T".
+    // Follow the path of mutations from root and assign clade to terminal node of path;
+    // exit with an error if no child has the specified mutations.
+    auto dfs = T.depth_first_expansion();
+    init_annotations(dfs, clear_current);
+    size_t num_annotations = T.get_num_annotations();
+
+    std::ifstream infile(clade_paths_filename);
+    if (!infile) {
+        fprintf(stderr, "ERROR: Could not open the clade paths file: %s!\n", clade_paths_filename.c_str());
+        exit(1);
+    }
+    std::string line;
+
+    fprintf(stderr, "Reading clade paths file and making assignments.\n");
+    timer.Start();
+    while (std::getline(infile, line)) {
+        std::vector<std::string> words;
+        MAT::string_split(line, '\t', words);
+        // Empty second word (for root node, no mutations) is ignored by string_split; add it back.
+        if (words.size() == 1 && line.back() == '\t') {
+            words.push_back("");
+        }
+        if (words.size() != 2) {
+            fprintf(stderr, "ERROR: Incorrect format for clade paths file: %s!  Expected 2 tab-separated words, got %ld (%s)\n", clade_paths_filename.c_str(), words.size(), line.c_str());
+            exit(1);
+        }
+        // Parse path from words[1] and find terminal node of path, or exit with error.
+        std::vector<std::string> path_words;
+        MAT::string_split(words[1], path_words);
+        MAT::Node* node = T.root;
+        for (std::string path_el: path_words) {
+            // Ignore empty string or ">"
+            if (path_el == "" || path_el == ">") {
+                continue;
+            }
+            // Might be comma-sep list of mutations
+            std::vector<std::string> muts;
+            MAT::string_split(path_el, ',', muts);
+            MAT::Node *child_with_muts = NULL;
+            for (MAT::Node *kid: node->children) {
+                if (node_has_muts(kid, muts)) {
+                    child_with_muts = kid;
+                    break;
+                }
+            }
+            if (child_with_muts == NULL) {
+                fprintf(stderr, "ERROR: no child of node %s has mutations %s (path %s)\n",
+                        node->identifier.c_str(), path_el.c_str(), line.c_str());
+                exit(1);
+            }
+            node = child_with_muts;
+        }
+        // assign clade to node
+        if (node->clade_annotations[num_annotations-1] != "") {
+            fprintf(stderr, "WARNING: Assigning clade %s to node %s for path %s failed as the node is already assigned to clade %s!\n",
+                    words[0].c_str(), node->identifier.c_str(), words[1].c_str(), node->clade_annotations[num_annotations-1].c_str());
+        } else {
+            node->clade_annotations[num_annotations-1] = words[0];
+        }
+    }
+    infile.close();
+    fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+}

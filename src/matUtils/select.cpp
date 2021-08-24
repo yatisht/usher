@@ -1,4 +1,5 @@
 #include "select.hpp"
+#include <random>
 /*
 Functions in this module take a variety of arguments, usually including a MAT
 and return a set of samples as a std::vector<std::string>
@@ -110,7 +111,7 @@ std::vector<std::string> get_parsimony_samples (MAT::Tree* T, int max_parsimony)
     return good_samples;
 }
 
-std::vector<std::string> get_clade_representatives(MAT::Tree* T) {
+std::vector<std::string> get_clade_representatives(MAT::Tree* T, size_t samples_per_clade) {
     timer.Start();
     fprintf(stderr, "Selecting clade representative samples...");
     //get a pair of representative leaves for every clade currently annotated in the tree
@@ -121,12 +122,14 @@ std::vector<std::string> get_clade_representatives(MAT::Tree* T) {
     //depth first search down the first child until a sample is encountered, record the name
     //then depth first search down the second child until a sample is encountered, record that name
     //and add both samples to the representative output
-    std::vector<std::string> rep_samples;
+    std::unordered_set<std::string> rep_samples;
     //expand and identify clades seen
     std::unordered_set<std::string> clades_seen;
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
 
-    auto dfs = T->breadth_first_expansion();
-    for (auto n: dfs) {
+    auto bfs = T->breadth_first_expansion();
+    for (auto n: bfs) {
         std::string curpath;
         for (auto ann: n->clade_annotations) {
             if (ann != "") {
@@ -134,25 +137,24 @@ std::vector<std::string> get_clade_representatives(MAT::Tree* T) {
                 //the first time any new annotation is encountered in an expansion, its the root of that lineage
                 if (clades_seen.find(ann) == clades_seen.end()) {
                     clades_seen.insert(ann);
-                    //this should always be true
-                    assert (n->children.size() > 1);
-                    //search down the first child
-                    auto first_dfs = T->depth_first_expansion(n->children[0]);
-                    for (auto sn: first_dfs) {
-                        //pick a sample which hasn't already been selected to represent some other clade
-                        //since clades are nested (is this the correct way to handle this?)
-                        if (sn->is_leaf() && std::find(rep_samples.begin(), rep_samples.end(), sn->identifier) == rep_samples.end()) {
-                            //when a sample is found, grab it and break
-                            rep_samples.push_back(sn->identifier);
-                            break;
-                        }
-                    }
-                    //and the second
-                    auto second_dfs = T->depth_first_expansion(n->children[1]);
-                    for (auto sn: second_dfs) {
-                        if (sn->is_leaf() && std::find(rep_samples.begin(), rep_samples.end(), sn->identifier) == rep_samples.end()) {
-                            rep_samples.push_back(sn->identifier);
-                            break;
+                    std::vector<std::string> leaf_ids = T->get_leaves_ids(n->identifier);
+                    if (leaf_ids.size() <= samples_per_clade) {
+                        // Add all leaves
+                        rep_samples.insert(leaf_ids.begin(), leaf_ids.end());
+                    } else {
+                        // Randomly select leaves; keep trying if a leaf has already been selected,
+                        // but don't keep trying forever in case there just aren't enough
+                        // unselected leaves.
+                        size_t added = 0, already_selected = 0;
+                        std::uniform_int_distribution<> distrib(0, leaf_ids.size() - 1);
+                        while (added < samples_per_clade && already_selected < samples_per_clade) {
+                            int ix = distrib(gen);
+                            if (rep_samples.find(leaf_ids[ix]) == rep_samples.end()) {
+                                rep_samples.insert(leaf_ids[ix]);
+                                added++;
+                            } else {
+                                already_selected++;
+                            }
                         }
                     }
                     //there may be cases where a clade iterates all the way through and every sample which could represent it is already
@@ -166,12 +168,17 @@ std::vector<std::string> get_clade_representatives(MAT::Tree* T) {
     fprintf(stderr, "%ld samples chosen to represent ", rep_samples.size());
     fprintf(stderr, "%ld unique clades\n", clades_seen.size());
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
-    return rep_samples;
+    std::vector<std::string> rep_sample_vec;
+    rep_sample_vec.reserve(rep_samples.size());
+    rep_sample_vec.insert(rep_sample_vec.end(), rep_samples.begin(), rep_samples.end());
+    return rep_sample_vec;
 }
 
 std::vector<std::string> sample_intersect (std::vector<std::string> samples, std::vector<std::string> nsamples) {
     //helper function to get the intersection of two sample identifier vectors
     //used when chaining together other select functions
+    assert (samples.size() > 0);
+    assert (nsamples.size() > 0);
     std::vector<std::string> inter_samples;
     for (auto s: samples) {
         if (std::find(nsamples.begin(), nsamples.end(), s) != nsamples.end()) {
@@ -186,6 +193,7 @@ std::vector<std::string> get_nearby (MAT::Tree* T, std::string sample_id, int nu
     //the simple indexing method is not guaranteed to get the very closest neighbors when the query sample is out near the edge of a large clade
     //unfortunately. so we have to brute force it.
     MAT::Node* last_anc = T->get_node(sample_id);
+    assert (number_to_get > 0);
     if (last_anc == NULL) {
         fprintf(stderr, "ERROR: %s is not present in the tree!\n", sample_id.c_str() );
     }
@@ -198,23 +206,48 @@ std::vector<std::string> get_nearby (MAT::Tree* T, std::string sample_id, int nu
         }
 
         if (num_leaves > number_to_get) {
+            struct NodeDist {
+                MAT::Node* node;
+                uint32_t num_mut;
+
+                NodeDist(MAT::Node* n, uint32_t d) {
+                    node = n;
+                    num_mut = d;
+                }
+
+                inline bool operator< (const NodeDist& n) const {
+                    return ((*this).num_mut < n.num_mut);
+                }
+            };
+
             for (auto l: T->get_leaves(last_anc->identifier)) {
                 leaves_to_keep.emplace_back(l->identifier);
             }
-
-            std::vector<Mutation_Annotated_Tree::Node*> siblings;
-            for (auto child: anc->children) {
-                if (child->identifier != last_anc->identifier) {
-                    siblings.emplace_back(child);
+            
+            std::vector<NodeDist> node_distances;
+            for (auto l: T->get_leaves(anc->identifier)) {
+                if (T->is_ancestor(last_anc->identifier, l->identifier)) {
+                    continue;
                 }
+
+                uint32_t dist = 0;
+                for (auto a: T->rsearch(l->identifier, true)) {
+                    if (a == anc) {
+                        break;
+                    }
+                    dist += a->mutations.size();
+                }
+
+                node_distances.emplace_back(NodeDist(l, dist));
             }
 
-            for (size_t k=0; k<siblings.size(); k++) {
-                for (auto l: T->get_leaves(siblings[k]->identifier)) {
-                    leaves_to_keep.emplace_back(l->identifier);
+            std::sort(node_distances.begin(), node_distances.end());
+            for (auto n: node_distances) {
+                if (leaves_to_keep.size() == number_to_get) {
+                    break;
                 }
+                leaves_to_keep.emplace_back(n.node->identifier); 
             }
-            leaves_to_keep.resize(number_to_get);
         } else {
             for (auto l: T->get_leaves(anc->identifier)) {
                 leaves_to_keep.emplace_back(l->identifier);
@@ -224,42 +257,8 @@ std::vector<std::string> get_nearby (MAT::Tree* T, std::string sample_id, int nu
             break;
         }
     }
-    //assert (leaves_to_keep.size() == static_cast<size_t>(number_to_get));
     return leaves_to_keep;
 }
-    //by far the simplest way to do this is to get_leaves_ids and subset out a distance around the index
-    //increment the number to get by 1.
-    // number_to_get++;
-    // //trying the set of leaves in breadth-first search order
-    // std::vector<std::string> all_leaves;
-    // for (auto n: T.depth_first_expansion()) {
-    //     if (n->is_leaf()) {
-    //         all_leaves.push_back(n->identifier);
-    //     }
-    // }
-    // auto target = std::find(all_leaves.begin(), all_leaves.end(), sample_id);
-    // if (target == all_leaves.cend()) {
-    //     fprintf(stderr, "ERROR: Indicated sample does not exist in the tree!\n");
-    //     exit(1);
-    // } else if (all_leaves.size() < static_cast<size_t>(number_to_get)) {
-    //     fprintf(stderr, "ERROR: Not enough samples in tree to get neighborhood subtree of requested size!\n");
-    //     exit(1);
-    // }
-    // // int tindex = std::distance(all_leaves.begin(), target);
-    // int subset_start = tindex - (number_to_get/2);
-    // int subset_end = tindex + (number_to_get/2);
-    // if (subset_start < 0) {
-    //     subset_start = 0;
-    //     subset_end = number_to_get;
-    // } else if (static_cast<size_t>(subset_end) >= all_leaves.size()) {
-    //     subset_start = all_leaves.size() - number_to_get - 1;
-    //     subset_end = all_leaves.size() - 1;
-    // }
-    // //fprintf(stderr, "Start index is %d\n", subset_start);
-    // //fprintf(stderr, "Stop index is %d\n", subset_end);
-    // std::vector<std::string> neighborhood_leaves(all_leaves.begin() + subset_start, all_leaves.begin() + subset_end);
-    // return neighborhood_leaves;
-// }
 
 std::vector<std::string> get_short_steppers(MAT::Tree* T, std::vector<std::string> samples_to_check, int max_mutations) {
     //for each sample in samples_to_check, this function rsearches along that samples history in the tree
@@ -308,7 +307,6 @@ std::map<std::string,std::map<std::string,std::string>> read_metafile(std::strin
     std::vector<std::string> keys;
 
     while (std::getline(infile, line)) {
-        //std::cerr << "reading\n";
         std::vector<std::string> words;
         if (line[line.size()-1] == '\r') {
             line = line.substr(0, line.size()-1);
@@ -319,13 +317,9 @@ std::map<std::string,std::map<std::string,std::string>> read_metafile(std::strin
                 keys.push_back(w);
             }
             first = false;
-            //std::cerr << keys[0].c_str() << ',' << keys[1].c_str() << "\n";
         } else {
             for (size_t i=1; i < words.size(); i++) {
-                //std::cerr << words[i];
-//                if (samples_to_use.find(words[0]) != samples_to_use.end()) {
-                    metamap[keys[i]][words[0]] = words[i];
-//                }
+                metamap[keys[i]][words[0]] = words[i];
             }
         }
     }
@@ -346,10 +340,11 @@ std::vector<std::string> get_sample_match(MAT::Tree* T, std::string substring) {
     return matchsamples;
 }
 
-std::vector<std::string> fill_random_samples(MAT::Tree* T, std::vector<std::string> current_samples, size_t target_size) {
+std::vector<std::string> fill_random_samples(MAT::Tree* T, std::vector<std::string> current_samples, size_t target_size, bool lca_limit) {
     //expand the current sample selection with random samples until it is the indicated size.
     //alternatively, prune random samples from the selection until it is the indicated size, as necessary.
     std::set<std::string> choices;
+    std::srand(std::time(nullptr));
     fprintf(stderr, "Selected sample set is %ld samples with %ld requested subtree size; ", current_samples.size(), target_size);
     if (current_samples.size() > target_size) {
         fprintf(stderr, "removing random samples\n");
@@ -364,7 +359,14 @@ std::vector<std::string> fill_random_samples(MAT::Tree* T, std::vector<std::stri
         }
     } else if (current_samples.size() < target_size) {
         fprintf(stderr, "filling in with random samples\n");
-        auto all_leaves_ids = T->get_leaves_ids();
+        std::vector<std::string> all_leaves_ids;
+        if (lca_limit) {
+            std::string lca = MAT::get_subtree(*T, current_samples).root->identifier;
+            std::cerr << "Selecting only samples below " << lca << "\n";
+            all_leaves_ids = T->get_leaves_ids(lca);
+        } else {
+            all_leaves_ids = T->get_leaves_ids();
+        }
         choices.insert(current_samples.begin(), current_samples.end());
         for (size_t i = 0; i < all_leaves_ids.size(); i++) {
             auto l = all_leaves_ids.begin();
@@ -379,6 +381,9 @@ std::vector<std::string> fill_random_samples(MAT::Tree* T, std::vector<std::stri
         choices.insert(current_samples.begin(), current_samples.end());
     }
     std::vector<std::string> filled_samples (choices.begin(), choices.end());
-    assert (filled_samples.size() == target_size);
+    //assert (filled_samples.size() == target_size);
+    if ((filled_samples.size() < target_size) && (lca_limit)) {
+        fprintf(stderr, "WARNING: Less than the requested number of samples are available beneath the LCA; %ld samples included in output\n", filled_samples.size());
+    }
     return filled_samples;
 }

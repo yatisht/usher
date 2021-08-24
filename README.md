@@ -12,21 +12,32 @@
 
 <img src="/images/usher_logo.png" width="600">
 
-**NEW: We will now be sharing and updating UShER's pre-processed mutation-annotated tree object for public SARS-CoV-2 sequences here: https://hgwdev.gi.ucsc.edu/~angie/UShER_SARS-CoV-2/**
+**NEW: We will now be sharing and updating UShER's pre-processed mutation-annotated tree object for public SARS-CoV-2 sequences here: http://hgdownload.soe.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/. We recommend using https://cov2tree.org/ (developed by [Theo Sanderson](https://github.com/theosanderson/taxodium)) to visualize this tree.**
 
-UShER is a program that rapidly places new samples onto an existing phylogeny using maximum parsimony. It is particularly helpful in understanding the relationships of newly sequenced SARS-CoV-2 genomes with each other and with previously sequenced genomes in a global phylogeny. This has emerged as an important challenge during this pandemic for enabling *genomic contact tracing* since the viral phylogeny is already very large (>500K sequences, see https://github.com/roblanf/sarscov2phylo/releases) and is expected to grow by many fold in the coming months. 
+UShER is now a package consisting of a family of programs for rapid phylogenetic analyses, particularly suitable for the SARS-CoV-2 genomes. 
 
-UShER is much faster than existing tools with similar functionality and has now also been integrated in the [UCSC SARS-CoV-2 Genome Browser](https://genome.ucsc.edu/cgi-bin/hgPhyloPlace), which does not require UShER installation and usage know-how as described below for SARS-CoV-2 applications. 
+* **UShER** is a program that rapidly places new samples onto an existing phylogeny using maximum parsimony. It is particularly helpful in understanding the relationships of newly sequenced SARS-CoV-2 genomes with each other and with previously sequenced genomes in a global phylogeny. This has emerged as an important challenge during the COVID-19 pandemic for enabling *genomic contact tracing* since the viral phylogeny is already very large (>2M sequences) and is expected to grow by many fold in the coming months. UShER is much faster than existing tools with similar functionality and has now also been integrated in the [UCSC SARS-CoV-2 Genome Browser](https://genome.ucsc.edu/cgi-bin/hgPhyloPlace), which does not require UShER installation and usage know-how as described below for SARS-CoV-2 applications. UShER uses the mutation-annotated tree (MAT) data format, which is a phylogenetic tree in which the branches are annotated with the mutations that have been inferred to have occurred on them. 
+* **matUtils** is a toolkit for querying, interpreting and manipulating the mutation-annotated trees (MATs). Using matUtils, common operations in SARS-CoV-2 genomic surveillance and contact tracing efforts, including annotating a MAT with new clades, extracting subtrees of the most closely-related samples, or converting the MAT to standard Newick or VCF format can be performed in a matter of seconds to minutes even on a laptop. 
+* **matOptimize** is a program to rapidly and effectively optimize a mutation-annotated tree (MAT) for parsimony using subtree pruning and regrafting (SPR) moves within a user-defined radius.
+* **RIPPLES** is a program that uses a phylogenomic technique to rapidly and sensitively detect recombinant nodes and their ancestors in a mutation-annotated tree (MAT).  
 
-Please refer our [wiki](https://usher-wiki.readthedocs.io/) for detailed instructions on installing and using UShER. 
+
+Please refer to our [wiki](https://usher-wiki.readthedocs.io/) for detailed instructions on installing and using the UShER package. 
 
 ## Acknowledgement
 
 We thank Jim Kent and the UCSC Genome Browser team for allowing us to download the `faToVcf` utility (from http://hgdownload.soe.ucsc.edu/admin/exe/). Please read the license terms for `faToVcf` here: https://github.com/ucscGenomeBrowser/kent/blob/master/src/LICENSE.
 
-## Reference
+## References
 **UShER:**
 * Yatish Turakhia, Bryan Thornlow, Angie S Hinrichs, Nicola de Maio, Landen Gozashti, Robert Lanfear, David Haussler, and Russ Corbett-Detig, "Ultrafast Sample placement on Existing tRees (UShER) enables real-time phylogenetics for the SARS-CoV-2 pandemic", Nature Genetics (2021) [paper](https://t.co/ulGUSRmuWv?amp=1).
+
+**matUtils:**
+* Jakob McBroome*, Bryan Thornlow*, Angie S. Hinrichs, Nicola De Maio, Nick Goldman, David Haussler, Russell Corbett-Detig, Yatish Turakhia, "A daily-updated database and tools for comprehensive SARS-CoV-2 mutation-annotated trees", bioRxiv (2021), [preprint](https://www.biorxiv.org/content/10.1101/2021.04.03.438321v2)
+
+**RIPPLES:**
+* Yatish Turakhia*, Bryan Thornlow*, Angie S. Hinrichs, Jakob McBroome, Nicolas Ayala, Cheng Ye, Nicola De Maio, David Haussler, Russell Corbett-Detig, "Pandemic-Scale Phylogenomics Reveals Elevated Recombination Rates in the SARS-CoV-2 Spike Region", bioRxiv (2021), [preprint](https://www.biorxiv.org/content/10.1101/2021.08.04.455157v1)
+
 
 **For masking recomendations, please also cite:**
 * Yatish Turakhia, Nicola De Maio, Bryan Thornlow, Landen Gozashti, Robert Lanfear, Conor R. Walker, Angie S. Hinrichs, Jason D. Fernandes, Rui Borges, Greg Slodkowicz, Lukas Weilguny, David Haussler, Nick Goldman and Russell Corbett-Detig, "Stability of SARS-CoV-2 Phylogenies", PLOS Genetics 2020 [paper](https://doi.org/10.1371/journal.pgen.1009175).

@@ -1,0 +1,150 @@
+'''
+This is a simple snakemake workflow for running usher, matUtils, and ripples
+
+Include in the current working direcotry:
+    1. a fasta file with SARS-CoV-2 genome sequences: [user_fa] (below)
+    2. the Snakefile
+    3. the environment file, usher.yaml
+
+Users can run each workflow as:
+
+UShER: add samples to the latest public MAT
+    snakemake --use-conda --cores [num threads] --config FASTA="[user_fa]" RUNTYPE="usher"
+matUtils: extract subtrees in auspice.us compatible json format using matUtils
+    snakemake --use-conda --cores [num threads] --config FASTA="[user_fa]" RUNTYPE="matUtils"
+ripples: detect recombinants in the ancestry of the user-supplied samples
+    snakemake --use-conda --cores [num threads] --config FASTA="[user_fa]" RUNTYPE="ripples"
+
+For each run type, the usher.yaml environment file must be present in the working directory.
+
+There are many other advanced options, for more information, please see the wiki:
+
+    https://usher-wiki.readthedocs.io/en/latest/
+
+rucorbet@ucsc.edu
+
+'''
+
+
+'''
+
+TODO:
+
+    1. add a translate workflow and pass this to matUtils
+    2. add a cluster detection workflow via introduce
+
+'''
+
+rule all:
+    input:
+        config["RUNTYPE"]
+    shell:
+        "rm {input[0]}"
+
+rule download_reference:
+    output:
+        "wuhCor1.fa"
+    conda:
+        "usher.yaml"
+    shell:
+        "wget https://hgdownload.soe.ucsc.edu/goldenPath/wuhCor1/bigZips/wuhCor1.fa.gz && gunzip wuhCor1.fa.gz"
+
+rule align_seqs :
+    input:
+        "wuhCor1.fa",
+        config["FASTA"]
+    output:
+        "aligned_seqs.fa"
+    conda:
+        "usher.yaml"
+    threads:
+        64
+    shell:
+        "mafft --thread {threads} --auto --keeplength --addfragments {input[1]} wuhCor1.fa > aligned_seqs.fa"
+
+rule download_masking :
+    output:
+        "problematic_sites_sarsCov2.vcf"
+    conda:
+        "usher.yaml"
+    shell:
+        "wget https://raw.githubusercontent.com/W-L/ProblematicSites_SARS-CoV2/master/problematic_sites_sarsCov2.vcf"
+
+rule create_vcf :
+    input:
+         "aligned_seqs.fa",
+         "problematic_sites_sarsCov2.vcf"
+    output:
+         "aligned_seqs.vcf"
+    conda:
+         "usher.yaml"
+    shell:
+         "faToVcf -maskSites=problematic_sites_sarsCov2.vcf aligned_seqs.fa aligned_seqs.vcf"
+
+rule download_protobuf :
+    output:
+        "public-latest.all.masked.pb.gz"
+    conda:
+        "usher.yaml"
+    shell:
+        "wget http://hgdownload.soe.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/public-latest.all.masked.pb.gz"
+
+rule usher :
+    input:
+        "public-latest.all.masked.pb.gz",
+        "aligned_seqs.vcf"
+    conda:
+        "usher.yaml"
+    output:
+        "user_seqs.pb",
+        "usher",
+        "final-tree.nh",
+        "mutation-paths.txt"
+    threads:
+        64
+    shell:
+        "usher -T {threads} -i public-latest.all.masked.pb.gz -v aligned_seqs.vcf -o user_seqs.pb > usher"
+
+rule get_sample_ids :
+    input:
+        config["FASTA"]
+    conda:
+        "usher.yaml"
+    output:
+        "user_samples.txt"
+    shell:
+        "grep -e '>' {input[0]} | perl -pi -e 's/>//' > user_samples.txt"
+
+rule download_metadata :
+    conda:
+        "usher.yaml"
+    output:
+        "public-latest.metadata.tsv"
+    shell:
+        "wget http://hgdownload.soe.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/public-latest.metadata.tsv.gz && gunzip public-latest.metadata.tsv.gz"
+
+rule extract_subtrees :
+    input :
+        "public-latest.metadata.tsv",
+        "user_seqs.pb",
+        "user_samples.txt"
+    conda:
+        "usher.yaml"
+    output :
+        "matUtils",
+        "subtree-assignments.tsv"
+    shell :
+        "matUtils extract -i user_seqs.pb -s user_samples.txt -M public-latest.metadata.tsv -N 500 -j user > matUtils"
+
+rule ripples :
+    input :
+        "user_seqs.pb",
+        "user_samples.txt"
+    output:
+        "ripples"
+    conda:
+        "usher.yaml"
+    threads:
+        64
+    shell:
+        "ripples -i user_seqs.pb -s user_samples.txt -T {threads} > ripples"

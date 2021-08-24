@@ -1,4 +1,5 @@
 #include "common.hpp"
+#include "boost/math/distributions/hypergeometric.hpp"
 
 std::vector<MAT::Node*> get_common_nodes (std::vector<std::vector<MAT::Node*>> nodepaths);
 std::vector<float> get_all_distances(MAT::Node* target, std::vector<std::vector<MAT::Node*>> paths);

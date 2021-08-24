@@ -15,7 +15,7 @@ RUN git clone https://github.com/yatisht/usher.git
 WORKDIR usher
 ## Checkout latest release
 #RUN git checkout $(git describe --tags `git rev-list --tags --max-count=1`)
-RUN ./installUbuntu.sh 
+RUN ./install/installUbuntu.sh 
 # faSomeRecords and faSize are needed for the UShER WDL workflow 
 ## set the path
 ENV PATH="/HOME/usher/build:/HOME/kentsource:${PATH}"
