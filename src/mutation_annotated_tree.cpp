@@ -1599,7 +1599,7 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (Mutation_Annotated_Tre
                     node_distances.emplace_back(NodeDist(l, dist));
                 }
 
-                std::sort(node_distances.begin(), node_distances.end());
+                tbb::parallel_sort(node_distances.begin(), node_distances.end());
                 for (auto n: node_distances) {
                     if (leaves_to_keep.size() == nearest_subtree_size) {
                         break;
