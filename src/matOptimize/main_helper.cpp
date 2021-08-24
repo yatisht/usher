@@ -64,6 +64,7 @@ void find_nodes_to_move(const std::vector<MAT::Node *> &bfs_ordered_nodes,
                         tbb::concurrent_vector<MAT::Node *> &output,
                         bool is_first, int radius,MAT::Tree &tree) {
     auto start=std::chrono::steady_clock::now();
+    output.clear();
     if (is_first) {
         output=tbb::concurrent_vector<MAT::Node*>(bfs_ordered_nodes.begin(),bfs_ordered_nodes.end());
         for(auto node:bfs_ordered_nodes){
