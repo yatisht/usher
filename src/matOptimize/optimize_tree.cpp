@@ -17,6 +17,7 @@
 #include <unistd.h>
 #include <utility>
 #include "Profitable_Moves_Enumerators/Profitable_Moves_Enumerators.hpp"
+extern bool changing_radius;
 size_t find_profitable_moves(MAT::Node *src, output_t &out,int radius,
                            stack_allocator<Mutation_Count_Change>& allocator,int starting_parsimony_score
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
@@ -140,7 +141,7 @@ std::pair<size_t, size_t> optimize_tree(std::vector<MAT::Node *> &bfs_ordered_no
                                       ,&t
 #endif
                                      );
-                if (this_node_searched>node->last_searched_arcs) {
+                if (changing_radius&&this_node_searched>node->last_searched_arcs) {
                     node->to_search=true;
                     node->last_searched_arcs=this_node_searched;
                 }
