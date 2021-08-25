@@ -325,7 +325,7 @@ int main(int argc, char **argv) {
         use_bound=true;
         adjust_all(t); 
         output_t temp;
-        find_moves_bounded(t.get_node("Yunnan_IVDC-YN-003_2020"), temp, 10);
+        find_moves_bounded(t.get_node("USA_AZ1_2020"), temp, 10);
         //Actual optimization loop
         bool searched_full=true;
         while (!nodes_to_search.empty()) {

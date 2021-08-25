@@ -40,8 +40,8 @@ static void output_not_LCA(Mutation_Count_Change_Collection &parent_added,
     parent_of_parent_added.reserve(parent_added.size());
     node_stack_from_dst.push_back(dst_node);
     auto this_node = dst_node->parent;
-    if (dst_node->dfs_index==58) {
-        fputc('a', stderr);
+    if (dst_node->dfs_index==47) {
+        //fputc('a', stderr);
     }
     while (this_node != src_side.LCA) {
         parent_of_parent_added.clear();
@@ -121,7 +121,7 @@ static int downward_integrated(MAT::Node *node, int radius_left,
     Bounded_Mut_Iter iter = from_parent.begin();
     Bounded_Mut_Iter end = from_parent.end();
     if (node->dfs_index==58) {
-        fputc('a', stderr);
+        //fputc('a', stderr);
     }
     Mutation_Count_Change_Collection split_allele_cnt_change;
     split_allele_cnt_change.reserve(
@@ -153,7 +153,7 @@ static int downward_integrated(MAT::Node *node, int radius_left,
             //add_mut(*iter, radius_left, node, descendant_lower_bound, mut_out);
             mut_out.push_back(*iter);
             mut_out.back().set_par_nuc(mut.get_mut_one_hot());
-            if (!mut_out.back().to_decendent(node, radius_left)) {
+            if (use_bound&&!mut_out.back().to_decendent(node, radius_left)) {
                 descendant_lower_bound++;
             }
             mut_out.back().offsetable=mut.get_sensitive_increment()&iter->get_incremented();
@@ -164,7 +164,7 @@ static int downward_integrated(MAT::Node *node, int radius_left,
                 mut_out.emplace_back(mut, 0, mut.get_par_one_hot());
                 mut_out.back().set_par_nuc(mut.get_mut_one_hot());
                 mut_out.back().offsetable=mut.get_sensitive_increment()&mut.get_par_one_hot();
-                if (!mut_out.back().init(node, radius_left)) {
+                if (use_bound&&!mut_out.back().init(node, radius_left)) {
                     descendant_lower_bound++;
                 }
                 //assert((!mut_out.back().offsetable)||mut_out.back().have_content);

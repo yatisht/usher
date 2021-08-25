@@ -173,7 +173,7 @@ static nuc_one_hot allele_cnt_change_middle(
     Mutation_Count_Change_Collection::const_iterator &src_allele_cnt_change_end,
     const MAT::Mutation &mut,
     Mutation_Count_Change_Collection &allele_change_out,
-    int &next_src_par_score, int &next_src_par_score_lower_bound_diff,src_side_info&) {
+    int &next_src_par_score, int &next_src_par_score_lower_bound_diff) {
     nuc_one_hot major_allele = mut.get_all_major_allele();
     while (src_allele_cnt_change_iter->get_position() < mut.get_position()) {
         auto change = src_allele_cnt_change_iter->get_default_change_internal();
@@ -200,7 +200,7 @@ static void allele_cnt_change_end(
         &src_allele_cnt_change_iter,
     Mutation_Count_Change_Collection::const_iterator &src_allele_cnt_change_end,
     Mutation_Count_Change_Collection &allele_change_out,
-    int &next_src_par_score, int &next_src_par_score_lower_bound_diff,src_side_info&) {
+    int &next_src_par_score, int &next_src_par_score_lower_bound_diff) {
     while (src_allele_cnt_change_iter != src_allele_cnt_change_end) {
         auto change = src_allele_cnt_change_iter->get_default_change_internal();
         next_src_par_score += change;
@@ -213,12 +213,11 @@ static nuc_one_hot allele_cnt_change_middle(
     MAT::Mutations_Collection::const_iterator &src_allele_cnt_change_end,
     const MAT::Mutation &mut,
     Mutation_Count_Change_Collection &allele_change_out,
-    int &next_src_par_score, int &next_src_par_score_lower_bound_diff,src_side_info& src_side) {
+    int &next_src_par_score, int &next_src_par_score_lower_bound_diff) {
     nuc_one_hot major_allele = mut.get_all_major_allele();
     while (src_allele_cnt_change_iter!=src_allele_cnt_change_end&&src_allele_cnt_change_iter->get_position() < mut.get_position()) {
         if (src_allele_cnt_change_iter->is_valid()) {
             next_src_par_score--;
-            src_side.src_par_score_lower_bound--;
         }
         src_allele_cnt_change_iter++;
     }
@@ -230,13 +229,9 @@ static nuc_one_hot allele_cnt_change_middle(
         // this node incrementing some allele that can reduce parsimony
         // score among ancestors of  parent node
         next_src_par_score += score_change;
-        if (score_change != -1 &&
-            !(src_allele_cnt_change_iter->get_all_major_allele() &
+        if (!(src_allele_cnt_change_iter->get_all_major_allele() &
               mut.get_sensitive_decrement())) {
             next_src_par_score_lower_bound_diff--;
-        }
-        if (!(src_allele_cnt_change_iter->get_all_major_allele()&mut.get_sensitive_decrement())) {
-            
         }
         src_allele_cnt_change_iter++;
     } else {
@@ -246,8 +241,7 @@ static nuc_one_hot allele_cnt_change_middle(
         // this node incrementing some allele that can reduce parsimony
         // score among ancestors of  parent node
         next_src_par_score += score_change;
-        if (score_change != 0 &&
-            !(mut.get_par_one_hot() & mut.get_sensitive_decrement())) {
+        if (!(mut.get_par_one_hot() & mut.get_sensitive_decrement())) {
             next_src_par_score_lower_bound_diff--;
         }
     }
@@ -291,7 +285,7 @@ upward_integrated(src_side_info &src_side,
         return false;
     }
     if (node->dfs_index==0) {
-        fputc('a', stderr);
+        //fputc('a', stderr);
     }
     // IN: alelle cnt change from this node (that will change the major allele
     // at parent node)
@@ -307,10 +301,10 @@ upward_integrated(src_side_info &src_side,
     // DFS index is less than this node
     auto max_mut_size = node->mutations.size() + src_mut_in.size();
     Bounded_Mut_Change_Collection left_mut;
-    int left_lower_bound = src_side.src_par_score_lower_bound;
+    int left_lower_bound = 0;
     // Right side: nodes whose DFS idx > all descendants of this node
     Bounded_Mut_Change_Collection right_mut;
-    int right_lower_bound = src_side.src_par_score_lower_bound;
+    int right_lower_bound = 0;
     // mut_out is for going up to parent, with range covering the whole subtree
     // of parent node
     if (use_bound) {
@@ -376,7 +370,9 @@ upward_integrated(src_side_info &src_side,
             if (mut.is_valid()) {
                 mut_out.emplace_back(mut, 0, mut.get_mut_one_hot());
                 // get range
-                mut_out.back().init(node);
+                if (use_bound) {
+                    mut_out.back().init(node);                    
+                }
                 mut_out.back().offsetable=false;
             }
             add_node_split(mut,mut.get_all_major_allele(),major_allele,mut.get_par_one_hot(), split_allele_count_change_out,
@@ -400,20 +396,22 @@ upward_integrated(src_side_info &src_side,
     left_mut.emplace_back();
     right_mut.emplace_back();
     src_side.LCA = node;
+    src_side.src_par_score_lower_bound =
+        next_src_par_score + next_src_par_score_lower_bound_diff;
+    left_lower_bound+=src_side.src_par_score_lower_bound;
+    right_lower_bound+=src_side.src_par_score_lower_bound;
     if (use_bound) {
     search_subtree_first_level(node,old_LCA, src_side, radius_left,
                                left_mut, left_lower_bound, right_mut,
                                right_lower_bound);
 
     }else {
-    search_subtree_first_level(node, src_side.LCA, src_side, radius_left,
+    search_subtree_first_level(node, old_LCA, src_side, radius_left,
                                src_mut_in);
 
     }
     
     src_side.par_score_change_from_src_remove = next_src_par_score;
-    src_side.src_par_score_lower_bound =
-        next_src_par_score + next_src_par_score_lower_bound_diff;
     src_side.allele_count_change_from_src = std::move(allele_change_out);
     src_side.node_stack_from_src.push_back(node);
 
@@ -428,7 +426,9 @@ void find_moves_bounded(MAT::Node* src,output_t& out,int search_radius){
     src_side_info src_side{out,0,0,src,src};
     for (const auto& mut : src->mutations) {
         src_mut.emplace_back(mut,0,mut.get_all_major_allele());
-        src_mut.back().init(src);
+        if (use_bound) {
+            src_mut.back().init(src);    
+        }
     }
     //sentinel
     src_mut.emplace_back();

@@ -109,6 +109,7 @@ std::pair<size_t, size_t> optimize_tree(std::vector<MAT::Node *> &bfs_ordered_no
     tbb::concurrent_vector<MAT::Node *> deferred_nodes;
     Deferred_Move_t deferred_moves;
     Conflict_Resolver resolver(bfs_ordered_nodes.size(),deferred_moves);
+    t.depth_first_expansion();
     //progress bar
     std::atomic<int> checked_nodes(0);
     bool done=false;
