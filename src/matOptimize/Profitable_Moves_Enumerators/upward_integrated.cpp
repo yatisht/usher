@@ -60,11 +60,12 @@ static void split_children(const MAT::Node *&parent_node, int &radius_left,
     if (use_bound) {
         auto res = in.to_parent(parent_node, radius_left);
         left_mut.push_back(std::get<0>(res));
-        if (std::get<2>(res)) {
+        bool count=!(in.get_par_state()&in.get_incremented());
+        if ((!std::get<0>(res).have_content)&&count) {
             left_lower_bound++;
         }
         right_mut.push_back(std::get<1>(res));
-        if (std::get<3>(res)) {
+        if ((!std::get<1>(res).have_content)&&count) {
             right_lower_bound++;
         }
     }
@@ -285,7 +286,9 @@ upward_integrated(src_side_info &src_side,
     if (!node) {
         return false;
     }
-
+    if (node->dfs_index==0) {
+        fputc('a', stderr);
+    }
     // IN: alelle cnt change from this node (that will change the major allele
     // at parent node)
     auto src_allele_cnt_change_iter = src_branch.begin();

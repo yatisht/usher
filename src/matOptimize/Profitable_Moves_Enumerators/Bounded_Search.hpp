@@ -33,12 +33,8 @@ struct Mutation_Count_Change_W_Lower_Bound : public Mutation_Count_Change {
             if (get_incremented() & (1 << nu_idx)) {
                 auto start_iter = std::lower_bound(start,end,
                                                    node_info{node->dfs_index});
-                auto end_iter = std::lower_bound(
+                auto end_iter = std::upper_bound(
                     start_iter, end, node_info{node->dfs_end_index});
-                if (end_iter != end && end_iter > start_iter &&
-                    end_iter->dfs_idx > node->dfs_end_index) {
-                    end_iter--;
-                }
                 ranges[nu_idx] = std::make_pair(start_iter, end_iter);
             } else {
                 ranges[nu_idx] = std::make_pair(end, end);
@@ -52,6 +48,8 @@ struct Mutation_Count_Change_W_Lower_Bound : public Mutation_Count_Change {
         assert(start<=end);
         auto start_iter =
             std::lower_bound(start, end, node_info{node->dfs_index});
+        ranges[nu_idx].first = end;
+        ranges[nu_idx].second = end;
         while (start_iter != end && start_iter->dfs_idx < node->dfs_end_index) {
             if (start_iter->level <= max_level) {
                 ranges[nu_idx].first = start_iter;
@@ -61,16 +59,15 @@ struct Mutation_Count_Change_W_Lower_Bound : public Mutation_Count_Change {
             }
             start_iter++;
         }
-        ranges[nu_idx].first = start_iter;
-        ranges[nu_idx].second = start_iter;
         while (start_iter != end && start_iter->dfs_idx < node->dfs_end_index) {
             if (start_iter->level <= max_level) {
                 have_content = true;
-                ranges[nu_idx].second = start_iter;
+                ranges[nu_idx].second = start_iter+1;
             }
             start_iter++;
         }
         assert(ranges[nu_idx].first<=ranges[nu_idx].second);
+        assert(ranges[nu_idx].second<=end);
     }
     bool init(const MAT::Node *node, int radius_left) {
         assert(use_bound);
@@ -107,13 +104,15 @@ struct Mutation_Count_Change_W_Lower_Bound : public Mutation_Count_Change {
         return have_content||(get_incremented()|get_par_state());
     }
     std::tuple<Mutation_Count_Change_W_Lower_Bound,
-               Mutation_Count_Change_W_Lower_Bound, bool, bool>
+               Mutation_Count_Change_W_Lower_Bound>
     to_parent(const MAT::Node *node, int radius_left) {
         assert(use_bound);
         size_t max_level = node->level + radius_left;
         std::tuple<Mutation_Count_Change_W_Lower_Bound,
-                   Mutation_Count_Change_W_Lower_Bound, bool, bool>
-            to_return{*this, *this, false, false};
+                   Mutation_Count_Change_W_Lower_Bound>
+            to_return{*this, *this};
+        bool left_have_content=false;
+        bool right_have_content=false;
         for (int nu_idx = 0; nu_idx < 4; nu_idx++) {
             const auto &all = addable_idxes[get_position()][nu_idx];
             auto end=all.data()+all.size();
@@ -122,16 +121,16 @@ struct Mutation_Count_Change_W_Lower_Bound : public Mutation_Count_Change {
             }
             // first half
             auto start_iter = ranges[nu_idx].first;
-            if (start_iter==end) {
-                start_iter--;
-            }
-            auto start_in_range_iter = ranges[nu_idx].first;
-            while (start_iter > all.data() &&
+            auto start_in_range_iter = start_iter;
+            auto start_to_set = start_iter;
+            start_iter--;
+            while (start_iter >= all.data() &&
                    start_iter->dfs_idx >= node->dfs_index) {
                 if (start_iter->level <= max_level) {
-                    std::get<2>(to_return) = true;
+                    left_have_content = true;
                     start_in_range_iter = start_iter;
                 }
+                start_to_set=start_iter;
                 start_iter--;
             }
             std::get<0>(to_return).ranges[nu_idx] =
@@ -139,20 +138,23 @@ struct Mutation_Count_Change_W_Lower_Bound : public Mutation_Count_Change {
                 assert(start_in_range_iter<=ranges[nu_idx].first);
             // second half
             auto end_iter = ranges[nu_idx].second;
-            auto end_in_range_iter = ranges[nu_idx].second;
+            auto end_in_range_iter = end_iter;
             while (end_iter < end &&
                    end_iter->dfs_idx <= node->dfs_end_index) {
                 if (end_iter->level <= max_level) {
-                    std::get<3>(to_return) = true;
-                    end_in_range_iter = end_iter;
+                    right_have_content = true;
+                    end_in_range_iter = end_iter+1;
                 }
                 end_iter++;
             }
+            assert(end_in_range_iter<=end);
             std::get<1>(to_return).ranges[nu_idx] =
                 std::make_pair(ranges[nu_idx].second,end_in_range_iter);
                 assert(ranges[nu_idx].second<=end_in_range_iter);
-            ranges[nu_idx] = std::make_pair(start_iter, end_iter);
+            ranges[nu_idx] = std::make_pair(start_to_set, end_iter);
             assert(ranges[nu_idx].first<=ranges[nu_idx].second);
+            std::get<0>(to_return).have_content=left_have_content;
+            std::get<1>(to_return).have_content=right_have_content;
         }
         return to_return;
     }

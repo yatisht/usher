@@ -120,7 +120,7 @@ static int downward_integrated(MAT::Node *node, int radius_left,
 ) {
     Bounded_Mut_Iter iter = from_parent.begin();
     Bounded_Mut_Iter end = from_parent.end();
-    if (node->dfs_index==56) {
+    if (node->dfs_index==58) {
         fputc('a', stderr);
     }
     Mutation_Count_Change_Collection split_allele_cnt_change;
