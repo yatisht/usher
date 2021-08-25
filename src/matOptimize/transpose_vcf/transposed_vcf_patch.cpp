@@ -39,7 +39,13 @@ struct Sample_Pos_Mut {
     std::vector<Pos_Mut> not_Ns;
     std::vector<std::pair<int, int>> Ns;
     Sample_Pos_Mut(std::string &&name, MAT::Tree &tree) {
-        bfs_idx = tree.get_node(name)->bfs_index;
+        auto node=tree.get_node(name);
+        if (node) {
+            bfs_idx = node->bfs_index;
+        }else {
+            bfs_idx=-1;
+        }
+        
     }
 };
 
@@ -55,7 +61,7 @@ struct Sample_Pos_Mut_Wrap {
 };
 
 typedef tbb::enumerable_thread_specific<std::vector<Sample_Pos_Mut>>
-    sample_pos_mut_local_t;
+        sample_pos_mut_local_t;
 struct All_Sample_Appender {
     MAT::Tree &tree;
     sample_pos_mut_local_t& sample_pos_mut_local;
@@ -96,9 +102,9 @@ struct mut_iterator {
         N_iter = std::lower_bound(mut_ele.Ns.begin(), N_end,
                                   std::make_pair(position, position),
                                   [](const std::pair<int, int> &first,
-                                     const std::pair<int, int> &second) {
-                                      return first.first < second.first;
-                                  });
+        const std::pair<int, int> &second) {
+            return first.first < second.first;
+        });
 #ifndef NDEBUG
         N_begin = mut_ele.Ns.begin();
 #endif
@@ -114,36 +120,36 @@ struct mut_iterator {
     }
     uint8_t get_allele(int position) {
         uint8_t ret_val = 0;
-            while (not_N_iter != not_N_end&&not_N_iter->position < position) {
-                not_N_iter++;
-                if (idx==p_idx) {
-                    fprintf(stderr, "At %d, not_N incremented to %d, nuc %d\n",position,not_N_iter==not_N_end?INT_MAX:not_N_iter->position,ret_val);
-                }
+        while (not_N_iter != not_N_end&&not_N_iter->position < position) {
+            not_N_iter++;
+            if (idx==p_idx) {
+                fprintf(stderr, "At %d, not_N incremented to %d, nuc %d\n",position,not_N_iter==not_N_end?INT_MAX:not_N_iter->position,ret_val);
             }
-            if (not_N_iter != not_N_end&&not_N_iter->position == position) {
-                ret_val = not_N_iter->mut;
-                if (ret_val&0xf0) {
-                    fprintf(stderr, "At %d, not_N match, nuc %d\n",position,ret_val);
-                }
+        }
+        if (not_N_iter != not_N_end&&not_N_iter->position == position) {
+            ret_val = not_N_iter->mut;
+            if (ret_val&0xf0) {
+                fprintf(stderr, "At %d, not_N match, nuc %d\n",position,ret_val);
             }
-            //assert(not_N_iter == not_N_end || not_N_iter->position > position);
+        }
+        //assert(not_N_iter == not_N_end || not_N_iter->position > position);
         assert(not_N_iter == not_N_begin ||
                (not_N_iter - 1)->position <= position);
         while (N_iter != N_end && N_iter->second < position) {
             N_iter++;
             if (idx==p_idx) {
-                fprintf(stderr, "At %d, N incremented to %d-%d, nuc %d\n",position,N_iter==N_end?INT_MAX:N_iter->first,position,N_iter==N_end?INT_MAX:N_iter->second,ret_val);
+                fprintf(stderr, "At %d, N incremented to %d - %d, nuc %d\n", position, N_iter==N_end?INT_MAX:N_iter->first, N_iter==N_end?INT_MAX:N_iter->second, ret_val);
             }
         }
         assert(N_iter <= N_end);
         assert(N_iter == N_begin || (N_iter - 1)->second < position);
         if(!(N_iter == N_end || N_iter->first >= position ||
-               N_iter->second >= position)){
-                   fprintf(stderr, "%d;%d;%d",position,N_iter->first,N_iter->second);
-                   assert(false);
-               }
+                N_iter->second >= position)) {
+            fprintf(stderr, "%d;%d;%d",position,N_iter->first,N_iter->second);
+            assert(false);
+        }
         if (N_iter != N_end && N_iter->second >= position &&
-            position >= N_iter->first) {
+                position >= N_iter->first) {
             ret_val = 0xf;
             if (idx==p_idx) {
                 fprintf(stderr, "At %d, N match\n",position);
@@ -155,8 +161,8 @@ struct mut_iterator {
 };
 
 typedef std::pair<std::vector<int>::const_iterator,
-                  std::vector<int>::const_iterator>
-    iter_range;
+        std::vector<int>::const_iterator>
+        iter_range;
 struct row_t {
     MAT::Mutation mut;
     mutated_t alleles;
@@ -165,38 +171,40 @@ struct row_t {
 };
 typedef tbb::flow::function_node<std::vector<row_t> *> assigner_t;
 #define CHUNK_SIZ 64
-struct output_vcf_rows{
+struct output_vcf_rows {
     size_t start_idx;
     size_t end_idx;
     const std::vector<int>& positions;
     assigner_t& out;
     const std::vector<Sample_Pos_Mut>& all_samples;
-    void operator()()const{
-    size_t idx=start_idx;
-    std::vector<mut_iterator> iters;
-    for (const auto &samp : all_samples) {
-        iters.emplace_back(samp, positions[idx]);
-    }
-    while (idx<end_idx) {
-        std::vector<row_t> *rows = new std::vector<row_t>;
-        rows->reserve(CHUNK_SIZ);
-        for (int count = 0; count < CHUNK_SIZ; count++) {
-            if (idx == end_idx) {
-                break;
+    void operator()()const {
+        size_t idx=start_idx;
+        std::vector<mut_iterator> iters;
+        for (const auto &samp : all_samples) {
+            if (samp.bfs_idx!=-1) {                
+                iters.emplace_back(samp, positions[idx]);
             }
-            rows->emplace_back(positions[idx]);
-            idx++;
         }
-        for (size_t samp_idx = 0; samp_idx < iters.size(); samp_idx++) {
-            for (auto &row : *rows) {
-                nuc_one_hot allele = iters[samp_idx].get_allele(row.mut.get_position());
-                if (allele) {
-                    row.alleles.emplace_back(iters[samp_idx].idx, allele);
+        while (idx<end_idx) {
+            std::vector<row_t> *rows = new std::vector<row_t>;
+            rows->reserve(CHUNK_SIZ);
+            for (int count = 0; count < CHUNK_SIZ; count++) {
+                if (idx == end_idx) {
+                    break;
+                }
+                rows->emplace_back(positions[idx]);
+                idx++;
+            }
+            for (size_t samp_idx = 0; samp_idx < iters.size(); samp_idx++) {
+                for (auto &row : *rows) {
+                    nuc_one_hot allele = iters[samp_idx].get_allele(row.mut.get_position());
+                    if (allele) {
+                        row.alleles.emplace_back(iters[samp_idx].idx, allele);
+                    }
                 }
             }
+            out.try_put(rows);
         }
-        out.try_put(rows);
-    }
     }
 };
 struct Assigner {
@@ -225,7 +233,7 @@ struct Assigner {
         delete rows;
     }
 };
-void get_sample_mut(const char *input_path,std::vector<Sample_Pos_Mut>& all_samples, MAT::Tree &tree){
+void get_sample_mut(const char *input_path,std::vector<Sample_Pos_Mut>& all_samples, MAT::Tree &tree) {
     sample_pos_mut_local_t sample_pos_mut_local;
     All_Sample_Appender appender{tree,sample_pos_mut_local};
     load_mutations(input_path, 80, appender);
@@ -235,7 +243,7 @@ void get_sample_mut(const char *input_path,std::vector<Sample_Pos_Mut>& all_samp
                            std::make_move_iterator(sample_block.end()));
     }
 }
-void print_mut(const Sample_Pos_Mut& to_print){
+void print_mut(const Sample_Pos_Mut& to_print) {
     for (const auto& mut : to_print.not_Ns) {
         fprintf(stderr, "%d:%d\t",mut.position,mut.mut);
     }
@@ -244,7 +252,7 @@ void print_mut(const Sample_Pos_Mut& to_print){
     }
     fprintf(stderr, "\n");
 }
-void assign_state(std::vector<Sample_Pos_Mut>& all_samples, MAT::Tree &tree,FS_result_per_thread_t&output,const std::vector<MAT::Node*> bfs_ordered_nodes){
+void assign_state(std::vector<Sample_Pos_Mut>& all_samples, MAT::Tree &tree,FS_result_per_thread_t&output,const std::vector<MAT::Node*> bfs_ordered_nodes) {
     std::vector<backward_pass_range> child_idx_range;
     std::vector<forward_pass_range> parent_idx;
     Fitch_Sankoff_prep(bfs_ordered_nodes, child_idx_range, parent_idx);
@@ -282,7 +290,7 @@ void assign_state(std::vector<Sample_Pos_Mut>& all_samples, MAT::Tree &tree,FS_r
     g.wait_for_all();
     deallocate_FS_cache(output);
 }
-void asign_and_fill(std::vector<Sample_Pos_Mut>& all_samples, MAT::Tree &tree,std::vector<MAT::Node*> bfs_ordered_nodes){
+void asign_and_fill(std::vector<Sample_Pos_Mut>& all_samples, MAT::Tree &tree,std::vector<MAT::Node*> bfs_ordered_nodes) {
     FS_result_per_thread_t output;
     assign_state(all_samples, tree, output, bfs_ordered_nodes);
     //raise(SIGUSR1);

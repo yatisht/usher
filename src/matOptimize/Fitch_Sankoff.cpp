@@ -52,7 +52,7 @@ static uint8_t movemask(int in) {
     return (1&in)|(2&(in>>3))|(4&(in>>6))|(8&(in>>9));
 }
 void set_state_from_cnt(const std::array<int,4>& data, uint8_t& boundary1_major_allele_out) {
-    #ifdef __x86_64__
+#ifdef __x86_64__
     //load data
     __m128i ori=_mm_loadu_si128((__m128i*)data.data());
     //shufle it to 1,0,3,2 order
@@ -70,7 +70,7 @@ void set_state_from_cnt(const std::array<int,4>& data, uint8_t& boundary1_major_
     int is_boundary_1_raw=_mm_movemask_epi8(_mm_cmpeq_epi32(_mm_add_epi32(ori,one), max_values));
     uint8_t max_mask=movemask(is_max_raw);
     uint8_t boundary1_mask=movemask(is_boundary_1_raw);
-    #else
+#else
     uint8_t max_mask=0;
     uint8_t boundary1_mask=0;
     int max_count=*std::max_element(data.begin(),data.end());
@@ -82,7 +82,7 @@ void set_state_from_cnt(const std::array<int,4>& data, uint8_t& boundary1_major_
             boundary1_mask|=(1<<nu_idx);
         }
     }
-    #endif
+#endif
     boundary1_major_allele_out=max_mask|(boundary1_mask<<4);
 }
 #ifdef __x86_64__
@@ -178,7 +178,7 @@ void FS_backward_pass(const std::vector<backward_pass_range>& child_idx_range, s
             size_t child_end_idx=child_start_idx+child_size;
             //dispatch on children size
             std::array<int,4> nuc_count{0,0,0,0};
-            #ifdef __x86_64__
+#ifdef __x86_64__
             while (true) {
                 auto child_left=child_end_idx-child_start_idx;
                 if (child_left<=8) {
@@ -195,15 +195,15 @@ void FS_backward_pass(const std::vector<backward_pass_range>& child_idx_range, s
                     }
                 }
             }
-            #else
-            for(size_t child_idx=child_start_idx;child_idx<child_end_idx;child_idx++) {
+#else
+            for(size_t child_idx=child_start_idx; child_idx<child_end_idx; child_idx++) {
                 for (char nu_idx=0; nu_idx<4; nu_idx++) {
                     if (boundary1_major_allele[child_idx]&(1<<nu_idx)) {
                         nuc_count[nu_idx]++;
                     }
                 }
             }
-            #endif
+#endif
 #ifdef DETAIL_DEBUG_FITCH_SANKOFF
             auto right_count=count_right(this_node, boundary1_major_allele);
             assert(nuc_count==right_count);
@@ -328,25 +328,25 @@ void Fitch_Sankoff_prep(const std::vector<Mutation_Annotated_Tree::Node*>& bfs_o
         parent_idx.emplace_back(node->parent?node->parent->bfs_index:-1,node->is_leaf());
     }
 }
-void deallocate_FS_cache(FS_result_per_thread_t& in){
-    for(auto& ele:in){
+void deallocate_FS_cache(FS_result_per_thread_t& in) {
+    for(auto& ele:in) {
         ele.minor_major_allele.clear();
         ele.minor_major_allele.shrink_to_fit();
     }
 }
-struct Mut_Filler{
+struct Mut_Filler {
     FS_result_per_thread_t& in;
     std::vector<MAT::Node*>& bfs_ordered_nodes;
-    void operator()(const tbb::blocked_range<size_t>& range) const{
-        for(size_t idx=range.begin();idx<range.end();idx++){
+    void operator()(const tbb::blocked_range<size_t>& range) const {
+        for(size_t idx=range.begin(); idx<range.end(); idx++) {
             size_t mut_count=0;
-            for(auto& ele:in){
+            for(auto& ele:in) {
                 mut_count+=ele.output[idx].size();
             }
             auto this_node=bfs_ordered_nodes[idx];
             this_node->mutations.clear();
             this_node->mutations.reserve(mut_count);
-            for(auto& ele:in){
+            for(auto& ele:in) {
                 auto& other=ele.output[idx];
                 this_node->mutations.mutations.insert(this_node->mutations.mutations.end(),other.begin(),other.end());
                 other.clear();
@@ -356,6 +356,6 @@ struct Mut_Filler{
         }
     }
 };
-void fill_muts(FS_result_per_thread_t& in, std::vector<MAT::Node*>& bfs_ordered_nodes){
+void fill_muts(FS_result_per_thread_t& in, std::vector<MAT::Node*>& bfs_ordered_nodes) {
     tbb::parallel_for(tbb::blocked_range<size_t>(0,bfs_ordered_nodes.size()),Mut_Filler{in,bfs_ordered_nodes});
 }

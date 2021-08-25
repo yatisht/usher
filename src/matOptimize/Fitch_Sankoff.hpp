@@ -24,10 +24,10 @@ struct mutated_t_comparator {
     }
 };
 typedef std::vector<MAT::Mutation> mut_vect_t;
-struct Fitch_Sankoff_Out_Container{
+struct Fitch_Sankoff_Out_Container {
     std::vector<mut_vect_t> output;
     std::vector<uint8_t> minor_major_allele;
-    void init(size_t size){
+    void init(size_t size) {
         if (output.size()!=size) {
             output.resize(size);
             minor_major_allele.resize(size+16);

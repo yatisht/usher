@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cstddef>
 #include <cstdio>
 #include <mutex>
 #include <tbb/blocked_range.h>
@@ -14,8 +15,9 @@
 #include <tbb/task.h>
 #include <thread>
 #include <unistd.h>
+#include <utility>
 #include "Profitable_Moves_Enumerators/Profitable_Moves_Enumerators.hpp"
-void find_profitable_moves(MAT::Node *src, output_t &out,int radius,
+size_t find_profitable_moves(MAT::Node *src, output_t &out,int radius,
                            stack_allocator<Mutation_Count_Change>& allocator,int starting_parsimony_score
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
                            ,MAT::Tree* tree
@@ -79,6 +81,7 @@ static void print_progress(
                               (total_nodes - checked_nodes_temp) /
                               checked_nodes_temp;
         if(((deferred_nodes->size())&&(std::chrono::steady_clock::now()-last_save_time)>=save_period)||deferred_nodes->size()>=max_queued_moves) {
+            fprintf(stderr, "Timeout\n");
             return;
         }
         fprintf(stderr,"\rchecked %d nodes, estimated %f minutes left,found %zu nodes "
@@ -86,19 +89,26 @@ static void print_progress(
                 checked_nodes_temp, seconds_left / 60, deferred_nodes->size());
     }
 }
-size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
+void log_move_detail(const std::vector<Profitable_Moves_ptr_t> & moves, FILE* out,int iteration,int radius){
+    for(const auto move:moves){
+        fprintf(out, "%s\t%s\t%d\t%d\t%d\t%lu\n",move->src->identifier.c_str(),move->get_dst()->identifier.c_str()
+            ,iteration,move->score_change,radius-move->radius_left,move->src->dfs_end_index-move->src->dfs_index);
+    }
+}
+std::pair<size_t, size_t> optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
                      tbb::concurrent_vector<MAT::Node *> &nodes_to_search,
-                     MAT::Tree &t,int radius,FILE* log,bool allow_drift
+                     MAT::Tree &t,int radius,FILE* log,bool allow_drift,int iteration
 #ifndef NDEBUG
                      , Original_State_t origin_states
 #endif
                     ) {
+    std::atomic<size_t> node_searched_this_iter(0);
     fprintf(stderr, "%zu nodes to search \n", nodes_to_search.size());
     fprintf(stderr, "Node size: %zu\n", bfs_ordered_nodes.size());
     //for resolving conflicting moves
     tbb::concurrent_vector<MAT::Node *> deferred_nodes;
     Deferred_Move_t deferred_moves;
-    Conflict_Resolver resolver(bfs_ordered_nodes.size(),deferred_moves,log);
+    Conflict_Resolver resolver(bfs_ordered_nodes.size(),deferred_moves);
     //progress bar
     std::atomic<int> checked_nodes(0);
     bool done=false;
@@ -110,7 +120,7 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
     output_t out;
     /*tbb::parallel_for(tbb::blocked_range<size_t>(0, nodes_to_search.size()),
                       [&nodes_to_search, &resolver,
-                                         &deferred_nodes,radius,&checked_nodes,&allow_drift
+                                         &deferred_nodes,radius,&checked_nodes,&allow_drift,&node_searched_this_iter
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
                                          ,&t
 #endif
@@ -129,9 +139,9 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
                     //resolve conflicts
                     if (allow_drift) {
                         std::shuffle(out.moves.begin(), out.moves.end(), rng);
-                    }else {
-                    deferred_nodes.push_back(
-                        out.moves[0]->get_src());    
+                    } else {
+                        deferred_nodes.push_back(
+                            out.moves[0]->get_src());
                     }
                     resolver(out.moves);
                 }
@@ -155,6 +165,10 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
     fputs("Start applying moves\n",stderr);
     std::vector<Profitable_Moves_ptr_t> all_moves;
     resolver.schedule_moves(all_moves);
+    fprintf(stderr, "Applying %zu moves\n",all_moves.size());
+    if (iteration>0) {
+        log_move_detail(all_moves, log, iteration, radius);
+    }
     apply_moves(all_moves, t, bfs_ordered_nodes, deferred_nodes
 #ifdef CHECK_STATE_REASSIGN
                 ,origin_states
@@ -171,8 +185,7 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
         bfs_ordered_nodes=t.breadth_first_expansion();
         {
             Deferred_Move_t deferred_moves_next;
-            static FILE* ignored=fopen("/dev/null", "w");
-            Conflict_Resolver resolver(bfs_ordered_nodes.size(),deferred_moves_next,ignored);
+            Conflict_Resolver resolver(bfs_ordered_nodes.size(),deferred_moves_next);
             if (timed_print_progress) {
                 fprintf(stderr,"\rrecycling conflicting moves, %zu left",deferred_moves.size());
             }
@@ -198,6 +211,9 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
             });
             all_moves.clear();
             resolver.schedule_moves(all_moves);
+            if (iteration>0) {
+                log_move_detail(all_moves, log, iteration, radius);
+            }
             recycled+=all_moves.size();
             apply_moves(all_moves, t, bfs_ordered_nodes, deferred_nodes
 #ifdef CHECK_STATE_REASSIGN
@@ -208,6 +224,7 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
         }
 
     }
+    fprintf(stderr, "Recycled %d moves\n",recycled);
     auto recycle_end=std::chrono::steady_clock::now();
     elpased_time =recycle_end-apply_end;
 #ifndef NDEBUG
@@ -217,7 +234,7 @@ size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
     //progress_meter.join();
     fprintf(stderr, "recycled %f of conflicting moves \n",(double)recycled/(double)init_deferred);
     fprintf(stderr, "recycling moves took %f seconds\n",elpased_time.count());
-    return t.get_parsimony_score();
+    return std::make_pair(t.get_parsimony_score(),node_searched_this_iter.load());
 }
 tbb::concurrent_unordered_map<MAT::Mutation,
     tbb::concurrent_unordered_map<std::string, nuc_one_hot> *,

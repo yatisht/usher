@@ -419,25 +419,25 @@ void move_node(MAT::Node *src, MAT::Node *dst,
     src_parent_children.erase(iter);
 
     nodes_to_clean.push_back(src);
-    src->changed=true;
+    changed_nodes.push_back(src->identifier);
     nodes_to_clean.push_back(dst);
-    dst->changed=true;
+    changed_nodes.push_back(dst->identifier);
 
     MAT::Node *dst_altered = dst;
     //actually placing the node
     if (dst_to_root_path.empty()) {
         dst_altered = place_node_LCA(src, dst, tree, mutations,
                                      src_to_root_path.back(), nodes_to_clean);
-        src_to_root_path.back()->changed=true;
+        changed_nodes.push_back(src_to_root_path.back()->identifier);
     } else {
         dst_altered = place_node(src, dst, tree, mutations, nodes_to_clean);
     }
     //push nodes with altered children for backward pass
     altered_node.push_back(
         clean_up_after_remove(src_parent, deleted, nodes_to_clean,tree));
-    altered_node.back()->changed=true;
+    changed_nodes.push_back(altered_node.back()->identifier);
     altered_node.push_back(dst_altered);
-    altered_node.back()->changed=true;
+    changed_nodes.push_back(altered_node.back()->identifier);
 #ifdef CHECK_PRIMARY_MOVE
     MAT::Mutations_Collection after_move;
     get_mutation_set_from_root(src, after_move);

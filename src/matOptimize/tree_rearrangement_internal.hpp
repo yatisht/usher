@@ -14,6 +14,7 @@ extern size_t max_queued_moves;
 extern uint32_t num_threads;
 extern std::chrono::steady_clock::duration save_period;
 namespace MAT = Mutation_Annotated_Tree;
+extern std::vector<std::string> changed_nodes;
 extern tbb::concurrent_unordered_map<MAT::Mutation, tbb::concurrent_unordered_map<std::string, nuc_one_hot>*,Mutation_Pos_Only_Hash,
        Mutation_Pos_Only_Comparator>
        mutated_positions;
@@ -74,13 +75,13 @@ void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t,
                 );
 void fix_condensed_nodes(MAT::Tree *tree) ;
 void find_nodes_to_move(const std::vector<MAT::Node *> &bfs_ordered_nodes,
-                        tbb::concurrent_vector<MAT::Node*> &output,bool is_first,int radius) ;
+                        tbb::concurrent_vector<MAT::Node*> &output,bool is_first,int radius,MAT::Tree &tree) ;
 void add_root(MAT::Tree *tree) ;
 void VCF_input(const char * name,MAT::Tree& tree);
 
-size_t optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
+std::pair<size_t, size_t> optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
                      tbb::concurrent_vector<MAT::Node *> &nodes_to_search,
-                     MAT::Tree &t,int radius,FILE* log,bool allow_drift
+                     MAT::Tree &t,int radius,FILE* log,bool allow_drift,int iteration
 #ifndef NDEBUG
                      , Original_State_t origin_states
 #endif
@@ -93,8 +94,8 @@ void add_ambuiguous_mutations(const char* path,Original_State_t& to_patch,Mutati
 void recondense_tree(MAT::Tree& t);
 void add_ambiguous_mutation(const char *input_path,MAT::Tree& tree);
 void print_memory();
-struct TlRng:public std::mt19937_64{
-    TlRng():std::mt19937_64(std::chrono::steady_clock::now().time_since_epoch().count()*std::hash<std::thread::id>()(std::this_thread::get_id())){}
+struct TlRng:public std::mt19937_64 {
+    TlRng():std::mt19937_64(std::chrono::steady_clock::now().time_since_epoch().count()*std::hash<std::thread::id>()(std::this_thread::get_id())) {}
 };
 extern thread_local TlRng rng;
 struct node_info{
