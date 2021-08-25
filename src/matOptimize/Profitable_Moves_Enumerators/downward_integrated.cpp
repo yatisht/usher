@@ -29,7 +29,7 @@ static void output_not_LCA(Mutation_Count_Change_Collection &parent_added,
                     int lower_bound, const src_side_info &src_side,
                     int radius) {
 #ifndef CHECK_BOUND
-    if (use_bound&&lower_bound > out.score_change) {
+    if (use_bound&&lower_bound > src_side.output.score_change) {
         return;
     }
 #else
@@ -40,8 +40,8 @@ static void output_not_LCA(Mutation_Count_Change_Collection &parent_added,
     parent_of_parent_added.reserve(parent_added.size());
     node_stack_from_dst.push_back(dst_node);
     auto this_node = dst_node->parent;
-    if (dst_node->dfs_index==82) {
-        //fputc('a', stderr);
+    if (dst_node->dfs_index==58) {
+        fputc('a', stderr);
     }
     while (this_node != src_side.LCA) {
         parent_of_parent_added.clear();

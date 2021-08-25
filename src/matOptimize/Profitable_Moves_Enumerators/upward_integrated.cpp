@@ -173,7 +173,7 @@ static nuc_one_hot allele_cnt_change_middle(
     Mutation_Count_Change_Collection::const_iterator &src_allele_cnt_change_end,
     const MAT::Mutation &mut,
     Mutation_Count_Change_Collection &allele_change_out,
-    int &next_src_par_score, int &next_src_par_score_lower_bound_diff) {
+    int &next_src_par_score, int &next_src_par_score_lower_bound_diff,src_side_info&) {
     nuc_one_hot major_allele = mut.get_all_major_allele();
     while (src_allele_cnt_change_iter->get_position() < mut.get_position()) {
         auto change = src_allele_cnt_change_iter->get_default_change_internal();
@@ -200,7 +200,7 @@ static void allele_cnt_change_end(
         &src_allele_cnt_change_iter,
     Mutation_Count_Change_Collection::const_iterator &src_allele_cnt_change_end,
     Mutation_Count_Change_Collection &allele_change_out,
-    int &next_src_par_score, int &next_src_par_score_lower_bound_diff) {
+    int &next_src_par_score, int &next_src_par_score_lower_bound_diff,src_side_info&) {
     while (src_allele_cnt_change_iter != src_allele_cnt_change_end) {
         auto change = src_allele_cnt_change_iter->get_default_change_internal();
         next_src_par_score += change;
@@ -213,11 +213,12 @@ static nuc_one_hot allele_cnt_change_middle(
     MAT::Mutations_Collection::const_iterator &src_allele_cnt_change_end,
     const MAT::Mutation &mut,
     Mutation_Count_Change_Collection &allele_change_out,
-    int &next_src_par_score, int &next_src_par_score_lower_bound_diff) {
+    int &next_src_par_score, int &next_src_par_score_lower_bound_diff,src_side_info& src_side) {
     nuc_one_hot major_allele = mut.get_all_major_allele();
     while (src_allele_cnt_change_iter!=src_allele_cnt_change_end&&src_allele_cnt_change_iter->get_position() < mut.get_position()) {
         if (src_allele_cnt_change_iter->is_valid()) {
             next_src_par_score--;
+            src_side.src_par_score_lower_bound--;
         }
         src_allele_cnt_change_iter++;
     }
@@ -233,6 +234,9 @@ static nuc_one_hot allele_cnt_change_middle(
             !(src_allele_cnt_change_iter->get_all_major_allele() &
               mut.get_sensitive_decrement())) {
             next_src_par_score_lower_bound_diff--;
+        }
+        if (!(src_allele_cnt_change_iter->get_all_major_allele()&mut.get_sensitive_decrement())) {
+            
         }
         src_allele_cnt_change_iter++;
     } else {
@@ -425,9 +429,6 @@ void find_moves_bounded(MAT::Node* src,output_t& out,int search_radius){
     for (const auto& mut : src->mutations) {
         src_mut.emplace_back(mut,0,mut.get_all_major_allele());
         src_mut.back().init(src);
-        if (mut.is_valid()) {
-            src_side.src_par_score_lower_bound--;
-        }
     }
     //sentinel
     src_mut.emplace_back();
