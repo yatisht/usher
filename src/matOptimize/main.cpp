@@ -41,6 +41,7 @@ std::chrono::steady_clock::duration save_period;
 MAT::Node* get_LCA(MAT::Node* src,MAT::Node* dst);
 FILE* movalbe_src_log;
 bool interrupted;
+bool changing_radius=false;
 std::condition_variable progress_bar_cv;
 bool timed_print_progress;
 tbb::task_group_context search_context;
@@ -215,6 +216,7 @@ int main(int argc, char **argv) {
         fprintf(stderr,"Will consider SPR moves within a radius of %d. \n",radius);
     }else {
         fprintf(stderr,"Will double radius after each iteration\n");
+        changing_radius=true;
     }
     if (max_queued_moves) {
         fprintf(stderr, "Will stop search and apply all moves found when %zu moves are found\n",max_queued_moves);
@@ -321,6 +323,9 @@ int main(int argc, char **argv) {
         if (allow_drift) {
             nodes_to_search=tbb::concurrent_vector<MAT::Node *>(bfs_ordered_nodes.begin(),bfs_ordered_nodes.end());
         }
+        if (nodes_to_search.empty()) {
+            break;
+        }
         //Actual optimization loop
         bool searched_full=true;
         while (!nodes_to_search.empty()) {
@@ -363,7 +368,7 @@ int main(int argc, char **argv) {
             }
         }
         if (new_score >= score_before) {
-            if (nodes_seached_this_iter>nodes_seached_last_iter) {
+            if (nodes_seached_this_iter>nodes_seached_last_iter&&radius<0) {
                 radius*=2;                
             }else {
                 stalled++;
