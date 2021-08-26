@@ -9,6 +9,7 @@
 #include <iostream>
 #include <memory>
 #include <limits>
+#include <filesystem>
 #include "boost/filesystem.hpp"
 #include "usher_graph.hpp"
 #include "parsimony.pb.h"
@@ -20,11 +21,13 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
-namespace po = boost::program_options;
-namespace MAT = Mutation_Annotated_Tree;
 #ifdef _WIN32
     #define stat _stat 
 #endif
+namespace po = boost::program_options;
+namespace MAT = Mutation_Annotated_Tree;
+
+
 
 
 
@@ -72,8 +75,9 @@ int main(int argc, char** argv) {
         return 1;
     }
     
-    //boost::filesystem::path p = boost::filesystem::current_path();
-    std::time_t modified_time(0);
+    //std::filesystem::path p = std::filesystem::current_path();
+    //std::filesystem::file_time_type modified_time = std::filesystem::file_time_type();
+    time_t modified_time(0);
     MAT::Tree *curr_tree; //MAT that is used in the iteration
     Timer timer; 
     std::unordered_map<std::string, MAT::Tree> MAT_list; //store list of trees
@@ -97,8 +101,6 @@ int main(int argc, char** argv) {
         MAT_list_file.close();
     }
     
-
-    // timer object to be used to measure runtimes of individual stages
     
 
     while(true){
@@ -123,16 +125,15 @@ int main(int argc, char** argv) {
         }
         
         
-        
-        /*if(boost::filesystem::last_write_time(p) == modified_time){
+       /* 
+       if(std::filesystem::last_write_time(p) == modified_time){
             fprintf(stderr, "Waiting for more arguments\n\n");
-            while(boost::filesystem::last_write_time(p) == modified_time){
+            while(std::filesystem::last_write_time(p) == modified_time){
                 std::this_thread::sleep_for(std::chrono::milliseconds(sleep_length));
             }
         }
         
-        modified_time = boost::filesystem::last_write_time(p);
-
+        modified_time = std::filesystem::last_write_time(p);
         */
 
        
@@ -148,7 +149,7 @@ int main(int argc, char** argv) {
         }
 
         modified_time = arg_file_stat.st_mtime;
-
+        
 
         std::ifstream arguments_file(arg_filename);
         if (!arguments_file) {
@@ -209,8 +210,8 @@ int main(int argc, char** argv) {
             std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
             desc.add_options()
                 ("vcf,v", po::value<std::string>(&vcf_filename)->required(), "Input VCF file (in uncompressed or gzip-compressed .gz format) [REQUIRED]")
+                ("load-mutation-annotated-tree,i", po::value<std::string>(&din_filename)->required(), "Load mutation-annotated tree object [REQUIRED]")
                 ("outdir,d", po::value<std::string>(&outdir)->default_value("."), "Output directory to dump output and log files [DEFAULT uses current directory]")
-                ("load-mutation-annotated-tree,i", po::value<std::string>(&din_filename)->default_value(""), "Load mutation-annotated tree object")
                 ("save-mutation-annotated-tree,o", po::value<std::string>(&dout_filename)->default_value(""), "Save output mutation-annotated tree object to the specified filename")
                 ("sort-before-placement-1,s", po::bool_switch(&sort_before_placement_1), \
                  "Sort new samples based on computed parsimony score and then number of optimal placements before the actual placement [EXPERIMENTAL].")
