@@ -162,22 +162,29 @@ struct Batch_Printer {
         if (!inbuf) {
             inbuf=(uint8_t*) malloc(inbuf_siz);
             outbuf=(uint8_t*) malloc(OUT_BUF_SIZ);
-            auto err = deflateInit2(&stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED,
+            //auto err = 
+            deflateInit2(&stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED,
                         15 | 16, 9, Z_DEFAULT_STRATEGY);
-            assert(err==Z_OK);
+            //assert(err==Z_OK);
         }else {
-            auto err=deflateReset(&stream);
-            assert(err==Z_OK);
+            //auto err=
+            deflateReset(&stream);
+            //assert(err==Z_OK);
         }
         stream.avail_out=OUT_BUF_SIZ;
         stream.next_out=outbuf;
     }
     void output()const{
         if (stream.avail_out<OUT_BUF_SIZ/2) {
-            auto err = deflate(&stream, Z_FINISH);
-            assert(err==Z_STREAM_END);
+            //auto err = 
+            deflate(&stream, Z_FINISH);
+            //assert(err==Z_STREAM_END);
             out_mutex.lock();
-            write(fd,outbuf,stream.next_out-outbuf);
+            auto out=write(fd,outbuf,stream.next_out-outbuf);
+            if (out!=stream.next_out-outbuf) {
+                fprintf(stderr, "Couldn't output\n");
+                exit(EXIT_FAILURE);
+            }
             out_mutex.unlock();
             deflateReset(&stream);
             stream.avail_out=OUT_BUF_SIZ;
@@ -202,10 +209,15 @@ struct Batch_Printer {
                 assert(err==Z_OK);
                 output();
         }
-        auto err = deflate(&stream, Z_FINISH);
-        assert(err==Z_STREAM_END);
+        //auto err = 
+        deflate(&stream, Z_FINISH);
+        //assert(err==Z_STREAM_END);
         out_mutex.lock();
-        write(fd, outbuf, stream.next_out-outbuf);
+        auto written_bytes=write(fd, outbuf, stream.next_out-outbuf);
+        if (written_bytes!=stream.next_out-outbuf) {
+            fprintf(stderr, "Couldn't output\n");
+            exit(EXIT_FAILURE);
+        }
         out_mutex.unlock();
     }
     ~Batch_Printer(){

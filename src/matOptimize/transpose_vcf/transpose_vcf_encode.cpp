@@ -5,6 +5,7 @@
 #include <cctype>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <fstream>
 #include <functional>
 #include <ios>
@@ -531,7 +532,10 @@ class Rename_Data_Source{
             unsigned int item_len=*(int*) in;
             size_t out_len=MAX_SIZ;
             auto uncompress_out=uncompress(buffer, &out_len, in+4, item_len);
-            assert(uncompress_out==Z_OK);
+            if(uncompress_out!=Z_OK){
+                fprintf(stderr, "Corrupted input\n");
+                exit(EXIT_FAILURE);
+            }
             const uint8_t* start=buffer;
             auto end=buffer+out_len;
             while(start!=end) {
