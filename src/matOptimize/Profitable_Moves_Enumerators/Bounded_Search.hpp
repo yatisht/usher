@@ -21,7 +21,6 @@ struct src_side_info{
 struct Mutation_Count_Change_W_Lower_Bound : public Mutation_Count_Change {
     range_per_allele_t ranges;
     bool have_content;
-    bool offsetable;
     using Mutation_Count_Change::Mutation_Count_Change;
     void init(const MAT::Node *node) {
         assert(use_bound);
@@ -163,5 +162,5 @@ typedef std::vector<Mutation_Count_Change_W_Lower_Bound>
     Bounded_Mut_Change_Collection;
 void search_subtree_bounded(MAT::Node *node, const src_side_info &src_side,
                     int radius_left,
-                    const Bounded_Mut_Change_Collection &par_muts,
+                    const Bounded_Mut_Change_Collection &par_muts,int split_lower_bound,
                     int lower_bound);

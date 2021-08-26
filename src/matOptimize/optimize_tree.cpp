@@ -119,7 +119,7 @@ std::pair<size_t, size_t> optimize_tree(std::vector<MAT::Node *> &bfs_ordered_no
     fputs("Start searching for profitable moves\n",stderr);
     //Actual search of profitable moves
     output_t out;
-    /*tbb::parallel_for(tbb::blocked_range<size_t>(0, nodes_to_search.size()),
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, nodes_to_search.size()),
                       [&nodes_to_search, &resolver,
                                          &deferred_nodes,radius,&checked_nodes,&allow_drift,&node_searched_this_iter
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
@@ -127,8 +127,8 @@ std::pair<size_t, size_t> optimize_tree(std::vector<MAT::Node *> &bfs_ordered_no
 #endif
                       ](tbb::blocked_range<size_t> r) {
         //stack_allocator<Mutation_Count_Change> this_thread_FIFO_allocator(FIFO_allocator_state);
-        for (size_t i = r.begin(); i < r.end(); i++) {*/
-        for (size_t i = 0; i < nodes_to_search.size(); i++) {
+        for (size_t i = r.begin(); i < r.end(); i++) {
+        //for (size_t i = 0; i < nodes_to_search.size(); i++) {
             if (search_context.is_group_execution_cancelled()) {
                 break;
             }
@@ -151,7 +151,7 @@ std::pair<size_t, size_t> optimize_tree(std::vector<MAT::Node *> &bfs_ordered_no
                 deferred_nodes.push_back(nodes_to_search[i]);
             }
         }
-    //},search_context);
+    },search_context);
     {
         //stop the progress bar
         //std::unique_lock<std::mutex> done_lock(done_mutex);

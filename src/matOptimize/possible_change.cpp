@@ -41,6 +41,7 @@ struct Sensitive_Alleles {
     int postion;
     uint16_t decrement_effect;
     uint16_t increment_effect;
+    std::array<node_info*, 4> last_addable_idxes;
 };
 
 bool decrement_sensitive(uint8_t decrement, uint8_t major_allele,
@@ -116,12 +117,13 @@ update_sensitve_allele(MAT::Mutation &out) {
 }
 static void filter_output(const MAT::Mutation &mut,
                           std::pair<uint16_t, uint16_t> effect,
-                          std::vector<Sensitive_Alleles> &out) {
+                          std::vector<Sensitive_Alleles> &out,
+                          std::array<node_info*, 4>& last_addable_idx) {
     auto mut_idx = one_hot_to_two_bit(mut.get_mut_one_hot());
     if (effect.first != default_decrement_effect[mut_idx] ||
         effect.second != default_increment_effect[mut_idx]) {
         out.push_back(
-            Sensitive_Alleles{mut.get_position(), effect.first, effect.second});
+            Sensitive_Alleles{mut.get_position(), effect.first, effect.second,last_addable_idx});
     }
 }
 
@@ -132,25 +134,32 @@ struct Walker : public tbb::task {
     pos_tree_t& pos_tree;
     // Sensitive locus is for this node
     Walker(MAT::Node *root,pos_tree_t& pos_tree) : root(root),pos_tree(pos_tree) {}
-    void register_change(const MAT::Node* node, const MAT::Mutation& mut){
+    void register_change(const MAT::Node* node, const MAT::Mutation& mut,std::array<node_info*, 4>& out){
         auto new_alleles=mut.get_sensitive_increment()&(~mut.get_par_one_hot());
-        if (new_alleles) {
             for (int idx=0; idx<4; idx++) {
                 if (new_alleles&(1<<idx)) {
-                    pos_tree[mut.get_position()][idx].emplace_back(node_info{node->dfs_index,node->level});
+                    auto iter=pos_tree[mut.get_position()][idx].emplace_back(node_info{node->dfs_index,node->level});
+                    out[idx]=&(*iter);
                 }
+                out[idx]=nullptr;
             }
-        }
     }
-    void register_change(const Sensitive_Alleles& last, uint16_t new_increment,int position,const MAT::Node* node){
-        auto new_alleles=new_increment&(~last.increment_effect);
-        if (new_alleles) {
+    void register_change(const Sensitive_Alleles& last, uint16_t new_increment,const MAT::Mutation& mut,const MAT::Node* node,std::array<node_info*, 4>& out){
+        auto position=mut.get_position();
+        auto new_alleles=new_increment&(~mut.get_par_one_hot());
+        out=last.last_addable_idxes;
             for (int idx=0; idx<4; idx++) {
                 if (new_alleles&(1<<(two_bit_to_one_hot(idx)))) {
-                    pos_tree[position][idx].emplace_back(node_info{node->dfs_index,node->level});
+                    if (out[idx]) {
+                        out[idx]->dfs_idx=node->dfs_index;
+                    }else {
+                        auto iter=pos_tree[position][idx].emplace_back(node_info{node->dfs_index,node->level});
+                        out[idx]=&(*iter);   
+                    }
+                }else {
+                    out[idx]=nullptr;
                 }
             }
-        }
     }
     void merge(MAT::Node *to_set, std::vector<Sensitive_Alleles> *output) {
         auto iter = sensitive_locus.begin();
@@ -159,15 +168,16 @@ struct Walker : public tbb::task {
             while (iter->postion < mut.get_position()) {
                 iter++;
             }
+            std::array<node_info*, 4> last_addable_idxes;
             if (mut.get_position() == iter->postion) {
                 effect = update_sensitve_allele(*iter, mut);
-                register_change(*iter,effect.second,mut.get_position(),to_set);
+                register_change(*iter,effect.second,mut.get_position(),to_set,last_addable_idxes);
             } else {
                 effect = update_sensitve_allele(mut);
-                register_change(to_set,mut);
+                register_change(to_set,mut,last_addable_idxes);
             }
             if (output) {
-                filter_output(mut, effect, *output);
+                filter_output(mut, effect, *output,last_addable_idxes);
             }
         }
         if (output) {
@@ -214,7 +224,8 @@ void adjust_all(MAT::Tree &tree) {
     auto task_root = new (tbb::task::allocate_root()) Walker(tree.root,pos_tree);
     for (auto &mut : tree.root->mutations) {
         auto effect = update_sensitve_allele(mut);
-        filter_output(mut, effect, task_root->sensitive_locus);
+        std::array<node_info*, 4> last_addable_idx{nullptr,nullptr,nullptr,nullptr};
+        filter_output(mut, effect, task_root->sensitive_locus,last_addable_idx);
     }
     task_root->sensitive_locus.push_back(Sensitive_Alleles{INT_MAX});
     tbb::task::spawn_root_and_wait(*task_root);

@@ -325,7 +325,42 @@ int main(int argc, char **argv) {
         use_bound=true;
         adjust_all(t); 
         output_t temp;
-        find_moves_bounded(t.get_node("USA_AZ1_2020"), temp, 10);
+        /*find_moves_bounded(t.get_node("node_3130_condensed_5_leaves"), temp, 10);
+        find_moves_bounded(t.get_node("5149"), temp, 10);
+        find_moves_bounded(t.get_node("6263"), temp, 10);
+        find_moves_bounded(t.get_node("node_3850_condensed_2_leaves"), temp, 10);
+        find_moves_bounded(t.get_node("England/ALDP-522B8A/2020|England/ALDP-522B8A/2020|20-06-02"), temp, 10);
+        find_moves_bounded(t.get_node("2759"), temp, 10);
+        find_moves_bounded(t.get_node("England/CAMB-1B0A79/2020|England/CAMB-1B0A79/2020|20-05-13"), temp, 10);
+        find_moves_bounded(t.get_node("England/LOND-D508C/2020|England/LOND-D508C/2020|20-04-15"), temp, 10);
+        find_moves_bounded(t.get_node("LR824367.1|101136|20-03-30"), temp, 10);
+        find_moves_bounded(t.get_node("8473"), temp, 10);
+        find_moves_bounded(t.get_node("2222"), temp, 10);
+        find_moves_bounded(t.get_node("6784"), temp, 10);
+        find_moves_bounded(t.get_node("9306"), temp, 10);
+        find_moves_bounded(t.get_node("7243"), temp, 10);
+        find_moves_bounded(t.get_node("MT520301.1|USA/MA_MGH_00469/2020|20-04-04"), temp, 10);
+        find_moves_bounded(t.get_node("2452"), temp, 10);
+        find_moves_bounded(t.get_node("node_190_condensed_4_leaves"), temp, 10);
+        find_moves_bounded(t.get_node("LR824435.1|110452|20-04-07"), temp, 10);
+        find_moves_bounded(t.get_node("MT890284.2|USA/FL-BPHL-0805/2020|20-05-12"), temp, 10);
+        find_moves_bounded(t.get_node("2451"), temp, 10);
+        find_moves_bounded(t.get_node("3577"), temp, 10);
+        find_moves_bounded(t.get_node("5729"), temp, 10);
+        find_moves_bounded(t.get_node("node_1675_condensed_2_leaves"), temp, 10);
+        find_moves_bounded(t.get_node("MT520429.1|USA/MA_MGH_00444/2020|20-03-08"), temp, 10);
+        find_moves_bounded(t.get_node("5599"), temp, 10);
+        find_moves_bounded(t.get_node("node_358_condensed_5_leaves"), temp, 10);
+        find_moves_bounded(t.get_node("node_1930_condensed_2_leaves"), temp, 10);
+        find_moves_bounded(t.get_node("MT820131.1|USA/SV107V1/2020|20-05-10"), temp, 10);
+        find_moves_bounded(t.get_node("3575"), temp, 10);
+        find_moves_bounded(t.get_node("England/QEUH-943518/2020|England/QEUH-943518/2020|20-07-28"), temp, 10);
+        find_moves_bounded(t.get_node("node_3682_condensed_5_leaves"), temp, 10);
+        find_moves_bounded(t.get_node("MT641512.1|USA/WA-S826/2020|20-04-16"), temp, 10);
+        find_moves_bounded(t.get_node("4350"), temp, 10);
+        find_moves_bounded(t.get_node("node_4108_condensed_3_leaves"), temp, 10);
+        find_moves_bounded(t.get_node("8782"), temp, 10);
+        find_moves_bounded(t.get_node("LR860581.1|110034|20-04-01"), temp, 10);*/
         //Actual optimization loop
         bool searched_full=true;
         while (!nodes_to_search.empty()) {
