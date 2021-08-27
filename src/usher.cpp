@@ -64,7 +64,7 @@ int main(int argc, char** argv) {
     ("max-uncertainty-per-sample,e", po::value<uint32_t>(&max_uncertainty)->default_value(1e6), \
      "Maximum number of equally parsimonious placements allowed per sample beyond which the sample is ignored")
     ("max-parsimony-per-sample,E", po::value<uint32_t>(&max_parsimony)->default_value(1e6), \
-     "Maximum parsimony score of most parsimonious placement allowed per sample beyond which the sample is ignored")
+     "Maximum parsimony score of the most parsimonious placement(s) allowed per sample beyond which the sample is ignored")
     ("write-uncondensed-final-tree,u", po::bool_switch(&print_uncondensed_tree), "Write the final tree in uncondensed format and save to file uncondensed-final-tree.nh in outdir")
     ("write-subtrees-size,k", po::value<size_t>(&print_subtrees_size)->default_value(0), \
      "Write minimum set of subtrees covering the newly added samples of size equal to this value")
