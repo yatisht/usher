@@ -192,6 +192,7 @@ int main(int argc, char** argv) {
             uint32_t num_threads;
             uint32_t max_trees = 1; //only one tree for usher_server
             uint32_t max_uncertainty;
+            uint32_t max_parsimony;
             bool sort_before_placement_1 = false;
             bool sort_before_placement_2 = false;
             bool sort_before_placement_3 = false;
@@ -227,6 +228,8 @@ int main(int argc, char** argv) {
                  "Collapse internal nodes of the output tree with no mutations before the saving the tree to file final-tree.nh in outdir")
                 ("max-uncertainty-per-sample,e", po::value<uint32_t>(&max_uncertainty)->default_value(1e6), \
                  "Maximum number of equally parsimonious placements allowed per sample beyond which the sample is ignored")
+                 ("max-parsimony-per-sample,E", po::value<uint32_t>(&max_parsimony)->default_value(1e6), \
+                 "Maximum parsimony score of the most parsimonious placement(s) allowed per sample beyond which the sample is ignored")
                 ("write-uncondensed-final-tree,u", po::bool_switch(&print_uncondensed_tree), "Write the final tree in uncondensed format and save to file uncondensed-final-tree.nh in outdir")
                 ("write-subtrees-size,k", po::value<size_t>(&print_subtrees_size)->default_value(0), \
                  "Write minimum set of subtrees covering the newly added samples of size equal to this value")
@@ -449,7 +452,7 @@ int main(int argc, char** argv) {
             }
             fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 
-            int return_val = usher_common(dout_filename, outdir, num_threads, max_trees, max_uncertainty, 
+            int return_val = usher_common(dout_filename, outdir, num_threads, max_trees, max_uncertainty, max_parsimony,
             sort_before_placement_1, sort_before_placement_2, sort_before_placement_3, reverse_sort, collapse_tree, 
             collapse_output_tree, print_uncondensed_tree, print_parsimony_scores, retain_original_branch_len, no_add, 
             detailed_clades, print_subtrees_size, print_subtrees_single, missing_samples, low_confidence_samples, curr_tree);
