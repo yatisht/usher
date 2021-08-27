@@ -2,6 +2,7 @@
 #include "src/matOptimize/tree_rearrangement_internal.hpp"
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <cstdio>
 #include <iterator>
 #include <utility>
@@ -21,6 +22,8 @@ struct src_side_info{
 struct Mutation_Count_Change_W_Lower_Bound : public Mutation_Count_Change {
     range_per_allele_t ranges;
     bool have_content;
+    uint8_t par_sensitive_increment;
+    uint8_t par_sensitive_decrement;
     using Mutation_Count_Change::Mutation_Count_Change;
     void init(const MAT::Node *node) {
         assert(use_bound);
@@ -49,7 +52,7 @@ struct Mutation_Count_Change_W_Lower_Bound : public Mutation_Count_Change {
             std::lower_bound(start, end, node_info{node->dfs_index});
         ranges[nu_idx].first = end;
         ranges[nu_idx].second = end;
-        while (start_iter != end && start_iter->dfs_idx < node->dfs_end_index) {
+        while (start_iter != end && start_iter->dfs_idx <= node->dfs_end_index) {
             if (start_iter->level <= max_level) {
                 ranges[nu_idx].first = start_iter;
                 start_iter++;
@@ -58,7 +61,7 @@ struct Mutation_Count_Change_W_Lower_Bound : public Mutation_Count_Change {
             }
             start_iter++;
         }
-        while (start_iter != end && start_iter->dfs_idx < node->dfs_end_index) {
+        while (start_iter != end && start_iter->dfs_idx <= node->dfs_end_index) {
             if (start_iter->level <= max_level) {
                 have_content = true;
                 ranges[nu_idx].second = start_iter+1;
@@ -162,5 +165,9 @@ typedef std::vector<Mutation_Count_Change_W_Lower_Bound>
     Bounded_Mut_Change_Collection;
 void search_subtree_bounded(MAT::Node *node, const src_side_info &src_side,
                     int radius_left,
-                    const Bounded_Mut_Change_Collection &par_muts,int split_lower_bound,
-                    int lower_bound);
+                    const Bounded_Mut_Change_Collection &par_muts,
+                    int lower_bound
+#ifdef CHECK_BOUND
+                                      ,bool do_continue
+#endif
+                    );

@@ -17,6 +17,10 @@
 #include <unistd.h>
 #include <utility>
 #include "Profitable_Moves_Enumerators/Profitable_Moves_Enumerators.hpp"
+#ifdef CHECK_BOUND
+std::atomic<size_t> saved;
+std::atomic<size_t> total;
+#endif
 size_t find_profitable_moves(MAT::Node *src, output_t &out,int radius,
                            stack_allocator<Mutation_Count_Change>& allocator,int starting_parsimony_score
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
@@ -119,6 +123,8 @@ std::pair<size_t, size_t> optimize_tree(std::vector<MAT::Node *> &bfs_ordered_no
     fputs("Start searching for profitable moves\n",stderr);
     //Actual search of profitable moves
     output_t out;
+    saved.store(0);
+    total.store(0);
     tbb::parallel_for(tbb::blocked_range<size_t>(0, nodes_to_search.size()),
                       [&nodes_to_search, &resolver,
                                          &deferred_nodes,radius,&checked_nodes,&allow_drift,&node_searched_this_iter
@@ -163,6 +169,7 @@ std::pair<size_t, size_t> optimize_tree(std::vector<MAT::Node *> &bfs_ordered_no
     std::chrono::duration<double> elpased_time =searh_end-search_start;
     fprintf(stderr, "\nSearch took %f minutes\n",elpased_time.count()/60);
     //apply moves
+    fprintf(stderr, "Total %lu arcs, saved %lu arcs\n",total.load(),saved.load());
     fputs("Start applying moves\n",stderr);
     std::vector<Profitable_Moves_ptr_t> all_moves;
     resolver.schedule_moves(all_moves);
