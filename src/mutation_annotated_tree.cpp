@@ -6,6 +6,7 @@
 #include <iomanip>
 #include <iostream>
 #include <random>
+#include <algorithm>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -1559,12 +1560,12 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (Mutation_Annotated_Tre
         // found
         for (auto anc: T->rsearch(samples[i], true)) {
             size_t num_leaves = T->get_num_leaves(anc);
-            if (num_leaves <= nearest_subtree_size) {
+            if (num_leaves < subtree_size) {
                 last_anc = anc;
                 continue;
             }
 
-            if (num_leaves > nearest_subtree_size) {
+            if (num_leaves > subtree_size) {
                 struct NodeDist {
                     Mutation_Annotated_Tree::Node* node;
                     uint32_t num_mut;
@@ -1600,26 +1601,30 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (Mutation_Annotated_Tre
                     node_distances.emplace_back(NodeDist(l, dist));
                 }
 
-                tbb::parallel_sort(node_distances.begin(), node_distances.end());
+                std::sort(node_distances.begin(), node_distances.end());
                 for (auto n: node_distances) {
-                    if (leaves_to_keep.size() == nearest_subtree_size) {
+                    if (leaves_to_keep.size() >= nearest_subtree_size) {
                         break;
                     }
                     leaves_to_keep.emplace_back(n.node->identifier); 
                 }
 
-                std::random_device rd;
-                std::mt19937 g(rd());
-                std::shuffle(node_distances.begin()+nearest_subtree_size, node_distances.end(), g);
-                
-                for (auto n = node_distances.begin()+nearest_subtree_size; n != node_distances.end(); n++) {
-                    if (leaves_to_keep.size() == subtree_size) {
-                        break;
+                if ((nearest_subtree_size < subtree_size) && (nearest_subtree_size < node_distances.size())) {
+                    std::vector<NodeDist> remaining_node_distances = {node_distances.begin()+nearest_subtree_size, node_distances.end()};
+                    std::shuffle(remaining_node_distances.begin(), remaining_node_distances.end(), std::default_random_engine {});
+
+                    for (auto n: remaining_node_distances) {
+                        if (leaves_to_keep.size() == subtree_size) {
+                            break;
+                        }
+                        leaves_to_keep.emplace_back(n.node->identifier);  
                     }
-                    leaves_to_keep.emplace_back(n->node->identifier); 
                 }
             } else {
                 for (auto l: T->get_leaves(anc->identifier)) {
+                    if (leaves_to_keep.size() == subtree_size) {
+                        break;
+                    }
                     leaves_to_keep.emplace_back(l->identifier);
                 }
             }
