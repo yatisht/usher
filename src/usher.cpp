@@ -26,6 +26,7 @@ int main(int argc, char** argv) {
     uint32_t num_threads;
     uint32_t max_trees;
     uint32_t max_uncertainty;
+    uint32_t max_parsimony;;
     bool sort_before_placement_1 = false;
     bool sort_before_placement_2 = false;
     bool sort_before_placement_3 = false;
@@ -62,6 +63,8 @@ int main(int argc, char** argv) {
      "Collapse internal nodes of the output tree with no mutations before the saving the tree to file final-tree.nh in outdir")
     ("max-uncertainty-per-sample,e", po::value<uint32_t>(&max_uncertainty)->default_value(1e6), \
      "Maximum number of equally parsimonious placements allowed per sample beyond which the sample is ignored")
+    ("max-parsimony-per-sample,E", po::value<uint32_t>(&max_parsimony)->default_value(1e6), \
+     "Maximum parsimony score of the most parsimonious placement(s) allowed per sample beyond which the sample is ignored")
     ("write-uncondensed-final-tree,u", po::bool_switch(&print_uncondensed_tree), "Write the final tree in uncondensed format and save to file uncondensed-final-tree.nh in outdir")
     ("write-subtrees-size,k", po::value<size_t>(&print_subtrees_size)->default_value(0), \
      "Write minimum set of subtrees covering the newly added samples of size equal to this value")
@@ -798,6 +801,8 @@ int main(int argc, char** argv) {
                         }
                         if (num_best > max_uncertainty) {
                             fprintf(stderr, "WARNING: Number of parsimony-optimal placements exceeds maximum allowed value (%u). Ignoring sample %s.\n", max_uncertainty, sample.c_str());
+                        } else if (best_set_difference > max_parsimony) {
+                            fprintf(stderr, "WARNING: Parsimony score of the most parsimonious placement exceeds the maximum allowed value (%u). Ignoring sample %s.\n", max_parsimony, sample.c_str());
                         } else {
                             fprintf(stderr, "WARNING: Multiple parsimony-optimal placements found. Placement done without high confidence.\n");
                         }
@@ -827,7 +832,7 @@ int main(int argc, char** argv) {
                 assert(num_best > 0);
 
                 //best_node_vec.emplace_back(best_node);
-                if ((num_best > 0) && (num_best <= max_uncertainty)) {
+                if ((num_best > 0) && (num_best <= max_uncertainty) && (best_set_difference <= max_parsimony)) {
                     for (auto j: best_j_vec) {
                         auto node = bfs[j];
 
@@ -912,8 +917,10 @@ int main(int argc, char** argv) {
                     }
                 }
                 // Do placement only if number of parsimony-optimal placements
-                // does not exceed the maximum allowed value
-                else if (num_best <= max_uncertainty) {
+                // does not exceed the maximum allowed value and the parsimony
+                // score for the most parsimonious placement does not exceed 
+                // the maximum allowed value
+                else if ((num_best <= max_uncertainty) && (best_set_difference <= max_parsimony)) {
                     if (num_best > 1) {
                         if (max_trees > 1) {
                             // Sorting by bfs order ensures reproducible results
