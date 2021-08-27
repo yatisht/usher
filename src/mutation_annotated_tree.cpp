@@ -5,6 +5,7 @@
 #include <google/protobuf/io/coded_stream.h>
 #include <iomanip>
 #include <iostream>
+#include <random>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -1513,7 +1514,7 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (Mutation_Annotated_Tre
     //size_t random_subtree_size = print_subtrees_size/2;
     //size_t nearest_subtree_size = print_subtrees_size - random_subtree_size;
 
-    size_t random_subtree_size = 0;
+    size_t random_subtree_size = subtree_size/5;
     size_t nearest_subtree_size = subtree_size - random_subtree_size;
 
     //Set a constant random seed
@@ -1606,22 +1607,20 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (Mutation_Annotated_Tre
                     }
                     leaves_to_keep.emplace_back(n.node->identifier); 
                 }
+
+                std::random_device rd;
+                std::mt19937 g(rd());
+                std::shuffle(node_distances.begin()+nearest_subtree_size, node_distances.end(), g);
+                
+                for (auto n = node_distances.begin()+nearest_subtree_size; n != node_distances.end(); n++) {
+                    if (leaves_to_keep.size() == subtree_size) {
+                        break;
+                    }
+                    leaves_to_keep.emplace_back(n->node->identifier); 
+                }
             } else {
                 for (auto l: T->get_leaves(anc->identifier)) {
                     leaves_to_keep.emplace_back(l->identifier);
-                }
-            }
-
-            // Add non-overlapping random subtree samples
-            for (auto l: random_ordered_leaves) {
-                if (leaves_to_keep.size() < subtree_size) {
-                    if (std::find(leaves_to_keep.begin(), leaves_to_keep.end(), l->identifier) == leaves_to_keep.end()) {
-                        leaves_to_keep.emplace_back(l->identifier);
-                    }
-                }
-
-                if (leaves_to_keep.size() >= subtree_size) {
-                    break;
                 }
             }
 
