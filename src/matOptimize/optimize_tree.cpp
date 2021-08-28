@@ -17,10 +17,6 @@
 #include <unistd.h>
 #include <utility>
 #include "Profitable_Moves_Enumerators/Profitable_Moves_Enumerators.hpp"
-#ifdef CHECK_BOUND
-std::atomic<size_t> saved;
-std::atomic<size_t> total;
-#endif
 size_t find_profitable_moves(MAT::Node *src, output_t &out,int radius,
                            stack_allocator<Mutation_Count_Change>& allocator,int starting_parsimony_score
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
@@ -123,15 +119,20 @@ std::pair<size_t, size_t> optimize_tree(std::vector<MAT::Node *> &bfs_ordered_no
     fputs("Start searching for profitable moves\n",stderr);
     //Actual search of profitable moves
     output_t out;
-    saved.store(0);
-    total.store(0);
+    #ifdef CHECK_BOUND
+std::atomic<size_t> saved(0);
+std::atomic<size_t> total(0);
+#endif
     tbb::parallel_for(tbb::blocked_range<size_t>(0, nodes_to_search.size()),
                       [&nodes_to_search, &resolver,
-                                         &deferred_nodes,radius,&checked_nodes,&allow_drift,&node_searched_this_iter
+                                         &deferred_nodes,radius,&checked_nodes,&allow_drift,&total,&saved
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
                                          ,&t
 #endif
                       ](tbb::blocked_range<size_t> r) {
+                              #ifdef CHECK_BOUND
+counters count;
+#endif
         //stack_allocator<Mutation_Count_Change> this_thread_FIFO_allocator(FIFO_allocator_state);
         for (size_t i = r.begin(); i < r.end(); i++) {
         //for (size_t i = 0; i < nodes_to_search.size(); i++) {
@@ -140,7 +141,11 @@ std::pair<size_t, size_t> optimize_tree(std::vector<MAT::Node *> &bfs_ordered_no
             }
             if(((!deferred_nodes.size())||(std::chrono::steady_clock::now()-last_save_time)<save_period)&&deferred_nodes.size()<max_queued_moves) {
                 output_t out;
-                find_moves_bounded(nodes_to_search[i], out,radius);
+                find_moves_bounded(nodes_to_search[i], out,radius
+                              #ifdef CHECK_BOUND
+                ,count
+                #endif
+                );
                 //assert(this_thread_FIFO_allocator.empty());
                 if (!out.moves.empty()) {
                     //resolve conflicts
@@ -157,6 +162,8 @@ std::pair<size_t, size_t> optimize_tree(std::vector<MAT::Node *> &bfs_ordered_no
                 deferred_nodes.push_back(nodes_to_search[i]);
             }
         }
+        total+=count.total;
+        saved+=count.saved;
     },search_context);
     {
         //stop the progress bar

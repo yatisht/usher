@@ -1,6 +1,7 @@
 #include "mutation_annotated_tree.hpp"
 #include <atomic>
 #include <chrono>
+#include <cstddef>
 #include <tbb/concurrent_unordered_map.h>
 #include <thread>
 #include <vector>
@@ -109,6 +110,9 @@ struct node_info{
 extern std::vector<std::array<std::vector<node_info>,4>> addable_idxes;
 void adjust_all(MAT::Tree &tree) ;
 #ifdef CHECK_BOUND
-extern std::atomic<size_t> saved;
-extern std::atomic<size_t> total;
+struct counters{
+    size_t saved;
+    size_t total;
+    counters():saved(0),total(0){}
+};
 #endif

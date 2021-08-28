@@ -286,7 +286,7 @@ int main(int argc, char **argv) {
     int stalled = 0;
 
 #ifndef NDEBUG
-    check_samples(t.root, origin_states, &t);
+    //check_samples(t.root, origin_states, &t);
 #endif
 
     score_before = t.get_parsimony_score();
@@ -325,7 +325,6 @@ int main(int argc, char **argv) {
         use_bound=true;
         adjust_all(t); 
         output_t temp;
-        find_moves_bounded(t.get_node("MW030246.1|PER/covper015/2020|20-07-03"), temp, 10);
         //Actual optimization loop
         bool searched_full=true;
         while (!nodes_to_search.empty()) {

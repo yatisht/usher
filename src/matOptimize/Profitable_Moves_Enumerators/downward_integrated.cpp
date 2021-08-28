@@ -101,9 +101,9 @@ static void output_not_LCA(Mutation_Count_Change_Collection &parent_added,
     if (parsimony_score_change<=src_side.out.score_change) {
         assert(do_continue);
     }else if (!do_continue) {
-        //saved++;
+        src_side.savings.saved++;
     }
-    //total++;
+    src_side.savings.total++;
 #endif
     output_result(src_side.src, dst_node, src_side.LCA, parsimony_score_change,
                   src_side.out, src_side.node_stack_from_src,
@@ -146,7 +146,7 @@ int downward_integrated(MAT::Node *node, int radius_left,
 
 ) {
     Bounded_Mut_Iter iter = from_parent.begin();
-    if (node->dfs_index==8223) {
+    if (node->dfs_index==298694) {
         //fputc('a', stderr);
     }
     mut_out.reserve(from_parent.size()+node->mutations.size());
@@ -165,6 +165,8 @@ int downward_integrated(MAT::Node *node, int radius_left,
                 *iter, split_allele_cnt_change, par_score_from_split);
             if (!(iter->get_incremented()&iter->par_sensitive_increment)) {
                 par_score_from_split_lower_bound++;
+            }else {
+                assert((iter->have_content)||iter->par_sensitive_increment&iter->get_par_state());
             }
             add_mut(*iter, radius_left, node, descendant_lower_bound, mut_out);
             iter++;
@@ -175,11 +177,12 @@ int downward_integrated(MAT::Node *node, int radius_left,
                 split_allele_cnt_change, par_score_from_split);
             if (!(iter->get_incremented()&mut.get_sensitive_increment())) {
                 par_score_from_split_lower_bound++;
+            }else {
+                assert((iter->have_content)||iter->par_sensitive_increment&iter->get_par_state());
             }
             if (mut.get_mut_one_hot()!=iter->get_incremented()) {
                 add_mut(*iter, radius_left, node, descendant_lower_bound, mut_out,mut.get_mut_one_hot(),mut.get_sensitive_increment()&(mut.get_all_major_allele()|mut.get_boundary1_one_hot()),mut.get_sensitive_decrement());
             }
-            //assert((!mut_out.back().offsetable)||mut_out.back().have_content);
             iter++;
         } else {
             add_node_split(mut, split_allele_cnt_change, par_score_from_split);

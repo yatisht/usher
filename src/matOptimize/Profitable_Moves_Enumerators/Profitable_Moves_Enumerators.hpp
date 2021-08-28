@@ -129,5 +129,9 @@ template <typename value_type> class range {
         return end-curr;
     }
 };
-void find_moves_bounded(MAT::Node* src,output_t& out,int search_radius);
+void find_moves_bounded(MAT::Node* src,output_t& out,int search_radius
+#ifdef CHECK_BOUND
+,counters& count
+#endif
+);
 #endif

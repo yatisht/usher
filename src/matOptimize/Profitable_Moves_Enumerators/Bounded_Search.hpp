@@ -12,6 +12,9 @@ typedef std::pair<iter_t, iter_t> iter_range_t;
 typedef std::array<iter_range_t, 4> range_per_allele_t;
 struct src_side_info{
     output_t& out;
+    #ifdef CHECK_BOUND
+    counters& savings;
+    #endif
     int par_score_change_from_src_remove;
     int src_par_score_lower_bound;
     MAT::Node *LCA;
