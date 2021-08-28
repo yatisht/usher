@@ -101,9 +101,9 @@ static void output_not_LCA(Mutation_Count_Change_Collection &parent_added,
     if (parsimony_score_change<=src_side.out.score_change) {
         assert(do_continue);
     }else if (!do_continue) {
-        saved++;
+        //saved++;
     }
-    total++;
+    //total++;
 #endif
     output_result(src_side.src, dst_node, src_side.LCA, parsimony_score_change,
                   src_side.out, src_side.node_stack_from_src,
@@ -149,9 +149,9 @@ int downward_integrated(MAT::Node *node, int radius_left,
     if (node->dfs_index==8223) {
         //fputc('a', stderr);
     }
+    mut_out.reserve(from_parent.size()+node->mutations.size());
     Mutation_Count_Change_Collection split_allele_cnt_change;
-    split_allele_cnt_change.reserve(
-        std::min(from_parent.size(), node->mutations.size()));
+    split_allele_cnt_change.reserve(from_parent.size()+ node->mutations.size());
     int par_score_from_split = src_side.par_score_change_from_src_remove;
     int par_score_from_split_lower_bound=src_side.src_par_score_lower_bound;
     int descendant_lower_bound = src_side.src_par_score_lower_bound;
