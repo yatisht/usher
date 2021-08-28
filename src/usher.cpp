@@ -233,6 +233,10 @@ int main(int argc, char** argv) {
         // Create a new tree from the input newick file and store it in
         // optimal_trees
         auto tmp_T = MAT::create_tree_from_newick(tree_filename);
+        if (tmp_T.root == NULL) {
+            fprintf(stderr, "ERROR: Empty tree.\n");
+            exit(1);
+        }
         optimal_trees.emplace_back(std::move(tmp_T));
 
         // Nodes of T don't have mutations assigned yet
@@ -354,6 +358,11 @@ int main(int argc, char** argv) {
 
         // Load mutation-annotated tree and store it in optimal_trees
         auto tmp_T = MAT::load_mutation_annotated_tree(din_filename);
+
+        if (tmp_T.root == NULL) {
+            fprintf(stderr, "ERROR: Empty tree.\n");
+            exit(1);
+        }
         optimal_trees.emplace_back(std::move(tmp_T));
 
         T = &optimal_trees[0];
