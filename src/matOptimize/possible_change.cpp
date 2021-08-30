@@ -135,7 +135,7 @@ static void filter_output(const MAT::Mutation &mut,
     }
 }
 
-typedef std::vector<std::array<tbb::concurrent_vector<node_info>, 4>> pos_tree_t;
+typedef std::vector<tbb::concurrent_vector<node_info>> pos_tree_t;
 struct Walker : public tbb::task {
     std::vector<Sensitive_Alleles> sensitive_locus;
     MAT::Node *root;
@@ -146,7 +146,7 @@ struct Walker : public tbb::task {
         auto new_alleles=increment_effect&(~(1<<mut.get_par_one_hot()));
             for (int idx=0; idx<4; idx++) {
                 if (new_alleles&(1<<two_bit_to_one_hot(idx))) {
-                    auto iter=pos_tree[mut.get_position()][idx].emplace_back(node_info{node->dfs_index,node->level});
+                    auto iter=pos_tree[mut.get_position()].emplace_back(node_info{node->dfs_index,node->level,static_cast<uint8_t>(idx)});
                     out[idx]=&(*iter);
                 }
                 out[idx]=nullptr;
@@ -161,7 +161,7 @@ struct Walker : public tbb::task {
                     if (out[idx]) {
                         out[idx]->dfs_idx=node->dfs_index;
                     }else {
-                        auto iter=pos_tree[position][idx].emplace_back(node_info{node->dfs_index,node->level});
+                        auto iter=pos_tree[position].emplace_back(node_info{node->dfs_index,node->level,static_cast<uint8_t>(idx)});
                         out[idx]=&(*iter);   
                     }
                 }else {
@@ -218,10 +218,7 @@ void output_addable_idxes(pos_tree_t& in){
     addable_idxes=std::vector<std::array<std::vector<node_info>,4>>(MAT::Mutation::refs.size());
     tbb::parallel_for(tbb::blocked_range<size_t>(0,MAT::Mutation::refs.size()),[&in](tbb::blocked_range<size_t>& range){
         for (size_t idx=range.begin(); idx<range.end(); idx++) {
-            for (int nu_idx=0; nu_idx<4; nu_idx++) {
-                addable_idxes[idx][nu_idx]=std::vector<node_info>(in[idx][nu_idx].begin(),in[idx][nu_idx].end());
-                std::sort(addable_idxes[idx][nu_idx].begin(),addable_idxes[idx][nu_idx].end());
-            }
+                std::sort(in[idx].begin(),in[idx].end());
         }
     });
 }

@@ -286,9 +286,9 @@ int main(int argc, char **argv) {
     int stalled = 0;
 
 #ifndef NDEBUG
-    //check_samples(t.root, origin_states, &t);
+    check_samples(t.root, origin_states, &t);
 #endif
-
+    t.populate_ignored_range();
     score_before = t.get_parsimony_score();
     new_score = score_before;
     fprintf(stderr, "after state reassignment:%zu\n", score_before);
@@ -324,7 +324,17 @@ int main(int argc, char **argv) {
         }
         use_bound=true;
         adjust_all(t); 
-        output_t temp;
+        /*output_t temp;
+counters count;
+        find_moves_bounded(t.get_node("11106"), temp,radius,count);
+        while (true) {
+        fprintf(stderr, "%zu\n", t.get_parsimony_score());
+        find_moves_bounded(t.get_node("s310249s"), temp,8,count);
+        tbb::concurrent_vector<MAT::Node *> ignored;
+        temp.moves.resize(1);
+        apply_moves(temp.moves, t, bfs_ordered_nodes,ignored);
+        fprintf(stderr, "%zu\n", t.get_parsimony_score());
+        }*/
         //Actual optimization loop
         bool searched_full=true;
         while (!nodes_to_search.empty()) {
@@ -384,6 +394,7 @@ int main(int argc, char **argv) {
             interrupted=true;
             break;
         }
+        t.save_detailed_mutations("last_iter.pb");
     }
     fprintf(stderr, "Final Parsimony score %zu\n",t.get_parsimony_score());
     fclose(movalbe_src_log);

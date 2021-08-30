@@ -366,7 +366,7 @@ class Mutations_Collection {
         return true;
     }
 };
-
+typedef std::vector<std::pair<int,int>> ignored_t;
 class Node {
   public:
     float branch_length;
@@ -375,6 +375,7 @@ class Node {
     Node* parent;
     std::vector<Node*> children;
     Mutations_Collection mutations;
+    ignored_t ignore;
     //Mutations_Collection boundary_mutations;
     size_t dfs_index; //index in dfs pre-order
     size_t dfs_end_index; //index in dfs pre-order
@@ -403,6 +404,7 @@ class Node {
     bool no_valid_mutation()const {
         return mutations.no_valid_mutation();
     }
+    void populate_ignored_range();
     //refill mutation with the option of filtering invalid mutations
     template<typename iter_t>
     void refill(iter_t begin,iter_t end,size_t size=0,bool retain_invalid=true) {
@@ -468,7 +470,8 @@ class Tree {
     void load_from_newick(const std::string& newick_string,bool use_internal_node_label=false);
     void condense_leaves(std::vector<std::string> = std::vector<std::string>());
     void uncondense_leaves();
-
+    std::vector<Node*> get_leaves() const;
+    void populate_ignored_range();
     friend class Node;
     void delete_nodes();
 };

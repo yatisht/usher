@@ -115,7 +115,7 @@ std::pair<size_t, size_t> optimize_tree(std::vector<MAT::Node *> &bfs_ordered_no
     bool done=false;
     std::mutex done_mutex;
     auto search_start= std::chrono::steady_clock::now();
-    //std::thread progress_meter(print_progress,&checked_nodes,search_start, nodes_to_search.size(), &deferred_nodes,&done,&done_mutex);
+    std::thread progress_meter(print_progress,&checked_nodes,search_start, nodes_to_search.size(), &deferred_nodes,&done,&done_mutex);
     fputs("Start searching for profitable moves\n",stderr);
     //Actual search of profitable moves
     output_t out;
@@ -125,7 +125,10 @@ std::atomic<size_t> total(0);
 #endif
     tbb::parallel_for(tbb::blocked_range<size_t>(0, nodes_to_search.size()),
                       [&nodes_to_search, &resolver,
-                                         &deferred_nodes,radius,&checked_nodes,&allow_drift,&total,&saved
+                                         &deferred_nodes,radius,&checked_nodes,&allow_drift
+    #ifdef CHECK_BOUND
+                                         ,&total,&saved
+    #endif
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
                                          ,&t
 #endif
@@ -162,8 +165,10 @@ counters count;
                 deferred_nodes.push_back(nodes_to_search[i]);
             }
         }
+    #ifdef CHECK_BOUND
         total+=count.total;
         saved+=count.saved;
+    #endif
     },search_context);
     {
         //stop the progress bar
@@ -176,7 +181,9 @@ counters count;
     std::chrono::duration<double> elpased_time =searh_end-search_start;
     fprintf(stderr, "\nSearch took %f minutes\n",elpased_time.count()/60);
     //apply moves
+    #ifdef CHECK_BOUND
     fprintf(stderr, "Total %lu arcs, saved %lu arcs\n",total.load(),saved.load());
+    #endif
     fputs("Start applying moves\n",stderr);
     std::vector<Profitable_Moves_ptr_t> all_moves;
     resolver.schedule_moves(all_moves);
@@ -246,7 +253,7 @@ counters count;
     check_samples(t.root, origin_states, &t);
 #endif
     nodes_to_search = std::move(deferred_nodes);
-    //progress_meter.join();
+    progress_meter.join();
     fprintf(stderr, "recycled %f of conflicting moves \n",(double)recycled/(double)init_deferred);
     fprintf(stderr, "recycling moves took %f seconds\n",elpased_time.count());
     return std::make_pair(t.get_parsimony_score(),node_searched_this_iter.load());

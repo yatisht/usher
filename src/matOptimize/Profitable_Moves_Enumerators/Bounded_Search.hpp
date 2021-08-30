@@ -1,15 +1,14 @@
 #include "Profitable_Moves_Enumerators.hpp"
+#include "src/matOptimize/mutation_annotated_tree.hpp"
 #include "src/matOptimize/tree_rearrangement_internal.hpp"
 #include <algorithm>
 #include <array>
+#include <climits>
 #include <cstdint>
 #include <cstdio>
 #include <iterator>
 #include <utility>
 #include <vector>
-typedef const node_info* iter_t;
-typedef std::pair<iter_t, iter_t> iter_range_t;
-typedef std::array<iter_range_t, 4> range_per_allele_t;
 struct src_side_info{
     output_t& out;
     #ifdef CHECK_BOUND
@@ -22,31 +21,28 @@ struct src_side_info{
     Mutation_Count_Change_Collection allele_count_change_from_src;
     std::vector<MAT::Node *> node_stack_from_src;
 };
-struct Mutation_Count_Change_W_Lower_Bound : public Mutation_Count_Change {
-    range_per_allele_t ranges;
-    bool have_content;
+class Mutation_Count_Change_W_Lower_Bound : public Mutation_Count_Change {
+    static const uint16_t EMPTY_POS=-1;
     uint8_t par_sensitive_increment;
-    uint8_t par_sensitive_decrement;
-    using Mutation_Count_Change::Mutation_Count_Change;
+    uint8_t next_level;
+    uint16_t idx;
     void init(const MAT::Node *node) {
         assert(use_bound);
-        have_content = true;
-        for (int nu_idx = 0; nu_idx < 4; nu_idx++) {
-            const auto &all = addable_idxes[get_position()][nu_idx];
-            auto start=all.data();
-            auto end=all.data()+all.size();
-            if (get_incremented() & (1 << nu_idx)) {
-                auto start_iter = std::lower_bound(start,end,
-                                                   node_info{node->dfs_index});
-                auto end_iter = std::upper_bound(
-                    start_iter, end, node_info{node->dfs_end_index});
-                ranges[nu_idx] = std::make_pair(start_iter, end_iter);
-            } else {
-                ranges[nu_idx] = std::make_pair(end, end);
-            }
-            assert(ranges[nu_idx].first<=ranges[nu_idx].second);
+        idx=addable_idxes[get_position()].find_idx(node);
+        if (idx!=(uint16_t)-1) {
+            next_level=addable_idxes[get_position()].nodes[idx].level;
+
+        }else {
+            next_level=(uint8_t)-1;
         }
     }
+
+    //going to descendant
+    Mutation_Count_Change_W_Lower_Bound(Mutation_Count_Change_W_Lower_Bound& in, const MAT::Node* node){
+
+    }
+    struct backward{};
+    struct forward{};
     void set_iter(iter_t start, iter_t end, const MAT::Node *node,
                   size_t max_level, int nu_idx) {
         assert(use_bound);

@@ -2,6 +2,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <tbb/concurrent_unordered_map.h>
 #include <thread>
 #include <vector>
@@ -106,9 +107,27 @@ struct node_info{
     bool operator<(const node_info& other)const{
         return dfs_idx<other.dfs_idx;
     }
+    uint8_t base;
 };
-extern std::vector<std::array<std::vector<node_info>,4>> addable_idxes;
+struct range_tree_node{
+    uint32_t dfs_start_idx;
+    uint32_t dfs_end_idx;
+    std::array<uint16_t, 4> min_level;
+    uint16_t children_start_idx;
+    uint16_t parent_idx;
+    uint16_t level;
+    uint8_t child_size;
+    uint8_t dist_from_end;
+};
+struct range_tree{
+    std::vector<uint32_t> start_idxes;
+    std::vector<range_tree_node> nodes;
+    uint16_t find_idx(const MAT::Node* node,uint32_t probe_start_idx=0) const ;
+};
+extern std::vector<range_tree> addable_idxes;
 void adjust_all(MAT::Tree &tree) ;
+typedef std::vector<tbb::concurrent_vector<node_info>> pos_tree_t;
+
 #ifdef CHECK_BOUND
 struct counters{
     size_t saved;

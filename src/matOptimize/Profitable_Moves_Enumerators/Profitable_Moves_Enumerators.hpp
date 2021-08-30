@@ -20,12 +20,14 @@ class Mutation_Count_Change {
     nuc_one_hot par_state;
 
   public:
+    //bool from_invalid_mutation;
     static const char VALID_MASK=1;
     static const char END_MASK=2;
     Mutation_Count_Change() {
         position=INT_MAX;
         decremented_allele=0;
         incremented_allele=0;
+        //from_invalid_mutation=false;
     }
     //copy over position, original state, par state from a mutation
     Mutation_Count_Change(const Mutation_Count_Change& child_mut_count,nuc_one_hot new_major_allele) {
@@ -35,15 +37,18 @@ class Mutation_Count_Change {
         par_state=child_mut_count.par_state;
         incremented_allele=new_major_allele&(~ori_state);
         decremented_allele=ori_state&(~new_major_allele);
+        //from_invalid_mutation=false;
     }
     Mutation_Count_Change(const MAT::Mutation &pos,nuc_one_hot decremented,nuc_one_hot incremented) {
         position = pos.get_position();
         chromIdx = pos.get_chromIdx();
         par_state=pos.get_par_one_hot();
         set_change(decremented, incremented);
+        //from_invalid_mutation=false;
     }
     Mutation_Count_Change(const Mutation_Count_Change &pos,nuc_one_hot decremented,nuc_one_hot incremented):Mutation_Count_Change(pos) {
         set_change(decremented, incremented);
+        //from_invalid_mutation=false;
     }
     int get_position() const {
         return position;
