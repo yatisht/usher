@@ -768,11 +768,14 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
     }
     return metadata;
 }
-void save_taxodium_tree (MAT::Tree &tree, std::string out_filename, std::vector<std::string> meta_filenames, std::string gtf_filename, std::string fasta_filename) {
+void save_taxodium_tree (MAT::Tree &tree, std::string out_filename, std::vector<std::string> meta_filenames, std::string gtf_filename, std::string fasta_filename, std::string title, std::string description) {
 
     // These are the taxodium pb objects
     Taxodium::AllNodeData *node_data = new Taxodium::AllNodeData();
     Taxodium::AllData all_data;
+
+    all_data.set_tree_title(title);
+    all_data.set_tree_description(description);
 
     std::unordered_map<std::string, std::vector<std::string>> metadata = read_metafiles_tax(meta_filenames, all_data);
     TIMEIT();
