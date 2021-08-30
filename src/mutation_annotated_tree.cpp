@@ -1146,25 +1146,42 @@ void Mutation_Annotated_Tree::Tree::uncondense_leaves() {
 
         size_t num_samples = cn->second.size();
 
-        if (num_samples > 0) {
+        if ((num_samples > 1) && (n->mutations.size() > 0)) {
             all_nodes.erase(n->identifier);
-            all_nodes[cn->second[0]] = n;
+
+            n->identifier = new_internal_node_id();
+            all_nodes[n->identifier] = n;
+            
+            for (size_t s = 0; s < num_samples; s++) {
+                Node* new_n = new Node(cn->second[s], n, -1);
+                size_t num_annotations = get_num_annotations();
+                for (size_t k=0; k < num_annotations; k++) {
+                    new_n->clade_annotations.emplace_back("");
+                }
+                all_nodes[cn->second[s]] = new_n;
+
+                n->children.push_back(new_n);
+            }
+        }
+        else if (num_samples > 1) {
+            all_nodes.erase(n->identifier);
 
             n->identifier = cn->second[0];
-        }
+            all_nodes[n->identifier] = n;
 
-        for (size_t s = 1; s < num_samples; s++) {
-            Node* new_n = new Node(cn->second[s], par, n->branch_length);
-            size_t num_annotations = get_num_annotations();
-            for (size_t k=0; k < num_annotations; k++) {
-                new_n->clade_annotations.emplace_back("");
+            for (size_t s = 1; s < num_samples; s++) {
+                Node* new_n = new Node(cn->second[s], par, n->branch_length);
+                size_t num_annotations = get_num_annotations();
+                for (size_t k=0; k < num_annotations; k++) {
+                    new_n->clade_annotations.emplace_back("");
+                }
+                all_nodes[cn->second[s]] = new_n;
             }
-            all_nodes[cn->second[s]] = new_n;
+        } else if (num_samples == 1) {
+            all_nodes.erase(n->identifier);
 
-            par->children.push_back(new_n);
-            for (auto m: n->mutations) {
-                new_n->add_mutation(m.copy());
-            }
+            n->identifier = cn->second[0]; 
+            all_nodes[n->identifier] = n;
         }
     }
     condensed_nodes.clear();
