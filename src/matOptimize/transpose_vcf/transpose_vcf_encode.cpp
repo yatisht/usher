@@ -381,36 +381,28 @@ struct Write_Node {
         delete[] in.first;
     }
 };
+struct Empty {
+    void add_Not_N(int position, uint8_t allele) {
+    }
+    void add_N(int first, int second) {
+    }
+};
+
+struct Get_Sample_Names {
+    std::unordered_set<std::string>& all_names;
+    Empty set_name(std::string &&name) {
+        all_names.emplace(name);
+        return Empty{};
+    }
+};
 void get_samp_names(const std::string sample_names_fn,const std::vector<std::string>& fields,std::vector<bool>& do_add) {
     std::unordered_set<std::string> sample_set;
-    std::ifstream infile(sample_names_fn, std::ios::in | std::ios::binary);
-    if (infile.good()) {
-        boost::iostreams::filtering_istream instream;
-        instream.push(boost::iostreams::gzip_decompressor());
-        instream.push(infile);
-        std::string sample;
-        std::getline(instream, sample);
-        sample_set.reserve(std::stoi(sample));
-        while (instream.good()) {
-            sample.clear();
-            std::getline(instream, sample);
-            sample_set.insert(sample);
-        }
-    }
+    Get_Sample_Names name_getter{sample_set};
+    load_mutations(sample_names_fn.c_str(), 80, name_getter);
     do_add.resize(fields.size());
     for (size_t idx=SAMPLE_START_IDX; idx<fields.size(); idx++) {
-        auto res=sample_set.insert(fields[idx]);
-        do_add[idx]=res.second;
-    }
-    infile.close();
-    std::ofstream outfile(sample_names_fn, std::ios::out | std::ios::binary);
-    boost::iostreams::filtering_streambuf<boost::iostreams::output> outbuf;
-    outbuf.push(boost::iostreams::gzip_compressor());
-    outbuf.push(outfile);
-    std::ostream  out(&outbuf);
-    out<<sample_set.size()<<'\n';
-    for (const auto& sample_name : sample_set) {
-        out<<sample_name<<'\n';
+        bool res=sample_set.count(fields[idx])==0;
+        do_add[idx]=res;
     }
 }
 #define CHUNK_SIZ 5
@@ -599,7 +591,7 @@ int main(int argc,char** argv) {
     }
     tbb::task_scheduler_init init(num_threads);
     if (input_vcf_path!="") {
-        VCF_inputer vcf_in(input_vcf_path.c_str(),num_threads,output_path+".sample_names.gz");
+        VCF_inputer vcf_in(input_vcf_path.c_str(),num_threads,output_path);
         output_transposed_vcf(output_path.c_str(), vcf_in);        
     }else {
         Rename_Data_Source remaper(input_pb_path,input_remap_path,filter,num_threads);
