@@ -14,6 +14,11 @@ matUtils: extract subtrees in auspice.us compatible json format using matUtils
     snakemake --use-conda --cores [num threads] --config FASTA="[user_fa]" RUNTYPE="matUtils"
 ripples: detect recombinants in the ancestry of the user-supplied samples
     snakemake --use-conda --cores [num threads] --config FASTA="[user_fa]" RUNTYPE="ripples"
+translate: translate all mutations to AA affecting sites
+    snakemake --use-conda --cores [num threads] --config FASTA="[user_fa]" RUNTYPE="translate"
+taxodium: output taxodium format protobuf for visualization of the big tree
+    snakemake --use-conda --cores [num threads] --config FASTA="[user_fa]" RUNTYPE="taxodium"
+
 
 For each run type, the usher.yaml environment file must be present in the working directory.
 
@@ -21,25 +26,14 @@ There are many other advanced options, for more information, please see the wiki
 
     https://usher-wiki.readthedocs.io/en/latest/
 
-rucorbet@ucsc.edu
+rucorbet@ucsc.educ
 
-'''
-
-
-'''
-
-TODO:
-
-    1. add a translate workflow and pass this to matUtils
-    2. add a cluster detection workflow via introduce
 
 '''
 
 rule all:
     input:
         config["RUNTYPE"]
-    shell:
-        "rm {input[0]}"
 
 rule download_reference:
     output:
@@ -97,7 +91,7 @@ rule usher :
         "usher.yaml"
     output:
         "user_seqs.pb",
-        "usher",
+        temp("usher"),
         "final-tree.nh",
         "mutation-paths.txt"
     threads:
@@ -123,25 +117,67 @@ rule download_metadata :
     shell:
         "wget http://hgdownload.soe.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/public-latest.metadata.tsv.gz && gunzip public-latest.metadata.tsv.gz"
 
+rule download_gtf :
+    conda:
+        "usher.yaml"
+    output:
+        "ncbiGenes.gtf"
+    shell:
+        "wget http://hgdownload.soe.ucsc.edu/goldenPath/wuhCor1/bigZips/genes/ncbiGenes.gtf.gz && gunzip ncbiGenes.gtf.gz"
+
+rule translate :
+    input:
+        "ncbiGenes.gtf",
+        "user_seqs.pb",
+        "wuhCor1.fa"
+    conda:
+        "usher.yaml"
+    threads:
+        64
+    output:
+        "user_seqs.translation.tsv",
+        temp("translate")
+    shell:
+        "matUtils summary -t {output[0]} -i {input[1]} -g {input[0]} -f {input[2]} > translate"
+
 rule extract_subtrees :
     input :
         "public-latest.metadata.tsv",
         "user_seqs.pb",
-        "user_samples.txt"
+        "user_samples.txt",
+        "user_seqs.translation.tsv"
     conda:
         "usher.yaml"
     output :
-        "matUtils",
+        temp("matUtils"),
         "subtree-assignments.tsv"
+    threads:
+        64
     shell :
-        "matUtils extract -i user_seqs.pb -s user_samples.txt -M public-latest.metadata.tsv -N 500 -j user > matUtils"
+        "matUtils extract -T {threads} -i user_seqs.pb -s user_samples.txt -M public-latest.metadata.tsv,user_seqs.translation.tsv -N 500 -j user > matUtils"
+
+rule taxodium :
+    input :
+        "user_seqs.pb",
+        "ncbiGenes.gtf",
+        "wuhCor1.fa",
+        "public-latest.metadata.tsv"
+    output:
+        "user_seqs.taxodium.pb",
+        temp("taxodium")
+    conda:
+        "usher.yaml"
+    threads:
+        64
+    shell:
+        "matUtils extract -i {input[0]} -T {threads} -l {output[0]} -g {input[1]} -f {input[2]} -M {input[3]} > taxodium"
 
 rule ripples :
     input :
         "user_seqs.pb",
         "user_samples.txt"
     output:
-        "ripples"
+        temp("ripples")
     conda:
         "usher.yaml"
     threads:
