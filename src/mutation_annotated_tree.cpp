@@ -1176,6 +1176,7 @@ void Mutation_Annotated_Tree::Tree::uncondense_leaves() {
                     new_n->clade_annotations.emplace_back("");
                 }
                 all_nodes[cn->second[s]] = new_n;
+                par->children.push_back(new_n);
             }
         } else if (num_samples == 1) {
             all_nodes.erase(n->identifier);
