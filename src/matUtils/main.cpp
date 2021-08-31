@@ -1,5 +1,6 @@
 #include "annotate.hpp"
 #include "mask.hpp"
+#include "merge.hpp"
 #include "summary.hpp"
 #include "extract.hpp"
 #include "introduce.hpp"
@@ -18,7 +19,7 @@ int main (int argc, char** argv) {
     po::variables_map vm;
     po::parsed_options parsed = po::command_line_parser(argc, argv).options(global).positional(pos).allow_unregistered().run();
     //this help string shows up over and over, lets just define it once
-    std::string cnames[8] = {"COMMAND","summary","extract","annotate","uncertainty","mask","introduce","version"};
+    std::string cnames[8] = {"COMMAND","summary","extract","annotate","uncertainty", "mask","introduce","version"};
     std::string chelp[8] = {
         "DESCRIPTION\n\n",
         "calculates basic statistics and counts samples, mutations, and clades in the input MAT\n\n",
@@ -48,6 +49,8 @@ int main (int argc, char** argv) {
         mask_main(parsed);
     } else if (cmd == "uncertainty") {
         uncertainty_main(parsed);
+    } else if (cmd == "merge"){
+        merge_main(parsed); 
     } else if (cmd == "summary") {
         summary_main(parsed);
     } else if (cmd == "introduce") {
