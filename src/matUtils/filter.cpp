@@ -153,8 +153,11 @@ void reroot_tree(MAT::Tree* T, std::string rnid) {
         assert (source->parent->identifier == destination->identifier);
         assert (destination->parent == NULL);
         //update the level values for all descendents
+        destination->level = 0;
         std::queue<MAT::Node*> remaining_nodes;
-        remaining_nodes.push(source);
+        for (auto c: destination->children) {
+            remaining_nodes.push(c);
+        }
         while (remaining_nodes.size() > 0) {
             MAT::Node* curr_node = remaining_nodes.front();
             remaining_nodes.pop();
