@@ -130,7 +130,6 @@ MAT::Tree resolve_all_polytomies(MAT::Tree T) {
 void reroot_tree(MAT::Tree* T, std::string rnid) {
     //to reroot, we traverse from the root down to the new root via an rsearch
     //moving the parent to be the child of the next node in each up to the final node.
-    std::cerr << T->get_parsimony_score() << "\n";
     auto norder = T->rsearch(rnid,true);
     if (norder.size() == 0) {
         fprintf(stderr, "ERROR: New root selection not found in tree. Exiting\n");
