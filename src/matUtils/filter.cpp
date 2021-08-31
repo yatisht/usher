@@ -127,15 +127,60 @@ MAT::Tree resolve_all_polytomies(MAT::Tree T) {
     return T;
 }
 
+static void add_ref_change(std::vector<MAT::Mutation>& ref_changes, MAT::Mutation& mut) {
+    // If ref_changes does not already have an element with mut.position, add one.
+    // Update mut_nuc in the element of ref_changes with mut.position to match mut.mut_nuc.
+    // This keeps track of the final reference value at each affected position even when there
+    // multiple mutations at the same position in nodes affected by rerooting.
+    bool foundIt = false;
+    for (MAT::Mutation& change: ref_changes) {
+        if (change.position == mut.position) {
+            change.mut_nuc = mut.mut_nuc;
+            foundIt = true;
+            break;
+        }
+    }
+    if (! foundIt) {
+        ref_changes.push_back(mut.copy());
+    }
+}
+
+static void apply_ref_changes(MAT::Node* node, std::vector<MAT::Mutation>& ref_changes) {
+    // Recursively check tree's mutations to see if any need to have their ref_nuc updated.
+    for (MAT::Mutation& mut: node->mutations) {
+        for (MAT::Mutation& change: ref_changes) {
+            if (mut.position == change.position) {
+                if (mut.ref_nuc != change.mut_nuc) {
+                    mut.ref_nuc = change.mut_nuc;
+                }
+            }
+        }
+    }
+    for (MAT::Node *child: node->children) {
+        apply_ref_changes(child, ref_changes);
+    }
+}
+
 void reroot_tree(MAT::Tree* T, std::string rnid) {
     //to reroot, we traverse from the root down to the new root via an rsearch
     //moving the parent to be the child of the next node in each up to the final node.
+    //Preserve root-as-reference by moving and inverting mutations as we move nodes.
     auto norder = T->rsearch(rnid,true);
     if (norder.size() == 0) {
         fprintf(stderr, "ERROR: New root selection not found in tree. Exiting\n");
         exit(1);
     }
+    if (T->root->mutations.size() != 0) {
+        // The way mutations are handled below assumes that the root and reference are synonymous,
+        // and as we change the rooting of the tree, we change the mutations to reflect that the
+        // reference is changing as well.  In order to preserve the original reference in the case
+        // that the root differs from it, we would have to do something else with mutations to keep
+        // things consistent.  I'm not going to implement that until & unless there's a need for it.
+        fprintf(stderr, "ERROR: Root node has mutations; support for maintaining existing reference has not been implemented. Exiting\n");
+        exit(1);
+    }
     fprintf(stderr, "Moving root to node %s over a distance of %ld connections.\n", rnid.c_str(), norder.size());
+    std::vector<MAT::Mutation> ref_changes;
     std::reverse(norder.begin(), norder.end()); //reverse so the root is first.
     for (size_t i = 0; i < norder.size() - 1; i++) {
 
@@ -166,6 +211,16 @@ void reroot_tree(MAT::Tree* T, std::string rnid) {
                 remaining_nodes.push(c);
             }
         }
+        // Remove mutations from destination, swap their reference and alternate alleles,
+        // and add them to source.  Keep track of changes to reference.
+        assert(source->mutations.size() == 0);
+        std::swap(source->mutations, destination->mutations);
+        for (MAT::Mutation& mut: source->mutations) {
+            add_ref_change(ref_changes, mut);
+            std::swap(mut.par_nuc, mut.mut_nuc);
+            mut.ref_nuc = mut.par_nuc;
+        }
     }
     assert (T->get_node(rnid)->is_root());
+    apply_ref_changes(T->root, ref_changes);
 }
