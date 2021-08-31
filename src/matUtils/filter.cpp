@@ -126,3 +126,44 @@ MAT::Tree resolve_all_polytomies(MAT::Tree T) {
     }
     return T;
 }
+
+void reroot_tree(MAT::Tree* T, std::string rnid) {
+    //to reroot, we traverse from the root down to the new root via an rsearch
+    //moving the parent to be the child of the next node in each up to the final node.
+    std::cerr << T->get_parsimony_score() << "\n";
+    auto norder = T->rsearch(rnid,true);
+    if (norder.size() == 0) {
+        fprintf(stderr, "ERROR: New root selection not found in tree. Exiting\n");
+        exit(1);
+    }
+    fprintf(stderr, "Moving root to node %s over a distance of %ld connections.\n", rnid.c_str(), norder.size());
+    std::reverse(norder.begin(), norder.end()); //reverse so the root is first.
+    for (size_t i = 0; i < norder.size() - 1; i++) {
+
+        MAT::Node* source = norder[i];
+        MAT::Node* destination = norder[i+1];
+        source->parent = destination;
+
+        destination->parent = NULL;
+        T->root = destination;
+
+        auto iter = std::find(source->children.begin(), source->children.end(), destination);
+        assert (iter != source->children.end());
+        source->children.erase(iter);
+        destination->children.push_back(source);
+        assert (source->parent->identifier == destination->identifier);
+        assert (destination->parent == NULL);
+        //update the level values for all descendents
+        std::queue<MAT::Node*> remaining_nodes;
+        remaining_nodes.push(source);
+        while (remaining_nodes.size() > 0) {
+            MAT::Node* curr_node = remaining_nodes.front();
+            remaining_nodes.pop();
+            curr_node->level = curr_node->parent->level + 1;
+            for (auto c: curr_node->children) {
+                remaining_nodes.push(c);
+            }
+        }
+    }
+    assert (T->get_node(rnid)->is_root());
+}

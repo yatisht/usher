@@ -67,6 +67,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
      "Use to not recalculate branch lengths when saving newick output. Used only with -t")
     ("minimum-subtrees-size,N", po::value<size_t>()->default_value(0),
      "Use to generate a series of JSON or Newick format files representing subtrees of the indicated size which cover all queried samples. Uses and overrides -j and -t output arguments.")
+    ("reroot,y", po::value<std::string>()->default_value(""),
+    "Indicate an internal node ID to reroot the output tree to. Applied before all other manipulation steps.")
     ("usher-single-subtree-size,X", po::value<size_t>()->default_value(0),
      "Use to produce an usher-style single sample subtree of the indicated size with all selected samples plus random samples to fill. Produces .nh and .txt files.")
     ("usher-minimum-subtrees-size,x", po::value<size_t>()->default_value(0),
@@ -110,6 +112,7 @@ void extract_main (po::parsed_options parsed) {
     std::string mutation_choice = vm["mutation"].as<std::string>();
     std::string match_choice = vm["match"].as<std::string>();
     std::string internal_choice = vm["get-internal-descendents"].as<std::string>();
+    std::string reroot_node = vm["reroot"].as<std::string>();
     int max_parsimony = vm["max-parsimony"].as<int>();
     int max_branch = vm["max-branch-length"].as<int>();
     size_t max_epps = vm["max-epps"].as<size_t>();
@@ -357,6 +360,10 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
             fprintf(stderr, "ERROR: No samples fulfill selected criteria (tree is left empty). Change arguments and try again\n");
             exit(1);
         }
+    }
+    //before performing any other action, reroot the tree if requested.
+    if (reroot_node != "") {
+        reroot_tree(&T, reroot_node);
     }
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     //retrive path information for samples, clades, everything before pruning occurs. Behavioral change
