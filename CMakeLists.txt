@@ -15,7 +15,7 @@ message(STATUS "${usher_VERSION}")
 
 configure_file(src/version.hpp.in version.hpp)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native -mtune=native -std=c++11 -Wall -g -Wno-unused-function -Wno-deprecated-declarations")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -std=c++17 -Wall -g -Wno-unused-function -Wno-deprecated-declarations")
 #-DDEBUG_PARSIMONY_SCORE_CHANGE_CORRECT 
 set(CMAKE_CXX_FLAGS_DEBUG "-O3 -fsanitize=address")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-DNDEBUG -O3")
@@ -104,7 +104,14 @@ if(DEFINED Protobuf_PATH)
         src/matOptimize/transpose_vcf/transposed_vcf_to_vcf.cpp
         src/matOptimize/mutation_annotated_tree_nuc_util.cpp
         )
-
+    if(USHER_SERVER)
+        add_executable(usher_server
+            src/mutation_annotated_tree.cpp
+            src/usher_mapper.cpp
+            src/usher_common.cpp
+            src/usher_server.cpp
+            )
+    endif()
 
     protobuf_generate(
         LANGUAGE cpp
@@ -139,6 +146,18 @@ if(DEFINED Protobuf_PATH)
         LANGUAGE cpp
         TARGET matOptimize
         PROTOS mutation_detailed.proto)
+   
+    protobuf_generate(
+        LANGUAGE cpp
+        TARGET matUtils
+        PROTOS taxodium.proto)
+    
+    if(USHER_SERVER)
+        protobuf_generate(
+            LANGUAGE cpp
+            TARGET usher_server
+            PROTOS parsimony.proto)
+    endif()
 
 else()
     protobuf_generate_cpp(
@@ -150,6 +169,10 @@ else()
         DETAILED_MUTATIONS_PROTO_HDRS
         mutation_detailed.proto)
 
+    protobuf_generate_cpp(
+        TAXO_SRCS TAXO_HDRS
+        taxodium.proto)
+    
     add_executable(usher
         src/mutation_annotated_tree.cpp
         src/usher_mapper.cpp
@@ -164,7 +187,10 @@ else()
         ${MATUTIL_SRCS}
         ${PROTO_SRCS}
         ${PROTO_HDRS}
+        ${TAXO_SRCS}
+        ${TAXO_HDRS}
         )
+
     add_executable(ripples
         src/mutation_annotated_tree.cpp
         src/usher_mapper.cpp
@@ -215,6 +241,24 @@ else()
         src/matOptimize/transpose_vcf/transposed_vcf_to_vcf.cpp
         src/matOptimize/mutation_annotated_tree_nuc_util.cpp
         )
+        add_executable(transposed_vcf_to_fa
+        src/matOptimize/mutation_annotated_tree_nuc_util.cpp
+        src/matOptimize/transpose_vcf/transposed_vcf_to_fa.cpp
+        )
+        add_executable(transposed_vcf_print_name
+        src/matOptimize/transpose_vcf/transposed_vcf_print_name.cpp
+        src/matOptimize/mutation_annotated_tree_nuc_util.cpp
+        )
+    if(USHER_SERVER)
+        add_executable(usher_server
+            src/mutation_annotated_tree.cpp
+            src/usher_mapper.cpp
+            src/usher_common.cpp
+            src/usher_server.cpp
+            ${PROTO_SRCS}
+            ${PROTO_HDRS}
+            )
+    endif()
 endif()
 
 if(SAVE_PROFILE)
@@ -236,6 +280,8 @@ TARGET_LINK_LIBRARIES(compareVCF PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORT
 TARGET_LINK_LIBRARIES(matOptimize PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(transpose_vcf PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(transposed_vcf_to_vcf PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
+TARGET_LINK_LIBRARIES(transposed_vcf_to_fa PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
+TARGET_LINK_LIBRARIES(transposed_vcf_print_name PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 
 TARGET_LINK_LIBRARIES(usher PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 target_include_directories(usher PUBLIC "${PROJECT_BINARY_DIR}")
@@ -246,4 +292,10 @@ TARGET_LINK_LIBRARIES(matUtils PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED
 TARGET_COMPILE_OPTIONS(ripples PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
 TARGET_LINK_LIBRARIES(ripples PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
 
-install(TARGETS usher matUtils matOptimize ripples DESTINATION bin)
+if(USHER_SERVER)
+    TARGET_COMPILE_OPTIONS(usher_server PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
+    TARGET_LINK_LIBRARIES(usher_server PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
+    install(TARGETS usher matUtils matOptimize ripples usher_server DESTINATION bin)
+else()
+    install(TARGETS usher matUtils matOptimize ripples DESTINATION bin)
+endif()

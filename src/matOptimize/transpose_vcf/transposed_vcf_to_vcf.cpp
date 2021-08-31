@@ -14,6 +14,7 @@
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/pipeline.h>
 #include <utility>
+#include <unordered_map>
 #include <vector>
 #include <tbb/task_scheduler_init.h>
 #include <zlib.h>
@@ -31,7 +32,6 @@ struct Pos_Mut {
     }
 };
 
-std::vector<char> pos_with_mut;
 struct Sample_Pos_Mut {
     std::string name;
     std::vector<Pos_Mut> not_Ns;
@@ -43,13 +43,9 @@ struct Sample_Pos_Mut_Wrap {
     Sample_Pos_Mut& content;
     void add_Not_N(int position, uint8_t allele) {
         content.not_Ns.emplace_back(position, allele);
-        pos_with_mut[position] = 1;
     }
     void add_N(int first, int second) {
         content.Ns.emplace_back(first, second);
-        for (int pos = first; pos <= second; pos++) {
-            pos_with_mut[pos] = 1;
-        }
     }
 };
 
@@ -340,12 +336,12 @@ void write_header(std::vector<Sample_Pos_Mut>& all_samples,FILE* fh) {
     free(compressed_hdr.first);
 }
 namespace po = boost::program_options;
-
 int main(int argc, char **argv) {
     po::options_description desc{"Options"};
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
     std::string output_vcf_path;
     std::string input_path;
+    std::string rename_file;
     uint32_t num_threads;
     std::string reference;
     std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
@@ -353,35 +349,55 @@ int main(int argc, char **argv) {
     ("vcf,v", po::value<std::string>(&output_vcf_path)->required(), "Output VCF file (in uncompressed or gzip-compressed .gz format) ")
     ("threads,T", po::value<uint32_t>(&num_threads)->default_value(num_cores), num_threads_message.c_str())
     ("reference,r", po::value<std::string>(&reference)->required(),"Reference file")
+    ("samples,s", po::value<std::string>(&rename_file),"rename file")
     ("output_path,i", po::value<std::string>(&input_path)->required(), "Load transposed VCF");
     po::options_description all_options;
     all_options.add(desc);
     po::variables_map vm;
-    if (argc==1) {
-        std::cerr << desc << std::endl;
-        return EXIT_FAILURE;
-    }
     try {
         po::store(po::command_line_parser(argc, argv).options(all_options).run(), vm);
         po::notify(vm);
     } catch(std::exception &e) {
+        std::cerr << desc << std::endl;
         // Return with error code 1 unless the user specifies help
         if(vm.count("help"))
             return 0;
         else
             return 1;
     }
+    std::unordered_map<std::string,std::string> rename_mapping;
+    if(rename_file!=""){
+	    parse_rename_file(rename_file,rename_mapping);
+    }
     tbb::task_scheduler_init init(num_threads);
     load_reference(reference.c_str(), chrom, ref);
-    pos_with_mut.resize(ref.size());
     All_Sample_Appender appender;
     load_mutations(input_path.c_str(), 80, appender);
     std::vector<Sample_Pos_Mut> all_samples;
+    if(rename_mapping.empty()){
     for (auto &sample_block : sample_pos_mut_local) {
         all_samples.insert(all_samples.end(),
                            std::make_move_iterator(sample_block.begin()),
                            std::make_move_iterator(sample_block.end()));
     }
+    }else{
+	all_samples.reserve(rename_mapping.size());
+	for (auto &sample_block : sample_pos_mut_local) {
+		for(const auto& sample:sample_block){
+			auto iter=rename_mapping.find(sample.name);
+			if(iter!=rename_mapping.end()){
+				all_samples.push_back(std::move(sample));
+				all_samples.back().name=iter->second;
+				rename_mapping.erase(iter);
+			}
+		}
+		sample_block.clear();
+	}
+    }
+    for(const auto& name:rename_mapping){
+	    fprintf(stderr,"sample %s not found \n",name.first.c_str());
+    }
+
     /*for (const auto& sample : all_samples) {
         fprintf(stdout, "%s:",sample.name.c_str());
         for (const auto& mut : sample.not_Ns) {
@@ -392,6 +408,17 @@ int main(int argc, char **argv) {
         }
         putc('\n',stdout);
     }*/
+    std::vector<bool> pos_with_mut(ref.size(),false);
+    for (const auto& samp : all_samples) {
+        for (const auto& mut : samp.not_Ns) {
+            pos_with_mut[mut.position]=1;
+        }
+        for (const auto& N_range : samp.Ns) {
+            for(int pos=N_range.first;pos<=N_range.second;pos++){
+                pos_with_mut[pos]=1;
+            }
+        }
+    }
     std::vector<int> pos_mut_idx;
     for (size_t idx = 0; idx < ref.size(); idx++) {
         if (pos_with_mut[idx]) {
