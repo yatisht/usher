@@ -100,15 +100,15 @@ class mapped_file {
   public:
     mapped_file(const char *path) {
         auto fh = open(path, O_RDONLY);
-        if (fh==-1) {
-            map_start=nullptr;
-            return;
-        }
         struct stat stat_buf;
         fstat(fh, &stat_buf);
         size = stat_buf.st_size;
         map_start =
             (uint8_t *)mmap(nullptr, size, PROT_READ, MAP_SHARED, fh, 0);
+        if (fh==-1) {
+            map_start=nullptr;
+            return;
+        }
     }
     void get_mapped_range(const uint8_t *&start, const uint8_t *&end) const {
         start = map_start;
@@ -117,7 +117,7 @@ class mapped_file {
     operator bool() const{
         return map_start!=0;
     }
-    ~mapped_file() { munmap((void *)map_start, size); }
+    ~mapped_file() {if(map_start) munmap((void *)map_start, size); }
 };
 template <typename output_t>
 static bool load_mutations(const char *path, int nthread, output_t &out) {
