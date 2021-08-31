@@ -11,7 +11,7 @@
 #include <unordered_map>
 #include <array>
 #include <vector>
-#ifdef __x86_64__
+#ifdef USE_INTEL_INTRINSICS
 #include <emmintrin.h>
 #include <smmintrin.h>
 #endif
@@ -52,7 +52,7 @@ static uint8_t movemask(int in) {
     return (1&in)|(2&(in>>3))|(4&(in>>6))|(8&(in>>9));
 }
 void set_state_from_cnt(const std::array<int,4>& data, uint8_t& boundary1_major_allele_out) {
-#ifdef __x86_64__
+#ifdef USE_INTEL_INTRINSICS
     //load data
     __m128i ori=_mm_loadu_si128((__m128i*)data.data());
     //shufle it to 1,0,3,2 order
@@ -85,7 +85,7 @@ void set_state_from_cnt(const std::array<int,4>& data, uint8_t& boundary1_major_
 #endif
     boundary1_major_allele_out=max_mask|(boundary1_mask<<4);
 }
-#ifdef __x86_64__
+#ifdef USE_INTEL_INTRINSICS
 //following are different specialization for get allele count for different number of children
 //all of them are shifting a mask for each allele, and then use popcnt to get count
 static void get_state_count8(size_t start_idx,size_t size, std::vector<uint8_t>& minor_major_allele,std::array<int,4>& nuc_count) {
@@ -178,7 +178,7 @@ void FS_backward_pass(const std::vector<backward_pass_range>& child_idx_range, s
             size_t child_end_idx=child_start_idx+child_size;
             //dispatch on children size
             std::array<int,4> nuc_count{0,0,0,0};
-#ifdef __x86_64__
+#ifdef USE_INTEL_INTRINSICS
             while (true) {
                 auto child_left=child_end_idx-child_start_idx;
                 if (child_left<=8) {
