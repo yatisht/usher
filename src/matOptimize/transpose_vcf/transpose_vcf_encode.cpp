@@ -389,17 +389,18 @@ struct Empty {
 };
 
 struct Get_Sample_Names {
-    std::unordered_set<std::string>& all_names;
+    tbb::concurrent_vector<std::string>& all_names;
     Empty set_name(std::string &&name) {
-        all_names.emplace(name);
+        all_names.emplace_back(std::move(name));
         return Empty{};
     }
 };
 void get_samp_names(const std::string sample_names_fn,const std::vector<std::string>& fields,std::vector<bool>& do_add) {
-    std::unordered_set<std::string> sample_set;
-    Get_Sample_Names name_getter{sample_set};
+    tbb::concurrent_vector<std::string> sample_set_raw;
+    Get_Sample_Names name_getter{sample_set_raw};
     load_mutations(sample_names_fn.c_str(), 80, name_getter);
     do_add.resize(fields.size());
+    std::unordered_set<std::string> sample_set(sample_set_raw.begin(),sample_set_raw.end());
     for (size_t idx=SAMPLE_START_IDX; idx<fields.size(); idx++) {
         bool res=sample_set.count(fields[idx])==0;
         do_add[idx]=res;
@@ -434,7 +435,6 @@ void add_output(compressor_t& compressor,block_serializer_t& serializer_head,Sam
 }
 struct VCF_inputer{
     uint32_t nthreads;
-    std::thread* sample_name_thread;
     gzFile fd;
     unsigned int header_size;
     std::vector<std::string> fields;
@@ -449,7 +449,7 @@ struct VCF_inputer{
     gzbuffer(fd,ZLIB_BUFSIZ);
 
     header_size=read_header(&fd, fields);
-    sample_name_thread=new std::thread (get_samp_names,sample_names_fn, std::ref(fields), std::ref(do_add));
+    get_samp_names(sample_names_fn, fields, do_add);
     }
     void operator()(compressor_t& compressor,block_serializer_t& serializer_head){
 
@@ -463,8 +463,6 @@ struct VCF_inputer{
                            tbb::make_filter<char*,std::vector<Pos_Mut_Block>*>(tbb::filter::parallel,Line_Parser{fields.size()})&
                            tbb::make_filter<std::vector<Pos_Mut_Block>*,void>(tbb::filter::serial_out_of_order,Appender{sample_pos_mut}));
     gzclose(fd);
-    sample_name_thread->join();
-    delete sample_name_thread;
 
     tbb::parallel_for(tbb::blocked_range<size_t>(SAMPLE_START_IDX,fields.size()),[this,&sample_pos_mut,&serializer_head,&compressor](tbb::blocked_range<size_t>& range) {
         auto packed_out=new Packed_Msgs();
