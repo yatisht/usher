@@ -258,11 +258,13 @@ std::pair<uint8_t *, size_t> compress(std::string *in) {
     stream.avail_in = in->size();
     stream.avail_out=malloc_size;
     stream.next_out = buffer;
-    auto err = deflateInit2(&stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 15 | 16,
+    //auto err = 
+    deflateInit2(&stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 15 | 16,
                             9, Z_DEFAULT_STRATEGY);
-    assert(err == Z_OK);
-    err = deflate(&stream, Z_FINISH);
-    assert(err == Z_STREAM_END);
+    //assert(err == Z_OK);
+    //err = 
+    deflate(&stream, Z_FINISH);
+    //assert(err == Z_STREAM_END);
     size_t writen_size = stream.total_out;
     buffer = (uint8_t *)realloc((void *)buffer, writen_size);
     deflateEnd(&stream);

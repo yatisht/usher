@@ -7,6 +7,7 @@
 #include <boost/filesystem/path.hpp>
 #include <boost/program_options/value_semantic.hpp>
 #include <chrono>
+#include <climits>
 #include <cmath>
 #include <csignal>
 #include <cstddef>
@@ -80,7 +81,7 @@ int main(int argc, char **argv) {
     std::string input_complete_pb_path;
     std::string input_nh_path;
     std::string input_vcf_path;
-    std::string intermediate_pb_base_name;
+    std::string intermediate_pb_base_name="";
     std::string profitable_src_log;
     std::chrono::steady_clock::duration ori_save_period;
     std::string transposed_vcf_path;
@@ -88,6 +89,9 @@ int main(int argc, char **argv) {
     unsigned int max_optimize_hours;
     int radius;
     unsigned int minutes_between_save;
+    int max_round;
+    float min_improvement;
+
     po::options_description desc{"Options"};
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
     std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
@@ -97,16 +101,18 @@ int main(int argc, char **argv) {
     ("threads,T", po::value<uint32_t>(&num_threads)->default_value(num_cores), num_threads_message.c_str())
     ("load-mutation-annotated-tree,i", po::value<std::string>(&input_pb_path)->default_value(""), "Load mutation-annotated tree object")
     ("save-mutation-annotated-tree,o", po::value<std::string>(&output_path)->required(), "Save output mutation-annotated tree object to the specified filename [REQUIRED]")
-    ("save-intermediate-mutation-annotated-tree,m", po::value<std::string>(&intermediate_pb_base_name)->default_value(""), "Save intermediate mutation-annotated tree object to the specified filename")
     ("radius,r", po::value<int32_t>(&radius)->default_value(-1),
      "Radius in which to restrict the SPR moves.")
     ("profitable-src-log,S", po::value<std::string>(&profitable_src_log)->default_value("/dev/null"),
      "The file to log from which node a profitable move can be found.")
     ("ambi-protobuf,a", po::value<std::string>(&input_complete_pb_path)->default_value(""),
      "Continue from intermediate protobuf")
-    ("max-queued-moves,q",po::value<size_t>(&max_queued_moves)->default_value(1000),"Maximium number of profitable moves found before applying these moves")
-    ("minutes-between-save,s",po::value<unsigned int>(&minutes_between_save)->default_value(10),"Maximium number of profitable moves found before applying these moves")
+    ("max-queued-moves,q",po::value<size_t>(&max_queued_moves)->default_value(INT_MAX),"Maximium number of profitable moves found before applying these moves")
+    ("minutes-between-save,s",po::value<unsigned int>(&minutes_between_save)->default_value(0),"Minutes between saving intermediate protobuf")
+    ("min-improvement,m",po::value<float>(&min_improvement)->default_value(0.0),"Minimum improvement in the parsimony score as a fraction of the previous score in ordder to perform another iteration.")
     ("do-not-write-intermediate-files,n","Do not write intermediate files.")
+    ("max-iterations,N", po::value<int>(&max_round)->default_value(1000), \
+     "Maximum number of optimization iterations to perform.")
     ("exhaustive-mode,e","Search every non-root node as source node.")
     ("max-hours,M",po::value(&max_optimize_hours)->default_value(0),"Maximium number of hours to run")
     ("transposed-vcf-path,V",po::value(&transposed_vcf_path)->default_value(""),"Auxiliary transposed VCF for ambiguous bases, used in combination with usher protobuf (-i)")
@@ -362,15 +368,18 @@ int main(int argc, char **argv) {
                     t.save_detailed_mutations(intermediate_writing);
                     rename(intermediate_writing.c_str(), intermediate_pb_base_name.c_str());
                     last_save_time=std::chrono::steady_clock::now();
-                    fprintf(stderr, "Took %lld second to save intermediate protobuf\n",std::chrono::duration_cast<std::chrono::seconds>(last_save_time-save_start).count());
+                    fprintf(stderr, "Took %ldsecond to save intermediate protobuf\n",std::chrono::duration_cast<std::chrono::seconds>(last_save_time-save_start).count());
                 }
                 last_save_time=std::chrono::steady_clock::now();
             }
         }
-        if (new_score >= score_before) {
+        float improvement=1-((float)new_score/(float)score_before);
+        fprintf(stderr, "Last round improvement %f\n",improvement);
+        if (improvement <min_improvement ) {
             if (nodes_seached_this_iter>nodes_seached_last_iter&&radius<0) {
                 radius*=2;                
             }else {
+                fprintf(stderr, "Less than minimium improvement\n");
                 stalled++;
                 allow_drift=true;
             }
@@ -381,6 +390,11 @@ int main(int argc, char **argv) {
         clean_tree(t);
         iteration++;
         if (max_optimize_hours&&(std::chrono::steady_clock::now()-start_time>max_optimize_duration)) {
+            interrupted=true;
+            break;
+        }
+        if(iteration>=max_round){
+            fprintf(stderr, "Reached %d interations\n", iteration);
             interrupted=true;
             break;
         }

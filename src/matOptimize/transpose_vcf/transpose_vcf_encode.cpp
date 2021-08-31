@@ -5,6 +5,7 @@
 #include <cctype>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <fstream>
 #include <functional>
 #include <ios>
@@ -380,36 +381,29 @@ struct Write_Node {
         delete[] in.first;
     }
 };
+struct Empty {
+    void add_Not_N(int position, uint8_t allele) {
+    }
+    void add_N(int first, int second) {
+    }
+};
+
+struct Get_Sample_Names {
+    tbb::concurrent_vector<std::string>& all_names;
+    Empty set_name(std::string &&name) {
+        all_names.emplace_back(std::move(name));
+        return Empty{};
+    }
+};
 void get_samp_names(const std::string sample_names_fn,const std::vector<std::string>& fields,std::vector<bool>& do_add) {
-    std::unordered_set<std::string> sample_set;
-    std::ifstream infile(sample_names_fn, std::ios::in | std::ios::binary);
-    if (infile.good()) {
-        boost::iostreams::filtering_istream instream;
-        instream.push(boost::iostreams::gzip_decompressor());
-        instream.push(infile);
-        std::string sample;
-        std::getline(instream, sample);
-        sample_set.reserve(std::stoi(sample));
-        while (instream.good()) {
-            sample.clear();
-            std::getline(instream, sample);
-            sample_set.insert(sample);
-        }
-    }
+    tbb::concurrent_vector<std::string> sample_set_raw;
+    Get_Sample_Names name_getter{sample_set_raw};
+    load_mutations(sample_names_fn.c_str(), 80, name_getter);
     do_add.resize(fields.size());
+    std::unordered_set<std::string> sample_set(sample_set_raw.begin(),sample_set_raw.end());
     for (size_t idx=SAMPLE_START_IDX; idx<fields.size(); idx++) {
-        auto res=sample_set.insert(fields[idx]);
-        do_add[idx]=res.second;
-    }
-    infile.close();
-    std::ofstream outfile(sample_names_fn, std::ios::out | std::ios::binary);
-    boost::iostreams::filtering_streambuf<boost::iostreams::output> outbuf;
-    outbuf.push(boost::iostreams::gzip_compressor());
-    outbuf.push(outfile);
-    std::ostream  out(&outbuf);
-    out<<sample_set.size()<<'\n';
-    for (const auto& sample_name : sample_set) {
-        out<<sample_name<<'\n';
+        bool res=sample_set.count(fields[idx])==0;
+        do_add[idx]=res;
     }
 }
 #define CHUNK_SIZ 5
@@ -441,7 +435,6 @@ void add_output(compressor_t& compressor,block_serializer_t& serializer_head,Sam
 }
 struct VCF_inputer{
     uint32_t nthreads;
-    std::thread* sample_name_thread;
     gzFile fd;
     unsigned int header_size;
     std::vector<std::string> fields;
@@ -456,7 +449,7 @@ struct VCF_inputer{
     gzbuffer(fd,ZLIB_BUFSIZ);
 
     header_size=read_header(&fd, fields);
-    sample_name_thread=new std::thread (get_samp_names,sample_names_fn, std::ref(fields), std::ref(do_add));
+    get_samp_names(sample_names_fn, fields, do_add);
     }
     void operator()(compressor_t& compressor,block_serializer_t& serializer_head){
 
@@ -470,8 +463,6 @@ struct VCF_inputer{
                            tbb::make_filter<char*,std::vector<Pos_Mut_Block>*>(tbb::filter::parallel,Line_Parser{fields.size()})&
                            tbb::make_filter<std::vector<Pos_Mut_Block>*,void>(tbb::filter::serial_out_of_order,Appender{sample_pos_mut}));
     gzclose(fd);
-    sample_name_thread->join();
-    delete sample_name_thread;
 
     tbb::parallel_for(tbb::blocked_range<size_t>(SAMPLE_START_IDX,fields.size()),[this,&sample_pos_mut,&serializer_head,&compressor](tbb::blocked_range<size_t>& range) {
         auto packed_out=new Packed_Msgs();
@@ -531,7 +522,10 @@ class Rename_Data_Source{
             unsigned int item_len=*(int*) in;
             size_t out_len=MAX_SIZ;
             auto uncompress_out=uncompress(buffer, &out_len, in+4, item_len);
-            assert(uncompress_out==Z_OK);
+            if(uncompress_out!=Z_OK){
+                fprintf(stderr, "Corrupted input\n");
+                exit(EXIT_FAILURE);
+            }
             const uint8_t* start=buffer;
             auto end=buffer+out_len;
             while(start!=end) {
@@ -595,7 +589,7 @@ int main(int argc,char** argv) {
     }
     tbb::task_scheduler_init init(num_threads);
     if (input_vcf_path!="") {
-        VCF_inputer vcf_in(input_vcf_path.c_str(),num_threads,output_path+".sample_names.gz");
+        VCF_inputer vcf_in(input_vcf_path.c_str(),num_threads,output_path);
         output_transposed_vcf(output_path.c_str(), vcf_in);        
     }else {
         Rename_Data_Source remaper(input_pb_path,input_remap_path,filter,num_threads);
