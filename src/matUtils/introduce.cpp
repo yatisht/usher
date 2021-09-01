@@ -20,7 +20,7 @@ po::variables_map parse_introduce_command(po::parsed_options parsed) {
      "Set to optionally record, for each clade root in the tree, the support for that clade root being IN each region in the input, as a tsv with the indicated name.")
     ("date-metadata,M", po::value<std::string>()->default_value(""),
      "Pass a TSV or CSV containing a 'date' column to use for date information. If not used, date will be inferred from the sample name where possible.")
-    ("full-output,o", po::value<std::string>()->required(),
+    ("full-output,o", po::value<std::string>()->default_value(""),
      "Name of the file to save by-sample introduction information to.")
     ("origin-confidence,C", po::value<float>()->default_value(0.5),
      "Set the threshold for recording of putative origins of introductions. Default is 0.5")
@@ -405,21 +405,19 @@ std::pair<boost::gregorian::date,boost::gregorian::date> get_nearest_date(MAT::T
     boost::gregorian::date latest = boost::gregorian::date(1500,1,1);
     for (auto l: T->get_leaves_ids(n->identifier)) {
         if (in_samples->find(l) != in_samples->end()) {
-            if (datemeta.size() > 0) {
-                if (datemeta.find(l) != datemeta.end()) {
-                    boost::gregorian::date leafdate;
-                    try {
-                        leafdate = boost::gregorian::from_string(datemeta.find(l)->second);
-                    } catch (boost::bad_lexical_cast &e) {
-                        fprintf(stderr, "WARNING: Malformed date %s provided in date file for sample %s; ignoring sample date\n", datemeta.find(l)->second.c_str(), l.c_str());
-                        continue;
-                    }
-                    if (leafdate < earliest) {
-                        earliest = leafdate;
-                    }
-                    if (leafdate > latest) {
-                        latest = leafdate;
-                    }
+            if (datemeta.find(l) != datemeta.end()) {
+                boost::gregorian::date leafdate;
+                try {
+                    leafdate = boost::gregorian::from_string(datemeta.find(l)->second);
+                } catch (boost::bad_lexical_cast &e) {
+                    fprintf(stderr, "WARNING: Malformed date %s provided in date file for sample %s; ignoring sample date\n", datemeta.find(l)->second.c_str(), l.c_str());
+                    continue;
+                }
+                if (leafdate < earliest) {
+                    earliest = leafdate;
+                }
+                if (leafdate > latest) {
+                    latest = leafdate;
                 }
             } else {
                 std::string datend = l.substr(l.rfind("|")+1, std::string::npos);
@@ -923,11 +921,12 @@ void introduce_main(po::parsed_options parsed) {
         }
     }
     auto outstrings = find_introductions(&T, region_map, add_info, clade_regions, moconf, clusterout, dump_assignments, leafconf, earliest_date, latest_date, datemeta, min_to_report, num_to_report);
-
-    std::ofstream of;
-    of.open(output_file);
-    for (std::string o: outstrings) {
-        of << o;
+    if (output_file != "") {
+        std::ofstream of;
+        of.open(output_file);
+        for (std::string o: outstrings) {
+            of << o;
+        }
+        of.close();
     }
-    of.close();
 }
