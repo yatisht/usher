@@ -31,15 +31,15 @@ We thank Jim Kent and the UCSC Genome Browser team for allowing us to download t
 
 ## References
 **UShER:**
-* Yatish Turakhia, Bryan Thornlow, Angie S Hinrichs, Nicola de Maio, Landen Gozashti, Robert Lanfear, David Haussler, and Russ Corbett-Detig, "Ultrafast Sample placement on Existing tRees (UShER) enables real-time phylogenetics for the SARS-CoV-2 pandemic", Nature Genetics (2021), [paper](https://t.co/ulGUSRmuWv?amp=1).
+* Yatish Turakhia, Bryan Thornlow, Angie S Hinrichs, Nicola de Maio, Landen Gozashti, Robert Lanfear, David Haussler, and Russ Corbett-Detig, "Ultrafast Sample placement on Existing tRees (UShER) enables real-time phylogenetics for the SARS-CoV-2 pandemic", **Nature Genetics** (2021), [paper](https://t.co/ulGUSRmuWv?amp=1).
 
 **matUtils:**
-* Jakob McBroome*, Bryan Thornlow*, Angie S. Hinrichs, Alexander Kramer, Nicola De Maio, Nick Goldman, David Haussler, Russell Corbett-Detig, Yatish Turakhia, "A daily-updated database and tools for comprehensive SARS-CoV-2 mutation-annotated trees", Molecular Biology and Evolution (2021), [paper](https://doi.org/10.1093/molbev/msab264).
+* Jakob McBroome*, Bryan Thornlow*, Angie S. Hinrichs, Alexander Kramer, Nicola De Maio, Nick Goldman, David Haussler, Russell Corbett-Detig, Yatish Turakhia, "A daily-updated database and tools for comprehensive SARS-CoV-2 mutation-annotated trees", **Molecular Biology and Evolution** (2021), [paper](https://doi.org/10.1093/molbev/msab264).
 
 **RIPPLES:**
 * Yatish Turakhia*, Bryan Thornlow*, Angie S. Hinrichs, Jakob McBroome, Nicolas Ayala, Cheng Ye, Nicola De Maio, David Haussler, Russell Corbett-Detig, "Pandemic-Scale Phylogenomics Reveals Elevated Recombination Rates in the SARS-CoV-2 Spike Region", bioRxiv (2021), [preprint](https://www.biorxiv.org/content/10.1101/2021.08.04.455157v1).
 
 
 **For masking recomendations, please also cite:**
-* Yatish Turakhia*, Nicola De Maio*, Bryan Thornlow*, Landen Gozashti, Robert Lanfear, Conor R. Walker, Angie S. Hinrichs, Jason D. Fernandes, Rui Borges, Greg Slodkowicz, Lukas Weilguny, David Haussler, Nick Goldman and Russell Corbett-Detig, "Stability of SARS-CoV-2 Phylogenies", PLOS Genetics 2020 [paper](https://doi.org/10.1371/journal.pgen.1009175).
+* Yatish Turakhia*, Nicola De Maio*, Bryan Thornlow*, Landen Gozashti, Robert Lanfear, Conor R. Walker, Angie S. Hinrichs, Jason D. Fernandes, Rui Borges, Greg Slodkowicz, Lukas Weilguny, David Haussler, Nick Goldman and Russell Corbett-Detig, "Stability of SARS-CoV-2 Phylogenies", **PLOS Genetics** (2020), [paper](https://doi.org/10.1371/journal.pgen.1009175).
 * Landen Gozashti, Conor R. Walker, Robert Lanfear, Nick Goldman, Nicola De Maio and Russell Corbett-Detig, "Issues with SARS-CoV-2 sequencing data: Updated analysis with data from 4 March 2021", Virological 2021 (https://virological.org/t/issues-with-sars-cov-2-sequencing-data/473/15).
