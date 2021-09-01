@@ -109,7 +109,7 @@ int main(int argc, char **argv) {
      "Continue from intermediate protobuf")
     ("max-queued-moves,q",po::value<size_t>(&max_queued_moves)->default_value(INT_MAX),"Maximium number of profitable moves found before applying these moves")
     ("minutes-between-save,s",po::value<unsigned int>(&minutes_between_save)->default_value(0),"Minutes between saving intermediate protobuf")
-    ("min-improvement,m",po::value<float>(&min_improvement)->default_value(0.0),"Minimum improvement in the parsimony score as a fraction of the previous score in ordder to perform another iteration.")
+    ("min-improvement,m",po::value<float>(&min_improvement)->default_value(0.0005),"Minimum improvement in the parsimony score as a fraction of the previous score in ordder to perform another iteration.")
     ("do-not-write-intermediate-files,n","Do not write intermediate files.")
     ("max-iterations,N", po::value<int>(&max_round)->default_value(1000), \
      "Maximum number of optimization iterations to perform.")
@@ -298,6 +298,7 @@ int main(int argc, char **argv) {
     score_before = t.get_parsimony_score();
     new_score = score_before;
     fprintf(stderr, "after state reassignment:%zu\n", score_before);
+    fprintf(stderr, "Height:%zu\n", t.get_max_level());
 
     tbb::concurrent_vector<MAT::Node *> nodes_to_search;
     std::vector<MAT::Node *> bfs_ordered_nodes;
