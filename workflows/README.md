@@ -30,7 +30,7 @@ RIPPLES: detect recombinants in the ancestry of the user-supplied samples
     
 introduce: search for unique introductions within the user-supplied samples
 
-    snakemake --use-conda --cores [num threads] --config FASTA="[user_fa]" RUNTYPE="ripples"
+    snakemake --use-conda --cores [num threads] --config FASTA="[user_fa]" RUNTYPE="introduce"
 
 ## Further Reading:
 
