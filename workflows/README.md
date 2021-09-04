@@ -27,6 +27,10 @@ translate: output lineage-aware translation for each amino acid substitution
 RIPPLES: detect recombinants in the ancestry of the user-supplied samples
 
     snakemake --use-conda --cores [num threads] --config FASTA="[user_fa]" RUNTYPE="ripples"
+    
+introduce: search for unique introductions within the user-supplied samples
+
+    snakemake --use-conda --cores [num threads] --config FASTA="[user_fa]" RUNTYPE="ripples"
 
 ## Further Reading:
 
