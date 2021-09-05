@@ -12,11 +12,11 @@ namespace MAT = Mutation_Annotated_Tree;
 
 
 int usher_common(std::string dout_filename, std::string outdir, uint32_t num_threads, uint32_t max_trees,
-    uint32_t max_uncertainty, uint32_t max_parsimony, bool sort_before_placement_1, bool sort_before_placement_2, bool sort_before_placement_3,
-    bool reverse_sort, bool collapse_tree, bool collapse_output_tree, bool print_uncondensed_tree, bool print_parsimony_scores,
-    bool retain_original_branch_len, bool no_add, bool detailed_clades, size_t print_subtrees_size, size_t print_subtrees_single, 
-    std::vector<Missing_Sample>& missing_samples, std::vector<std::string>& low_confidence_samples, MAT::Tree* loaded_MAT){
-   
+                 uint32_t max_uncertainty, uint32_t max_parsimony, bool sort_before_placement_1, bool sort_before_placement_2, bool sort_before_placement_3,
+                 bool reverse_sort, bool collapse_tree, bool collapse_output_tree, bool print_uncondensed_tree, bool print_parsimony_scores,
+                 bool retain_original_branch_len, bool no_add, bool detailed_clades, size_t print_subtrees_size, size_t print_subtrees_single,
+                 std::vector<Missing_Sample>& missing_samples, std::vector<std::string>& low_confidence_samples, MAT::Tree* loaded_MAT) {
+
     /*
 
     COPIED FROM usher.cpp around 109~199 and mostly copied 200~207
@@ -115,19 +115,19 @@ int usher_common(std::string dout_filename, std::string outdir, uint32_t num_thr
 
 
     // Tree pointer to point to some element in optimal_trees that would be
-    // updated several times during the execution 
+    // updated several times during the execution
 
     optimal_trees.emplace_back(std::move(*loaded_MAT));
     MAT::Tree* T = &optimal_trees[0];
     // Since --multiple-placements can result in trees with different parsimony
     // scores, the vector below will be used to maintain the final parsimony
-    // score of each tree 
+    // score of each tree
     std::vector<size_t> tree_parsimony_scores;
-    
+
     auto num_trees = optimal_trees.size();
 
     //COPIED FROM usher.cpp around 461~1409
-    
+
     // Collapses the tree nodes not carrying a mutation and also condenses
     // identical sequences into a single node.
     if (collapse_tree) {
@@ -585,7 +585,7 @@ int usher_common(std::string dout_filename, std::string outdir, uint32_t num_thr
                 }
                 // Do placement only if number of parsimony-optimal placements
                 // does not exceed the maximum allowed value and the parsimony
-                // score for the most parsimonious placement does not exceed 
+                // score for the most parsimonious placement does not exceed
                 // the maximum allowed value
                 else if ((num_best <= max_uncertainty) && (best_set_difference <= max_parsimony)) {
                     if (num_best > 1) {
@@ -1081,4 +1081,3 @@ int usher_common(std::string dout_filename, std::string outdir, uint32_t num_thr
 
     return 0;
 }
-    

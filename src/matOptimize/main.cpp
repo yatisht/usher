@@ -124,9 +124,9 @@ int main(int argc, char **argv) {
     all_options.add(desc);
     interrupted=false;
     signal(SIGUSR2,interrupt_handler);
-    #ifndef PROFILE_HEAP
+#ifndef PROFILE_HEAP
     signal(SIGUSR1, log_flush_handle);
-    #endif
+#endif
     po::variables_map vm;
     if (argc==1) {
         std::cerr << desc << std::endl;
@@ -220,7 +220,7 @@ int main(int argc, char **argv) {
     }
     if (radius>=0) {
         fprintf(stderr,"Will consider SPR moves within a radius of %d. \n",radius);
-    }else {
+    } else {
         fprintf(stderr,"Will double radius after each iteration\n");
         changing_radius=true;
     }
@@ -342,7 +342,7 @@ int main(int argc, char **argv) {
             bfs_ordered_nodes = t.breadth_first_expansion();
             if (max_optimize_hours) {
                 save_period=std::min(ori_save_period,end_time-std::chrono::steady_clock::now());
-            }else {
+            } else {
                 save_period=ori_save_period;
             }
             auto res =
@@ -358,7 +358,7 @@ int main(int argc, char **argv) {
             new_score=res.first;
             if (searched_full) {
                 nodes_seached_this_iter=res.second;
-                searched_full=false;                
+                searched_full=false;
             }
             fprintf(stderr, "parsimony score after optimizing: %zu,with radius %d, searched %zu arcs \n\n", new_score,std::abs(radius),res.second);
             auto save_start=std::chrono::steady_clock::now();
@@ -378,8 +378,8 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Last round improvement %f\n",improvement);
         if (improvement <min_improvement ) {
             if (nodes_seached_this_iter>nodes_seached_last_iter&&radius<0) {
-                radius*=2;                
-            }else {
+                radius*=2;
+            } else {
                 fprintf(stderr, "Less than minimium improvement\n");
                 stalled++;
                 allow_drift=true;
@@ -394,7 +394,7 @@ int main(int argc, char **argv) {
             interrupted=true;
             break;
         }
-        if(iteration>=max_round){
+        if(iteration>=max_round) {
             fprintf(stderr, "Reached %d interations\n", iteration);
             interrupted=true;
             break;
