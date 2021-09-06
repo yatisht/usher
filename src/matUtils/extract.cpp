@@ -471,7 +471,7 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         //TODO: filter_master can support pruning directly rather than generating an inverse set and pruning all but,
         //but downstream stuff wants the inverse set of sample names to work with
         //so there's a better way to do this in at least some cases.
-        subtree = filter_master(T, samples, false);
+        subtree = filter_master(T, samples, false, true);
     }
     //if polytomy resolution was requested, apply it
     if (resolve_polytomies) {
