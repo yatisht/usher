@@ -78,7 +78,7 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
     ("minimum-subtrees-size,N", po::value<size_t>()->default_value(0),
      "Use to generate a series of JSON or Newick format files representing subtrees of the indicated size which cover all queried samples. Uses and overrides -j and -t output arguments.")
     ("reroot,y", po::value<std::string>()->default_value(""),
-    "Indicate an internal node ID to reroot the output tree to. Applied before all other manipulation steps.")
+     "Indicate an internal node ID to reroot the output tree to. Applied before all other manipulation steps.")
     ("usher-single-subtree-size,X", po::value<size_t>()->default_value(0),
      "Use to produce an usher-style single sample subtree of the indicated size with all selected samples plus random samples to fill. Produces .nh and .txt files.")
     ("usher-minimum-subtrees-size,x", po::value<size_t>()->default_value(0),

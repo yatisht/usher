@@ -459,7 +459,7 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores, bool comp
             return;
         }
         rd_wr_lock.unlock();
-        
+
         rd_wr_lock.lock();
         size_t num_leaves = input.T->get_num_leaves(input.node);
         if (set_difference < *input.best_set_difference) {

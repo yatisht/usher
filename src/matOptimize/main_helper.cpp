@@ -68,7 +68,7 @@ void find_nodes_to_move(const std::vector<MAT::Node *> &bfs_ordered_nodes,
     output.clear();
     if (is_first||(radius_in<0&&radius<tree.max_level)) {
         output=tbb::concurrent_vector<MAT::Node*>(bfs_ordered_nodes.begin(),bfs_ordered_nodes.end());
-        for(auto node:bfs_ordered_nodes){
+        for(auto node:bfs_ordered_nodes) {
             node->to_search=false;
             node->last_searched_arcs=0;
         }
@@ -87,7 +87,7 @@ void find_nodes_to_move(const std::vector<MAT::Node *> &bfs_ordered_nodes,
             }
         });
         output.reserve(bfs_ordered_nodes.size());
-        for(auto node:bfs_ordered_nodes){
+        for(auto node:bfs_ordered_nodes) {
             if (node->to_search) {
                 output.push_back(node);
             }

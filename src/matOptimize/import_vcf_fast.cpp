@@ -165,7 +165,7 @@ static int read_header(gzFile fd,std::vector<std::string>& out) {
             in=gzgetc(fd);
             header_len++;
         }
-        if(!eol){
+        if(!eol) {
             in=gzgetc(fd);
         }
         out.push_back(field);
@@ -203,7 +203,7 @@ void print_progress(std::atomic<bool>* done,std::mutex* done_mutex) {
         fprintf(stderr,"\rAssigned %zu locus",assigned_count.load(std::memory_order_relaxed));
     }
 }
-static char* try_get_first_line(gzFile f,size_t& size ){
+static char* try_get_first_line(gzFile f,size_t& size ) {
     std::string temp;
     char c;
     while ((c=gzgetc(f))!='\n') {
