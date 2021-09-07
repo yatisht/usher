@@ -139,8 +139,11 @@ static void parse_rename_file(const std::string&  in_file_name, std::unordered_m
 	FILE* fd=fopen(in_file_name.c_str(),"r");
 	char sample_name[BUFSIZ];
 	char rename[BUFSIZ];
-	while(fscanf(fd,"%s	%s",sample_name,rename)!=EOF){
-		mapping[sample_name]=rename;
+	int ret_val;
+	while((ret_val=fscanf(fd,"%s	%s\n",sample_name,rename))!=EOF){
+		if(ret_val==2){
+			mapping[sample_name]=rename;
+		}
 	}
 	fclose(fd);
 }
