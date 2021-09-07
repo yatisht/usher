@@ -794,7 +794,8 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
                                 .column = i,
                                 .index = num_generic,
                                 .count = 0,
-                                .seen = empty_map
+                                .seen = empty_map,
+                                .protobuf_data_ptr = metadata_single
                             };
                             generic_metadata.push_back(new_meta);
                             num_generic ++;
@@ -861,7 +862,7 @@ void save_taxodium_tree (MAT::Tree &tree, std::string out_filename, std::vector<
     MetaColumns columns = {
         .strain_column = -1,
         .date_column = -1,
-        .genbank_column = -1
+        .genbank_column = -1,
     };
     
     std::vector<GenericMetadata> generic_metadata;

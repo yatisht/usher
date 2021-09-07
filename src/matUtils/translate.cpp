@@ -296,9 +296,8 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
             if (fixed_columns.genbank_column > -1) {
                 node_data->add_genbanks("");
             }
-            for (auto generic : generic_metadata ) {
-                auto generic_node_data = node_data->mutable_metadata_singles(generic.index);
-                generic_node_data->add_node_values(0); // no metadata for this node
+            for (int i = 0; i < generic_metadata.size(); i++ ) {
+                generic_metadata[i].protobuf_data_ptr->add_node_values(0); // no metadata for this node
             }
         } else if (metadata.find(node->identifier) == metadata.end()) { 
             node_data->add_names(split(node->identifier, '|')[0]);
@@ -309,10 +308,9 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
             if (fixed_columns.genbank_column > -1) {
                 node_data->add_genbanks("");
             }
-            for (auto generic : generic_metadata ) {
-                auto generic_node_data = node_data->mutable_metadata_singles(generic.index);
-                generic_node_data->add_node_values(0); // no metadata for this node
-           }
+            for (int i = 0; i < generic_metadata.size(); i++ ) {
+                generic_metadata[i].protobuf_data_ptr->add_node_values(0); // no metadata for this node
+            }
         
         } else {
 
@@ -328,9 +326,8 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
 
             node_data->add_names(split(node->identifier, '|')[0]);
 
-            for (auto generic : generic_metadata ) {
-                auto generic_node_data = node_data->mutable_metadata_singles(generic.index);
-                generic_node_data->add_node_values(std::stoi(meta_fields[generic.column])); // lookup the encoding for this value
+            for (int i = 0; i < generic_metadata.size(); i++ ) {
+                generic_metadata[i].protobuf_data_ptr->add_node_values(std::stoi(meta_fields[generic_metadata[i].column])); // lookup the encoding for this value
             }
         }
 

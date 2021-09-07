@@ -14,6 +14,7 @@ typedef struct {
     int index; // index in proto list
     int32_t count; // used for building mapping
     std::unordered_map<std::string, std::string> seen; // used for building mapping
+    Taxodium::MetadataSingleValuePerNode *protobuf_data_ptr;
 } GenericMetadata;
 
 static std::unordered_map<std::string, char> translation_map= {
