@@ -678,22 +678,35 @@ void get_minimum_subtrees(MAT::Tree* T, std::vector<std::string> samples, size_t
 
 /// Taxodium protobuf output functions below
 
-// Helper function to format one attribute in attributes into taxodium encoding. Modifies most parameters
-void populate_attribute(int attribute_column, std::vector<std::string> &attributes, std::unordered_map<std::string, std::string> &seen_map, int &encoding_counter, Taxodium::AllData &all_data) {
+
+// Helper function to format one attribute into taxodium encoding for a SingleValuePerNode metadata type
+void populate_generic_metadata(int attribute_column, std::vector<std::string> &attributes, std::unordered_map<std::string, std::string> &seen_map, int &encoding_counter, Taxodium::MetadataSingleValuePerNode *single) {
+    if (attribute_column < attributes.size() && attributes[attribute_column] != "") {
+        std::string attr_val = attributes[attribute_column];
+        if (seen_map.find(attr_val) == seen_map.end()) {
+            encoding_counter++;
+            std::string encoding_str = std::to_string(encoding_counter);
+            seen_map[attr_val] = encoding_str;
+            single->add_mapping(attr_val);
+            attributes[attribute_column] = encoding_str;
+        } else {
+            attributes[attribute_column] = seen_map[attr_val];
+        }
+    } else if (attribute_column >= attributes.size()) { // deals with last column being empty
+        attributes.push_back("0");
+    } else {
+        attributes[attribute_column] = "0";
+    }
+}
+
+// Helper function to populate non-generic metadata types that have mapping encodings.
+void populate_fixed_metadata(std::string name, int attribute_column, std::vector<std::string> &attributes, std::unordered_map<std::string, std::string> &seen_map, int &encoding_counter, Taxodium::AllData all_data) {
     if (seen_map.find(attributes[attribute_column]) == seen_map.end()) {
         encoding_counter++;
         std::string encoding_str = std::to_string(encoding_counter);
         seen_map[attributes[attribute_column]] = encoding_str;
-        switch(attribute_column) {
-        case country_col:
-            all_data.add_country_mapping(attributes[attribute_column]);
-            break;
-        case date_col:
+        if (name == "date") { // only date for now
             all_data.add_date_mapping(attributes[attribute_column]);
-            break;
-        case lineage_col:
-            all_data.add_lineage_mapping(attributes[attribute_column]);
-            break;
         }
         attributes[attribute_column] = encoding_str;
     } else {
@@ -702,23 +715,21 @@ void populate_attribute(int attribute_column, std::vector<std::string> &attribut
 }
 
 // Store the metadata differently for taxodium pb format
-std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std::vector<std::string> filenames, Taxodium::AllData &all_data) {
+std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std::vector<std::string> filenames, Taxodium::AllData &all_data, Taxodium::AllNodeData *node_data, MetaColumns &columns, std::vector<GenericMetadata> &generic_metadata, std::vector<std::string> additional_meta_fields) {
 
-    int32_t country_ct = 0;
+    /* We look for the following metadata fields:
+     * strain, genbank_accession, country, date, pangolin_lineage
+     * strain is the sample ID and is required. The rest may be missing.
+     * Additional fields to look for are specified with -F
+     */
+
     int32_t date_ct = 0;
-    int32_t lineage_ct = 0;
-
-    //The first index of theses lists in the pb indicates field is not present
-    all_data.add_country_mapping("");
     all_data.add_date_mapping("");
-    all_data.add_lineage_mapping("");
-
-    // These three attributes are encoded as integers.
-    // These maps map a country string to its integer representation
-    // (as a string type so it fits in with other metadata)
-    std::unordered_map<std::string, std::string> seen_countries_map;
-    std::unordered_map<std::string, std::string> seen_lineages_map;
     std::unordered_map<std::string, std::string> seen_dates_map;
+
+    int num_generic = 0;
+    bool country_found = false;
+    bool lineage_found = false;
 
     std::unordered_map<std::string, std::vector<std::string>> metadata;
 
@@ -738,37 +749,106 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
             if (line.length() < 3) {
                 continue;
             }
-            if (first) { // header line
-                first = false;
-                continue;
-            }
             std::vector<std::string> words;
             if (line[line.size()-1] == '\r') {
                 line = line.substr(0, line.size()-1);
             }
             MAT::string_split(line, delim, words);
-            std::string key = words[0];
-            std::vector<std::string> attributes(&words[1], &words[words.size()]);
-            attributes.push_back("0"); // another column to track parents
-            attributes.push_back("0"); // to track branch length
+            if (first) { // header line
+                for (int i = 0; i < words.size(); i++) { // for each column name
+                    std::string field = words[i];
+                    // Look for some defined metadata types.
+                    // For now some fields are double-encoded as generic and fixed types.
+                    if (field == "strain") {
+                        columns.strain_column = i;
+                    } else if (field == "genbank_accession") {
+                        columns.genbank_column = i;
+                    } else if (field == "date") {
+                        columns.date_column = i;
+                    } else if (field == "country") {
+                        // Temporary for backwards-compatibility
+                    } else if (field == "pangolin_lineage"){
+                        // Temporary for backwards-compatibility
+                    }
+                    // Encode everything else as generic
+                    if (field != "strain" && field != "genbank_accession" && field != "date") {
+                        if (std::find(additional_meta_fields.begin(), additional_meta_fields.end(), field) != additional_meta_fields.end() || field == "pangolin_lineage" || field == "country") {
+                            Taxodium::MetadataSingleValuePerNode *metadata_single = node_data->add_metadata_singles();
+                        
+                            // Lineage and country are expected to be named "Lineage" and "Country" in Taxodium, so
+                            // rename the standard column names. Other custom metadata fields will use their column
+                            // name as the pb field name
+                            if (field == "pangolin_lineage") {
+                                lineage_found = true;
+                                metadata_single->set_metadata_name("Lineage");
+                            } else if (field == "country") {
+                                country_found = true;
+                                metadata_single->set_metadata_name("Country");
+                            } else {
+                                metadata_single->set_metadata_name(field);
+                            }
+                            metadata_single->add_mapping("");
+                            std::unordered_map<std::string, std::string> empty_map;
+                            GenericMetadata new_meta = {
+                                .name = field,
+                                .column = i,
+                                .index = num_generic,
+                                .count = 0,
+                                .seen = empty_map
+                            };
+                            generic_metadata.push_back(new_meta);
+                            num_generic ++;
+                        }
+                    }
+                }
 
-            if (attributes.size()-1 >= country_col) {
-                populate_attribute(country_col, attributes, seen_countries_map, country_ct, all_data);
+                
+                if (columns.strain_column == -1) {
+                    fprintf(stderr, "ERROR: The required column \"strain\" is missing from the metadata\n");
+                    exit(1);
+                }
+
+                char found[]  = "(FOUND)";
+                char missing[] = "(MISSING)";
+                fprintf(stderr, "\nLooking for the following metadata fields:\n");
+                fprintf(stderr, "-- %s %s\n", found, "strain");
+                fprintf(stderr, "-- %s %s\n", columns.genbank_column > -1 ? found : missing, "genbank_accession");
+                fprintf(stderr, "-- %s %s\n", columns.date_column > -1 ? found : missing, "date");
+                fprintf(stderr, "-- %s %s\n", country_found ? found : missing, "country");
+                fprintf(stderr, "-- %s %s\n", lineage_found ? found : missing, "pangolin_lineage");
+                
+                if (additional_meta_fields.size() > 0) {
+                    additional_meta_fields.erase(std::remove(additional_meta_fields.begin(), additional_meta_fields.end(), "strain"), additional_meta_fields.end());
+                    fprintf(stderr, "\nThe following additional metadata fields were specified:\n");
+                    for (std::string name : additional_meta_fields) {
+                        fprintf(stderr, "-- %s\n", name.c_str());
+                    }
+                }
+                
+                first = false;
+                continue;
             }
-            if (attributes.size()-1 >= date_col) {
-                populate_attribute(date_col, attributes, seen_dates_map, date_ct, all_data);
+
+            // Build mappings for generic metadata types
+            for (int i = 0; i < generic_metadata.size(); i++) {
+                populate_generic_metadata(generic_metadata[i].column, words, generic_metadata[i].seen, generic_metadata[i].count, node_data->mutable_metadata_singles(i));
             }
-            if (attributes.size()-1 >= lineage_col) {
-                populate_attribute(lineage_col, attributes, seen_lineages_map, lineage_ct, all_data);
+
+            // Build mappings for fixed metadata types 
+            if (columns.date_column > -1) {
+                populate_fixed_metadata("date", columns.date_column, words, seen_dates_map, date_ct, all_data);
             }
-            //add a column for index in dfs array
-            metadata[key] = attributes;
+
+            std::string key = words[columns.strain_column];
+            metadata[key] = words;
         }
+
         infile.close();
     }
+
     return metadata;
 }
-void save_taxodium_tree (MAT::Tree &tree, std::string out_filename, std::vector<std::string> meta_filenames, std::string gtf_filename, std::string fasta_filename, std::string title, std::string description) {
+void save_taxodium_tree (MAT::Tree &tree, std::string out_filename, std::vector<std::string> meta_filenames, std::string gtf_filename, std::string fasta_filename, std::string title, std::string description, std::vector<std::string> additional_meta_fields) {
 
     // These are the taxodium pb objects
     Taxodium::AllNodeData *node_data = new Taxodium::AllNodeData();
@@ -777,11 +857,20 @@ void save_taxodium_tree (MAT::Tree &tree, std::string out_filename, std::vector<
     all_data.set_tree_title(title);
     all_data.set_tree_description(description);
 
-    std::unordered_map<std::string, std::vector<std::string>> metadata = read_metafiles_tax(meta_filenames, all_data);
+    // For fixed fields
+    MetaColumns columns = {
+        .strain_column = -1,
+        .date_column = -1,
+        .genbank_column = -1
+    };
+    
+    std::vector<GenericMetadata> generic_metadata;
+
+    std::unordered_map<std::string, std::vector<std::string>> metadata = read_metafiles_tax(meta_filenames, all_data, node_data, columns, generic_metadata, additional_meta_fields);
     TIMEIT();
 
     // Fill in the taxodium data while doing aa translations
-    translate_and_populate_node_data(&tree, gtf_filename, fasta_filename, node_data, &all_data, metadata);
+    translate_and_populate_node_data(&tree, gtf_filename, fasta_filename, node_data, &all_data, metadata, columns, generic_metadata);
     all_data.set_allocated_node_data(node_data);
 
     // Boost library used to stream the contents to the output protobuf file in

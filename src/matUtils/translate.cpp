@@ -32,8 +32,8 @@ std::string build_reference(std::ifstream &fasta_file) {
 
 
 // Maps a genomic coordinate to a list of codons it is part of
-std::map<int, std::vector<std::shared_ptr<Codon>>> build_codon_map(std::ifstream &gtf_file, std::string reference) {
-    std::map<int, std::vector<std::shared_ptr<Codon>>> codon_map;
+std::unordered_map<int, std::vector<std::shared_ptr<Codon>>> build_codon_map(std::ifstream &gtf_file, std::string reference) {
+    std::unordered_map<int, std::vector<std::shared_ptr<Codon>>> codon_map;
     std::string gtf_line;
     std::vector<std::string> gtf_lines;
     std::vector<std::string> done;
@@ -180,7 +180,7 @@ void translate_main(MAT::Tree *T, std::string output_filename, std::string gtf_f
     // This maps each position in the reference to a vector of codons.
     // Some positions may be associated with multiple codons (frame shifts).
     // The Codons in the map are updated as the tree is traversed
-    std::map<int, std::vector<std::shared_ptr<Codon>>> codon_map = build_codon_map(gtf_file, reference);
+    std::unordered_map<int, std::vector<std::shared_ptr<Codon>>> codon_map = build_codon_map(gtf_file, reference);
 
     // Traverse the tree in depth-first order. As we descend the tree, mutations at
     // each node are applied to the respective codon(s) in codon_map.
@@ -207,7 +207,7 @@ void translate_main(MAT::Tree *T, std::string output_filename, std::string gtf_f
 }
 
 // This is used for taxodium output. It translates each node and saves metadata to node_data along the way
-void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, std::string fasta_filename, Taxodium::AllNodeData *node_data, Taxodium::AllData *all_data, std::unordered_map<std::string, std::vector<std::string>> &metadata) {
+void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, std::string fasta_filename, Taxodium::AllNodeData *node_data, Taxodium::AllData *all_data, std::unordered_map<std::string, std::vector<std::string>> &metadata, MetaColumns fixed_columns, std::vector<GenericMetadata> &generic_metadata) {
     std::ifstream fasta_file(fasta_filename);
     if (!fasta_file) {
         fprintf(stderr, "ERROR: Could not open the fasta file: %s!\n", fasta_filename.c_str());
@@ -225,11 +225,10 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
 
     T->rotate_for_display();
     std::string reference = build_reference(fasta_file);
-    std::map<int, std::vector<std::shared_ptr<Codon>>> codon_map = build_codon_map(gtf_file, reference);
+    std::unordered_map<int, std::vector<std::shared_ptr<Codon>>> codon_map = build_codon_map(gtf_file, reference);
     auto dfs = T->depth_first_expansion();
 
     MAT::Node *last_visited = nullptr;
-
 
     std::unordered_map<std::string, int32_t> seen_mutations_map;
     std::unordered_map<std::string, int32_t> index_map; // map node id to index in protobuf arrays
@@ -289,28 +288,50 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
         node_data->add_num_tips(T->get_leaves(node->identifier).size());
 
         if (node->identifier.substr(0,5) == "node_") {
+            //internal nodes don't have metadata
             node_data->add_names("");
-            node_data->add_countries(0);
-            node_data->add_lineages(0);
-            node_data->add_dates(0);
-            node_data->add_genbanks("");
-            //internal nodes don't have country, lineage, date
-        } else if (metadata.find(node->identifier) == metadata.end()) {
+            if (fixed_columns.date_column > -1) {
+                node_data->add_dates(0);
+            }
+            if (fixed_columns.genbank_column > -1) {
+                node_data->add_genbanks("");
+            }
+            for (auto generic : generic_metadata ) {
+                auto generic_node_data = node_data->mutable_metadata_singles(generic.index);
+                generic_node_data->add_node_values(0); // no metadata for this node
+            }
+        } else if (metadata.find(node->identifier) == metadata.end()) { 
             node_data->add_names(split(node->identifier, '|')[0]);
-            node_data->add_countries(0);
-            node_data->add_lineages(0);
-            node_data->add_dates(0);
-            node_data->add_genbanks("");
+
+            if (fixed_columns.date_column > -1) {
+                node_data->add_dates(0);
+            }
+            if (fixed_columns.genbank_column > -1) {
+                node_data->add_genbanks("");
+            }
+            for (auto generic : generic_metadata ) {
+                auto generic_node_data = node_data->mutable_metadata_singles(generic.index);
+                generic_node_data->add_node_values(0); // no metadata for this node
+           }
+        
         } else {
+
+            // All of the metadata values (integer-encoded for those with mappings) for the current node
             std::vector<std::string> meta_fields = metadata[node->identifier];
-            int32_t country = std::stoi(meta_fields[country_col]);
-            int32_t lineage = std::stoi(meta_fields[lineage_col]);
-            int32_t date = std::stoi(meta_fields[date_col]);
-            node_data->add_countries(country);
-            node_data->add_lineages(lineage);
-            node_data->add_dates(date);
-            node_data->add_genbanks(meta_fields[genbank_col]);
+            if (fixed_columns.date_column > -1) {
+                int32_t date = std::stoi(meta_fields[fixed_columns.date_column]);
+                node_data->add_dates(date);
+            }
+            if (fixed_columns.genbank_column > -1) {
+                node_data->add_genbanks(meta_fields[fixed_columns.genbank_column]);
+            }
+
             node_data->add_names(split(node->identifier, '|')[0]);
+
+            for (auto generic : generic_metadata ) {
+                auto generic_node_data = node_data->mutable_metadata_singles(generic.index);
+                generic_node_data->add_node_values(std::stoi(meta_fields[generic.column])); // lookup the encoding for this value
+            }
         }
 
         if (node->parent == nullptr) {
@@ -353,12 +374,12 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
         }
     }
 }
-std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::map<int, std::vector<std::shared_ptr<Codon>>> &codon_map, bool taxodium_format) {
+std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::unordered_map<int, std::vector<std::shared_ptr<Codon>>> &codon_map, bool taxodium_format) {
     std::string prot_string = "";
     std::string nuc_string = "";
     std::sort(mutations.begin(), mutations.end());
-    std::map<std::string, std::set<MAT::Mutation>> codon_to_nt_map;
-    std::map<std::string, char> orig_proteins;
+    std::unordered_map<std::string, std::set<MAT::Mutation>> codon_to_nt_map;
+    std::unordered_map<std::string, char> orig_proteins;
     std::vector<std::shared_ptr<Codon>> affected_codons;
 
     for (auto m : mutations) {
@@ -427,7 +448,7 @@ std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::map<int, st
     }
 }
 
-void undo_mutations(std::vector<MAT::Mutation> &mutations, std::map<int, std::vector<std::shared_ptr<Codon>>> &codon_map) {
+void undo_mutations(std::vector<MAT::Mutation> &mutations, std::unordered_map<int, std::vector<std::shared_ptr<Codon>>> &codon_map) {
     for (auto m: mutations) {
         char parent_nuc = MAT::get_nuc(m.par_nuc);
         int pos = m.position - 1;
