@@ -681,7 +681,7 @@ void get_minimum_subtrees(MAT::Tree* T, std::vector<std::string> samples, size_t
 
 // Helper function to format one attribute into taxodium encoding for a SingleValuePerNode metadata type
 void populate_generic_metadata(int attribute_column, std::vector<std::string> &attributes, std::unordered_map<std::string, std::string> &seen_map, int &encoding_counter, Taxodium::MetadataSingleValuePerNode *single) {
-    if (attribute_column < attributes.size() && attributes[attribute_column] != "") {
+    if (attribute_column < (int) attributes.size() && attributes[attribute_column] != "") {
         std::string attr_val = attributes[attribute_column];
         if (seen_map.find(attr_val) == seen_map.end()) {
             encoding_counter++;
@@ -692,7 +692,7 @@ void populate_generic_metadata(int attribute_column, std::vector<std::string> &a
         } else {
             attributes[attribute_column] = seen_map[attr_val];
         }
-    } else if (attribute_column >= attributes.size()) { // deals with last column being empty
+    } else if (attribute_column >= (int) attributes.size()) { // deals with last column being empty
         attributes.push_back("0");
     } else {
         attributes[attribute_column] = "0";
@@ -755,7 +755,7 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
             }
             MAT::string_split(line, delim, words);
             if (first) { // header line
-                for (int i = 0; i < words.size(); i++) { // for each column name
+                for (int i = 0; i < (int) words.size(); i++) { // for each column name
                     std::string field = words[i];
                     // Look for some defined metadata types.
                     // For now some fields are double-encoded as generic and fixed types.
@@ -765,10 +765,6 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
                         columns.genbank_column = i;
                     } else if (field == "date") {
                         columns.date_column = i;
-                    } else if (field == "country") {
-                        // Temporary for backwards-compatibility
-                    } else if (field == "pangolin_lineage"){
-                        // Temporary for backwards-compatibility
                     }
                     // Encode everything else as generic
                     if (field != "strain" && field != "genbank_accession" && field != "date") {
@@ -802,7 +798,6 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
                         }
                     }
                 }
-
                 
                 if (columns.strain_column == -1) {
                     fprintf(stderr, "ERROR: The required column \"strain\" is missing from the metadata\n");
@@ -818,6 +813,8 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
                 fprintf(stderr, "-- %s %s\n", country_found ? found : missing, "country");
                 fprintf(stderr, "-- %s %s\n", lineage_found ? found : missing, "pangolin_lineage");
                 
+                fprintf(stderr, "\nIf any of the above fields are missing, importing into Taxodium may not work properly.\n");
+                
                 if (additional_meta_fields.size() > 0) {
                     additional_meta_fields.erase(std::remove(additional_meta_fields.begin(), additional_meta_fields.end(), "strain"), additional_meta_fields.end());
                     fprintf(stderr, "\nThe following additional metadata fields were specified:\n");
@@ -825,13 +822,13 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
                         fprintf(stderr, "-- %s\n", name.c_str());
                     }
                 }
-                
+                fprintf(stderr, "\nPerforming conversion.\n");
                 first = false;
                 continue;
             }
 
             // Build mappings for generic metadata types
-            for (int i = 0; i < generic_metadata.size(); i++) {
+            for (int i = 0; i < (int) generic_metadata.size(); i++) {
                 populate_generic_metadata(generic_metadata[i].column, words, generic_metadata[i].seen, generic_metadata[i].count, node_data->mutable_metadata_singles(i));
             }
 
@@ -843,10 +840,8 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
             std::string key = words[columns.strain_column];
             metadata[key] = words;
         }
-
         infile.close();
     }
-
     return metadata;
 }
 void save_taxodium_tree (MAT::Tree &tree, std::string out_filename, std::vector<std::string> meta_filenames, std::string gtf_filename, std::string fasta_filename, std::string title, std::string description, std::vector<std::string> additional_meta_fields) {

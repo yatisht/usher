@@ -147,11 +147,6 @@ std::unordered_map<int, std::vector<std::shared_ptr<Codon>>> build_codon_map(std
     return codon_map;
 }
 
-//std::vector<MAT::Node *> postorder_iter() {
-//    std::vector<MAT::Node *> stack;
-//
-//}
-
 void translate_main(MAT::Tree *T, std::string output_filename, std::string gtf_filename, std::string fasta_filename) {
     std::ifstream fasta_file(fasta_filename);
     if (!fasta_file) {
@@ -269,12 +264,18 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
         Taxodium::MutationList *mutation_list = node_data->add_mutations();
         std::string mutation_result = "";
 
+        // This string is a semicolon separated list of mutations in format
+        // [orf]:[orig aa]_[orf num]_[new aa]
+        // e.g. S:K_200_V;ORF1a:G_240_N
         mutation_result = do_mutations(node->mutations, codon_map, true);
 
+
         if (node->is_root()) {
+            // For the root node, modify mutation_result with "fake" mutations,
+            // to enable correct coloring by amino acid in Taxodium
             std::unordered_map<std::string, bool> done_codons = {}; // some codons are duplicated in codon_map, track them 
-            std::string root_mutations = ""; // add "mutations" at the root to enable Taxodium color-by-aa-mutation
-            for (int pos = 0; pos < reference.length(); pos++) {
+            std::string root_mutations = ""; // add "mutations" at the root
+            for (int32_t pos = 0; pos < (int32_t) reference.length(); pos++) {
                 if (codon_map.find(pos) == codon_map.end()) {
                     continue;
                 }
@@ -290,6 +291,7 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
             mutation_result = root_mutations;
         }
         if (mutation_result != "") {
+            // Add mutations to protobuf object
             for (auto m : split(mutation_result, ';')) {
                 if (seen_mutations_map.find(m) == seen_mutations_map.end()) {
                     mutation_counter++;
@@ -308,7 +310,7 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
         node_data->add_num_tips(T->get_leaves(node->identifier).size());
 
         if (node->identifier.substr(0,5) == "node_") {
-            //internal nodes don't have metadata
+            //internal nodes don't have metadata, so populate with empty data
             node_data->add_names("");
             if (fixed_columns.date_column > -1) {
                 node_data->add_dates(0);
@@ -316,9 +318,6 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
             if (fixed_columns.genbank_column > -1) {
                 node_data->add_genbanks("");
             }
-            // for (int i = 0; i < generic_metadata.size(); i++ ) {
-            //     generic_metadata[i].protobuf_data_ptr->add_node_values(0); // no metadata for this node
-            // }
             for (const auto &m : generic_metadata) {
                 m.protobuf_data_ptr->add_node_values(0); // no metadata for this node
             }
@@ -331,9 +330,6 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
             if (fixed_columns.genbank_column > -1) {
                 node_data->add_genbanks("");
             }
-            // for (int i = 0; i < generic_metadata.size(); i++ ) {
-            //     generic_metadata[i].protobuf_data_ptr->add_node_values(0); // no metadata for this node
-            // }
             for (const auto &m : generic_metadata) {
                 m.protobuf_data_ptr->add_node_values(0); // no metadata for this node
             }
@@ -342,6 +338,7 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
 
             // All of the metadata values (integer-encoded for those with mappings) for the current node
             std::vector<std::string> meta_fields = metadata[node->identifier];
+
             if (fixed_columns.date_column > -1) {
                 int32_t date = std::stoi(meta_fields[fixed_columns.date_column]);
                 node_data->add_dates(date);
@@ -352,9 +349,6 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
 
             node_data->add_names(split(node->identifier, '|')[0]);
 
-            // for (int i = 0; i < generic_metadata.size(); i++ ) {
-            //     generic_metadata[i].protobuf_data_ptr->add_node_values(std::stoi(meta_fields[generic_metadata[i].column])); // lookup the encoding for this value
-            // }
             for (const auto &m : generic_metadata) {
                 m.protobuf_data_ptr->add_node_values(std::stoi(meta_fields[m.column])); // lookup the encoding for this value
             }
