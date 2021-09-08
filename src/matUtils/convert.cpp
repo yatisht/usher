@@ -758,7 +758,6 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
                 for (int i = 0; i < (int) words.size(); i++) { // for each column name
                     std::string field = words[i];
                     // Look for some defined metadata types.
-                    // For now some fields are double-encoded as generic and fixed types.
                     if (field == "strain") {
                         columns.strain_column = i;
                     } else if (field == "genbank_accession") {
