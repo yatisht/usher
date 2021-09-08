@@ -700,7 +700,7 @@ void populate_generic_metadata(int attribute_column, std::vector<std::string> &a
 }
 
 // Helper function to populate non-generic metadata types that have mapping encodings.
-void populate_fixed_metadata(std::string name, int attribute_column, std::vector<std::string> &attributes, std::unordered_map<std::string, std::string> &seen_map, int &encoding_counter, Taxodium::AllData all_data) {
+void populate_fixed_metadata(std::string name, int attribute_column, std::vector<std::string> &attributes, std::unordered_map<std::string, std::string> &seen_map, int &encoding_counter, Taxodium::AllData &all_data) {
     if (seen_map.find(attributes[attribute_column]) == seen_map.end()) {
         encoding_counter++;
         std::string encoding_str = std::to_string(encoding_counter);
@@ -812,7 +812,7 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
                 char found[]  = "(FOUND)";
                 char missing[] = "(MISSING)";
                 fprintf(stderr, "\nLooking for the following metadata fields:\n");
-                fprintf(stderr, "-- %s %s\n", found, "strain");
+                fprintf(stderr, "-- %s %s\n", found, "strain (this is the sample ID)");
                 fprintf(stderr, "-- %s %s\n", columns.genbank_column > -1 ? found : missing, "genbank_accession");
                 fprintf(stderr, "-- %s %s\n", columns.date_column > -1 ? found : missing, "date");
                 fprintf(stderr, "-- %s %s\n", country_found ? found : missing, "country");

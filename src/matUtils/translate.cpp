@@ -186,7 +186,7 @@ void translate_main(MAT::Tree *T, std::string output_filename, std::string gtf_f
     // each node are applied to the respective codon(s) in codon_map.
     auto dfs = T->depth_first_expansion();
     MAT::Node *last_visited = nullptr;
-    for (auto node: dfs) {
+    for (auto &node: dfs) {
         std::string mutation_result = "";
         if(last_visited != node->parent) {
             // Jumping across a branch, so we need to revert codon mutations up to
@@ -243,7 +243,7 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
     int32_t mutation_counter = 0;
 
     // DFS to translate aa mutations, adding to Taxodium pb objects along the way
-    for (auto node: dfs) {
+    for (auto &node: dfs) {
         if (node->is_leaf()) {
             leaves.push_back(node);
         }
@@ -268,7 +268,27 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
         // Do mutations
         Taxodium::MutationList *mutation_list = node_data->add_mutations();
         std::string mutation_result = "";
+
         mutation_result = do_mutations(node->mutations, codon_map, true);
+
+        if (node->is_root()) {
+            std::unordered_map<std::string, bool> done_codons = {}; // some codons are duplicated in codon_map, track them 
+            std::string root_mutations = ""; // add "mutations" at the root to enable Taxodium color-by-aa-mutation
+            for (int pos = 0; pos < reference.length(); pos++) {
+                if (codon_map.find(pos) == codon_map.end()) {
+                    continue;
+                }
+                for (auto codon_ptr : codon_map[pos]) {
+                    std::string codon_id = codon_ptr->orf_name + ":" + std::to_string(codon_ptr->codon_number+1);
+                    if (done_codons.find(codon_id) != done_codons.end()) {
+                        continue;
+                    }
+                    done_codons[codon_id] = true;
+                    root_mutations += codon_ptr->orf_name + ":X_" + std::to_string(codon_ptr->codon_number+1) + "_" + codon_ptr->protein + ";";
+                }
+            }
+            mutation_result = root_mutations;
+        }
         if (mutation_result != "") {
             for (auto m : split(mutation_result, ';')) {
                 if (seen_mutations_map.find(m) == seen_mutations_map.end()) {
@@ -296,8 +316,11 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
             if (fixed_columns.genbank_column > -1) {
                 node_data->add_genbanks("");
             }
-            for (int i = 0; i < generic_metadata.size(); i++ ) {
-                generic_metadata[i].protobuf_data_ptr->add_node_values(0); // no metadata for this node
+            // for (int i = 0; i < generic_metadata.size(); i++ ) {
+            //     generic_metadata[i].protobuf_data_ptr->add_node_values(0); // no metadata for this node
+            // }
+            for (const auto &m : generic_metadata) {
+                m.protobuf_data_ptr->add_node_values(0); // no metadata for this node
             }
         } else if (metadata.find(node->identifier) == metadata.end()) { 
             node_data->add_names(split(node->identifier, '|')[0]);
@@ -308,8 +331,11 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
             if (fixed_columns.genbank_column > -1) {
                 node_data->add_genbanks("");
             }
-            for (int i = 0; i < generic_metadata.size(); i++ ) {
-                generic_metadata[i].protobuf_data_ptr->add_node_values(0); // no metadata for this node
+            // for (int i = 0; i < generic_metadata.size(); i++ ) {
+            //     generic_metadata[i].protobuf_data_ptr->add_node_values(0); // no metadata for this node
+            // }
+            for (const auto &m : generic_metadata) {
+                m.protobuf_data_ptr->add_node_values(0); // no metadata for this node
             }
         
         } else {
@@ -326,9 +352,13 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
 
             node_data->add_names(split(node->identifier, '|')[0]);
 
-            for (int i = 0; i < generic_metadata.size(); i++ ) {
-                generic_metadata[i].protobuf_data_ptr->add_node_values(std::stoi(meta_fields[generic_metadata[i].column])); // lookup the encoding for this value
+            // for (int i = 0; i < generic_metadata.size(); i++ ) {
+            //     generic_metadata[i].protobuf_data_ptr->add_node_values(std::stoi(meta_fields[generic_metadata[i].column])); // lookup the encoding for this value
+            // }
+            for (const auto &m : generic_metadata) {
+                m.protobuf_data_ptr->add_node_values(std::stoi(meta_fields[m.column])); // lookup the encoding for this value
             }
+
         }
 
         if (node->parent == nullptr) {
@@ -379,7 +409,7 @@ std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::unordered_m
     std::unordered_map<std::string, char> orig_proteins;
     std::vector<std::shared_ptr<Codon>> affected_codons;
 
-    for (auto m : mutations) {
+    for (auto &m : mutations) {
         char mutated_nuc = MAT::get_nuc(m.mut_nuc);
         int pos = m.position - 1;
         auto codon_map_it = codon_map.find(pos);
@@ -420,7 +450,7 @@ std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::unordered_m
             prot_string += split(codon_id, ':')[0] + ':' + orig_protein + split(codon_id, ':')[1] + codon_ptr->protein + ';';
         }
         auto codon_it = codon_to_nt_map.find(codon_id);
-        for (auto m : codon_it->second) {
+        for (auto &m : codon_it->second) {
             nuc_string += m.get_string() + ",";
         }
 
@@ -446,7 +476,7 @@ std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::unordered_m
 }
 
 void undo_mutations(std::vector<MAT::Mutation> &mutations, std::unordered_map<int, std::vector<std::shared_ptr<Codon>>> &codon_map) {
-    for (auto m: mutations) {
+    for (auto &m: mutations) {
         char parent_nuc = MAT::get_nuc(m.par_nuc);
         int pos = m.position - 1;
         auto it = codon_map.find(pos);
