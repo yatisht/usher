@@ -810,13 +810,15 @@ int main(int argc, char** argv) {
                         }
                         if (num_best > max_uncertainty) {
                             fprintf(stderr, "WARNING: Number of parsimony-optimal placements exceeds maximum allowed value (%u). Ignoring sample %s.\n", max_uncertainty, sample.c_str());
-                        } else if (best_set_difference > max_parsimony) {
-                            fprintf(stderr, "WARNING: Parsimony score of the most parsimonious placement exceeds the maximum allowed value (%u). Ignoring sample %s.\n", max_parsimony, sample.c_str());
-                        } else {
+                        }  else if (best_set_difference <= max_parsimony) {
                             fprintf(stderr, "WARNING: Multiple parsimony-optimal placements found. Placement done without high confidence.\n");
                         }
                     }
-                } else {
+
+                    if (best_set_difference > max_parsimony) {
+                        fprintf(stderr, "WARNING: Parsimony score of the most parsimonious placement exceeds the maximum allowed value (%u). Ignoring sample %s.\n", max_parsimony, sample.c_str());
+                    }
+                }  else {
                     fprintf(stderr, "Missing sample: %s\t Best parsimony score: %d\tNumber of parsimony-optimal placements: %zu\n", sample.c_str(), \
                             best_set_difference, num_best);
 
@@ -927,7 +929,7 @@ int main(int argc, char** argv) {
                 }
                 // Do placement only if number of parsimony-optimal placements
                 // does not exceed the maximum allowed value and the parsimony
-                // score for the most parsimonious placement does not exceed 
+                // score for the most parsimonious placement does not exceed
                 // the maximum allowed value
                 else if ((num_best <= max_uncertainty) && (best_set_difference <= max_parsimony)) {
                     if (num_best > 1) {

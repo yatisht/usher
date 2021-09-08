@@ -3,7 +3,7 @@
 #include <cstring>
 #include <algorithm>
 #include <numeric>
-#include <boost/program_options.hpp> 
+#include <boost/program_options.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
 #include <iostream>
@@ -22,7 +22,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #ifdef _WIN32
-    #define stat _stat 
+#define stat _stat
 #endif
 namespace po = boost::program_options;
 namespace MAT = Mutation_Annotated_Tree;
@@ -42,22 +42,21 @@ int main(int argc, char** argv) {
 
 
     desc.add_options()
-        
-        ("arguments,a", po::value<std::string>(&arg_filename)->required(), "Input argument file that will contain arguments for usher [REQUIRED]")
-        ("list-mutation-annonated-trees,i", po::value<std::string>(&MAT_list_filename)->default_value(""), "File containing list of mutation-annotated tree objects")
-        ("sleep-length,s", po::value<uint32_t>(&sleep_length)->default_value(100), "Time in milliseconds that the program waits until checking for input in argument file")
-        ("help,h", "Print help messages");
 
-    
+    ("arguments,a", po::value<std::string>(&arg_filename)->required(), "Input argument file that will contain arguments for usher [REQUIRED]")
+    ("list-mutation-annonated-trees,i", po::value<std::string>(&MAT_list_filename)->default_value(""), "File containing list of mutation-annotated tree objects")
+    ("sleep-length,s", po::value<uint32_t>(&sleep_length)->default_value(100), "Time in milliseconds that the program waits until checking for input in argument file")
+    ("help,h", "Print help messages");
+
+
     po::options_description all_options;
     all_options.add(desc);
 
     po::variables_map vm;
-    try{
+    try {
         po::store(po::command_line_parser(argc, argv).options(all_options).run(), vm);
         po::notify(vm);
-    }
-    catch(std::exception &e){
+    } catch(std::exception &e) {
         //return with error code 1 unless the user specifies help
         std::cerr << desc << std::endl;
         if(vm.count("help"))
@@ -66,31 +65,31 @@ int main(int argc, char** argv) {
             return 1;
     }
 
-    
-    MAT::Tree loaded_MAT;   
+
+    MAT::Tree loaded_MAT;
     bool loaded_MAT_avail = false;//keep track if loaded_MAT is a new copy of MAT and can be used
     std::string loaded_MAT_name = "";
-    if(!boost::filesystem::exists(arg_filename)){
+    if(!boost::filesystem::exists(arg_filename)) {
         std::cout << "Arguments file not found" <<std::endl;
         return 1;
     }
-    
+
     //std::filesystem::path p = std::filesystem::current_path();
     //std::filesystem::file_time_type modified_time = std::filesystem::file_time_type();
     time_t modified_time(0);
     MAT::Tree *curr_tree; //MAT that is used in the iteration
-    Timer timer; 
+    Timer timer;
     std::unordered_map<std::string, MAT::Tree> MAT_list; //store list of trees
     std::unordered_map<std::string, bool> MAT_list_avail; //stores information on whether the MATs in the list are available for use
-    if(MAT_list_filename != ""){
-        if(!boost::filesystem::exists(MAT_list_filename)){
+    if(MAT_list_filename != "") {
+        if(!boost::filesystem::exists(MAT_list_filename)) {
             std::cout << "MAT list file not found" <<std::endl;
             return 1;
         }
         std::string MAT_filename;
         MAT::Tree temp_MAT;
         std::ifstream MAT_list_file(MAT_list_filename);
-        while(std::getline(MAT_list_file, MAT_filename)){//set up MATs in the list
+        while(std::getline(MAT_list_file, MAT_filename)) { //set up MATs in the list
             // Load mutation-annotated tree and store it
             timer.Start();
             fprintf(stderr, "Loading existing mutation-annotated tree object from file %s\n", MAT_filename.c_str());
@@ -100,11 +99,11 @@ int main(int argc, char** argv) {
         }
         MAT_list_file.close();
     }
-    
-    
 
-    while(true){
-        if((loaded_MAT_name != "") && (!loaded_MAT_avail)){
+
+
+    while(true) {
+        if((loaded_MAT_name != "") && (!loaded_MAT_avail)) {
             timer.Start();
             fprintf(stderr, "Loading existing mutation-annotated tree object from file %s\n", loaded_MAT_name.c_str());
             // Load mutation-annotated tree and store it
@@ -113,8 +112,8 @@ int main(int argc, char** argv) {
             fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
             loaded_MAT_avail = true;
         }
-        for(auto itr = MAT_list_avail.begin(); itr != MAT_list_avail.end(); itr++){
-            if(!(itr->second)){//if a MAT pointed by this iterator is not available, load
+        for(auto itr = MAT_list_avail.begin(); itr != MAT_list_avail.end(); itr++) {
+            if(!(itr->second)) { //if a MAT pointed by this iterator is not available, load
                 timer.Start();
                 fprintf(stderr, "Loading existing mutation-annotated tree object from file %s\n", (itr->first).c_str());
                 MAT::clear_tree(MAT_list[itr->first]);
@@ -123,33 +122,33 @@ int main(int argc, char** argv) {
                 fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
             }
         }
-        
-        
-       /* 
-       if(std::filesystem::last_write_time(p) == modified_time){
-            fprintf(stderr, "Waiting for more arguments\n\n");
-            while(std::filesystem::last_write_time(p) == modified_time){
-                std::this_thread::sleep_for(std::chrono::milliseconds(sleep_length));
-            }
-        }
-        
-        modified_time = std::filesystem::last_write_time(p);
-        */
 
-       
+
+        /*
+        if(std::filesystem::last_write_time(p) == modified_time){
+             fprintf(stderr, "Waiting for more arguments\n\n");
+             while(std::filesystem::last_write_time(p) == modified_time){
+                 std::this_thread::sleep_for(std::chrono::milliseconds(sleep_length));
+             }
+         }
+
+         modified_time = std::filesystem::last_write_time(p);
+         */
+
+
 
         struct stat arg_file_stat;
         stat(arg_filename.c_str(), &arg_file_stat);
-        if(arg_file_stat.st_mtime == modified_time){
+        if(arg_file_stat.st_mtime == modified_time) {
             fprintf(stderr, "Waiting for more arguments\n\n");
-            while(arg_file_stat.st_mtime == modified_time){
+            while(arg_file_stat.st_mtime == modified_time) {
                 stat(arg_filename.c_str(), &arg_file_stat);
                 std::this_thread::sleep_for(std::chrono::milliseconds(sleep_length));
             }
         }
 
         modified_time = arg_file_stat.st_mtime;
-        
+
 
         std::ifstream arguments_file(arg_filename);
         if (!arguments_file) {
@@ -157,23 +156,23 @@ int main(int argc, char** argv) {
             exit(1);
         }
         std::string argument;
-        
-        
+
+
 
         //get a line of argument and feed it into usher
-        while(std::getline(arguments_file, argument)){
+        while(std::getline(arguments_file, argument)) {
             fprintf(stderr, "Argument: %s \n\n", argument.c_str());
             std::istringstream arg(argument);
             std::vector<std::string> arg_vector; //to store each word from arg
             arg_vector.emplace_back("./usher"); //to replicate commandline argument
             std::string tempStr; //hold the word from argument before adding to the vector
-            while(arg >> tempStr){
+            while(arg >> tempStr) {
                 arg_vector.emplace_back(tempStr);
             }
-            
-            int argc_line = arg_vector.size(); 
+
+            int argc_line = arg_vector.size();
             const char* argv_line[argc_line];
-            for(int i = 0; i < argc_line; i++){
+            for(int i = 0; i < argc_line; i++) {
                 argv_line[i] = arg_vector[i].c_str();
             }
 
@@ -205,67 +204,66 @@ int main(int argc, char** argv) {
             bool no_add = false;
             bool detailed_clades = false;
             size_t print_subtrees_size=0;
-            size_t print_subtrees_single=0;    
+            size_t print_subtrees_single=0;
             po::options_description desc{"Options"};
 
             std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
             desc.add_options()
-                ("vcf,v", po::value<std::string>(&vcf_filename)->required(), "Input VCF file (in uncompressed or gzip-compressed .gz format) [REQUIRED]")
-                ("load-mutation-annotated-tree,i", po::value<std::string>(&din_filename)->required(), "Load mutation-annotated tree object [REQUIRED]")
-                ("outdir,d", po::value<std::string>(&outdir)->default_value("."), "Output directory to dump output and log files [DEFAULT uses current directory]")
-                ("save-mutation-annotated-tree,o", po::value<std::string>(&dout_filename)->default_value(""), "Save output mutation-annotated tree object to the specified filename")
-                ("sort-before-placement-1,s", po::bool_switch(&sort_before_placement_1), \
-                 "Sort new samples based on computed parsimony score and then number of optimal placements before the actual placement [EXPERIMENTAL].")
-                ("sort-before-placement-2,S", po::bool_switch(&sort_before_placement_2), \
-                 "Sort new samples based on the number of optimal placements and then the parsimony score before the actual placement [EXPERIMENTAL].")
-                ("sort-before-placement-3,A", po::bool_switch(&sort_before_placement_3), \
-                 "Sort new samples based on the number of ambiguous bases [EXPERIMENTAL].")
-                ("reverse-sort,r", po::bool_switch(&reverse_sort), \
-                 "Reverse the sorting order of sorting options (sort-before-placement-1 or sort-before-placement-2) [EXPERIMENTAL]")
-                ("collapse-tree,c", po::bool_switch(&collapse_tree), \
-                 "Collapse internal nodes of the input tree with no mutations and condense identical sequences in polytomies into a single node and the save the tree to file condensed-tree.nh in outdir")
-                ("collapse-output-tree,C", po::bool_switch(&collapse_output_tree), \
-                 "Collapse internal nodes of the output tree with no mutations before the saving the tree to file final-tree.nh in outdir")
-                ("max-uncertainty-per-sample,e", po::value<uint32_t>(&max_uncertainty)->default_value(1e6), \
-                 "Maximum number of equally parsimonious placements allowed per sample beyond which the sample is ignored")
-                 ("max-parsimony-per-sample,E", po::value<uint32_t>(&max_parsimony)->default_value(1e6), \
-                 "Maximum parsimony score of the most parsimonious placement(s) allowed per sample beyond which the sample is ignored")
-                ("write-uncondensed-final-tree,u", po::bool_switch(&print_uncondensed_tree), "Write the final tree in uncondensed format and save to file uncondensed-final-tree.nh in outdir")
-                ("write-subtrees-size,k", po::value<size_t>(&print_subtrees_size)->default_value(0), \
-                 "Write minimum set of subtrees covering the newly added samples of size equal to this value")
-                ("write-single-subtree,K", po::value<size_t>(&print_subtrees_single)->default_value(0), \
-                 "Similar to write-subtrees-size but produces a single subtree with all newly added samples along with random samples up to the value specified by this argument")
-                ("write-parsimony-scores-per-node,p", po::bool_switch(&print_parsimony_scores), \
-                 "Write the parsimony scores for adding new samples at each existing node in the tree without modifying the tree in a file names parsimony-scores.tsv in outdir")
-                ("retain-input-branch-lengths,l", po::bool_switch(&retain_original_branch_len), \
-                 "Retain the branch lengths from the input tree in out newick files instead of using number of mutations for the branch lengths.")
-                ("no-add,n", po::bool_switch(&no_add), \
-                 "Do not add new samples to the tree")
-                ("detailed-clades,D", po::bool_switch(&detailed_clades), \
-                 "In clades.txt, write a histogram of annotated clades and counts across all equally parsimonious placements")
-                ("threads,T", po::value<uint32_t>(&num_threads)->default_value(num_cores), num_threads_message.c_str())
-                ("version", "Print version number")
-                ("reload", "Reload the MAT_list")
-                ("help,h", "Print help messages");
-    
+            ("vcf,v", po::value<std::string>(&vcf_filename)->required(), "Input VCF file (in uncompressed or gzip-compressed .gz format) [REQUIRED]")
+            ("load-mutation-annotated-tree,i", po::value<std::string>(&din_filename)->required(), "Load mutation-annotated tree object [REQUIRED]")
+            ("outdir,d", po::value<std::string>(&outdir)->default_value("."), "Output directory to dump output and log files [DEFAULT uses current directory]")
+            ("save-mutation-annotated-tree,o", po::value<std::string>(&dout_filename)->default_value(""), "Save output mutation-annotated tree object to the specified filename")
+            ("sort-before-placement-1,s", po::bool_switch(&sort_before_placement_1), \
+             "Sort new samples based on computed parsimony score and then number of optimal placements before the actual placement [EXPERIMENTAL].")
+            ("sort-before-placement-2,S", po::bool_switch(&sort_before_placement_2), \
+             "Sort new samples based on the number of optimal placements and then the parsimony score before the actual placement [EXPERIMENTAL].")
+            ("sort-before-placement-3,A", po::bool_switch(&sort_before_placement_3), \
+             "Sort new samples based on the number of ambiguous bases [EXPERIMENTAL].")
+            ("reverse-sort,r", po::bool_switch(&reverse_sort), \
+             "Reverse the sorting order of sorting options (sort-before-placement-1 or sort-before-placement-2) [EXPERIMENTAL]")
+            ("collapse-tree,c", po::bool_switch(&collapse_tree), \
+             "Collapse internal nodes of the input tree with no mutations and condense identical sequences in polytomies into a single node and the save the tree to file condensed-tree.nh in outdir")
+            ("collapse-output-tree,C", po::bool_switch(&collapse_output_tree), \
+             "Collapse internal nodes of the output tree with no mutations before the saving the tree to file final-tree.nh in outdir")
+            ("max-uncertainty-per-sample,e", po::value<uint32_t>(&max_uncertainty)->default_value(1e6), \
+             "Maximum number of equally parsimonious placements allowed per sample beyond which the sample is ignored")
+            ("max-parsimony-per-sample,E", po::value<uint32_t>(&max_parsimony)->default_value(1e6), \
+             "Maximum parsimony score of the most parsimonious placement(s) allowed per sample beyond which the sample is ignored")
+            ("write-uncondensed-final-tree,u", po::bool_switch(&print_uncondensed_tree), "Write the final tree in uncondensed format and save to file uncondensed-final-tree.nh in outdir")
+            ("write-subtrees-size,k", po::value<size_t>(&print_subtrees_size)->default_value(0), \
+             "Write minimum set of subtrees covering the newly added samples of size equal to this value")
+            ("write-single-subtree,K", po::value<size_t>(&print_subtrees_single)->default_value(0), \
+             "Similar to write-subtrees-size but produces a single subtree with all newly added samples along with random samples up to the value specified by this argument")
+            ("write-parsimony-scores-per-node,p", po::bool_switch(&print_parsimony_scores), \
+             "Write the parsimony scores for adding new samples at each existing node in the tree without modifying the tree in a file names parsimony-scores.tsv in outdir")
+            ("retain-input-branch-lengths,l", po::bool_switch(&retain_original_branch_len), \
+             "Retain the branch lengths from the input tree in out newick files instead of using number of mutations for the branch lengths.")
+            ("no-add,n", po::bool_switch(&no_add), \
+             "Do not add new samples to the tree")
+            ("detailed-clades,D", po::bool_switch(&detailed_clades), \
+             "In clades.txt, write a histogram of annotated clades and counts across all equally parsimonious placements")
+            ("threads,T", po::value<uint32_t>(&num_threads)->default_value(num_cores), num_threads_message.c_str())
+            ("version", "Print version number")
+            ("reload", "Reload the MAT_list")
+            ("help,h", "Print help messages");
+
             po::options_description all_options;
             all_options.add(desc);
 
             po::variables_map vm;
-            try{
+            try {
                 po::store(po::command_line_parser(argc_line, argv_line).options(all_options).run(), vm);
                 po::notify(vm);
-            }
-            catch(std::exception &e){
+            } catch(std::exception &e) {
                 if (vm.count("version")) {
                     std::cout << "UShER (v" << PROJECT_VERSION << ")" << std::endl;
-                }else if(vm.count("reload")) {
-                    if(MAT_list_filename != ""){
-                        if(!boost::filesystem::exists(MAT_list_filename)){
+                } else if(vm.count("reload")) {
+                    if(MAT_list_filename != "") {
+                        if(!boost::filesystem::exists(MAT_list_filename)) {
                             std::cout << "MAT list file not found" <<std::endl;
                             return 1;
                         }
-                        for(auto itr = MAT_list.begin(); itr != MAT_list.end(); itr++){
+                        for(auto itr = MAT_list.begin(); itr != MAT_list.end(); itr++) {
                             MAT::clear_tree(itr->second);//delete all the trees in the list
                         }
                         MAT_list.clear();
@@ -273,7 +271,7 @@ int main(int argc, char** argv) {
                         std::string MAT_filename;
                         MAT::Tree temp_MAT;
                         std::ifstream MAT_list_file(MAT_list_filename);
-                        while(std::getline(MAT_list_file, MAT_filename)){//set up MATs in the list
+                        while(std::getline(MAT_list_file, MAT_filename)) { //set up MATs in the list
                             // Load mutation-annotated tree and store it
                             timer.Start();
                             fprintf(stderr, "Loading existing mutation-annotated tree object from file %s\n", MAT_filename.c_str());
@@ -283,7 +281,7 @@ int main(int argc, char** argv) {
                         }
                         MAT_list_file.close();
                     }
-                }else {
+                } else {
                     std::cerr << "UShER (v" << PROJECT_VERSION << ")" << std::endl;
                     std::cerr << desc << std::endl;
                 }
@@ -294,9 +292,9 @@ int main(int argc, char** argv) {
                     break;//if error encountered then stop reading the file for now
             }
             //compare MAT and if same copy it
-            
-            if(MAT_list.count(din_filename) != 0){//if the MAT is in the list
-                if(!(MAT_list_avail[din_filename])){//if the MAT is not available, load
+
+            if(MAT_list.count(din_filename) != 0) { //if the MAT is in the list
+                if(!(MAT_list_avail[din_filename])) { //if the MAT is not available, load
                     timer.Start();
                     fprintf(stderr, "Loading existing mutation-annotated tree object from file %s\n", din_filename.c_str());
                     MAT::clear_tree(MAT_list[din_filename]);
@@ -305,13 +303,13 @@ int main(int argc, char** argv) {
                 }
                 curr_tree = &MAT_list[din_filename];
                 MAT_list_avail[din_filename] = false;
-                
-            }else if(din_filename != loaded_MAT_name){
+
+            } else if(din_filename != loaded_MAT_name) {
 
                 timer.Start();
                 fprintf(stderr, "Loading existing mutation-annotated tree object from file %s\n", din_filename.c_str());
-       
-                if(loaded_MAT_name != ""){ //if there is an existing trees, delete them 
+
+                if(loaded_MAT_name != "") { //if there is an existing trees, delete them
                     MAT::clear_tree(loaded_MAT);
                 }
                 // Load mutation-annotated tree and store it
@@ -320,8 +318,8 @@ int main(int argc, char** argv) {
                 curr_tree = &loaded_MAT;
                 loaded_MAT_avail = false;
                 fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
-                
-            }else if(!loaded_MAT_avail){
+
+            } else if(!loaded_MAT_avail) {
                 timer.Start();
                 fprintf(stderr, "Loading existing mutation-annotated tree object from file %s\n", din_filename.c_str());
                 MAT::clear_tree(loaded_MAT);
@@ -329,14 +327,14 @@ int main(int argc, char** argv) {
                 curr_tree = &loaded_MAT;
                 loaded_MAT_avail = false;
                 fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
-            }else{
+            } else {
                 curr_tree = &loaded_MAT;
                 loaded_MAT_avail = false;
             }
 
-            
-            
-            // Variables below used to store the different fields of the input VCF file 
+
+
+            // Variables below used to store the different fields of the input VCF file
             bool header_found = false;
             std::vector<std::string> variant_ids;
             std::vector<Missing_Sample> missing_samples;
@@ -345,11 +343,11 @@ int main(int argc, char** argv) {
             std::vector<MAT::Node*> bfs;
             // Map the node identifier string to index in the BFS traversal
             std::unordered_map<std::string, size_t> bfs_idx;
-    
-            // Vectore to store the names of samples which have a high number of 
+
+            // Vectore to store the names of samples which have a high number of
             // parsimony-optimal placements
             std::vector<std::string> low_confidence_samples;
-                    fprintf(stderr, "Loading VCF file\n");
+            fprintf(stderr, "Loading VCF file\n");
             timer.Start();
 
             // Boost library used to stream the contents of the input VCF file in
@@ -365,15 +363,14 @@ int main(int argc, char** argv) {
                     instream.push(boost::iostreams::gzip_decompressor());
                 }
                 instream.push(infile);
-            }
-            catch(const boost::iostreams::gzip_error& e) {
+            } catch(const boost::iostreams::gzip_error& e) {
                 std::cout << e.what() << '\n';
             }
 
             std::vector<size_t> missing_idx;
             std::string s;
             // This while loop reads the VCF file line by line and populates
-            // missing_samples and missing_sample_mutations based on the names and 
+            // missing_samples and missing_sample_mutations based on the names and
             // variants of missing samples. If a sample name in the VCF is already
             // found in the tree, it gets ignored with a warning message
             while (instream.peek() != EOF) {
@@ -387,15 +384,13 @@ int main(int argc, char** argv) {
                             if ((curr_tree->get_node(words[j]) == NULL) && (curr_tree->condensed_leaves.find(words[j]) == curr_tree->condensed_leaves.end())) {
                                 missing_samples.emplace_back(Missing_Sample(words[j]));
                                 missing_idx.emplace_back(j);
-                            }
-                            else {
+                            } else {
                                 fprintf(stderr, "WARNING: Ignoring sample %s as it is already in the tree.\n", words[j].c_str());
                             }
                         }
                         header_found = true;
                     }
-                }
-                else if (header_found) {
+                } else if (header_found) {
                     if (words.size() != 9+variant_ids.size()) {
                         fprintf(stderr, "ERROR! Incorrect VCF format. Expected %zu columns but got %zu.\n", 9+variant_ids.size(), words.size());
                         exit(1);
@@ -416,29 +411,26 @@ int main(int argc, char** argv) {
                             m.par_nuc = m.ref_nuc;
                             // Alleles such as '.' should be treated as missing
                             // data. if the word is numeric, it is an index to one
-                            // of the alleles 
+                            // of the alleles
                             if (isdigit(words[j][0])) {
                                 int allele_id = std::stoi(words[j]);
-                                if (allele_id > 0) { 
+                                if (allele_id > 0) {
                                     std::string allele = alleles[allele_id-1];
                                     if (allele[0] == 'N') {
                                         m.is_missing = true;
                                         m.mut_nuc = MAT::get_nuc_id('N');
-                                    }
-                                    else {
+                                    } else {
                                         auto nuc = MAT::get_nuc_id(allele[0]);
                                         if (nuc == MAT::get_nuc_id('N')) {
                                             m.is_missing = true;
-                                        }
-                                        else {
+                                        } else {
                                             m.is_missing = false;
                                         }
                                         m.mut_nuc = nuc;
                                     }
                                     (*iter).mutations.emplace_back(m);
                                 }
-                            }
-                            else {
+                            } else {
                                 m.is_missing = true;
                                 m.mut_nuc = MAT::get_nuc_id('N');
                                 (*iter).mutations.emplace_back(m);
@@ -453,11 +445,11 @@ int main(int argc, char** argv) {
             fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 
             int return_val = usher_common(dout_filename, outdir, num_threads, max_trees, max_uncertainty, max_parsimony,
-            sort_before_placement_1, sort_before_placement_2, sort_before_placement_3, reverse_sort, collapse_tree, 
-            collapse_output_tree, print_uncondensed_tree, print_parsimony_scores, retain_original_branch_len, no_add, 
-            detailed_clades, print_subtrees_size, print_subtrees_single, missing_samples, low_confidence_samples, curr_tree);
+                                          sort_before_placement_1, sort_before_placement_2, sort_before_placement_3, reverse_sort, collapse_tree,
+                                          collapse_output_tree, print_uncondensed_tree, print_parsimony_scores, retain_original_branch_len, no_add,
+                                          detailed_clades, print_subtrees_size, print_subtrees_single, missing_samples, low_confidence_samples, curr_tree);
 
-            if(return_val != 0){
+            if(return_val != 0) {
                 break;//if error encountered then stop reading the file for now
             }
         }

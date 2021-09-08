@@ -18,7 +18,8 @@ translate: translate all mutations to AA affecting sites
     snakemake --use-conda --cores [num threads] --config FASTA="[user_fa]" RUNTYPE="translate"
 taxodium: output taxodium format protobuf for visualization of the big tree
     snakemake --use-conda --cores [num threads] --config FASTA="[user_fa]" RUNTYPE="taxodium"
-
+introduce: run introduce on the user provided samples to identify clusters
+    snakemake --use-conda --cores [num threads] --config FASTA="[user_fa]" RUNTYPE="introduce"
 
 For each run type, the usher.yaml environment file must be present in the working directory.
 
@@ -99,6 +100,21 @@ rule usher :
     shell:
         "usher -T {threads} -i public-latest.all.masked.pb.gz -v aligned_seqs.vcf -o user_seqs.pb > usher"
 
+rule introduce :
+    input:
+        "user_seqs.pb",
+        "user_samples.txt"
+    conda:
+        "usher.yaml"
+    output:
+        temp("introduce"),
+        "user_seqs.introductions.txt",
+        "user_seqs.clusters.txt"
+    threads:
+        64
+    shell:
+        "matUtils introduce -T {threads} -i user_seqs.pb -s user_samples.txt -u user_seqs.clusters.txt -o user_seqs.introductions.txt > introduce"
+        
 rule get_sample_ids :
     input:
         config["FASTA"]

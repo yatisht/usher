@@ -114,25 +114,27 @@ class mapped_file {
         start = map_start;
         end = map_start + size;
     }
-    operator bool() const{
+    operator bool() const {
         return map_start!=0;
     }
-    ~mapped_file() {if(map_start) munmap((void *)map_start, size); }
+    ~mapped_file() {
+        if(map_start) munmap((void *)map_start, size);
+    }
 };
 template <typename output_t>
 static bool load_mutations(const char *path, int nthread, output_t &out) {
     mapped_file f(path);
     if (!f) {
-    return false;
+        return false;
     }
     const uint8_t *last_out;
     const uint8_t *end;
     f.get_mapped_range(last_out, end);
     tbb::parallel_pipeline(
         nthread, tbb::make_filter<void, const uint8_t *>(
-                     tbb::filter::serial_in_order, partitioner{last_out, end}) &
-                     tbb::make_filter<const uint8_t *, void>(
-                         tbb::filter::parallel, printer<output_t>{out}));
+            tbb::filter::serial_in_order, partitioner{last_out, end}) &
+        tbb::make_filter<const uint8_t *, void>(
+            tbb::filter::parallel, printer<output_t> {out}));
     return true;
 }
 static void parse_rename_file(const std::string&  in_file_name, std::unordered_map<std::string,std::string>& mapping){
