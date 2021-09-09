@@ -10,6 +10,7 @@
 #include "check_samples.hpp"
 #include <random>
 #pragma once
+#define EMPTY_POS ((uint16_t)-1)
 extern bool use_bound; 
 extern std::chrono::time_point<std::chrono::steady_clock> last_save_time;
 extern bool no_write_intermediate;
@@ -101,32 +102,8 @@ struct TlRng:public std::mt19937_64 {
     TlRng():std::mt19937_64(std::chrono::steady_clock::now().time_since_epoch().count()*std::hash<std::thread::id>()(std::this_thread::get_id())) {}
 };
 extern thread_local TlRng rng;
-struct node_info{
-    size_t dfs_idx;
-    size_t level;
-    bool operator<(const node_info& other)const{
-        return dfs_idx<other.dfs_idx;
-    }
-    uint8_t base;
-};
-struct range_tree_node{
-    uint32_t dfs_start_idx;
-    uint32_t dfs_end_idx;
-    std::array<uint16_t, 4> min_level;
-    uint16_t children_start_idx;
-    uint16_t parent_idx;
-    uint16_t level;
-    uint8_t child_size;
-    uint8_t dist_from_end;
-};
-struct range_tree{
-    std::vector<uint32_t> start_idxes;
-    std::vector<range_tree_node> nodes;
-    uint16_t find_idx(const MAT::Node* node,uint32_t probe_start_idx=0) const ;
-};
-extern std::vector<range_tree> addable_idxes;
+
 void adjust_all(MAT::Tree &tree) ;
-typedef std::vector<tbb::concurrent_vector<node_info>> pos_tree_t;
 
 #ifdef CHECK_BOUND
 struct counters{

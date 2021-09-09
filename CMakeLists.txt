@@ -16,8 +16,8 @@ message(STATUS "${usher_VERSION}")
 configure_file(src/version.hpp.in version.hpp)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native -mtune=native -std=c++17 -Wall -ggdb3 -Wno-unused-function -Wno-deprecated-declarations")
-#-DDEBUG_PARSIMONY_SCORE_CHANGE_CORRECT -fsanitize=address -DCHECK_PAR_MAIN
-set(CMAKE_CXX_FLAGS_DEBUG "-O0  -DCHECK_BOUND -DCHECK_PAR_MAIN")
+#-DDEBUG_PARSIMONY_SCORE_CHANGE_CORRECT -DCHECK_PAR_MAIN
+set(CMAKE_CXX_FLAGS_DEBUG "-O0  -DCHECK_BOUND -DCHECK_PAR_MAIN -fsanitize=address ")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3  -DCHECK_BOUND -DCHECK_PAR_MAIN ")
 set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O3")
 set(CMAKE_INCLUDE_CURRENT_DIR ON) 
@@ -206,11 +206,9 @@ else()
         src/matOptimize/condense.cpp
         src/matOptimize/VCF_load_tree.cpp
         src/matOptimize/main_load_tree.cpp
-        src/matOptimize/range_tree.cpp
         src/matOptimize/main_helper.cpp
         src/matOptimize/Mutation_Collection.cpp
         src/matOptimize/Fitch_Sankoff.cpp
-        src/matOptimize/possible_change.cpp
         src/matOptimize/check_samples.cpp
         #src/matOptimize/priority_conflict_resolver_cross_only.cpp
         src/matOptimize/priority_conflict_resolver.cpp

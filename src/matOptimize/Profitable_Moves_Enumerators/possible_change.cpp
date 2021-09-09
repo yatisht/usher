@@ -1,5 +1,5 @@
-#include "Profitable_Moves_Enumerators/Profitable_Moves_Enumerators.hpp"
-#include "mutation_annotated_tree.hpp"
+#include "Profitable_Moves_Enumerators.hpp"
+#include "../mutation_annotated_tree.hpp"
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -14,10 +14,10 @@
 #include <utility>
 #include <vector>
 
-#include "Profitable_Moves_Enumerators/process_individual_mutation.hpp"
+#include "process_individual_mutation.hpp"
 #include "src/matOptimize/tree_rearrangement_internal.hpp"
 
-std::vector<std::array<std::vector<node_info>,4>> addable_idxes;
+void make_range_tree(const std::vector<MAT::Node*>& dfs_ordered_nodes,tbb::concurrent_vector<node_info>& in,range_tree& out);
 namespace MAT = Mutation_Annotated_Tree;
 short default_decrement_effect[4];
 short default_increment_effect[4];
@@ -214,13 +214,16 @@ struct Walker : public tbb::task {
         return tasks.empty() ? continuation : nullptr;
     }
 };
-void output_addable_idxes(pos_tree_t& in){
-    addable_idxes=std::vector<std::array<std::vector<node_info>,4>>(MAT::Mutation::refs.size());
-    tbb::parallel_for(tbb::blocked_range<size_t>(0,MAT::Mutation::refs.size()),[&in](tbb::blocked_range<size_t>& range){
+void output_addable_idxes(pos_tree_t& in,const std::vector<MAT::Node*>& dfs_ordered_nodes){
+    addable_idxes=std::vector<range_tree>(MAT::Mutation::refs.size());
+    /*tbb::parallel_for(tbb::blocked_range<size_t>(0,MAT::Mutation::refs.size()),[&in,&dfs_ordered_nodes](tbb::blocked_range<size_t>& range){
         for (size_t idx=range.begin(); idx<range.end(); idx++) {
-                std::sort(in[idx].begin(),in[idx].end());
+            make_range_tree(dfs_ordered_nodes, in[idx], addable_idxes[idx]);
         }
-    });
+    });*/
+        for (size_t idx=0; idx<MAT::Mutation::refs.size(); idx++) {
+            make_range_tree(dfs_ordered_nodes, in[idx], addable_idxes[idx]);
+        }
 }
 void adjust_all(MAT::Tree &tree) {
     fprintf(stderr, "start\n");
@@ -234,15 +237,14 @@ void adjust_all(MAT::Tree &tree) {
     }
     task_root->sensitive_locus.push_back(Sensitive_Alleles{INT_MAX});
     tbb::task::spawn_root_and_wait(*task_root);
-    output_addable_idxes(pos_tree);
+    auto dfs_ordered_nodes=tree.depth_first_expansion();
+    output_addable_idxes(pos_tree,dfs_ordered_nodes);
     size_t max_change=0;
     size_t total=0;
     for (const auto& pos_nuc : addable_idxes) {
-        for (int nuc_idx=0; nuc_idx<4; nuc_idx++) {
-            auto this_size=pos_nuc[nuc_idx].size();
+            auto this_size=pos_nuc.start_idxes.size();
             max_change=std::max(max_change,this_size);
             total+=this_size;
-        }
     }
     fprintf(stderr, "Total %zu,max %zu \n",total,max_change);
     fprintf(stderr, "Updating sensitive alleles take %ld sec",
