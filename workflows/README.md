@@ -32,6 +32,8 @@ introduce: search for unique introductions within the user-supplied samples
 
     snakemake --use-conda --cores [num threads] --config FASTA="[user_fa]" RUNTYPE="introduce"
 
+Note that adding "-d [run_dir]" to the command line above will generate all output files in the specified directory. To do this, you must provide the full path to the fasta file or place the fasta file into the specified run directory. 
+
 ## Further Reading:
 
 More information about each of these utilities can be found here: https://usher-wiki.readthedocs.io/en/latest/
