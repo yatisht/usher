@@ -137,15 +137,12 @@ static bool load_mutations(const char *path, int nthread, output_t &out) {
             tbb::filter::parallel, printer<output_t> {out}));
     return true;
 }
-static void parse_rename_file(const std::string&  in_file_name, std::unordered_map<std::string,std::string>& mapping){
-	FILE* fd=fopen(in_file_name.c_str(),"r");
-	char sample_name[BUFSIZ];
-	char rename[BUFSIZ];
-	int ret_val;
-	while((ret_val=fscanf(fd,"%s	%s\n",sample_name,rename))!=EOF){
-		if(ret_val==2){
-			mapping[sample_name]=rename;
-		}
-	}
-	fclose(fd);
+static void parse_rename_file(const std::string&  in_file_name, std::unordered_map<std::string,std::string>& mapping) {
+    FILE* fd=fopen(in_file_name.c_str(),"r");
+    char sample_name[BUFSIZ];
+    char rename[BUFSIZ];
+    while(fscanf(fd,"%s	%s",sample_name,rename)!=EOF) {
+        mapping[sample_name]=rename;
+    }
+    fclose(fd);
 }
