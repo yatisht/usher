@@ -40,6 +40,8 @@ po::variables_map parse_introduce_command(po::parsed_options parsed) {
      "Set to never report origins below the indicated confidence value. Default 0.05.")
     ("num-to-look,X", po::value<size_t>()->default_value(0),
     "Called introduction nodes must have this many nodes forward to root with lower confidences. Set to higher integers to merge nested clusters. Default 0")
+    ("minimum-gap,G", po::value<size_t>()->default_value(0),
+    "The minimum number of mutations between the last ancestor inferred to be in region to its parent to use the ancestor to define the cluster instead of the parent. Set to higher values to merge sibling clusters. Default 0.")
     ("threads,T", po::value<uint32_t>(&num_threads)->default_value(num_cores), num_threads_message.c_str())
     ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
@@ -452,7 +454,7 @@ std::pair<boost::gregorian::date,boost::gregorian::date> get_nearest_date(MAT::T
     return std::pair<boost::gregorian::date,boost::gregorian::date> (earliest,latest);
 }
 
-std::vector<std::string> find_introductions(MAT::Tree* T, std::unordered_map<std::string, std::vector<std::string>> sample_regions, bool add_info, std::string clade_output, float min_origin_confidence, std::string bycluster, std::string dump_assignments, bool eval_uncertainty, std::string earliest_date = "1500/1/1", std::string latest_date = "1500/1/1", std::unordered_map<std::string, std::string> datemeta = {}, float minimum_reporting = 0.05, size_t num_to_report = 1, size_t look_ahead = 0) {
+std::vector<std::string> find_introductions(MAT::Tree* T, std::unordered_map<std::string, std::vector<std::string>> sample_regions, bool add_info, std::string clade_output, float min_origin_confidence, std::string bycluster, std::string dump_assignments, bool eval_uncertainty, std::string earliest_date = "1500/1/1", std::string latest_date = "1500/1/1", std::unordered_map<std::string, std::string> datemeta = {}, float minimum_reporting = 0.05, size_t num_to_report = 1, size_t look_ahead = 0, size_t minimum_gap = 0) {
     //for every region, independently assign IN/OUT states
     //and save these assignments into a map of maps
     //so we can check membership of introduction points in each of the other groups
@@ -571,6 +573,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::unordered_map<std
             //total_processed++;
             //everything in this vector is going to be considered 1 (IN) this region
             std::string last_encountered = s;
+            size_t muts_of_last_encountered = 0;
             MAT::Node* last_node = NULL;
             float last_anc_state = 1;
             auto node = T->get_node(s);
@@ -584,6 +587,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::unordered_map<std
                 if (a->is_root()) {
                     //if we get back to the root, the root is necessarily the point of introduction for this sample
                     last_encountered = a->identifier;
+                    muts_of_last_encountered = a->mutations.size();
                     anc_state = 0;
                 } else {
                     //every node should be in assignments at this point.
@@ -754,13 +758,22 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::unordered_map<std
                             ostr << "\n";
                         }
                     }
-                    clusters[last_encountered][s] = ostr.str();
-                    //keying the meta for clusters on each sample is redundant and gross, but I can't think of a better way to pass information from
-                    clustermeta[last_encountered] = mcl.str();
+                    if (muts_of_last_encountered <= minimum_gap) {
+                        //key clusters on the identifier of the node in ancestry that's NOT in the region rather than the oldest one that IS.
+                        //but only if the last one encountered is too close to this parent
+                        //used to merge groups of identical samples into single clusters always and sometimes cause sibling clusters to become merged depending on parameters used.
+                        clusters[a->identifier][s] = ostr.str();
+                        //keying the meta for clusters on each sample is redundant and gross, but I can't think of a better way to pass information from
+                        clustermeta[a->identifier] = mcl.str();
+                    } else {
+                        clusters[last_encountered][s] = ostr.str();
+                        clustermeta[last_encountered] = mcl.str();
+                    }
                     total_processed++;
                     break;
                 } else {
                     last_encountered = a->identifier;
+                    muts_of_last_encountered = a->mutations.size();
                     last_node = a;
                     last_anc_state = anc_state;
                     traversed += a->mutations.size();
@@ -912,6 +925,7 @@ void introduce_main(po::parsed_options parsed) {
     size_t num_to_report = vm["num-to-report"].as<size_t>();
     size_t look_ahead = vm["num-to-look"].as<size_t>();
     float min_to_report = vm["minimum-to-report"].as<float>();
+    size_t min_gap = vm["minimum-gap"].as<size_t>();
     // Load input MAT and uncondense tree
     uint32_t num_threads = vm["threads"].as<uint32_t>();
     fprintf(stderr, "Initializing %u worker threads.\n\n", num_threads);
@@ -936,7 +950,7 @@ void introduce_main(po::parsed_options parsed) {
             exit(1);
         }
     }
-    auto outstrings = find_introductions(&T, region_map, add_info, clade_regions, moconf, clusterout, dump_assignments, leafconf, earliest_date, latest_date, datemeta, min_to_report, num_to_report, look_ahead);
+    auto outstrings = find_introductions(&T, region_map, add_info, clade_regions, moconf, clusterout, dump_assignments, leafconf, earliest_date, latest_date, datemeta, min_to_report, num_to_report, look_ahead, min_gap);
     if (output_file != "") {
         std::ofstream of;
         of.open(output_file);
