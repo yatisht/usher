@@ -617,6 +617,11 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::unordered_map<std
                         }
                     }
                     if (lookahead_skip) {
+                        last_encountered = a->identifier;
+                        muts_of_last_encountered = a->mutations.size();
+                        last_node = a;
+                        last_anc_state = anc_state;
+                        traversed += a->mutations.size();
                         continue;
                     }
                     //check whether this 0 node is 1 in any other region
