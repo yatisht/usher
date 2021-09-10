@@ -54,6 +54,7 @@ if(DEFINED Protobuf_PATH)
     add_executable(usher
         src/mutation_annotated_tree.cpp
         src/usher_mapper.cpp
+        src/usher_common.cpp
         src/usher.cpp
         )
 
@@ -176,6 +177,7 @@ else()
     add_executable(usher
         src/mutation_annotated_tree.cpp
         src/usher_mapper.cpp
+        src/usher_common.cpp
         src/usher.cpp
         ${PROTO_SRCS}
         ${PROTO_HDRS}
