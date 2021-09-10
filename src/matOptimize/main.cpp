@@ -360,7 +360,8 @@ int main(int argc, char **argv) {
                 nodes_seached_this_iter=res.second;
                 searched_full=false;
             }
-            fprintf(stderr, "parsimony score after optimizing: %zu,with radius %d, searched %zu arcs \n\n", new_score,std::abs(radius),res.second);
+            fprintf(stderr, "parsimony score after optimizing: %zu,with radius %d, searched %zu arcs, second from start %ld \n\n",
+             new_score,std::abs(radius),res.second,std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now()-start_time).count());
             auto save_start=std::chrono::steady_clock::now();
             if(std::chrono::steady_clock::now()-last_save_time>=save_period) {
                 if(!no_write_intermediate) {
@@ -369,7 +370,7 @@ int main(int argc, char **argv) {
                     t.save_detailed_mutations(intermediate_writing);
                     rename(intermediate_writing.c_str(), intermediate_pb_base_name.c_str());
                     last_save_time=std::chrono::steady_clock::now();
-                    fprintf(stderr, "Took %ldsecond to save intermediate protobuf\n",std::chrono::duration_cast<std::chrono::seconds>(last_save_time-save_start).count());
+                    fprintf(stderr, "Took %lldsecond to save intermediate protobuf\n",std::chrono::duration_cast<std::chrono::seconds>(last_save_time-save_start).count());
                 }
                 last_save_time=std::chrono::steady_clock::now();
             }
