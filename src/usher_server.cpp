@@ -64,13 +64,13 @@ int main(int argc, char** argv) {
             return 1;
     }
 
-
+    //slot for a MAT not in the MAT_list file 
     MAT::Tree loaded_MAT;
     bool loaded_MAT_avail = false;//keep track if loaded_MAT is a new copy of MAT and can be used
     std::string loaded_MAT_name = "";
     
     fs::path p = fs::current_path();
-    p/=arg_dirname;
+    p/=arg_dirname;//get the path to the argument directory
 
     if (!fs::is_directory(p)) {
         fprintf(stderr, "ERROR: Argument directory provided is not a directory: %s!\n", arg_dirname.c_str());
@@ -80,6 +80,8 @@ int main(int argc, char** argv) {
     Timer timer;
     std::unordered_map<std::string, MAT::Tree> MAT_list; //store list of trees
     std::unordered_map<std::string, bool> MAT_list_avail; //stores information on whether the MATs in the list are available for use
+
+    //if there's a specified MAT_list file, it would go through the file and load the MATs in
     if(MAT_list_filename != "") {
         if(!fs::exists(MAT_list_filename)) {
             std::cout << "MAT list file not found" <<std::endl;
@@ -102,6 +104,7 @@ int main(int argc, char** argv) {
 
 
     while(true) {
+        //if there's a MAT loaded in and it's not available to be used, load it in
         if((loaded_MAT_name != "") && (!loaded_MAT_avail)) {
             timer.Start();
             fprintf(stderr, "Loading existing mutation-annotated tree object from file %s\n", loaded_MAT_name.c_str());
@@ -111,6 +114,7 @@ int main(int argc, char** argv) {
             fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
             loaded_MAT_avail = true;
         }
+        //iterate through MATs specified by MAT_list file if there are used trees then remove them and load them back in
         for(auto itr = MAT_list_avail.begin(); itr != MAT_list_avail.end(); itr++) {
             if(!(itr->second)) { //if a MAT pointed by this iterator is not available, load
                 timer.Start();
@@ -122,6 +126,7 @@ int main(int argc, char** argv) {
             }
         }
 
+        //if there are no files in the argument directory, wait.
         if(fs::is_empty(p)) {
             fprintf(stderr, "Waiting for more arguments\n\n");
             while(fs::is_empty(p)) {
@@ -129,7 +134,10 @@ int main(int argc, char** argv) {
             }
         }
 
+        //sort files in the directory by when they were last modified
+
         std::vector<std::pair<fs::path, time_t>> list_argfiles;
+        
         
         for(auto ent: fs::directory_iterator(p)){
             fs::path curr_path = ent.path();
@@ -137,6 +145,7 @@ int main(int argc, char** argv) {
         }
         std::sort(list_argfiles.begin(), list_argfiles.end());
         
+        //go through each file in the argument directory
         for(auto arg_file_pair: list_argfiles){
             std::ifstream arguments_file(arg_file_pair.first.string());
             if (!arguments_file) {
@@ -146,10 +155,9 @@ int main(int argc, char** argv) {
 
             arguments_file.seekg(-2, arguments_file.end);
             char last_char = arguments_file.get();//last char could be at the very end or one before
-            //fprintf(stderr, "\nLast character is %c\n\n", last_char);//test feature
             if(last_char != ((char) termination_character)) {
                 last_char = arguments_file.get();
-                if(last_char != ((char) termination_character)) {
+                if(last_char != ((char) termination_character)) {//if the termination character does not exist, skip the file
                     continue;
                 }
             }
@@ -160,7 +168,7 @@ int main(int argc, char** argv) {
             //get a line of argument and feed it into usher
             while(std::getline(arguments_file, argument)){
                 argument.erase(std::remove(argument.begin(), argument.end(), ((char) termination_character)), argument.end());
-                fprintf(stderr, "Argument: %s \n\n", argument.c_str());
+                fprintf(stderr, "Argument: %s \n\n", argument.c_str());//print this line's argument
                 std::istringstream arg(argument);
                 std::vector<std::string> arg_vector; //to store each word from arg
                 arg_vector.emplace_back("./usher"); //to replicate commandline argument
@@ -175,13 +183,6 @@ int main(int argc, char** argv) {
                     argv_line[i] = arg_vector[i].c_str();
                 }
 
-                /**
-                *  read inputs
-                *
-                * Commands not allowed:
-                *   - "tree,t"
-                *   - "multiple-placements,M"
-                */
                 //Variables to load command-line options using Boost program_options
                 std::string din_filename;
                 std::string dout_filename;
@@ -256,12 +257,14 @@ int main(int argc, char** argv) {
                 } catch(std::exception &e) {
                     if (vm.count("version")) {
                         std::cout << "UShER (v" << PROJECT_VERSION << ")" << std::endl;
-                    } else if(vm.count("reload")) {
+                    } else if(vm.count("reload")) { //reload option
                         if(MAT_list_filename != "") {
                             if(!boost::filesystem::exists(MAT_list_filename)) {
                                 std::cout << "MAT list file not found" <<std::endl;
                                 return 1;
                             }
+                            //if the trees specified in the MAT_list file is loaded in already, 
+                            //discard them so new version could be loaded in
                             for(auto itr = MAT_list.begin(); itr != MAT_list.end(); itr++) {
                                 MAT::clear_tree(itr->second);//delete all the trees in the list
                             }
@@ -288,10 +291,9 @@ int main(int argc, char** argv) {
                     if(vm.count("help") || vm.count("version") || vm.count("reload"))
                         continue;//if help or version then go to next line
                     else
-                        break;//if error encountered then stop reading the file for now
+                        break;//if error encountered then stop reading this file
                 }
-                //compare MAT and if same copy it
-
+                
                 if(MAT_list.count(din_filename) != 0) { //if the MAT is in the list
                     if(!(MAT_list_avail[din_filename])) { //if the MAT is not available, load
                         timer.Start();
@@ -303,12 +305,12 @@ int main(int argc, char** argv) {
                     curr_tree = &MAT_list[din_filename];
                     MAT_list_avail[din_filename] = false;
 
-                } else if(din_filename != loaded_MAT_name) {
+                } else if(din_filename != loaded_MAT_name) {//if the MAT is not in the loaded_MAT slot
 
                     timer.Start();
                     fprintf(stderr, "Loading existing mutation-annotated tree object from file %s\n", din_filename.c_str());
 
-                    if(loaded_MAT_name != "") { //if there is an existing trees, delete them
+                    if(loaded_MAT_name != "") { //if there is an existing trees, delete it
                         MAT::clear_tree(loaded_MAT);
                     }
                     // Load mutation-annotated tree and store it
@@ -318,6 +320,8 @@ int main(int argc, char** argv) {
                     loaded_MAT_avail = false;
                     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 
+                //if the tree is in the loaded MAT slot, but not available,
+                //load the tree that can be used
                 } else if(!loaded_MAT_avail) {
                     timer.Start();
                     fprintf(stderr, "Loading existing mutation-annotated tree object from file %s\n", din_filename.c_str());
@@ -326,7 +330,7 @@ int main(int argc, char** argv) {
                     curr_tree = &loaded_MAT;
                     loaded_MAT_avail = false;
                     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
-                } else {
+                } else { //loaded_MAT can be used
                     curr_tree = &loaded_MAT;
                     loaded_MAT_avail = false;
                 }
@@ -443,6 +447,7 @@ int main(int argc, char** argv) {
                 }
                 fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 
+                //run usher on the argument
                 int return_val = usher_common(dout_filename, outdir, num_threads, max_trees, max_uncertainty, max_parsimony,
                                             sort_before_placement_1, sort_before_placement_2, sort_before_placement_3, reverse_sort, collapse_tree,
                                             collapse_output_tree, print_uncondensed_tree, print_parsimony_scores, retain_original_branch_len, no_add,
@@ -452,7 +457,7 @@ int main(int argc, char** argv) {
                     break;//if error encountered then stop reading the file for now
                 }
             }
-	    fs::remove(arg_file_pair.first);
+	    fs::remove(arg_file_pair.first);//arguments were run, so delete the file
         }
     }
 }
