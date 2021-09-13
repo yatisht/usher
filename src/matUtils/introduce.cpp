@@ -538,7 +538,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::unordered_map<std
     if (region_assignments.size() > 1) {
         header += "\tregion\torigins\torigins_confidence";
     }
-    header += "\tclades\tmutation_path";
+    header += "\tannotation_1\tannotation_2\tmutation_path";
     if (eval_uncertainty) {
         header += "\tmeta_uncertainty";
     }
@@ -679,12 +679,14 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::unordered_map<std
                         origins_cons << 0.0;
                     }
                     //collect additional information if requested.
+                    size_t clid_count = a->clade_annotations.size();
+                    std::map<size_t,std::string> clade_indeces_recorded;
                     std::string intro_clades = "";
                     std::string intro_mut_path = "";
                     //get the mutations and clade information
                     //both of these require an rsearch back from the point of origin to the tree root
                     //mutation path is going to be in reverse for simplicity, so using < to indicate direction
-                    std::set<size_t> clade_indeces_recorded;
+                    // std::set<size_t> clade_indeces_recorded;
                     for (MAT::Node* as: T->rsearch(a->identifier, true)) {
                         //collect mutations
                         std::string mutstr;
@@ -701,19 +703,23 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::unordered_map<std
                             auto ann = as->clade_annotations[i];
                             if (ann.size() > 0) {
                                 if (clade_indeces_recorded.find(i) == clade_indeces_recorded.end()) {
-                                    clade_indeces_recorded.insert(i);
-                                    if (intro_clades.size() == 0) {
-                                        intro_clades += ann;
-                                    } else {
-                                        intro_clades += "," + ann;
-                                    }
+                                    clade_indeces_recorded[i] = ann;
                                 }
                             }
                         }
                     }
-                    if (intro_clades.size() == 0) {
-                        intro_clades = "none";
+                    for (size_t i = 0; i < clid_count; i++) {
+                        if (i > 0) {
+                            intro_clades += "\t";
+                        }
+                        auto kann = clade_indeces_recorded.find(i);
+                        if (kann == clade_indeces_recorded.end()) {
+                            intro_clades += "none";
+                        } else {
+                            intro_clades += kann->second;
+                        }
                     }
+                    
                     //calculate the trait phylogeny association metrics
                     //only if additional info is requested because of how it affects total runtime.
                     size_t mc = 0;
@@ -901,9 +907,9 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::unordered_map<std
             cof << "monophyletic_cladesize\tassociation_index\t";
         }
         if (region_assignments.size() == 1) {
-            cof << "clade\tmutation_path\tsamples\n";
+            cof << "annotation_1\tannotation_2\tmutation_path\tsamples\n";
         } else {
-            cof << "region\tinferred_origin\tinferred_origin_confidence\tclade\tmutation_path\tsamples\n";
+            cof << "region\tinferred_origin\tinferred_origin_confidence\tannotation_1\tannotation_2\tmutation_path\tsamples\n";
         }
         for (auto os: bycluster_output) {
             cof << os;
