@@ -433,7 +433,7 @@ class Tree {
     Tree (Node* n);
 
     std::vector<Node*> new_nodes;
-    //size_t max_level;
+    size_t max_level;
 
     Node* root;
     condensed_node_t condensed_nodes;
@@ -469,7 +469,7 @@ class Tree {
     void load_from_newick(const std::string& newick_string,bool use_internal_node_label=false);
     void condense_leaves(std::vector<std::string> = std::vector<std::string>());
     void uncondense_leaves();
-
+    size_t get_max_level();
     friend class Node;
     void delete_nodes();
 };

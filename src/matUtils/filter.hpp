@@ -6,3 +6,4 @@ MAT::Tree get_sample_subtree (const MAT::Tree& T, std::vector<std::string> sampl
 MAT::Tree get_sample_prune (const MAT::Tree& T, std::vector<std::string> sample_names, bool keep_clade_annotations=false);
 void resolve_polytomy(MAT::Tree &T, std::vector<MAT::Node*> polytomy_nodes);
 MAT::Tree resolve_all_polytomies(MAT::Tree T);
+void reroot_tree(MAT::Tree* T, std::string rnid);

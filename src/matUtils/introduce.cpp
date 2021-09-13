@@ -635,7 +635,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                                 }
                                 oriscores.pop();
                             }
-                            std::cerr << "DEBUG: Successfully identified origins\n";
+                            // std::cerr << "DEBUG: Successfully identified origins\n";
                             //for (auto r: assign_search->second) {
                             // if (origins.size() == 0) {
                             //     origins += r;
@@ -773,11 +773,12 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::map<std::string, 
                     continue;
                 }
                 ldatestr = boost::gregorian::to_simple_string(ldates.first) + "\t" + boost::gregorian::to_simple_string(ldates.second);
-                diff = (ldates.second - ldates.first);
+                //diff = (ldates.second - ldates.first);
+                diff = (boost::gregorian::day_clock::universal_day() - ldates.first); //try weighting growth by current date to change top cluster display.
             }
             date_tracker[cs.first] = ldatestr;
             float gv;
-            gv = static_cast<float>(cs.second.size()) / static_cast<float>((int)(diff.days()/7)+1);
+            gv = sqrt(static_cast<float>(cs.second.size())) / static_cast<float>((int)(diff.days()/7)+1);
             growthv.emplace_back(gv);
             cgm[gv].emplace_back(cs.first);
         }

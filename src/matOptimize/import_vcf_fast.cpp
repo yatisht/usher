@@ -8,6 +8,7 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -23,25 +24,25 @@ typedef tbb::flow::source_node<char*> decompressor_node_t;
 typedef tbb::flow::multifunction_node<char*,tbb::flow::tuple<Parsed_VCF_Line*>> line_parser_t;
 
 struct Decompressor {
-    gzFile* fd;
+    gzFile fd;
     size_t init_read_size;
     size_t cont_read_size;
     bool operator()(char*& buf) const {
-        if (gzeof(*fd)) {
+        if (gzeof(fd)) {
             return false;
         }
         buf=new char[init_read_size+cont_read_size];
-        int read_size=gzread(*fd, buf, init_read_size);
+        int read_size=gzread(fd, buf, init_read_size);
         if (read_size<0) {
             int z_errnum = 0;
-            fputs( gzerror(*fd,&z_errnum),stderr);
+            fputs( gzerror(fd,&z_errnum),stderr);
         }
         if (!read_size) {
             delete [] (buf);
             return false;
         }
         //Make sure the last line is complete in the block.
-        if(!gzgets(*fd, buf+read_size, cont_read_size)) {
+        if(!gzgets(fd, buf+read_size, cont_read_size)) {
             *(buf+read_size)=0;
         }
         return true;
@@ -137,18 +138,18 @@ struct line_parser {
     }
 };
 //tokenize header, get sample name
-static int read_header(gzFile* fd,std::vector<std::string>& out) {
+static int read_header(gzFile fd,std::vector<std::string>& out) {
     int header_len=0;
-    char in=gzgetc(*fd);
-    in=gzgetc(*fd);
+    char in=gzgetc(fd);
+    in=gzgetc(fd);
     bool second_char_pong=(in=='#');
 
     while (second_char_pong) {
         while (in!='\n') {
-            in=gzgetc(*fd);
+            in=gzgetc(fd);
         }
-        in=gzgetc(*fd);
-        in=gzgetc(*fd);
+        in=gzgetc(fd);
+        in=gzgetc(fd);
         second_char_pong=(in=='#');
     }
 
@@ -161,10 +162,12 @@ static int read_header(gzFile* fd,std::vector<std::string>& out) {
                 break;
             }
             field.push_back(in);
-            in=gzgetc(*fd);
+            in=gzgetc(fd);
             header_len++;
         }
-        in=gzgetc(*fd);
+        if(!eol) {
+            in=gzgetc(fd);
+        }
         out.push_back(field);
     }
     return header_len;
@@ -200,7 +203,19 @@ void print_progress(std::atomic<bool>* done,std::mutex* done_mutex) {
         fprintf(stderr,"\rAssigned %zu locus",assigned_count.load(std::memory_order_relaxed));
     }
 }
-#define CHUNK_SIZ 10
+static char* try_get_first_line(gzFile f,size_t& size ) {
+    std::string temp;
+    char c;
+    while ((c=gzgetc(f))!='\n') {
+        temp.push_back(c);
+    }
+    temp.push_back('\n');
+    size=temp.size()+1;
+    char* buf=new char[size];
+    strcpy(buf, temp.data());
+    return buf;
+}
+#define CHUNK_SIZ 100
 void VCF_input(const char * name,MAT::Tree& tree) {
     assigned_count=0;
     std::vector<std::string> fields;
@@ -212,12 +227,11 @@ void VCF_input(const char * name,MAT::Tree& tree) {
     }
     gzbuffer(fd,ZLIB_BUFSIZ);
 
-    unsigned int header_size=read_header(&fd, fields);
+    size_t header_size=read_header(fd, fields);
     tbb::flow::graph input_graph;
     std::atomic<bool> done(false);
     std::mutex done_mutex;
     std::thread progress_meter(print_progress,&done,&done_mutex);
-    decompressor_node_t decompressor(input_graph,Decompressor{&fd,CHUNK_SIZ*header_size,2*header_size});
     std::vector<long> idx_map(9);
     std::vector<MAT::Node*> bfs_ordered_nodes=tree.breadth_first_expansion();
     std::unordered_set<std::string> inserted_samples;
@@ -245,6 +259,8 @@ void VCF_input(const char * name,MAT::Tree& tree) {
     Fitch_Sankoff_prep(bfs_ordered_nodes,child_idx_range, parent_idx);
     tbb::flow::function_node<Parsed_VCF_Line*> assign_state(input_graph,tbb::flow::unlimited,Assign_State{child_idx_range,parent_idx,output});
     tbb::flow::make_edge(tbb::flow::output_port<0>(parser),assign_state);
+    parser.try_put(try_get_first_line(fd, header_size));
+    decompressor_node_t decompressor(input_graph,Decompressor{fd,CHUNK_SIZ*header_size,2*header_size});
     tbb::flow::make_edge(decompressor,parser);
     input_graph.wait_for_all();
     gzclose(fd);

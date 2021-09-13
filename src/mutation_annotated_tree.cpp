@@ -5,6 +5,8 @@
 #include <google/protobuf/io/coded_stream.h>
 #include <iomanip>
 #include <iostream>
+#include <random>
+#include <algorithm>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -1144,25 +1146,42 @@ void Mutation_Annotated_Tree::Tree::uncondense_leaves() {
 
         size_t num_samples = cn->second.size();
 
-        if (num_samples > 0) {
+        if ((num_samples > 1) && (n->mutations.size() > 0)) {
             all_nodes.erase(n->identifier);
-            all_nodes[cn->second[0]] = n;
+
+            n->identifier = new_internal_node_id();
+            all_nodes[n->identifier] = n;
+
+            for (size_t s = 0; s < num_samples; s++) {
+                Node* new_n = new Node(cn->second[s], n, -1);
+                size_t num_annotations = get_num_annotations();
+                for (size_t k=0; k < num_annotations; k++) {
+                    new_n->clade_annotations.emplace_back("");
+                }
+                all_nodes[cn->second[s]] = new_n;
+
+                n->children.push_back(new_n);
+            }
+        } else if (num_samples > 1) {
+            all_nodes.erase(n->identifier);
 
             n->identifier = cn->second[0];
-        }
+            all_nodes[n->identifier] = n;
 
-        for (size_t s = 1; s < num_samples; s++) {
-            Node* new_n = new Node(cn->second[s], par, n->branch_length);
-            size_t num_annotations = get_num_annotations();
-            for (size_t k=0; k < num_annotations; k++) {
-                new_n->clade_annotations.emplace_back("");
+            for (size_t s = 1; s < num_samples; s++) {
+                Node* new_n = new Node(cn->second[s], par, n->branch_length);
+                size_t num_annotations = get_num_annotations();
+                for (size_t k=0; k < num_annotations; k++) {
+                    new_n->clade_annotations.emplace_back("");
+                }
+                all_nodes[cn->second[s]] = new_n;
+                par->children.push_back(new_n);
             }
-            all_nodes[cn->second[s]] = new_n;
+        } else if (num_samples == 1) {
+            all_nodes.erase(n->identifier);
 
-            par->children.push_back(new_n);
-            for (auto m: n->mutations) {
-                new_n->add_mutation(m.copy());
-            }
+            n->identifier = cn->second[0];
+            all_nodes[n->identifier] = n;
         }
     }
     condensed_nodes.clear();
@@ -1513,7 +1532,7 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (Mutation_Annotated_Tre
     //size_t random_subtree_size = print_subtrees_size/2;
     //size_t nearest_subtree_size = print_subtrees_size - random_subtree_size;
 
-    size_t random_subtree_size = 0;
+    size_t random_subtree_size = subtree_size/5;
     size_t nearest_subtree_size = subtree_size - random_subtree_size;
 
     //Set a constant random seed
@@ -1558,16 +1577,16 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (Mutation_Annotated_Tre
         // found
         for (auto anc: T->rsearch(samples[i], true)) {
             size_t num_leaves = T->get_num_leaves(anc);
-            if (num_leaves <= nearest_subtree_size) {
+            if (num_leaves < subtree_size) {
                 last_anc = anc;
                 continue;
             }
 
-            if (num_leaves > nearest_subtree_size) {
+            if (num_leaves > subtree_size) {
                 struct NodeDist {
                     Mutation_Annotated_Tree::Node* node;
                     uint32_t num_mut;
-                    
+
                     NodeDist(Node* n, uint32_t d) {
                         node = n;
                         num_mut = d;
@@ -1581,7 +1600,7 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (Mutation_Annotated_Tre
                 for (auto l: T->get_leaves(last_anc->identifier)) {
                     leaves_to_keep.emplace_back(l->identifier);
                 }
-                    
+
                 std::vector<NodeDist> node_distances;
                 for (auto l: T->get_leaves(anc->identifier)) {
                     if (T->is_ancestor(last_anc->identifier, l->identifier)) {
@@ -1601,27 +1620,29 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (Mutation_Annotated_Tre
 
                 std::sort(node_distances.begin(), node_distances.end());
                 for (auto n: node_distances) {
-                    if (leaves_to_keep.size() == nearest_subtree_size) {
+                    if (leaves_to_keep.size() >= nearest_subtree_size) {
                         break;
                     }
-                    leaves_to_keep.emplace_back(n.node->identifier); 
+                    leaves_to_keep.emplace_back(n.node->identifier);
+                }
+
+                if ((nearest_subtree_size < subtree_size) && (nearest_subtree_size < node_distances.size())) {
+                    std::vector<NodeDist> remaining_node_distances = {node_distances.begin()+nearest_subtree_size, node_distances.end()};
+                    std::shuffle(remaining_node_distances.begin(), remaining_node_distances.end(), std::default_random_engine {});
+
+                    for (auto n: remaining_node_distances) {
+                        if (leaves_to_keep.size() == subtree_size) {
+                            break;
+                        }
+                        leaves_to_keep.emplace_back(n.node->identifier);
+                    }
                 }
             } else {
                 for (auto l: T->get_leaves(anc->identifier)) {
-                    leaves_to_keep.emplace_back(l->identifier);
-                }
-            }
-
-            // Add non-overlapping random subtree samples
-            for (auto l: random_ordered_leaves) {
-                if (leaves_to_keep.size() < subtree_size) {
-                    if (std::find(leaves_to_keep.begin(), leaves_to_keep.end(), l->identifier) == leaves_to_keep.end()) {
-                        leaves_to_keep.emplace_back(l->identifier);
+                    if (leaves_to_keep.size() == subtree_size) {
+                        break;
                     }
-                }
-
-                if (leaves_to_keep.size() >= subtree_size) {
-                    break;
+                    leaves_to_keep.emplace_back(l->identifier);
                 }
             }
 

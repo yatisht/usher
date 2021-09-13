@@ -1,4 +1,6 @@
 #include "mask.hpp"
+#include <random>
+#include <algorithm>
 
 po::variables_map parse_mask_command(po::parsed_options parsed) {
 
@@ -109,7 +111,7 @@ void simplify_tree(MAT::Tree* T) {
     This renames all samples to arbitrary numbers, similar to internal nodes, and removes sample mutations.
     */
     auto all_leaves = T->get_leaves();
-    std::random_shuffle(all_leaves.begin(), all_leaves.end());
+    std::shuffle(all_leaves.begin(), all_leaves.end(), std::default_random_engine(0));
     int rid = 0;
     for (auto l: all_leaves) {
         //only leaves need to have their information altered.

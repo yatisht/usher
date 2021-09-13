@@ -9,7 +9,7 @@ struct Sample_Pos_Mut_Wrap {
 
 struct All_Sample_Appender {
     Sample_Pos_Mut_Wrap set_name(std::string &&name) {
-	puts(name.c_str());
+        puts(name.c_str());
         return Sample_Pos_Mut_Wrap{};
     }
 };

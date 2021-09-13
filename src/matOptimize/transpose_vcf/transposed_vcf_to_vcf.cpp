@@ -258,11 +258,13 @@ std::pair<uint8_t *, size_t> compress(std::string *in) {
     stream.avail_in = in->size();
     stream.avail_out=malloc_size;
     stream.next_out = buffer;
-    auto err = deflateInit2(&stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 15 | 16,
-                            9, Z_DEFAULT_STRATEGY);
-    assert(err == Z_OK);
-    err = deflate(&stream, Z_FINISH);
-    assert(err == Z_STREAM_END);
+    //auto err =
+    deflateInit2(&stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 15 | 16,
+                 9, Z_DEFAULT_STRATEGY);
+    //assert(err == Z_OK);
+    //err =
+    deflate(&stream, Z_FINISH);
+    //assert(err == Z_STREAM_END);
     size_t writen_size = stream.total_out;
     buffer = (uint8_t *)realloc((void *)buffer, writen_size);
     deflateEnd(&stream);
@@ -366,36 +368,36 @@ int main(int argc, char **argv) {
             return 1;
     }
     std::unordered_map<std::string,std::string> rename_mapping;
-    if(rename_file!=""){
-	    parse_rename_file(rename_file,rename_mapping);
+    if(rename_file!="") {
+        parse_rename_file(rename_file,rename_mapping);
     }
     tbb::task_scheduler_init init(num_threads);
     load_reference(reference.c_str(), chrom, ref);
     All_Sample_Appender appender;
     load_mutations(input_path.c_str(), 80, appender);
     std::vector<Sample_Pos_Mut> all_samples;
-    if(rename_mapping.empty()){
-    for (auto &sample_block : sample_pos_mut_local) {
-        all_samples.insert(all_samples.end(),
-                           std::make_move_iterator(sample_block.begin()),
-                           std::make_move_iterator(sample_block.end()));
+    if(rename_mapping.empty()) {
+        for (auto &sample_block : sample_pos_mut_local) {
+            all_samples.insert(all_samples.end(),
+                               std::make_move_iterator(sample_block.begin()),
+                               std::make_move_iterator(sample_block.end()));
+        }
+    } else {
+        all_samples.reserve(rename_mapping.size());
+        for (auto &sample_block : sample_pos_mut_local) {
+            for(const auto& sample:sample_block) {
+                auto iter=rename_mapping.find(sample.name);
+                if(iter!=rename_mapping.end()) {
+                    all_samples.push_back(std::move(sample));
+                    all_samples.back().name=iter->second;
+                    rename_mapping.erase(iter);
+                }
+            }
+            sample_block.clear();
+        }
     }
-    }else{
-	all_samples.reserve(rename_mapping.size());
-	for (auto &sample_block : sample_pos_mut_local) {
-		for(const auto& sample:sample_block){
-			auto iter=rename_mapping.find(sample.name);
-			if(iter!=rename_mapping.end()){
-				all_samples.push_back(std::move(sample));
-				all_samples.back().name=iter->second;
-				rename_mapping.erase(iter);
-			}
-		}
-		sample_block.clear();
-	}
-    }
-    for(const auto& name:rename_mapping){
-	    fprintf(stderr,"sample %s not found \n",name.first.c_str());
+    for(const auto& name:rename_mapping) {
+        fprintf(stderr,"sample %s not found \n",name.first.c_str());
     }
 
     /*for (const auto& sample : all_samples) {
@@ -414,7 +416,7 @@ int main(int argc, char **argv) {
             pos_with_mut[mut.position]=1;
         }
         for (const auto& N_range : samp.Ns) {
-            for(int pos=N_range.first;pos<=N_range.second;pos++){
+            for(int pos=N_range.first; pos<=N_range.second; pos++) {
                 pos_with_mut[pos]=1;
             }
         }

@@ -38,6 +38,8 @@ po::variables_map check_options(int argc, char** argv) {
     ("num-descendants,n", po::value<uint32_t>()->default_value(10), \
      "Minimum number of leaves that node should have to be considered for recombination.")
     ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
+    ("start-index,S", po::value<int>()->default_value(-1), "start index [EXPERIMENTAL]")
+    ("end-index,E", po::value<int>()->default_value(-1), "end index [EXPERIMENTAL]")
     ("help,h", "Print help messages");
 
     po::options_description all_options;
@@ -171,8 +173,8 @@ int main(int argc, char** argv) {
     int max_range = vm["max-coordinate-range"].as<int>();
     int min_range = vm["min-coordinate-range"].as<int>();
     uint32_t num_descendants = vm["num-descendants"].as<uint32_t>();
-    int start_idx = -1; //vm["start-index"].as<int>();
-    int end_idx = -1; //vm["end-index"].as<int>();
+    int start_idx = vm["start-index"].as<int>();
+    int end_idx = vm["end-index"].as<int>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
 
     tbb::task_scheduler_init init(num_threads);
