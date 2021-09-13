@@ -42,10 +42,10 @@ struct Sample_Pos_Mut {
         auto node=tree.get_node(name);
         if (node) {
             bfs_idx = node->bfs_index;
-        }else {
+        } else {
             bfs_idx=-1;
         }
-        
+
     }
 };
 

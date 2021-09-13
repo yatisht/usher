@@ -1,5 +1,5 @@
 #include "mask.hpp"
-#include <random> 
+#include <random>
 #include <algorithm>
 
 po::variables_map parse_mask_command(po::parsed_options parsed) {

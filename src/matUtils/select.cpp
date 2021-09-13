@@ -223,7 +223,7 @@ std::vector<std::string> get_nearby (MAT::Tree* T, std::string sample_id, int nu
             for (auto l: T->get_leaves(last_anc->identifier)) {
                 leaves_to_keep.emplace_back(l->identifier);
             }
-            
+
             std::vector<NodeDist> node_distances;
             for (auto l: T->get_leaves(anc->identifier)) {
                 if (T->is_ancestor(last_anc->identifier, l->identifier)) {
@@ -246,7 +246,7 @@ std::vector<std::string> get_nearby (MAT::Tree* T, std::string sample_id, int nu
                 if (leaves_to_keep.size() == number_to_get) {
                     break;
                 }
-                leaves_to_keep.emplace_back(n.node->identifier); 
+                leaves_to_keep.emplace_back(n.node->identifier);
             }
         } else {
             for (auto l: T->get_leaves(anc->identifier)) {

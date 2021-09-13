@@ -1151,7 +1151,7 @@ void Mutation_Annotated_Tree::Tree::uncondense_leaves() {
 
             n->identifier = new_internal_node_id();
             all_nodes[n->identifier] = n;
-            
+
             for (size_t s = 0; s < num_samples; s++) {
                 Node* new_n = new Node(cn->second[s], n, -1);
                 size_t num_annotations = get_num_annotations();
@@ -1162,8 +1162,7 @@ void Mutation_Annotated_Tree::Tree::uncondense_leaves() {
 
                 n->children.push_back(new_n);
             }
-        }
-        else if (num_samples > 1) {
+        } else if (num_samples > 1) {
             all_nodes.erase(n->identifier);
 
             n->identifier = cn->second[0];
@@ -1181,7 +1180,7 @@ void Mutation_Annotated_Tree::Tree::uncondense_leaves() {
         } else if (num_samples == 1) {
             all_nodes.erase(n->identifier);
 
-            n->identifier = cn->second[0]; 
+            n->identifier = cn->second[0];
             all_nodes[n->identifier] = n;
         }
     }
@@ -1587,7 +1586,7 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (Mutation_Annotated_Tre
                 struct NodeDist {
                     Mutation_Annotated_Tree::Node* node;
                     uint32_t num_mut;
-                    
+
                     NodeDist(Node* n, uint32_t d) {
                         node = n;
                         num_mut = d;
@@ -1601,7 +1600,7 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (Mutation_Annotated_Tre
                 for (auto l: T->get_leaves(last_anc->identifier)) {
                     leaves_to_keep.emplace_back(l->identifier);
                 }
-                    
+
                 std::vector<NodeDist> node_distances;
                 for (auto l: T->get_leaves(anc->identifier)) {
                     if (T->is_ancestor(last_anc->identifier, l->identifier)) {
@@ -1624,7 +1623,7 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (Mutation_Annotated_Tre
                     if (leaves_to_keep.size() >= nearest_subtree_size) {
                         break;
                     }
-                    leaves_to_keep.emplace_back(n.node->identifier); 
+                    leaves_to_keep.emplace_back(n.node->identifier);
                 }
 
                 if ((nearest_subtree_size < subtree_size) && (nearest_subtree_size < node_distances.size())) {
@@ -1635,7 +1634,7 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (Mutation_Annotated_Tre
                         if (leaves_to_keep.size() == subtree_size) {
                             break;
                         }
-                        leaves_to_keep.emplace_back(n.node->identifier);  
+                        leaves_to_keep.emplace_back(n.node->identifier);
                     }
                 }
             } else {

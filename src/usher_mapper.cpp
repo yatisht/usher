@@ -459,7 +459,7 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores, bool comp
             return;
         }
         rd_wr_lock.unlock();
-        
+
         rd_wr_lock.lock();
         size_t num_leaves = input.T->get_num_leaves(input.node);
         if (set_difference < *input.best_set_difference) {
@@ -474,9 +474,6 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores, bool comp
             input.best_j_vec->clear();
             input.best_j_vec->emplace_back(input.j);
         } else if (set_difference == *input.best_set_difference) {
-            bool is_best_node_ancestor = (input.node->parent == (*input.best_node));
-            bool is_best_node_descendant = ((*input.best_node)->parent == input.node);
-
             // Tie breaking strategy when multiple parsimony-optimal placements
             // are found. it picks the node with a greater number of descendant
             // leaves for placement. However, if the choice is between a parent
@@ -484,10 +481,8 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores, bool comp
             // descendant leaves of the parent that are not shared with the child
             // node exceed the number of descendant leaves of the child.
             if (((input.distance == *input.best_distance) &&
-                    ((is_best_node_ancestor && (2*num_leaves > *input.best_node_num_leaves)) ||
-                     (is_best_node_descendant && (num_leaves >= 2*(*input.best_node_num_leaves))) ||
-                     (!is_best_node_ancestor && !is_best_node_descendant && (num_leaves > *input.best_node_num_leaves)) ||
-                     (!is_best_node_ancestor && !is_best_node_descendant && (num_leaves == *input.best_node_num_leaves) && (*input.best_j < input.j))))
+                    ((num_leaves > *input.best_node_num_leaves) ||
+                     ((num_leaves == *input.best_node_num_leaves) && (*input.best_j < input.j))))
                     || (input.distance < *input.best_distance)) {
                 *input.best_set_difference = set_difference;
                 *input.best_node = input.node;

@@ -27,6 +27,12 @@ translate: output lineage-aware translation for each amino acid substitution
 RIPPLES: detect recombinants in the ancestry of the user-supplied samples
 
     snakemake --use-conda --cores [num threads] --config FASTA="[user_fa]" RUNTYPE="ripples"
+    
+introduce: search for unique introductions within the user-supplied samples
+
+    snakemake --use-conda --cores [num threads] --config FASTA="[user_fa]" RUNTYPE="introduce"
+
+Note that adding "-d [run_dir]" to the command line above will generate all output files in the specified directory. To do this, you must provide the full path to the fasta file or place the fasta file into the specified run directory. 
 
 ## Further Reading:
 

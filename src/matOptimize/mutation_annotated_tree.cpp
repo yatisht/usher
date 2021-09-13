@@ -91,7 +91,7 @@ size_t Mutation_Annotated_Tree::Tree::get_parsimony_score() {
     }
     return score;
 }
-static size_t level_helper(const Node* node){
+static size_t level_helper(const Node* node) {
     size_t level = 0;
     for (auto child : node->children) {
         level=std::max(level,level_helper(child));

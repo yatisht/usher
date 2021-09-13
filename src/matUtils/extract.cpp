@@ -73,12 +73,14 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
      "Title of MAT to display in Taxodium (used with --write-taxodium).")
     ("description,D", po::value<std::string>()->default_value(""),
      "Description of MAT to display in Taxodium (used with --write-taxodium).")
+    ("extra-fields,F", po::value<std::string>()->default_value(""),
+     "Comma-separated list of additional metadata column names beyond the defaults of: strain, genbank_accession, country, date, pangolin_lineage (used with --write-taxodium).")
     ("retain-branch-length,E", po::bool_switch(),
      "Use to not recalculate branch lengths when saving newick output. Used only with -t")
     ("minimum-subtrees-size,N", po::value<size_t>()->default_value(0),
      "Use to generate a series of JSON or Newick format files representing subtrees of the indicated size which cover all queried samples. Uses and overrides -j and -t output arguments.")
     ("reroot,y", po::value<std::string>()->default_value(""),
-    "Indicate an internal node ID to reroot the output tree to. Applied before all other manipulation steps.")
+     "Indicate an internal node ID to reroot the output tree to. Applied before all other manipulation steps.")
     ("usher-single-subtree-size,X", po::value<size_t>()->default_value(0),
      "Use to produce an usher-style single sample subtree of the indicated size with all selected samples plus random samples to fill. Produces .nh and .txt files.")
     ("usher-minimum-subtrees-size,x", po::value<size_t>()->default_value(0),
@@ -156,12 +158,15 @@ void extract_main (po::parsed_options parsed) {
     std::string output_tax_filename = dir_prefix + vm["write-taxodium"].as<std::string>();
     std::string tax_title = vm["title"].as<std::string>();
     std::string tax_description = vm["description"].as<std::string>();
+    std::string raw_meta_fields = vm["extra-fields"].as<std::string>();
     std::string json_filename = dir_prefix + vm["write-json"].as<std::string>();
     std::string meta_filename = vm["metadata"].as<std::string>();
     std::string gtf_filename = dir_prefix + vm["input-gtf"].as<std::string>();
     std::string fasta_filename = dir_prefix + vm["input-fasta"].as<std::string>();
 
-
+    std::vector<std::string> additional_meta_fields;
+    MAT::string_split(raw_meta_fields, ',', additional_meta_fields);
+    
     bool collapse_tree = vm["collapse-tree"].as<bool>();
     bool no_genotypes = vm["no-genotypes"].as<bool>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
@@ -689,7 +694,7 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         if (!resolve_polytomies) {
             subtree.condense_leaves();
         }
-        save_taxodium_tree(subtree, output_tax_filename, metav, gtf_filename, fasta_filename, tax_title, tax_description);
+        save_taxodium_tree(subtree, output_tax_filename, metav, gtf_filename, fasta_filename, tax_title, tax_description, additional_meta_fields);
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
 }
