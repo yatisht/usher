@@ -212,8 +212,7 @@ void merge_main(po::parsed_options parsed)
 
     //concurMap::accessor ac;
     static tbb::affinity_partitioner ap;
-    std::cout << "Number of samples to merge: " << samples.size() << std::endl;
-
+    fprintf(stderr, "Found %lu samples to merge\n", samples.size());
     tbb::mutex m;
     //parallel loop that concurrently parses through all the new samples
     int i = 0;
@@ -289,7 +288,7 @@ void merge_main(po::parsed_options parsed)
                     inp.has_unique = &best_node_has_unique;
                     inp.best_j_vec = &best_j_vec;
                     inp.node_has_unique = &(node_has_unique);
-                    mapper2_body(inp, false, true);
+                    mapper2_body(inp, false);
                 }
 
                 if (finalMat.get_node(x) == NULL)
@@ -458,10 +457,9 @@ void merge_main(po::parsed_options parsed)
                         fprintf(stderr, "\n");
                     }
                 }
-               /** m.lock();
-                i++;
-                std::cout << i << ": " << finalMat.get_node(x)->identifier << std::endl;
-                m.unlock();**/
+                m.lock();
+                fprintf(stderr, "\rAdded %zu of %zu samples", ++i, samples.size());
+                m.unlock();
             }
         },
         ap);
@@ -469,5 +467,5 @@ void merge_main(po::parsed_options parsed)
     finalMat.condense_leaves();
 
     MAT::save_mutation_annotated_tree(finalMat, output_filename);
-    fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+    fprintf(stderr, "\nCompleted in %ld msec \n\n", timer.Stop());
 }
