@@ -2,7 +2,7 @@
 //uncondense leaves
 #include "merge.hpp"
 concurMap consistNodes;
-tbb::reader_writer_lock rd_wr_lock;
+tbb::reader_writer_lock rw_lock;
 po::variables_map parse_merge_command(po::parsed_options parsed)
 {
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
@@ -848,15 +848,15 @@ void placement(placement_input &input, bool compute_parsimony_scores, bool compu
     if (input.node->is_root() || ((has_unique && !input.node->is_leaf() && (num_common_mut > 0) && (node_num_mut != num_common_mut)) ||
                                   (input.node->is_leaf() && (num_common_mut > 0)) || (!has_unique && !input.node->is_leaf() && (node_num_mut == num_common_mut))))
     {
-        rd_wr_lock.lock_read();
+        rw_lock.lock_read();
         if (set_difference > *input.best_set_difference)
         {
-            rd_wr_lock.unlock();
+            rw_lock.unlock();
             return;
         }
-        rd_wr_lock.unlock();
+        rw_lock.unlock();
 
-        rd_wr_lock.lock();
+        rw_lock.lock();
         size_t num_leaves = input.T->get_num_leaves(input.node);
         if (set_difference < *input.best_set_difference)
         {
@@ -895,7 +895,7 @@ void placement(placement_input &input, bool compute_parsimony_scores, bool compu
             (*input.node_has_unique)[input.j] = has_unique;
             input.best_j_vec->emplace_back(input.j);
         }
-        rd_wr_lock.unlock();
+        rw_lock.unlock();
     }
     else if (compute_parsimony_scores)
     {
