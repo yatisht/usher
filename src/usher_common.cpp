@@ -3,25 +3,14 @@
 namespace po = boost::program_options;
 namespace MAT = Mutation_Annotated_Tree;
 
-/**
- * Preconditions:
- * - gone through arguments which are saved in the variables
- * - MAT is loaded
- * returns: exit code
- */
-
-
+//returns exit code
 int usher_common(std::string dout_filename, std::string outdir, uint32_t num_threads, uint32_t max_trees,
                  uint32_t max_uncertainty, uint32_t max_parsimony, bool sort_before_placement_1, bool sort_before_placement_2, bool sort_before_placement_3,
                  bool reverse_sort, bool collapse_tree, bool collapse_output_tree, bool print_uncondensed_tree, bool print_parsimony_scores,
                  bool retain_original_branch_len, bool no_add, bool detailed_clades, size_t print_subtrees_size, size_t print_subtrees_single,
                  std::vector<Missing_Sample>& missing_samples, std::vector<std::string>& low_confidence_samples, MAT::Tree* loaded_MAT) {
 
-    /*
 
-    COPIED FROM usher.cpp around 109~199 and mostly copied 200~207
-
-    */
     if (print_subtrees_size == 1) {
         std::cerr << "ERROR: print-subtrees-size should be larger than 1\n";
         return 1;
@@ -125,8 +114,6 @@ int usher_common(std::string dout_filename, std::string outdir, uint32_t num_thr
     std::vector<size_t> tree_parsimony_scores;
 
     auto num_trees = optimal_trees.size();
-
-    //COPIED FROM usher.cpp around 461~1409
 
     // Collapses the tree nodes not carrying a mutation and also condenses
     // identical sequences into a single node.
@@ -848,11 +835,6 @@ int usher_common(std::string dout_filename, std::string outdir, uint32_t num_thr
 
             auto parsimony_score = T->get_parsimony_score();
             fprintf(stderr, "The parsimony score for this tree is: %zu \n", parsimony_score);
-            //FILE* uncondensed_final_tree_file = fopen(uncondensed_final_tree_filename.c_str(), "w");
-
-            //fprintf(uncondensed_final_tree_file, "%s\n", MAT::get_newick_string(*T, true, true, retain_original_branch_len, true).c_str());
-
-            //fclose(uncondensed_final_tree_file);
             std::ofstream uncondensed_final_tree_file(uncondensed_final_tree_filename.c_str(), std::ofstream::out);
             std::stringstream newick_ss;
             write_newick_string(newick_ss, *T, T->root, true, true, retain_original_branch_len, true);
@@ -877,9 +859,7 @@ int usher_common(std::string dout_filename, std::string outdir, uint32_t num_thr
             }
             auto parsimony_score = T->get_parsimony_score();
             fprintf(stderr, "The parsimony score for this tree is: %zu \n", parsimony_score);
-            //FILE* final_tree_file = fopen(final_tree_filename.c_str(), "w");
-            //fprintf(final_tree_file, "%s\n", MAT::get_newick_string(*T, true, true, retain_original_branch_len).c_str());
-            //fclose(final_tree_file);
+
             std::ofstream final_tree_file(final_tree_filename.c_str(), std::ofstream::out);
             std::stringstream newick_ss;
             write_newick_string(newick_ss, *T, T->root, true, true, retain_original_branch_len);
