@@ -288,7 +288,7 @@ void merge_main(po::parsed_options parsed)
                     inp.has_unique = &best_node_has_unique;
                     inp.best_j_vec = &best_j_vec;
                     inp.node_has_unique = &(node_has_unique);
-                    mapper2_body(inp, false);
+                    mapper2_body(inp, false, true);
                 }
 
                 if (finalMat.get_node(x) == NULL)
