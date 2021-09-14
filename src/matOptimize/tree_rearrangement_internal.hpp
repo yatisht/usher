@@ -10,7 +10,7 @@
 #include "check_samples.hpp"
 #include <random>
 #pragma once
-#define EMPTY_POS ((uint16_t)-1)
+#define EMPTY_POS UINT16_MAX
 extern bool use_bound; 
 extern std::chrono::time_point<std::chrono::steady_clock> last_save_time;
 extern bool no_write_intermediate;

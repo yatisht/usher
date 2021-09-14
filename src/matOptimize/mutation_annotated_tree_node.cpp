@@ -142,5 +142,7 @@ void Mutation_Annotated_Tree::Node::populate_ignored_range(){
             }
         }
     }
-    ignore.emplace_back(INT_MAX,INT_MAX);
+    if (!ignore.empty()) {
+        ignore.emplace_back(INT_MAX,INT_MAX);    
+    }
 }

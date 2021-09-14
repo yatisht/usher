@@ -13,6 +13,7 @@
 #include <utility>
 #include <iterator>
 #include <vector>
+#include <memory>
 #define MAX_DIST 16
 std::vector<range_tree> addable_idxes;
 struct make_tree_temp{
@@ -24,188 +25,179 @@ struct range_tree_temp{
     uint32_t dfs_start_idx;
     uint32_t dfs_end_idx;
     std::array<uint16_t, 4> min_level;
-    std::vector<range_tree_temp*> children;
+    std::vector<std::shared_ptr<range_tree_temp>> children;
     uint16_t level;
-    MAT::Node* covering_node;
+    const MAT::Node* covering_node;
     range_tree_temp(){
         assert(false);
     }
-    void init(MAT::Node* node){
+    void init(const MAT::Node* node){
         level=node->level;
         for (int i=0; i<4; i++) {
             min_level[i]=UINT16_MAX;
         }
         covering_node=node;
     }
-
-    range_tree_temp(MAT::Node* node){
+    range_tree_temp(const MAT::Node* node){
+        assert(node->parent);
         dfs_start_idx=node->dfs_index;
         dfs_end_idx=node->dfs_end_index;
         init(node);
-                if (dfs_start_idx==16030) {
-            fputc('a',stderr);
-        }
     }
-
-    range_tree_temp(MAT::Node* node,
-        std::vector<range_tree_temp*>::const_iterator start,
-        std::vector<range_tree_temp*>::const_iterator end): children(std::make_reverse_iterator(end),std::make_reverse_iterator(start)){
-            init(node);
-            assert(end-start>1);
-            #ifndef NDEBUG
-            size_t last_end_idx=node->dfs_index;
-            #endif
-            for (const auto& child : children) {
-                assert(child->dfs_start_idx>=last_end_idx);
-                update_level(child);
-                #ifndef NDEBUG
-                    last_end_idx=child->dfs_end_idx;
-                #endif
+    range_tree_temp(const node_info& in,const std::vector<MAT::Node*>dfs_ordered_nodes):range_tree_temp(dfs_ordered_nodes[in.dfs_idx]){
+        min_level[in.base]=in.level;
+    }
+    void process_child(const MAT::Node* node){
+        assert(children.size()<=MAX_DIST);
+        #ifndef NDEBUG
+        int last_end=node->dfs_index;
+        for(const auto& child:children){
+            assert(child->dfs_start_idx>=last_end);
+            last_end=child->dfs_end_idx;
+        }
+        assert(last_end<=node->dfs_end_index);
+        #endif
+        dfs_start_idx=children.front()->dfs_start_idx;
+        dfs_end_idx=children.back()->dfs_end_idx;
+        #ifndef NDEBUG
+        for (const auto child : node->children) {
+            if (child->dfs_index<=dfs_start_idx&&child->dfs_end_index>=dfs_end_idx) {
+                assert(false);
             }
-            assert(last_end_idx<=node->dfs_end_index);
-            dfs_start_idx=children.front()->dfs_start_idx;
-            dfs_end_idx=children.back()->dfs_end_idx;
-        if (dfs_start_idx==16030) {
-            fputc('a',stderr);
         }
+        #endif
+    }
+    template<typename iter_t>
+    range_tree_temp(iter_t iter,iter_t end,const MAT::Node* node){
+        init(node);
+        children.reserve(end-iter);
+        for(;iter<end;iter++){
+            update_level(*iter);
+            children.push_back(*iter);
+
+        }
+        process_child(node);
+    }
+    range_tree_temp(std::vector<std::shared_ptr<range_tree_temp>>& new_children,int node_size,const MAT::Node* node){
+            struct idx_cmp{
+                bool operator()(const std::shared_ptr<range_tree_temp>& a, const std::shared_ptr<range_tree_temp>& b) const{
+                    return a->dfs_start_idx<b->dfs_start_idx;
+                }
+            };
+        init(node);
+        if (node_size<=MAX_DIST) {
+        std::sort(new_children.begin(),new_children.end(),idx_cmp());
+        children.reserve(node_size);
+        for(auto iter=new_children.begin();iter<new_children.end();iter++){
+            update_level(*iter);
+            if ((*iter)->children.empty()) {
+                children.push_back(*iter);
+            }else{
+            children.insert(children.end(),(*iter)->children.begin(),(*iter)->children.end());
+            }
+        }
+        assert(children.size()==node_size);
+        }else if (new_children.size()<=MAX_DIST) {
+            children.reserve(MAX_DIST);
+            struct size_cmp{
+                bool operator()(const std::shared_ptr<range_tree_temp>a, const std::shared_ptr<range_tree_temp> b) const{
+                    return a->children.size()>b->children.size();
+                }
+            };
+
+            std::sort(new_children.begin(),new_children.end(),size_cmp());
+            for (const auto& child : new_children) {
+                update_level(child);
+                if (node_size>MAX_DIST) {
+                    children.push_back(child);
+                    node_size-=(child->children.size()-1);
+                }else {
+                    if (child->children.empty()) {
+                        children.push_back(child);
+                    }else {
+                        children.insert(children.end(),child->children.begin(),child->children.end());                    
+                    }
+                }
+            }
+            std::sort(children.begin(),children.end(),idx_cmp());
+        assert(children.size()==node_size);
+        }else {
+            std::sort(new_children.begin(),new_children.end(),idx_cmp());
+            while (true) {
+                auto iter=new_children.begin();
+                auto end=new_children.end();
+                while (end-iter>MAX_DIST) {
+                    children.emplace_back(new range_tree_temp(iter,iter+MAX_DIST,node));
+                    iter+=MAX_DIST;
+                }
+                if (end-iter==1) {
+                    children.emplace_back(*iter);
+                }
+                else if (iter!=end) {
+                    children.emplace_back(new range_tree_temp(iter,end,node));
+                }
+                if (children.size()>MAX_DIST) {
+                    children.swap(new_children);
+                    children.clear();
+                }else {
+                    break;
+                }
+            }
+        }
+        process_child(node);
     }
 
-    void update_level(const range_tree_temp* other){
+    void update_level(const std::shared_ptr<range_tree_temp>& other){
         for (int i=0; i<4; i++) {
             min_level[i]=std::min(min_level[i],other->min_level[i]);
         }
     }
+    void cover(const std::shared_ptr<range_tree_temp>& other){
+        update_level(other);
+        if (children.empty()) {
+            children.swap(other->children);
+            return;
+        }else if (other->children.empty()) {
+            return;
+        }
+        //Merge
+        std::vector<std::shared_ptr<range_tree_temp>> new_children;
+        new_children.reserve(children.size()+other->children.size());
+        auto iter=children.begin();
+        auto other_start_idx=other->dfs_start_idx;
+        while (iter<children.end()) {
+            if ((*iter)->dfs_end_idx<other_start_idx) {
+                new_children.push_back(*iter);
+            }else {
+                assert(other_start_idx!=(*iter)->dfs_end_idx);
+                break;
+            }
+            iter++;
+        }
+        new_children.insert(new_children.end(),other->children.begin(),other->children.end());
+            assert(iter==children.end()||other->dfs_end_idx<(*iter)->dfs_start_idx);        
+        new_children.insert(new_children.end(),iter,children.end());
+        children.swap(new_children);
+        
+    }
+    bool can_cover(const std::shared_ptr<range_tree_temp>& other) const{
+        return dfs_start_idx<other->dfs_start_idx&&dfs_end_idx>=other->dfs_end_idx;
+    }
 
     range_tree_node out(uint16_t par_idx){
-        return range_tree_node{dfs_start_idx,dfs_end_idx,min_level,par_idx,UINT16_MAX,level};
+        return range_tree_node{dfs_start_idx,dfs_end_idx,min_level,UINT16_MAX,par_idx,level};
     }
 };
 
-//Make a node correspond to at most a node in the actual tree
-static void cover_all_remaining(std::vector<range_tree_temp *> &to_merge,
-               MAT::Node *&covering_node_parent,size_t& node_count) {
-    auto temp = new range_tree_temp(covering_node_parent, to_merge.begin(),
-                                    to_merge.end());
-    to_merge.clear();
-    to_merge.push_back(temp);
-    node_count++;
-}
-static MAT::Node *
-merge_children(const std::vector<MAT::Node *> &dfs_ordered_nodes,
-               std::vector<range_tree_temp *> &to_merge, size_t min_idx,size_t& node_count) {
-    auto out_iter=to_merge.begin();
-    auto scanning_iter=to_merge.begin();
-    MAT::Node* covering_node_parent;
-    while(scanning_iter<to_merge.end()){
-        auto iter=scanning_iter;
-        if ((*iter)->dfs_start_idx==24368) {
-            fputc('a',stderr);
-        }
-        auto covering_node=(*iter)->covering_node;
-        assert(covering_node->parent);
-        covering_node_parent=covering_node->parent;
-        auto par_range_start=covering_node_parent->dfs_index;
-        auto par_range_end=covering_node_parent->dfs_end_index;
-        while (par_range_start>min_idx||par_range_end<min_idx) {
-            while (iter<to_merge.end()&&(*iter)->dfs_start_idx>=par_range_start) {
-                assert((*iter)->dfs_end_idx<=par_range_end);
-                iter++;
-            }
-            covering_node=covering_node_parent;
-            covering_node_parent=covering_node->parent;
-            par_range_start=covering_node_parent->dfs_index;
-            par_range_end=covering_node_parent->dfs_end_index;
-        }
-        assert(!(min_idx>=covering_node->dfs_index&&min_idx<=covering_node->dfs_end_index));
-        assert(out_iter<=scanning_iter);
-        assert(out_iter<to_merge.end());
-        if (iter==scanning_iter) {
-            iter++;
-        }
-        if (iter==scanning_iter+1) {
-            *out_iter=*scanning_iter;
-        }else {
-            *out_iter=new range_tree_temp(covering_node,scanning_iter,iter);
-            node_count++;
-        }
-        out_iter++;
-        scanning_iter=iter;
-    }
-    if (out_iter==to_merge.end()) {
-        cover_all_remaining(to_merge, covering_node_parent,node_count);
-        return covering_node_parent;
-    }else {
-        to_merge.erase(out_iter,to_merge.end());
-        return nullptr;
-    }
-}
-static bool to_swap(range_tree_temp* possible_descendant,size_t range_start, size_t range_end){
-    auto ele_idx=possible_descendant->dfs_start_idx;
-    assert(ele_idx!=range_start);
-    if (ele_idx>range_start&&ele_idx<=range_end) {
-        assert(possible_descendant->dfs_end_idx<=range_end);
-        return true;
-    }else {
-        assert(possible_descendant->dfs_end_idx<range_start||ele_idx>range_end);
-        return false;
-    }
-}
-static MAT::Node* condense_children(std::vector<range_tree_temp*>& to_condense,tbb::concurrent_vector<node_info>::const_reverse_iterator& range_iter,const std::vector<MAT::Node*>& dfs_ordered_nodes,size_t& node_count){
-    const auto range=*range_iter;
-    auto range_start=range.dfs_idx;
-    auto range_end=dfs_ordered_nodes[range_start]->dfs_end_index;
-    range_tree_temp* new_ele=new range_tree_temp(dfs_ordered_nodes[range_start]);
-    while (range_iter->dfs_idx==range.dfs_idx) {
-        new_ele->min_level[range_iter->base]=range.level;
-        range_iter++;
-    }
-    if (range.dfs_idx==16030) {
-        fputc('a', stderr);
-    }
-    MAT::Node* out=nullptr;
-    if (!to_condense.empty()) {
-    auto ele_end=to_condense.end()-1;
-    auto ele_start=to_condense.begin();
-    while (ele_start<ele_end) {
-        if (to_swap(*ele_start, range_start, range_end)) {
-            new_ele->update_level(*ele_start);
-            std::swap(*ele_start,*ele_end);
-            ele_end--;
-        }else {
-            ele_start++;
-        }
-    }
-    if (!to_swap(*ele_end, range_start, range_end)) {
-        ele_end++;
-    }else {
-        new_ele->update_level(*ele_end);
-    }
-    new_ele->children=std::vector<range_tree_temp*>(ele_end,to_condense.end());
-    #ifndef NDEBUG
-    size_t last_end_idx=new_ele->dfs_start_idx;
-    for ( const auto child:new_ele->children ) {
-        assert(child->dfs_start_idx>=last_end_idx);
-        last_end_idx=child->dfs_end_idx;  
-    }
-    assert(new_ele->dfs_end_idx>=last_end_idx);
-    #endif
-    to_condense.erase(ele_end,to_condense.end());
-    if (to_condense.size()==MAX_DIST) {
-        out=merge_children(dfs_ordered_nodes, to_condense, range.dfs_idx,node_count);
-    }
-    }
-    to_condense.push_back(new_ele);
-    return out;
-}
 struct bfs_queue_content{
-    range_tree_temp* child_to_push;
+    std::shared_ptr<range_tree_temp> child_to_push;
     size_t par_idx;
 };
 struct priority_bfs_queue_comp{
     bool operator()(const bfs_queue_content& a, const bfs_queue_content& b) const{
-        if (a.child_to_push->level<b.child_to_push->level) {
+        if (a.child_to_push->level>b.child_to_push->level) {
             return true;
-        }else if (a.child_to_push->level==b.child_to_push->level&&a.child_to_push->dfs_start_idx<b.child_to_push->dfs_start_idx) {
+        }else if (a.child_to_push->level==b.child_to_push->level&&a.child_to_push->dfs_start_idx>b.child_to_push->dfs_start_idx) {
             return true;
         }
         return false;
@@ -213,100 +205,102 @@ struct priority_bfs_queue_comp{
 };
 
 typedef std::priority_queue<bfs_queue_content,std::vector<bfs_queue_content>,priority_bfs_queue_comp> priority_bfs_queue;
-static void flatten(std::vector<range_tree_temp*>& in, std::vector<range_tree_node>& out,size_t node_count){
+static void flatten(std::shared_ptr<range_tree_temp> top, std::vector<range_tree_node>& out,size_t node_count){
     out.reserve(node_count*2);
     std::vector<bfs_queue_content> container;
     container.reserve(node_count);
-    for(auto iter=in.rbegin();iter<in.rend();iter++){
-        container.push_back(bfs_queue_content{*iter,out.size()});
-        out.push_back((*iter)->out(UINT16_MAX));
-        assert(out.size()==1||out[out.size()-1].dfs_start_idx>out[out.size()-2].dfs_end_idx);
+    out.push_back(top->out(UINT16_MAX));
+    if (top->children.size()==0) {
+        return;
     }
+    container.push_back(bfs_queue_content{top,0});
     priority_bfs_queue queue(priority_bfs_queue_comp(),std::move(container));
+#ifndef NDEBUG
+    int last_level=-1;
+#endif
     while (!queue.empty()) {
-        auto& top=queue.top();
-        out[top.par_idx].children_start_idx=in.size();
+        auto top=queue.top();
+        queue.pop();
+        if (top.child_to_push->children[0]->dfs_start_idx<out.back().dfs_end_idx) {
+            assert(top.child_to_push->children[0]->level>last_level);
+            out.push_back(range_tree_node{UINT16_MAX});
+        }
+        out[top.par_idx].children_start_idx=out.size();
         for(auto& top_content:top.child_to_push->children){
-            queue.push(bfs_queue_content{top_content,in.size()});
-            if (top_content->dfs_start_idx<out.back().dfs_end_idx) {
-                assert(top_content->level>out.back().level);
-                out.push_back(range_tree_node{UINT16_MAX});
+            assert(top_content->dfs_start_idx>out.back().dfs_end_idx);
+            if (!top_content->children.empty()) {
+                queue.push(bfs_queue_content{top_content,out.size()});                
             }
             out.push_back((top_content)->out(top.par_idx));
         }
-        delete top.child_to_push;
-        queue.pop();
+        #ifndef NDEBUG
+            last_level=top.child_to_push->level;
+        #endif
     }
-
 }
+struct temp_tree_build_comp{
+    bool operator()(const std::shared_ptr<range_tree_temp>& a,const std::shared_ptr<range_tree_temp>& b)const{
+        auto a_idx=a->covering_node->dfs_index;
+        auto b_idx=b->covering_node->dfs_index;
+        if (a_idx<b_idx) {
+            return true;
+        }else if (a_idx==b_idx&&a->dfs_start_idx>b->dfs_start_idx) {
+            return true;;
+        }
+        return false;
+    }
+};
+typedef std::priority_queue<std::shared_ptr<range_tree_temp>,std::vector<std::shared_ptr<range_tree_temp>>,temp_tree_build_comp> tree_build_heap_t;
 void make_range_tree(const std::vector<MAT::Node*>& dfs_ordered_nodes,tbb::concurrent_vector<node_info>& in,range_tree& out){
     if (in.empty()) {
         return;
     }
-    in.push_back(node_info{0});
-    std::sort(in.begin(),in.end());
     size_t node_count=0;
-    struct stact_content_t{
-        MAT::Node* node;
-        std::vector<range_tree_temp*> overflow;
-        stact_content_t(MAT::Node* node):node(node){}
-        stact_content_t(MAT::Node* node,std::vector<range_tree_temp*>&in):node(node){
-            overflow.reserve(MAX_DIST);
-            push_no_check(in);
-        }
-        void output(std::vector<range_tree_temp*>&out,size_t& node_count){
-            if(out.size()==16){
-                cover_all_remaining(overflow, node,node_count);
-            };
-            if (overflow.size()+out.size()<=16) {
-                out.insert(out.end(),overflow.begin(),overflow.end());
+    std::vector<std::shared_ptr<range_tree_temp>> content;
+    content.reserve(in.size());
+    for (const auto& node : in) {
+        content.emplace_back(new range_tree_temp(node,dfs_ordered_nodes));
+    }
+    tree_build_heap_t heap(temp_tree_build_comp(),std::move(content));
+    std::shared_ptr<range_tree_temp> top;
+    while (true) {
+        top=heap.top();
+        std::vector<std::shared_ptr<range_tree_temp>> child_nodes({top});
+        heap.pop();
+        int node_count=std::max(top->children.size(),(size_t)1);
+        while (!heap.empty()&&heap.top()->covering_node==top->covering_node) {
+            if (heap.top()->dfs_start_idx==top->dfs_start_idx) {
+                assert(heap.top()->dfs_end_idx==top->dfs_end_idx);
+                top->update_level(heap.top());
+            }else if (top->can_cover(heap.top())) {
+                node_count+=std::max(heap.top()->children.size(),(size_t)1);
+                if (top->children.empty()) {
+                    node_count--;                    
+                }
+                top->cover(heap.top());
+            }else if(heap.top()->can_cover(top)){
+                assert(false);
             }else {
-                cover_all_remaining(overflow,node,node_count);
-                out.push_back(overflow[0]);
+                child_nodes.push_back(heap.top());
+                node_count+=std::max(heap.top()->children.size(),(size_t)1);
             }
+            heap.pop();
         }
-        void push(std::vector<range_tree_temp*>& in,size_t& node_count){
-            if (overflow.size()==16) {
-                cover_all_remaining(overflow,node,node_count);
-            }
-            push_no_check(in);
+
+        if (child_nodes.size()!=1)  {
+            top=std::shared_ptr<range_tree_temp>(new range_tree_temp(child_nodes,node_count,top->covering_node));
         }
-        private:
-        void push_no_check(std::vector<range_tree_temp*>&in){
-            assert(in.size()==1);
-            overflow.push_back(in[0]);
-            in.clear();
+
+        if(!top->covering_node->parent){
+            assert(heap.empty());
+            break;
         }
-    };
-    std::vector<range_tree_temp*> curr_top;
-    std::stack<stact_content_t> merging_points({dfs_ordered_nodes[0]});
-    auto stack_top_ramge_start=0;
-    auto stack_top_ramge_end=merging_points.top().node->dfs_end_index;
-    curr_top.reserve(MAX_DIST);
-    tbb::concurrent_vector<node_info>::const_reverse_iterator iter = in.rbegin();
-    while( iter < in.rend()-1) {
-        if (iter->dfs_idx < stack_top_ramge_start ||
-            iter->dfs_idx > stack_top_ramge_end) {
-            assert(curr_top.size() > 1);
-            merging_points.top().output(curr_top,node_count);
-            cover_all_remaining(curr_top, merging_points.top().node,node_count);
-            merging_points.pop();
-            stack_top_ramge_start = merging_points.top().node->dfs_index;
-            stack_top_ramge_end = merging_points.top().node->dfs_end_index;
-        }
-        if (auto node = condense_children(curr_top, iter, dfs_ordered_nodes,node_count)) {
-            if (node == merging_points.top().node) {
-                merging_points.top().push(curr_top,node_count);
-            } else {
-                assert(node->dfs_index > merging_points.top().node->dfs_index);
-                merging_points.emplace(node, curr_top);
-                stack_top_ramge_start = merging_points.top().node->dfs_index;
-                stack_top_ramge_end = merging_points.top().node->dfs_end_index;
-            }
-        }
+        top->covering_node=top->covering_node->parent;
+        heap.push(top);
     }
     assert(node_count<INT16_MAX);
-    flatten(curr_top, out.nodes,node_count);
+    flatten(top, out.nodes,node_count);
+    out.nodes.push_back(range_tree_node{UINT16_MAX});
     out.start_idxes.reserve(out.nodes.size());
     for(const auto& node: out.nodes){
         assert(out.start_idxes.empty()||out.start_idxes.back()==UINT16_MAX||out.start_idxes.back()<node.dfs_start_idx);
@@ -314,17 +308,27 @@ void make_range_tree(const std::vector<MAT::Node*>& dfs_ordered_nodes,tbb::concu
     }
 }
 
-uint16_t range_tree::find_idx(const MAT::Node* node,uint32_t probe_start_idx_in) const{
+uint16_t range_tree::find_idx(const MAT::Node* node,uint16_t& last_idx,uint16_t probe_start_idx_in) const{
     auto probe_start_idx=probe_start_idx_in;
-    for (; start_idxes[probe_start_idx]<node->dfs_end_index; probe_start_idx++) {}
+    if (start_idxes.empty()) {
+        return UINT16_MAX;
+    }
+    for (; start_idxes[probe_start_idx]<node->dfs_index; probe_start_idx++) {}
     if (start_idxes[probe_start_idx]>node->dfs_end_index) {
         probe_start_idx--;
+        if (probe_start_idx==UINT16_MAX) {
+            return UINT16_MAX;
+        }
+        if (nodes[probe_start_idx].dfs_end_idx<node->dfs_index ) {
+            return UINT16_MAX;        
+        }
     }
-    if (probe_start_idx<probe_start_idx_in||nodes[probe_start_idx].dfs_end_idx<node->dfs_index) {
-        return -1;
-    }
-    if (nodes[probe_start_idx].dfs_start_idx<node->dfs_index) {
-        find_idx(node,nodes[probe_start_idx].children_start_idx);
+    last_idx=probe_start_idx;
+    if (nodes[probe_start_idx].level<node->level) {
+        if (nodes[probe_start_idx].children_start_idx==UINT16_MAX) {
+            return UINT16_MAX;
+        }
+        return find_idx(node,last_idx,nodes[probe_start_idx].children_start_idx);
     }
     return probe_start_idx;
 }

@@ -216,14 +216,17 @@ struct Walker : public tbb::task {
 };
 void output_addable_idxes(pos_tree_t& in,const std::vector<MAT::Node*>& dfs_ordered_nodes){
     addable_idxes=std::vector<range_tree>(MAT::Mutation::refs.size());
-    /*tbb::parallel_for(tbb::blocked_range<size_t>(0,MAT::Mutation::refs.size()),[&in,&dfs_ordered_nodes](tbb::blocked_range<size_t>& range){
+    tbb::parallel_for(tbb::blocked_range<size_t>(0,MAT::Mutation::refs.size()),[&in,&dfs_ordered_nodes](tbb::blocked_range<size_t>& range){
         for (size_t idx=range.begin(); idx<range.end(); idx++) {
             make_range_tree(dfs_ordered_nodes, in[idx], addable_idxes[idx]);
         }
-    });*/
-        for (size_t idx=0; idx<MAT::Mutation::refs.size(); idx++) {
+    });
+/*        for (size_t idx=0; idx<MAT::Mutation::refs.size(); idx++) {
+            if (idx==106) {
+                fputc('a', stderr);
+            }
             make_range_tree(dfs_ordered_nodes, in[idx], addable_idxes[idx]);
-        }
+        }*/
 }
 void adjust_all(MAT::Tree &tree) {
     fprintf(stderr, "start\n");

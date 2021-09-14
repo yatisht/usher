@@ -2,6 +2,7 @@
 #define PROFITABLE_MOVES_ENUMERATOR
 #include "../tree_rearrangement_internal.hpp"
 #include "src/matOptimize/mutation_annotated_tree.hpp"
+#include <cstdint>
 #include <vector>
 #include "../stack_allocator.hpp"
 typedef std::vector<std::array<std::vector<unsigned int>, 4>> mutated_node_dfs_idx_t;
@@ -156,7 +157,11 @@ struct range_tree_node{
 struct range_tree{
     std::vector<uint32_t> start_idxes;
     std::vector<range_tree_node> nodes;
-    uint16_t find_idx(const MAT::Node* node,uint32_t probe_start_idx=0) const ;
+    uint16_t find_idx(const MAT::Node* node,uint16_t& last_probe_idx,uint16_t probe_start_idx=0) const ;
+    uint16_t find_idx(const MAT::Node* node) const{
+        uint16_t ignored;
+        return find_idx(node,ignored,0);
+    }
 };
 extern std::vector<range_tree> addable_idxes;
 #endif
