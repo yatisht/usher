@@ -28,7 +28,7 @@ int main (int argc, char** argv) {
         "calculates sample placement uncertainty metrics and writes the results to tsv\n\n",
         "masks the input samples\n\n",
         "given sample region information, heuristically identifies points of geographic introduction along the phylogeny\n\n",
-        "merge all samples of two input MAT files into a single output MAT [EXPERIMENTAL]\n\n"
+        "merge all samples of two input MAT files into a single output MAT [EXPERIMENTAL]\n\n",
         "display version number\n\n"
     };
     try {
