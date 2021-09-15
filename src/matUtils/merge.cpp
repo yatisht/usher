@@ -43,19 +43,21 @@ po::variables_map parse_merge_command(po::parsed_options parsed)
  **/
 bool consistent(MAT::Tree A, MAT::Tree B)
 {
-
+    fprintf(stderr, "Checking for consistency\n\n");
     //vectors of all leaves in both input trees
     std::vector<std::string> A_leaves = A.get_leaves_ids();
     std::vector<std::string> B_leaves = B.get_leaves_ids();
 
     //creates a vector of common_leaves between two input trees
     std::vector<std::string> common_leaves;
-
     set_intersection(B_leaves.begin(), B_leaves.end(), A_leaves.begin(), A_leaves.end(), std::back_inserter(common_leaves));
+
+
     if (common_leaves.size() == 0)
     {
         return true;
     }
+
     //creates two subtrees using the common_leaves
 
     auto Asub = subtree(A, common_leaves);
@@ -166,11 +168,14 @@ void merge_main(po::parsed_options parsed)
     uint32_t num_threads = vm["threads"].as<uint32_t>();
     tbb::task_scheduler_init init(num_threads);
     MAT::Tree mat1 = MAT::load_mutation_annotated_tree(mat1_filename);
+    fprintf(stderr, "\nLoading first input MAT\n\n");
     MAT::Tree mat2 = MAT::load_mutation_annotated_tree(mat2_filename);
+    fprintf(stderr, "Loading second input MAT\n\n");
+
     MAT::Tree baseMat;
     MAT::Tree otherMat;
     concurMap::accessor ac;
-
+    //uncondenses nodes of both MAT files
     if (mat1.condensed_nodes.size() > 0)
     {
         mat1.uncondense_leaves();
@@ -179,7 +184,7 @@ void merge_main(po::parsed_options parsed)
     {
         mat2.uncondense_leaves();
     }
-    //Assigns biggest MAT to baseMat and smaller one to otherMat
+    //Assigns largest MAT to baseMat and smaller one to otherMat
     if (mat1.get_num_leaves() > mat2.get_num_leaves())
     {
         baseMat = mat1;
@@ -190,7 +195,7 @@ void merge_main(po::parsed_options parsed)
         baseMat = mat2;
         otherMat = mat1;
     }
-    //Checks for consistency
+    //Checks for consistency in mutation paths between the two trees
 
     if (consistent(baseMat, otherMat) == false)
     {
@@ -201,6 +206,7 @@ void merge_main(po::parsed_options parsed)
     //Makes a copy of the baseMat files to add the samples to later
     MAT::Tree finalMat = get_tree_copy(baseMat);
     std::vector<std::string> samples;
+
     auto otherLeaves = otherMat.get_leaves_ids();
     auto baseLeaves = baseMat.get_leaves_ids();
     
@@ -212,7 +218,7 @@ void merge_main(po::parsed_options parsed)
 
     //concurMap::accessor ac;
     static tbb::affinity_partitioner ap;
-    fprintf(stderr, "Found %lu samples to merge\n", samples.size());
+    fprintf(stderr, "Found %lu samples to merge\n\n", samples.size());
     tbb::mutex m;
     //parallel loop that concurrently parses through all the new samples
     int i = 0;
@@ -229,7 +235,8 @@ void merge_main(po::parsed_options parsed)
                 auto ancestors = otherMat.rsearch(x, true);
                 std::string curr = finalMat.root->identifier;
                 std::vector<int> indices;
-                /** Parses through the the ancestors of each sample on otherMat and finds 
+                /** 
+                 * Parses through the the ancestors of each sample on otherMat and finds 
                  * Closest consistent node on baseMat 
                  **/
                 for (int y = 0; y < ancestors.size(); y++)
@@ -258,7 +265,6 @@ void merge_main(po::parsed_options parsed)
                 //Restricts tree search to a smaller subtree
                 auto bfs = finalMat.breadth_first_expansion(curr);
                 mapper2_input inp;
-                //std::cout<<bfs[0]->mutations.size()<<std::endl;
 
                 std::vector<std::vector<MAT::Mutation> > node_excess_mutations(bfs.size());
                 std::vector<std::vector<MAT::Mutation> > node_imputed_mutations(bfs.size());
@@ -457,15 +463,16 @@ void merge_main(po::parsed_options parsed)
                         fprintf(stderr, "\n");
                     }
                 }
-                m.lock();
-                fprintf(stderr, "\rAdded %zu of %zu samples", ++i, samples.size());
-                m.unlock();
+                fprintf(stderr, "\rAdded %d of %zu samples", ++i, samples.size());
             }
         },
         ap);
+
+
     //Save final MAT file
     finalMat.condense_leaves();
 
     MAT::save_mutation_annotated_tree(finalMat, output_filename);
     fprintf(stderr, "\nCompleted in %ld msec \n\n", timer.Stop());
+
 }
