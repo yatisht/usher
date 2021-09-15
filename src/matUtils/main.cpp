@@ -28,7 +28,7 @@ int main (int argc, char** argv) {
         "calculates sample placement uncertainty metrics and writes the results to tsv\n\n",
         "masks the input samples\n\n",
         "given sample region information, heuristically identifies points of geographic introduction along the phylogeny\n\n",
-        "merge all samples of two input MAT files into a single output MAT [EXPERIMENTAL]\n\n"
+        "merge all samples of two input MAT files into a single output MAT [EXPERIMENTAL]\n\n",
         "display version number\n\n"
     };
     try {
@@ -36,7 +36,7 @@ int main (int argc, char** argv) {
         cmd = vm["command"].as<std::string>();
     } catch (...) { //not sure this is the best way to catch it when matUtils is called with no positional arguments.
         fprintf(stderr, "\nNo command selected. Help follows:\n\n");
-        for (int i = 0; i < 8; ++i) {
+        for (int i = 0; i < 9; ++i) {
             fprintf(stderr, "%-15s\t%s", cnames[i].c_str(), chelp[i].c_str());
         }
         //0 when no command is selected because that's what passes tests.
@@ -62,13 +62,13 @@ int main (int argc, char** argv) {
     } else if (cmd == "help") {
         fprintf(stderr, "\n");
         std::cerr << "matUtils (v" << PROJECT_VERSION << ")" << std::endl;
-        for (int i = 0; i < 8; ++i) {
+        for (int i = 0; i < 9; ++i) {
             fprintf(stderr, "%-15s\t%s", cnames[i].c_str(), chelp[i].c_str());
         }
         exit(0);
     } else {
         fprintf(stderr, "\nInvalid command. Help follows:\n\n");
-        for (int i = 0; i < 8; ++i) {
+        for (int i = 0; i < 9; ++i) {
             fprintf(stderr, "%-15s\t%s", cnames[i].c_str(), chelp[i].c_str());
         }
         exit(1);
