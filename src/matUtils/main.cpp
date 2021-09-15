@@ -19,8 +19,8 @@ int main (int argc, char** argv) {
     po::variables_map vm;
     po::parsed_options parsed = po::command_line_parser(argc, argv).options(global).positional(pos).allow_unregistered().run();
     //this help string shows up over and over, lets just define it once
-    std::string cnames[8] = {"COMMAND","summary","extract","annotate","uncertainty","mask","introduce", "merge", "version"};
-    std::string chelp[8] = {
+    std::string cnames[9] = {"COMMAND","summary","extract","annotate","uncertainty","mask","introduce", "merge", "version"};
+    std::string chelp[9] = {
         "DESCRIPTION\n\n",
         "calculates basic statistics and counts samples, mutations, and clades in the input MAT\n\n",
         "subsets the input MAT on various conditions and/or converts to other formats (newick, VCF, JSON)\n\n",
