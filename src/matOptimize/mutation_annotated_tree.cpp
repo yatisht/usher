@@ -137,7 +137,7 @@ std::vector<Node*> Mutation_Annotated_Tree::Tree::get_leaves() const{
 }
 
 void Mutation_Annotated_Tree::Tree::populate_ignored_range(){
-    auto leaves=get_leaves();
+    auto leaves=breadth_first_expansion();
     tbb::parallel_for(tbb::blocked_range<size_t>(0,leaves.size()),[&leaves](const tbb::blocked_range<size_t>& range){
         for (auto idx=range.begin(); idx<range.end(); idx++) {
             auto leaf=leaves[idx];

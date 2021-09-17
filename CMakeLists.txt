@@ -16,9 +16,9 @@ message(STATUS "${usher_VERSION}")
 configure_file(src/version.hpp.in version.hpp)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native -mtune=native -std=c++17 -Wall -ggdb3 -Wno-unused-function -Wno-deprecated-declarations")
-#-DDEBUG_PARSIMONY_SCORE_CHANGE_CORRECT -DCHECK_PAR_MAIN
-set(CMAKE_CXX_FLAGS_DEBUG "-O0  -DCHECK_BOUND -DCHECK_PAR_MAIN -fsanitize=address ")
-set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3  -DCHECK_BOUND -DCHECK_PAR_MAIN ")
+#-DDEBUG_PARSIMONY_SCORE_CHANGE_CORRECT -DCHECK_PAR_MAIN  -fsanitize=address
+set(CMAKE_CXX_FLAGS_DEBUG "-O3  -DCHECK_BOUND -DCHECK_PAR_MAIN -DEASY_DEBUG -DSTOP_ON_ERROR ")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3  -DCHECK_BOUND ")
 set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O3")
 set(CMAKE_INCLUDE_CURRENT_DIR ON) 
 
@@ -48,8 +48,8 @@ AUX_SOURCE_DIRECTORY(src/matOptimize/Profitable_Moves_Enumerators New_Profitable
 AUX_SOURCE_DIRECTORY(src/matOptimize/apply_move patch_tree) 
 file(GLOB MATUTIL_SRCS "src/matUtils/*.cpp" "src/matUtils/*.hpp")
 file(GLOB RIPPLES_SRCS "src/ripples/*.cpp" "src/ripples/*.hpp")
-#set_source_files_properties(src/matOptimize/Profitable_Moves_Enumerators/upward_integrated.cpp PROPERTIES COMPILE_FLAGS -O0)
-#set_source_files_properties(src/matOptimize/Profitable_Moves_Enumerators/downward_integrated.cpp PROPERTIES COMPILE_FLAGS -O0)
+set_source_files_properties(src/matOptimize/Profitable_Moves_Enumerators/upward_integrated.cpp PROPERTIES COMPILE_FLAGS -O0)
+set_source_files_properties(src/matOptimize/Profitable_Moves_Enumerators/downward_integrated.cpp PROPERTIES COMPILE_FLAGS -O0)
 find_package(ZLIB)
 if(DEFINED Protobuf_PATH)
     add_executable(usher

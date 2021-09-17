@@ -9,6 +9,7 @@
 #include "split_node_helpers.hpp"
 #include <cstdio>
 #include <utility>
+#include <signal.h>
 typedef Bounded_Mut_Change_Collection::const_iterator Bounded_Mut_Iter;
 static void
 add_remaining_dst_to_LCA_nodes(MAT::Node *cur, const MAT::Node *LCA,
@@ -20,26 +21,25 @@ add_remaining_dst_to_LCA_nodes(MAT::Node *cur, const MAT::Node *LCA,
     }
 }
 
-void output_result(MAT::Node *src, MAT::Node *dst, MAT::Node *LCA,
+bool output_result(MAT::Node *src, MAT::Node *dst, MAT::Node *LCA,
                    int parsimony_score_change, output_t &output,
                    const std::vector<MAT::Node *> &node_stack_from_src,
                    std::vector<MAT::Node *> &node_stack_from_dst,
                    std::vector<MAT::Node *> &node_stack_above_LCA,
                    int radius_left);
-static void output_not_LCA(Mutation_Count_Change_Collection &parent_added,
+static bool output_not_LCA(Mutation_Count_Change_Collection &parent_added,
                     MAT::Node *dst_node, int parsimony_score_change,
                     int lower_bound, const src_side_info &src_side,
                     int radius
 #ifdef CHECK_BOUND
-    ,bool do_continue,bool is_last
+    ,bool do_continue
 #endif
                     ) {
     if (use_bound&&lower_bound > src_side.out.score_change) {
 #ifndef CHECK_BOUND
-        return;
+        return false;
 #else
         do_continue=false;
-        assert(!is_last);
 #endif
     }
     std::vector<MAT::Node *> node_stack_from_dst;
@@ -47,7 +47,7 @@ static void output_not_LCA(Mutation_Count_Change_Collection &parent_added,
     parent_of_parent_added.reserve(parent_added.size());
     node_stack_from_dst.push_back(dst_node);
     auto this_node = dst_node->parent;
-    if (dst_node->dfs_index==33740) {
+    if (dst_node->dfs_index==57) {
         //fputc('a', stderr);
     }
     while (this_node != src_side.LCA) {
@@ -93,16 +93,25 @@ static void output_not_LCA(Mutation_Count_Change_Collection &parent_added,
     if (refout>=0) {
     if (parsimony_score_change<0) {
         fprintf(stderr, "%s\n",src_side.src->identifier.c_str());
+                    #ifdef STOP_ON_ERROR
+            raise(SIGTRAP);
+            #endif     
     }
     }else {
     if (parsimony_score_change!=refout) {
         fprintf(stderr, "%s\n",src_side.src->identifier.c_str());
+                    #ifdef STOP_ON_ERROR
+            raise(SIGTRAP);
+            #endif     
     }
     }
     #endif
     #ifdef CHECK_BOUND
     if (!((!use_bound)||(parsimony_score_change >= lower_bound)||(parsimony_score_change>=0))) {
         fprintf(stderr, "%s\n",src_side.src->identifier.c_str());
+                    #ifdef STOP_ON_ERROR
+            raise(SIGTRAP);
+            #endif     
     }
     if (parsimony_score_change<=src_side.out.score_change) {
         //assert(do_continue);
@@ -111,7 +120,7 @@ static void output_not_LCA(Mutation_Count_Change_Collection &parent_added,
     }
     src_side.savings.total++;
 #endif
-    output_result(src_side.src, dst_node, src_side.LCA, parsimony_score_change,
+    return output_result(src_side.src, dst_node, src_side.LCA, parsimony_score_change,
                   src_side.out, src_side.node_stack_from_src,
                   node_stack_from_dst, node_stack_above_LCA, radius);
 }
@@ -164,6 +173,9 @@ int downward_integrated(MAT::Node *node, int radius_left,
 #endif
 
 ) {
+    #ifdef EASY_DEBUG
+    std::vector<int> mergable;
+    #endif
     auto iter = from_parent.begin();
     mut_out.reserve(from_parent.size()+node->mutations.size());
     Mutation_Count_Change_Collection split_allele_cnt_change;
@@ -171,7 +183,7 @@ int downward_integrated(MAT::Node *node, int radius_left,
     int par_score_from_split = src_side.par_score_change_from_src_remove;
     int par_score_from_split_lower_bound=src_side.src_par_score_lower_bound;
     int descendant_lower_bound = src_side.src_par_score_lower_bound;
-    if (node->dfs_index==33740) {
+    if (node->dfs_index==8493) {
         //fputc('a', stderr);
     }
     for (const auto &mut : node->mutations) {
@@ -187,6 +199,9 @@ int downward_integrated(MAT::Node *node, int radius_left,
             if (!(iter->get_incremented()&iter->get_senesitive_increment())) {
                 par_score_from_split_lower_bound++;
             }else {
+    #ifdef EASY_DEBUG
+                mergable.push_back(iter->get_position());
+    #endif
                 //assert((iter->have_content)||iter->par_sensitive_increment&iter->get_par_state());
             } 
             add_mut(*iter, radius_left, node, descendant_lower_bound, mut_out,go_des_tag);
@@ -199,6 +214,9 @@ int downward_integrated(MAT::Node *node, int radius_left,
             if (!(iter->get_incremented()&mut.get_sensitive_increment())) {
                 par_score_from_split_lower_bound++;
             }else {
+                    #ifdef EASY_DEBUG
+                mergable.push_back(iter->get_position());
+    #endif
                 //assert((iter->have_content)||iter->par_sensitive_increment&iter->get_par_state());
             }
             if (mut.get_mut_one_hot()!=iter->get_incremented()) {
@@ -215,6 +233,10 @@ int downward_integrated(MAT::Node *node, int radius_left,
             *iter, split_allele_cnt_change, par_score_from_split);
         if (!(iter->get_incremented()&iter->get_senesitive_increment())) {
             par_score_from_split_lower_bound++;
+        }else {
+            #ifdef EASY_DEBUG
+                mergable.push_back(iter->get_position());
+    #endif
         }
         add_mut(*iter, radius_left, node, descendant_lower_bound, mut_out,go_des_tag);
         iter++;
@@ -223,15 +245,28 @@ int downward_integrated(MAT::Node *node, int radius_left,
 #ifdef CHECK_BOUND
     if(!((!use_bound)||par_score_from_split_lower_bound >= prev_lower_bound)){
         fprintf(stderr, "%s\n",src_side.src->identifier.c_str());
+                    #ifdef STOP_ON_ERROR
+            raise(SIGTRAP);
+            #endif     
     }
 #endif
 
-    output_not_LCA(split_allele_cnt_change, node, par_score_from_split,
+    bool found=output_not_LCA(split_allele_cnt_change, node, par_score_from_split,
                    par_score_from_split_lower_bound, src_side, radius_left
 #ifdef CHECK_BOUND
-    ,do_continue,((!first_level)&&(node->is_leaf()||(!radius_left)||descendant_lower_bound>src_side.out.score_change))
+    ,do_continue
 #endif
                    );
+
+    if ((node->children.empty()||!radius_left
+        ||descendant_lower_bound>src_side.out.score_change
+        )&&(!found)&&(!first_level)
+    ) {
+                fprintf(stderr, "%s\n",src_side.src->identifier.c_str());
+                    #ifdef STOP_ON_ERROR
+            raise(SIGTRAP);
+            #endif    
+    }
     return descendant_lower_bound;
 }
 template<typename T>

@@ -28,7 +28,7 @@ bool dst_branch(const MAT::Node *LCA,
 #endif
                );
 
-void output_result(MAT::Node *src, MAT::Node *dst, MAT::Node *LCA,
+bool output_result(MAT::Node *src, MAT::Node *dst, MAT::Node *LCA,
                    int parsimony_score_change, output_t &output,
                    const std::vector<MAT::Node *> &node_stack_from_src,
                    std::vector<MAT::Node *> &node_stack_from_dst,
@@ -68,7 +68,9 @@ void output_result(MAT::Node *src, MAT::Node *dst, MAT::Node *LCA,
         }
 #endif
         output.moves.push_back(new_move);
+        return true;
     }
+    return false;
 }
 int get_parsimmony_score_only(MAT::Node *src, MAT::Node *dst, MAT::Node *LCA,const MAT::Tree* ori_tree);
 bool LCA_place_mezzanine(

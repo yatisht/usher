@@ -17,7 +17,7 @@
 #include "process_individual_mutation.hpp"
 #include "src/matOptimize/tree_rearrangement_internal.hpp"
 
-void make_range_tree(const std::vector<MAT::Node*>& dfs_ordered_nodes,tbb::concurrent_vector<node_info>& in,range_tree& out);
+void make_range_tree(const std::vector<MAT::Node*>& dfs_ordered_nodes,tbb::concurrent_vector<node_info>& in,range_tree& out,size_t idx);
 namespace MAT = Mutation_Annotated_Tree;
 short default_decrement_effect[4];
 short default_increment_effect[4];
@@ -218,7 +218,7 @@ void output_addable_idxes(pos_tree_t& in,const std::vector<MAT::Node*>& dfs_orde
     addable_idxes=std::vector<range_tree>(MAT::Mutation::refs.size());
     tbb::parallel_for(tbb::blocked_range<size_t>(0,MAT::Mutation::refs.size()),[&in,&dfs_ordered_nodes](tbb::blocked_range<size_t>& range){
         for (size_t idx=range.begin(); idx<range.end(); idx++) {
-            make_range_tree(dfs_ordered_nodes, in[idx], addable_idxes[idx]);
+            make_range_tree(dfs_ordered_nodes, in[idx], addable_idxes[idx],idx);
         }
     });
 /*        for (size_t idx=0; idx<MAT::Mutation::refs.size(); idx++) {

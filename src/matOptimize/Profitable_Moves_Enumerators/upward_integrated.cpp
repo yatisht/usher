@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <tuple>
 #include <vector>
+#include <signal.h>
 typedef Bounded_Mut_Change_Collection::iterator Bounded_Mut_Iter;
 void check_parsimony_score_change_above_LCA(
     MAT::Node *LCA, int &parsimony_score_change,
@@ -18,7 +19,7 @@ void check_parsimony_score_change_above_LCA(
     std::vector<MAT::Node *> &node_stack_above_LCA,
     Mutation_Count_Change_Collection &parent_of_parent_added,
     MAT::Node *ancestor);
-void output_result(MAT::Node *src, MAT::Node *dst, MAT::Node *LCA,
+bool output_result(MAT::Node *src, MAT::Node *dst, MAT::Node *LCA,
                    int parsimony_score_change, output_t &output,
                    const std::vector<MAT::Node *> &node_stack_from_src,
                    std::vector<MAT::Node *> &node_stack_from_dst,
@@ -46,12 +47,18 @@ void output_LCA(
     auto ref_out=individual_move(src_side.src, actual_LCA, actual_LCA, temp);
     if (ref_out>=0) {
         if (par_score_change<0) {
-            fprintf(stderr, "%s\n",src_side.src->identifier.c_str());        
+            fprintf(stderr, "%s\n",src_side.src->identifier.c_str());
+            #ifdef STOP_ON_ERROR
+            raise(SIGTRAP);
+            #endif
         }
         //assert(par_score_change>=0);
     }else {
         if (ref_out!=par_score_change) {
             fprintf(stderr, "%s\n",src_side.src->identifier.c_str());
+            #ifdef STOP_ON_ERROR
+            raise(SIGTRAP);
+            #endif     
         }
         //assert(ref_out==par_score_change);
     }
@@ -275,7 +282,7 @@ upward_integrated(src_side_info &src_side,
         if (mut.get_position()==28233) {
             //putc('a', stderr);
         }
-        if (mut.get_position()==27825) {
+        if (mut.get_position()==11083) {
             //putc('a', stderr);
         }
         // Calculate allele count change for parent (and new major allele at
@@ -294,6 +301,8 @@ upward_integrated(src_side_info &src_side,
             // accumulate mutation for placement
             if ( mut.get_par_one_hot() != src_mut_iter->get_incremented()) {
                 mut_out.emplace_back(*src_mut_iter,node,mut,sibling_muts);
+            }else {
+                src_mut_iter->to_ancestor_adjust_range(node, sibling_muts);
             }
             // split LCA
             add_node_split(mut, src_mut_iter->get_incremented(), major_allele,

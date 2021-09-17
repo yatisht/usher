@@ -45,39 +45,60 @@ class Mutation_Count_Change_W_Lower_Bound_Downward : public Mutation_Count_Chang
     uint16_t idx;
     void to_descendant_adjust_range(Mutation_Count_Change_W_Lower_Bound_Downward &in,
                                     const MAT::Node *node, int level_left) {
-        if (node->dfs_index==19407&&get_position()==227703&&get_incremented()==4) {
-            fputc('a', stderr);
+        if (!use_bound) {
+            return;
+        }
+        if (node->dfs_index==18040&&get_position()==179&&get_incremented()==2) {
+            //fputc('a', stderr);
+        }
+        if (get_position()==18568&&node->dfs_index==11410) {
+            //fputc('a', stderr);
         }
         if (in.next_level > node->level) {
+            #ifndef NDEBUG
+            auto test_idx=addable_idxes[get_position()].find_idx(node);
+            if(test_idx!=EMPTY_POS&&addable_idxes[get_position()].nodes[test_idx].level>=node->level){
+                for(;addable_idxes[get_position()].start_idxes[test_idx]<=node->dfs_end_index;test_idx++){
+                    if (test_level(node->level+level_left, addable_idxes[get_position()].nodes[test_idx])) {
+                        assert(addable_idxes[get_position()].nodes[test_idx].level>=node->level);
+                    }
+                }
+            }
+            #endif
             return;
         }
-        if (in.idx==EMPTY_POS) {
-            next_level = LEVEL_END;
-            return;
-        }
+        next_level=LEVEL_END;
         const auto &addable_idxes_this_pos = addable_idxes[get_position()];
         auto end_idx = node->dfs_end_index;
         assert(in.idx==EMPTY_POS||in.idx<addable_idxes_this_pos.nodes.size());
         for (;
-             addable_idxes_this_pos.nodes[in.idx].dfs_end_idx < node->dfs_index;
+             addable_idxes_this_pos.start_idxes[in.idx] < node->dfs_index;
              in.idx++) {
         }
-        if (addable_idxes_this_pos.nodes[in.idx].dfs_start_idx > end_idx) {
-            in.next_level = LEVEL_END;
+        if (addable_idxes_this_pos.start_idxes[in.idx] > end_idx) {
             idx = EMPTY_POS;
         }
-        assert(in.idx==addable_idxes_this_pos.find_idx(node));
         if (idx==EMPTY_POS) {
+            #ifndef NDEBUG
+            auto test_idx=addable_idxes[get_position()].find_idx(node);
+            if(test_idx!=EMPTY_POS&&addable_idxes[get_position()].nodes[test_idx].level>=node->level){
+                for(;addable_idxes[get_position()].start_idxes[test_idx]<=node->dfs_end_index;test_idx++){
+                    if (test_level(node->level+level_left, addable_idxes[get_position()].nodes[test_idx])) {
+                        assert(addable_idxes[get_position()].nodes[test_idx].level>=node->level);
+                    }
+                }
+            }
+            #endif
             return;
         }
+        assert(in.idx==addable_idxes_this_pos.find_idx(node));
         if (addable_idxes_this_pos.nodes[in.idx].level==node->level) {
             if (addable_idxes_this_pos.nodes[in.idx].children_start_idx==EMPTY_POS) {
-                in.next_level = LEVEL_END;
                 idx = EMPTY_POS;
                 return;
             }else {
                 idx=addable_idxes_this_pos.nodes[in.idx].children_start_idx;
-                in.next_level=0;
+                next_level=0;
                 return;
             }
         }
@@ -85,11 +106,11 @@ class Mutation_Count_Change_W_Lower_Bound_Downward : public Mutation_Count_Chang
         next_level =LEVEL_END ;
         idx = in.idx;
         // accumulate closest level
-        for (; addable_idxes_this_pos.nodes[in.idx].dfs_start_idx < end_idx;
+        for (; addable_idxes_this_pos.nodes[in.idx].dfs_start_idx <= end_idx;
              in.idx++) {
             const auto &addable = addable_idxes_this_pos.nodes[in.idx];
-            assert(addable.dfs_end_idx < end_idx);
-            if (test_level(level_left, addable)) {
+            assert(addable.dfs_end_idx <= end_idx);
+            if (test_level(level_left+node->level, addable)) {
                 if (addable.level < next_level) {
                     next_level = addable.level;
                 }
@@ -100,7 +121,7 @@ class Mutation_Count_Change_W_Lower_Bound_Downward : public Mutation_Count_Chang
     bool test_level(int radius_left, const range_tree_node &node) {
         for (int idx = 0; idx < 4; idx++) {
             if (get_incremented() & (1 << idx)) {
-                if (node.min_level[idx] < radius_left) {
+                if (node.min_level[idx] <= radius_left) {
                     return true;
                 }
             }
@@ -144,11 +165,17 @@ class Mutation_Count_Change_W_Lower_Bound_Downward : public Mutation_Count_Chang
     Mutation_Count_Change_W_Lower_Bound_Downward(const MAT::Mutation &in,
                                         const MAT::Node *node, int level_left)
         : Mutation_Count_Change(in, 0, in.get_par_one_hot()) {
+        if (get_position()==13402) {
+            //fputc('a', stderr);
+        }
         assert(in.is_valid());
         set_par_nuc(in.get_mut_one_hot());
         set_sensitive_increment(in.get_sensitive_increment() &
                                   (in.get_all_major_allele() |
                                    in.get_boundary1_one_hot()));
+        if (!use_bound) {
+            return;
+        }
         const auto& this_possition_addable_idx=addable_idxes[get_position()];
         auto start_idx=this_possition_addable_idx.find_idx(node);
         if (start_idx==UINT16_MAX) {
@@ -163,61 +190,71 @@ class Mutation_Count_Change_W_Lower_Bound_Downward : public Mutation_Count_Chang
         }
         assert(this_possition_addable_idx.nodes[start_idx].level>node->level);
         idx=start_idx;
-        if (next_level != LEVEL_END) {
-            for (; addable_idxes[get_position()].nodes[idx].dfs_start_idx <
+        for (; addable_idxes[get_position()].nodes[idx].dfs_start_idx <
                    node->dfs_end_index;
                  idx++) {
                 const auto &addable = addable_idxes[get_position()].nodes[idx];
-                if (test_level(level_left, addable)) {
+                if (test_level(level_left+node->level, addable)) {
+                    break;
+                }
+            }
+        next_level = LEVEL_END;
+            for (auto end_idx=idx; addable_idxes[get_position()].nodes[end_idx].dfs_start_idx <
+                   node->dfs_end_index;
+                 end_idx++) {
+                const auto &addable = addable_idxes[get_position()].nodes[end_idx];
+                if (test_level(level_left+node->level, addable)) {
                     if (addable.level < next_level) {
                         next_level = addable.level;
                     }
                 }
             }
-        }
     }
     bool valid_on_subtree()const{
-        return next_level!=LEVEL_END||(get_incremented()&get_par_state());
+        return next_level!=LEVEL_END||(get_incremented()&get_senesitive_increment());
     }
 };
 class Mutation_Count_Change_W_Lower_Bound_to_ancestor : public Mutation_Count_Change {
     static const uint8_t LEVEL_END = -1;
-    uint8_t next_level;
     uint16_t idx;
     void init(const MAT::Node *node) {
-        assert(use_bound);
+        if (!use_bound) {
+            return;
+        }
         const auto& this_aux=addable_idxes[get_position()];
         uint16_t next_idx=EMPTY_POS;
-        if (get_position()==2652&&node->dfs_index==4505) {
-            fputc('a', stderr);
+        if (get_position()==11083) {
+            //fputc('a', stderr);
         }
         idx =this_aux.find_idx(node,next_idx);
-        if(next_idx==EMPTY_POS){
-            next_level=LEVEL_END;
-            assert(get_incremented()&get_par_state());
-        }else {
-            next_level = this_aux.nodes[next_idx].level;            
-        }
     }
     void output_absent_sibling(std::vector<Mutation_Count_Change_W_Lower_Bound_Downward>& sibling_out){
         sibling_out.emplace_back(*this,get_par_state(),UINT8_MAX,UINT16_MAX);
     }
   public:
     void to_ancestor_adjust_range(const MAT::Node *node,std::vector<Mutation_Count_Change_W_Lower_Bound_Downward>& sibling_out) {
-        assert(get_incremented()!=get_par_state());
-        if (node->level>next_level) {
-            output_absent_sibling(sibling_out);
+        if (!use_bound) {
+             sibling_out.emplace_back(*this,get_par_state(),0,0);
             return;
         }
+        if (get_position()==11083) {
+            //fputc('a', stderr);
+        }
+        assert(get_incremented()!=get_par_state());
         const auto &addable_idxes_this_pos = addable_idxes[get_position()];
         if (idx==EMPTY_POS) {
             idx =addable_idxes_this_pos.find_idx(node);
             assert(idx!=EMPTY_POS||(get_incremented()&&get_par_state()));
         }else {
-        idx = addable_idxes_this_pos.nodes[idx].parent_idx;
         while (idx != EMPTY_POS &&
-               addable_idxes_this_pos.nodes[idx].level >=
+               addable_idxes_this_pos.nodes[idx].level >
                    node->level) {
+            idx = addable_idxes_this_pos.nodes[idx].parent_idx;
+        }
+        if (idx != EMPTY_POS &&
+            addable_idxes_this_pos.nodes[idx].level==node->level&& 
+            (addable_idxes_this_pos.nodes[idx].dfs_start_idx>node->dfs_end_index
+            ||addable_idxes_this_pos.nodes[idx].dfs_end_idx<node->dfs_index)) {
             idx = addable_idxes_this_pos.nodes[idx].parent_idx;
         }
         if (idx==EMPTY_POS||addable_idxes_this_pos.nodes[idx].children_start_idx==EMPTY_POS) {
@@ -225,15 +262,18 @@ class Mutation_Count_Change_W_Lower_Bound_to_ancestor : public Mutation_Count_Ch
             return;
         }
         idx=addable_idxes_this_pos.nodes[idx].children_start_idx;
-        next_level=addable_idxes_this_pos.nodes[idx].level;
         for(;addable_idxes_this_pos.nodes[idx].dfs_start_idx<node->dfs_index;idx++){}
         if (addable_idxes_this_pos.nodes[idx].dfs_start_idx>node->dfs_end_index) {
             idx=EMPTY_POS;
         }
-        assert(idx==addable_idxes_this_pos.find_idx(node));
+        //assert(idx==addable_idxes_this_pos.find_idx(node));
         }
         uint16_t start_idx=EMPTY_POS;
         if (idx != EMPTY_POS) {
+            if (addable_idxes_this_pos.nodes[idx].level>node->level) {
+                sibling_out.emplace_back(*this,get_par_state(),0,idx);
+                return;
+            }
             start_idx = addable_idxes_this_pos.nodes[idx].children_start_idx;
         }
         if (start_idx == EMPTY_POS){

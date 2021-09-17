@@ -124,7 +124,8 @@ std::atomic<size_t> saved(0);
 std::atomic<size_t> total(0);
 #endif
 counters count;
-/*
+        find_moves_bounded(t.get_node("node_983_condensed_2_leaves"), out,radius,count);
+
     tbb::parallel_for(tbb::blocked_range<size_t>(0, nodes_to_search.size()),
                       [&nodes_to_search, &resolver,
                                          &deferred_nodes,radius,&checked_nodes,&allow_drift
@@ -139,8 +140,8 @@ counters count;
 counters count;
 #endif
         //stack_allocator<Mutation_Count_Change> this_thread_FIFO_allocator(FIFO_allocator_state);
-        for (size_t i = r.begin(); i < r.end(); i++) {
-        //*/for (size_t i = 0; i < nodes_to_search.size(); i++) {
+        //for (size_t i = r.begin(); i < r.end(); i++) {
+        for (size_t i = 0; i < nodes_to_search.size(); i++) {
             if (search_context.is_group_execution_cancelled()) {
                 break;
             }
@@ -167,7 +168,7 @@ counters count;
                 deferred_nodes.push_back(nodes_to_search[i]);
             }
         }
-/*    #ifdef CHECK_BOUND
+     #ifdef CHECK_BOUND
         total+=count.total;
         saved+=count.saved;
     #endif
@@ -178,7 +179,7 @@ counters count;
         done=true;
         //done_lock.unlock();
         progress_bar_cv.notify_all();
-    }*/
+    }
     auto searh_end=std::chrono::steady_clock::now();
     std::chrono::duration<double> elpased_time =searh_end-search_start;
     fprintf(stderr, "\nSearch took %f minutes\n",elpased_time.count()/60);
