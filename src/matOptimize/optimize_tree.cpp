@@ -123,8 +123,8 @@ std::pair<size_t, size_t> optimize_tree(std::vector<MAT::Node *> &bfs_ordered_no
 std::atomic<size_t> saved(0);
 std::atomic<size_t> total(0);
 #endif
-counters count;
-        find_moves_bounded(t.get_node("node_983_condensed_2_leaves"), out,radius,count);
+//counters count;
+        //find_moves_bounded(t.get_node("node_983_condensed_2_leaves"), out,radius,count);
 
     tbb::parallel_for(tbb::blocked_range<size_t>(0, nodes_to_search.size()),
                       [&nodes_to_search, &resolver,
@@ -145,7 +145,7 @@ counters count;
             if (search_context.is_group_execution_cancelled()) {
                 break;
             }
-            if(((!deferred_nodes.size())||(std::chrono::steady_clock::now()-last_save_time)<save_period)&&deferred_nodes.size()<max_queued_moves) {
+    //        if(((!deferred_nodes.size())||(std::chrono::steady_clock::now()-last_save_time)<save_period)&&deferred_nodes.size()<max_queued_moves) {
                 output_t out;
                 find_moves_bounded(nodes_to_search[i], out,radius
                               #ifdef CHECK_BOUND
@@ -164,9 +164,9 @@ counters count;
                     resolver(out.moves);
                 }
                 checked_nodes.fetch_add(1,std::memory_order_relaxed);
-            } else {
-                deferred_nodes.push_back(nodes_to_search[i]);
-            }
+            //} else {
+               // deferred_nodes.push_back(nodes_to_search[i]);
+            //}
         }
      #ifdef CHECK_BOUND
         total+=count.total;

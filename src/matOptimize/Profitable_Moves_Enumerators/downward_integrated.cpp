@@ -258,6 +258,7 @@ int downward_integrated(MAT::Node *node, int radius_left,
 #endif
                    );
 
+#ifdef CHECK_BOUND
     if ((node->children.empty()||!radius_left
         ||descendant_lower_bound>src_side.out.score_change
         )&&(!found)&&(!first_level)
@@ -267,6 +268,7 @@ int downward_integrated(MAT::Node *node, int radius_left,
             raise(SIGTRAP);
             #endif    
     }
+#endif
     return descendant_lower_bound;
 }
 template<typename T>
