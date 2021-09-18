@@ -55,17 +55,6 @@ bool dst_branch(const MAT::Node *LCA,
         //When altering the state of nodes on dst branch, only incrementing the number of
         //state a child can have will reduce parsimony score, so use the number of incrementing
         //mutation count change as a upper bound of improvement possible as going up dst nodes
-        auto parsimony_score_lower_bound=parsimony_score_change-src_side_max_improvement;
-        if (parsimony_score_lower_bound>0) {
-            for(const auto &mut_count_change:parent_added) {
-                if (mut_count_change.get_incremented()) {
-                    parsimony_score_lower_bound--;
-                }
-            }
-            if (parsimony_score_lower_bound>0) {
-                return false;
-            }
-        }
         get_intermediate_nodes_mutations(
             this_node, node_stack_from_dst.back(), parent_added,
             parent_of_parent_added, parsimony_score_change

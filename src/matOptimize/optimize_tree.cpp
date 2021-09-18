@@ -124,7 +124,7 @@ std::atomic<size_t> saved(0);
 std::atomic<size_t> total(0);
 #endif
 //counters count;
-        //find_moves_bounded(t.get_node("node_983_condensed_2_leaves"), out,radius,count);
+//find_moves_bounded(t.get_node("node_7537_condensed_20_leaves"), out,radius,count);
 
     tbb::parallel_for(tbb::blocked_range<size_t>(0, nodes_to_search.size()),
                       [&nodes_to_search, &resolver,

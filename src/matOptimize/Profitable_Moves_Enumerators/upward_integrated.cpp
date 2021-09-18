@@ -239,6 +239,9 @@ upward_integrated(src_side_info &src_side,
                   std::vector<Mutation_Count_Change_W_Lower_Bound_to_ancestor> &mut_out, const T &src_branch, S ignore_iter) {
                       auto old_LCA=src_side.LCA;
     MAT::Node *node = old_LCA->parent;
+    if (node->dfs_index==78891) {
+        fputc('a', stderr);
+    }
     if (!node) {
         return false;
     }
@@ -302,7 +305,7 @@ upward_integrated(src_side_info &src_side,
             if ( mut.get_par_one_hot() != src_mut_iter->get_incremented()) {
                 mut_out.emplace_back(*src_mut_iter,node,mut,sibling_muts);
             }else {
-                src_mut_iter->to_ancestor_adjust_range(node, sibling_muts);
+                src_mut_iter->to_ancestor_adjust_range(node, sibling_muts,mut);
             }
             // split LCA
             add_node_split(mut, src_mut_iter->get_incremented(), major_allele,

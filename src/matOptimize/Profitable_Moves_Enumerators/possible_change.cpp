@@ -221,11 +221,11 @@ void output_addable_idxes(pos_tree_t& in,const std::vector<MAT::Node*>& dfs_orde
             make_range_tree(dfs_ordered_nodes, in[idx], addable_idxes[idx],idx);
         }
     });
-/*        for (size_t idx=0; idx<MAT::Mutation::refs.size(); idx++) {
+        /*for (size_t idx=0; idx<MAT::Mutation::refs.size(); idx++) {
             if (idx==106) {
                 fputc('a', stderr);
             }
-            make_range_tree(dfs_ordered_nodes, in[idx], addable_idxes[idx]);
+            make_range_tree(dfs_ordered_nodes, in[idx], addable_idxes[idx],idx);
         }*/
 }
 void adjust_all(MAT::Tree &tree) {
@@ -245,7 +245,7 @@ void adjust_all(MAT::Tree &tree) {
     size_t max_change=0;
     size_t total=0;
     for (const auto& pos_nuc : addable_idxes) {
-            auto this_size=pos_nuc.start_idxes.size();
+            auto this_size=pos_nuc.end_idxes.size();
             max_change=std::max(max_change,this_size);
             total+=this_size;
     }

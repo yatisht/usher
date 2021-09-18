@@ -43,6 +43,14 @@ class Mutation_Count_Change {
         set_change(decremented, incremented);
         //from_invalid_mutation=false;
     }
+    template<typename T>
+    Mutation_Count_Change(const T &pos,nuc_one_hot decremented,nuc_one_hot incremented) {
+        position = pos.get_position();
+        chromIdx = pos.get_chromIdx();
+        par_state=pos.get_par_state();
+        set_change(decremented, incremented);
+        //from_invalid_mutation=false;
+    }
     Mutation_Count_Change(const Mutation_Count_Change &pos,nuc_one_hot decremented,nuc_one_hot incremented):Mutation_Count_Change(pos) {
         set_change(decremented, incremented);
         //from_invalid_mutation=false;
@@ -62,6 +70,9 @@ class Mutation_Count_Change {
     }
     nuc_one_hot get_par_state() const {
         return par_state;
+    }
+    uint8_t get_chromIdx()const{
+        return chromIdx;
     }
     //parsimony score change (number of children able to follow major allele) if the parent node is not sensitive at this loci
     int get_default_change_internal()const {
@@ -155,7 +166,7 @@ struct range_tree_node{
     //uint8_t dist_from_end;
 };
 struct range_tree{
-    std::vector<uint32_t> start_idxes;
+    std::vector<uint32_t> end_idxes;
     std::vector<range_tree_node> nodes;
     uint16_t find_idx(const MAT::Node* node,uint16_t& last_probe_idx,uint16_t probe_start_idx=0) const ;
     uint16_t find_idx(const MAT::Node* node) const{
