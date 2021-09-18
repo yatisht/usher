@@ -4,7 +4,7 @@ namespace po = boost::program_options;
 namespace MAT = Mutation_Annotated_Tree;
 
 //returns exit code
-int usher_common(std::string dout_filename, std::string outdir, uint32_t num_threads, uint32_t max_trees,
+int usher_common(std::string dout_filename, std::string outdir, uint32_t max_trees,
                  uint32_t max_uncertainty, uint32_t max_parsimony, bool sort_before_placement_1, bool sort_before_placement_2, bool sort_before_placement_3,
                  bool reverse_sort, bool collapse_tree, bool collapse_output_tree, bool print_uncondensed_tree, bool print_parsimony_scores,
                  bool retain_original_branch_len, bool no_add, bool detailed_clades, size_t print_subtrees_size, size_t print_subtrees_single,
@@ -87,8 +87,8 @@ int usher_common(std::string dout_filename, std::string outdir, uint32_t num_thr
     // timer object to be used to measure runtimes of individual stages
     Timer timer;
 
-    fprintf(stderr, "Initializing %u worker threads.\n\n", num_threads);
-    tbb::task_scheduler_init init(num_threads);
+//    fprintf(stderr, "Initializing %u worker threads.\n\n", num_threads);
+//    tbb::task_scheduler_init init(num_threads);
 
 #if SAVE_PROFILE == 1
     Instrumentor::Get().BeginSession("test-main", "p1.json");

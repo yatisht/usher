@@ -113,6 +113,9 @@ int main(int argc, char** argv) {
     // timer object to be used to measure runtimes of individual stages
     Timer timer;
     
+    fprintf(stderr, "Initializing %u worker threads.\n\n", num_threads);
+    tbb::task_scheduler_init init(num_threads);
+    
     MAT::Tree tmp_T;
     MAT::Tree* T = NULL;
     // Variables below used to store the different fields of the input VCF file
@@ -368,7 +371,7 @@ int main(int argc, char** argv) {
         exit(1);
     }
 
-    int return_val = usher_common(dout_filename, outdir, num_threads, max_trees, max_uncertainty, max_parsimony,
+    int return_val = usher_common(dout_filename, outdir, max_trees, max_uncertainty, max_parsimony,
             sort_before_placement_1, sort_before_placement_2, sort_before_placement_3, reverse_sort, collapse_tree,
             collapse_output_tree, print_uncondensed_tree, print_parsimony_scores, retain_original_branch_len, no_add,
             detailed_clades, print_subtrees_size, print_subtrees_single, missing_samples, low_confidence_samples, T);

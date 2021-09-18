@@ -34,6 +34,9 @@ int main(int argc, char** argv) {
     po::options_description desc{"Options"};
     uint32_t sleep_length;
     uint32_t termination_character;
+    uint32_t num_threads;
+
+    std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
 
     desc.add_options()
 
@@ -41,6 +44,7 @@ int main(int argc, char** argv) {
     ("list-mutation-annonated-trees,i", po::value<std::string>(&MAT_list_filename)->default_value(""), "File containing list of mutation-annotated tree objects")
     ("sleep-length,s", po::value<uint32_t>(&sleep_length)->default_value(100), "Time in milliseconds that the program waits until checking for input in argument file")
     ("termination-char,c", po::value<uint32_t>(&termination_character)->default_value(94), "Character that will determine if the argument file is ready to be read. Default is '^'")
+    ("threads,T", po::value<uint32_t>(&num_threads)->default_value(num_cores), num_threads_message.c_str())
     ("help,h", "Print help messages");
 
     po::options_description all_options;
@@ -73,7 +77,12 @@ int main(int argc, char** argv) {
         fprintf(stderr, "ERROR: Argument directory provided is not a directory: %s!\n", arg_dirname.c_str());
         exit(1);
     } 
+    
+    // timer object to be used to measure runtimes of individual stages
     Timer timer;
+    fprintf(stderr, "Initializing %u worker threads.\n\n", num_threads);
+    tbb::task_scheduler_init init(num_threads);
+    
 	
     //MAT that is used in the iteration
     MAT::Tree *curr_tree; 
@@ -194,7 +203,6 @@ int main(int argc, char** argv) {
                 std::string dout_filename;
                 std::string outdir;
                 std::string vcf_filename;
-                uint32_t num_threads;
                 //only one tree for usher_server
                 uint32_t max_trees = 1; 
                 uint32_t max_uncertainty;
@@ -214,7 +222,6 @@ int main(int argc, char** argv) {
                 size_t print_subtrees_single=0;
                 po::options_description desc{"Options"};
 
-                std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
                 desc.add_options()
                 ("vcf,v", po::value<std::string>(&vcf_filename)->required(), "Input VCF file (in uncompressed or gzip-compressed .gz format) [REQUIRED]")
                 ("load-mutation-annotated-tree,i", po::value<std::string>(&din_filename)->required(), "Load mutation-annotated tree object [REQUIRED]")
@@ -249,7 +256,6 @@ int main(int argc, char** argv) {
                 "Do not add new samples to the tree")
                 ("detailed-clades,D", po::bool_switch(&detailed_clades), \
                 "In clades.txt, write a histogram of annotated clades and counts across all equally parsimonious placements")
-                ("threads,T", po::value<uint32_t>(&num_threads)->default_value(num_cores), num_threads_message.c_str())
                 ("version", "Print version number")
                 ("reload", "Reload the MAT_list")
                 ("help,h", "Print help messages");
@@ -463,7 +469,7 @@ int main(int argc, char** argv) {
                 fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 
                 //run usher on the argument
-                int return_val = usher_common(dout_filename, outdir, num_threads, max_trees, max_uncertainty, max_parsimony,
+                int return_val = usher_common(dout_filename, outdir, max_trees, max_uncertainty, max_parsimony,
                                             sort_before_placement_1, sort_before_placement_2, sort_before_placement_3, reverse_sort, collapse_tree,
                                             collapse_output_tree, print_uncondensed_tree, print_parsimony_scores, retain_original_branch_len, no_add,
                                             detailed_clades, print_subtrees_size, print_subtrees_single, missing_samples, low_confidence_samples, curr_tree);
