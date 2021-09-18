@@ -769,7 +769,7 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
                     if (field != "strain" && field != "genbank_accession" && field != "date") {
                         if (std::find(additional_meta_fields.begin(), additional_meta_fields.end(), field) != additional_meta_fields.end() || field == "pangolin_lineage" || field == "country") {
                             Taxodium::MetadataSingleValuePerNode *metadata_single = node_data->add_metadata_singles();
-                        
+
                             // Lineage and country are expected to be named "Lineage" and "Country" in Taxodium, so
                             // rename the standard column names. Other custom metadata fields will use their column
                             // name as the pb field name
@@ -797,7 +797,7 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
                         }
                     }
                 }
-                
+
                 if (columns.strain_column == -1) {
                     fprintf(stderr, "ERROR: The required column \"strain\" is missing from the metadata\n");
                     exit(1);
@@ -811,9 +811,9 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
                 fprintf(stderr, "-- %s %s\n", columns.date_column > -1 ? found : missing, "date");
                 fprintf(stderr, "-- %s %s\n", country_found ? found : missing, "country");
                 fprintf(stderr, "-- %s %s\n", lineage_found ? found : missing, "pangolin_lineage");
-                
+
                 fprintf(stderr, "\nIf any of the above fields are missing, importing into Taxodium may not work properly.\n");
-                
+
                 if (additional_meta_fields.size() > 0) {
                     additional_meta_fields.erase(std::remove(additional_meta_fields.begin(), additional_meta_fields.end(), "strain"), additional_meta_fields.end());
                     fprintf(stderr, "\nThe following additional metadata fields were specified:\n");
@@ -831,7 +831,7 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
                 populate_generic_metadata(generic_metadata[i].column, words, generic_metadata[i].seen, generic_metadata[i].count, node_data->mutable_metadata_singles(i));
             }
 
-            // Build mappings for fixed metadata types 
+            // Build mappings for fixed metadata types
             if (columns.date_column > -1) {
                 populate_fixed_metadata("date", columns.date_column, words, seen_dates_map, date_ct, all_data);
             }
@@ -858,7 +858,7 @@ void save_taxodium_tree (MAT::Tree &tree, std::string out_filename, std::vector<
         .date_column = -1,
         .genbank_column = -1,
     };
-    
+
     std::vector<GenericMetadata> generic_metadata;
 
     std::unordered_map<std::string, std::vector<std::string>> metadata = read_metafiles_tax(meta_filenames, all_data, node_data, columns, generic_metadata, additional_meta_fields);

@@ -63,12 +63,12 @@ int main(int argc, char** argv) {
             return 1;
     }
 
-    //slot for a MAT not in the MAT_list file 
+    //slot for a MAT not in the MAT_list file
     MAT::Tree loaded_MAT;
     //keep track if loaded_MAT is a new copy of MAT and can be used
     bool loaded_MAT_avail = false;
     std::string loaded_MAT_name = "";
-    
+
     fs::path p = fs::current_path();
     //get the path to the argument directory
     p/=arg_dirname;
@@ -76,20 +76,20 @@ int main(int argc, char** argv) {
     if (!fs::is_directory(p)) {
         fprintf(stderr, "ERROR: Argument directory provided is not a directory: %s!\n", arg_dirname.c_str());
         exit(1);
-    } 
-    
+    }
+
     // timer object to be used to measure runtimes of individual stages
     Timer timer;
     fprintf(stderr, "Initializing %u worker threads.\n\n", num_threads);
     tbb::task_scheduler_init init(num_threads);
-    
-	
+
+
     //MAT that is used in the iteration
-    MAT::Tree *curr_tree; 
+    MAT::Tree *curr_tree;
     //collection of loaded MATs from the list
-    std::unordered_map<std::string, MAT::Tree> MAT_list; 
+    std::unordered_map<std::string, MAT::Tree> MAT_list;
     //stores information on whether the MATs in the list are available for use
-    std::unordered_map<std::string, bool> MAT_list_avail; 
+    std::unordered_map<std::string, bool> MAT_list_avail;
 
     //if there's a specified MAT_list file, it would go through the file and load the MATs in
     if(MAT_list_filename != "") {
@@ -100,9 +100,9 @@ int main(int argc, char** argv) {
         std::string MAT_filename;
         MAT::Tree temp_MAT;
         std::ifstream MAT_list_file(MAT_list_filename);
-	    
+
         //set up MATs in the list
-        while(std::getline(MAT_list_file, MAT_filename)) { 
+        while(std::getline(MAT_list_file, MAT_filename)) {
             // Load mutation-annotated tree and store it
             timer.Start();
             fprintf(stderr, "Loading existing mutation-annotated tree object from file %s\n", MAT_filename.c_str());
@@ -128,7 +128,7 @@ int main(int argc, char** argv) {
         //iterate through MATs specified by MAT_list file if there are used trees then remove them and load them back in
         for(auto itr = MAT_list_avail.begin(); itr != MAT_list_avail.end(); itr++) {
             //if a MAT pointed by this iterator is not available, load the MAT
-            if(!(itr->second)) { 
+            if(!(itr->second)) {
                 timer.Start();
                 fprintf(stderr, "Loading existing mutation-annotated tree object from file %s\n", (itr->first).c_str());
                 MAT::clear_tree(MAT_list[itr->first]);
@@ -148,15 +148,15 @@ int main(int argc, char** argv) {
 
         //sort files in the directory by when they were last modified
         std::vector<std::pair<fs::path, time_t>> list_argfiles;
-        
-        for(auto ent: fs::directory_iterator(p)){
+
+        for(auto ent: fs::directory_iterator(p)) {
             fs::path curr_path = ent.path();
             list_argfiles.emplace_back(std::make_pair(curr_path, fs::last_write_time(curr_path)));
         }
         std::sort(list_argfiles.begin(), list_argfiles.end());
-        
+
         //go through each file in the argument directory
-        for(auto arg_file_pair: list_argfiles){
+        for(auto arg_file_pair: list_argfiles) {
             std::ifstream arguments_file(arg_file_pair.first.string());
             if (!arguments_file) {
                 fprintf(stderr, "ERROR: Could not open the arguments file: %s!\n", arg_file_pair.first.string().c_str());
@@ -173,22 +173,22 @@ int main(int argc, char** argv) {
                     continue;
                 }
             }
-            
+
             arguments_file.seekg(0, arguments_file.beg);
             std::string argument;
-		
+
             //get a line of argument and feed it into usher
-            while(std::getline(arguments_file, argument)){
+            while(std::getline(arguments_file, argument)) {
                 argument.erase(std::remove(argument.begin(), argument.end(), ((char) termination_character)), argument.end());
                 //print this line's argument
                 fprintf(stderr, "Argument: %s \n\n", argument.c_str());
                 std::istringstream arg(argument);
                 //used to store each word from arg
-                std::vector<std::string> arg_vector; 
+                std::vector<std::string> arg_vector;
                 //in order to replicate commandline argument
-                arg_vector.emplace_back("./usher"); 
+                arg_vector.emplace_back("./usher");
                 //hold the word from argument before adding to the vector
-                std::string tempStr; 
+                std::string tempStr;
                 while(arg >> tempStr) {
                     arg_vector.emplace_back(tempStr);
                 }
@@ -204,7 +204,7 @@ int main(int argc, char** argv) {
                 std::string outdir;
                 std::string vcf_filename;
                 //only one tree for usher_server
-                uint32_t max_trees = 1; 
+                uint32_t max_trees = 1;
                 uint32_t max_uncertainty;
                 uint32_t max_parsimony;
                 bool sort_before_placement_1 = false;
@@ -228,34 +228,34 @@ int main(int argc, char** argv) {
                 ("outdir,d", po::value<std::string>(&outdir)->default_value("."), "Output directory to dump output and log files [DEFAULT uses current directory]")
                 ("save-mutation-annotated-tree,o", po::value<std::string>(&dout_filename)->default_value(""), "Save output mutation-annotated tree object to the specified filename")
                 ("sort-before-placement-1,s", po::bool_switch(&sort_before_placement_1), \
-                "Sort new samples based on computed parsimony score and then number of optimal placements before the actual placement [EXPERIMENTAL].")
+                 "Sort new samples based on computed parsimony score and then number of optimal placements before the actual placement [EXPERIMENTAL].")
                 ("sort-before-placement-2,S", po::bool_switch(&sort_before_placement_2), \
-                "Sort new samples based on the number of optimal placements and then the parsimony score before the actual placement [EXPERIMENTAL].")
+                 "Sort new samples based on the number of optimal placements and then the parsimony score before the actual placement [EXPERIMENTAL].")
                 ("sort-before-placement-3,A", po::bool_switch(&sort_before_placement_3), \
-                "Sort new samples based on the number of ambiguous bases [EXPERIMENTAL].")
+                 "Sort new samples based on the number of ambiguous bases [EXPERIMENTAL].")
                 ("reverse-sort,r", po::bool_switch(&reverse_sort), \
-                "Reverse the sorting order of sorting options (sort-before-placement-1 or sort-before-placement-2) [EXPERIMENTAL]")
+                 "Reverse the sorting order of sorting options (sort-before-placement-1 or sort-before-placement-2) [EXPERIMENTAL]")
                 ("collapse-tree,c", po::bool_switch(&collapse_tree), \
-                "Collapse internal nodes of the input tree with no mutations and condense identical sequences in polytomies into a single node and the save the tree to file condensed-tree.nh in outdir")
+                 "Collapse internal nodes of the input tree with no mutations and condense identical sequences in polytomies into a single node and the save the tree to file condensed-tree.nh in outdir")
                 ("collapse-output-tree,C", po::bool_switch(&collapse_output_tree), \
-                "Collapse internal nodes of the output tree with no mutations before the saving the tree to file final-tree.nh in outdir")
+                 "Collapse internal nodes of the output tree with no mutations before the saving the tree to file final-tree.nh in outdir")
                 ("max-uncertainty-per-sample,e", po::value<uint32_t>(&max_uncertainty)->default_value(1e6), \
-                "Maximum number of equally parsimonious placements allowed per sample beyond which the sample is ignored")
+                 "Maximum number of equally parsimonious placements allowed per sample beyond which the sample is ignored")
                 ("max-parsimony-per-sample,E", po::value<uint32_t>(&max_parsimony)->default_value(1e6), \
-                "Maximum parsimony score of the most parsimonious placement(s) allowed per sample beyond which the sample is ignored")
+                 "Maximum parsimony score of the most parsimonious placement(s) allowed per sample beyond which the sample is ignored")
                 ("write-uncondensed-final-tree,u", po::bool_switch(&print_uncondensed_tree), "Write the final tree in uncondensed format and save to file uncondensed-final-tree.nh in outdir")
                 ("write-subtrees-size,k", po::value<size_t>(&print_subtrees_size)->default_value(0), \
-                "Write minimum set of subtrees covering the newly added samples of size equal to this value")
+                 "Write minimum set of subtrees covering the newly added samples of size equal to this value")
                 ("write-single-subtree,K", po::value<size_t>(&print_subtrees_single)->default_value(0), \
-                "Similar to write-subtrees-size but produces a single subtree with all newly added samples along with random samples up to the value specified by this argument")
+                 "Similar to write-subtrees-size but produces a single subtree with all newly added samples along with random samples up to the value specified by this argument")
                 ("write-parsimony-scores-per-node,p", po::bool_switch(&print_parsimony_scores), \
-                "Write the parsimony scores for adding new samples at each existing node in the tree without modifying the tree in a file names parsimony-scores.tsv in outdir")
+                 "Write the parsimony scores for adding new samples at each existing node in the tree without modifying the tree in a file names parsimony-scores.tsv in outdir")
                 ("retain-input-branch-lengths,l", po::bool_switch(&retain_original_branch_len), \
-                "Retain the branch lengths from the input tree in out newick files instead of using number of mutations for the branch lengths.")
+                 "Retain the branch lengths from the input tree in out newick files instead of using number of mutations for the branch lengths.")
                 ("no-add,n", po::bool_switch(&no_add), \
-                "Do not add new samples to the tree")
+                 "Do not add new samples to the tree")
                 ("detailed-clades,D", po::bool_switch(&detailed_clades), \
-                "In clades.txt, write a histogram of annotated clades and counts across all equally parsimonious placements")
+                 "In clades.txt, write a histogram of annotated clades and counts across all equally parsimonious placements")
                 ("version", "Print version number")
                 ("reload", "Reload the MAT_list")
                 ("help,h", "Print help messages");
@@ -276,7 +276,7 @@ int main(int argc, char** argv) {
                                 std::cout << "MAT list file not found" <<std::endl;
                                 return 1;
                             }
-                            //if the trees specified in the MAT_list file is loaded in already, 
+                            //if the trees specified in the MAT_list file is loaded in already,
                             //discard them so new version could be loaded in
                             for(auto itr = MAT_list.begin(); itr != MAT_list.end(); itr++) {
                                 MAT::clear_tree(itr->second);
@@ -286,9 +286,9 @@ int main(int argc, char** argv) {
                             std::string MAT_filename;
                             MAT::Tree temp_MAT;
                             std::ifstream MAT_list_file(MAT_list_filename);
-							
+
                             //set up MATs in the list
-                            while(std::getline(MAT_list_file, MAT_filename)) { 
+                            while(std::getline(MAT_list_file, MAT_filename)) {
                                 // Load mutation-annotated tree and store it
                                 timer.Start();
                                 fprintf(stderr, "Loading existing mutation-annotated tree object from file %s\n", MAT_filename.c_str());
@@ -302,9 +302,9 @@ int main(int argc, char** argv) {
                         std::cerr << "UShER (v" << PROJECT_VERSION << ")" << std::endl;
                         std::cerr << desc << std::endl;
                     }
-					
+
                     // Return with error code 1 unless the user specifies help, version or reload
-                    if(vm.count("help") || vm.count("version") || vm.count("reload")){
+                    if(vm.count("help") || vm.count("version") || vm.count("reload")) {
                         //if help, version or reload then go to next line
                         continue;
                     } else {
@@ -312,11 +312,11 @@ int main(int argc, char** argv) {
                         break;
                     }
                 }
-		    
+
                 //if the MAT is in the list
-                if(MAT_list.count(din_filename) != 0) { 
+                if(MAT_list.count(din_filename) != 0) {
                     //if the MAT is not available, load it in
-                    if(!(MAT_list_avail[din_filename])) { 
+                    if(!(MAT_list_avail[din_filename])) {
                         timer.Start();
                         fprintf(stderr, "Loading existing mutation-annotated tree object from file %s\n", din_filename.c_str());
                         MAT::clear_tree(MAT_list[din_filename]);
@@ -325,13 +325,13 @@ int main(int argc, char** argv) {
                     }
                     curr_tree = &MAT_list[din_filename];
                     MAT_list_avail[din_filename] = false;
-                }	
+                }
                 //if the MAT is not in the loaded_MAT slot
                 else if(din_filename != loaded_MAT_name) {
                     timer.Start();
                     fprintf(stderr, "Loading existing mutation-annotated tree object from file %s\n", din_filename.c_str());
                     //if there is an existing tree, delete it
-                    if(loaded_MAT_name != "") { 
+                    if(loaded_MAT_name != "") {
                         MAT::clear_tree(loaded_MAT);
                     }
                     // Load mutation-annotated tree and store it
@@ -353,7 +353,7 @@ int main(int argc, char** argv) {
                     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
                 }
                 //loaded_MAT can be used
-                else { 
+                else {
                     curr_tree = &loaded_MAT;
                     loaded_MAT_avail = false;
                 }
@@ -470,15 +470,15 @@ int main(int argc, char** argv) {
 
                 //run usher on the argument
                 int return_val = usher_common(dout_filename, outdir, max_trees, max_uncertainty, max_parsimony,
-                                            sort_before_placement_1, sort_before_placement_2, sort_before_placement_3, reverse_sort, collapse_tree,
-                                            collapse_output_tree, print_uncondensed_tree, print_parsimony_scores, retain_original_branch_len, no_add,
-                                            detailed_clades, print_subtrees_size, print_subtrees_single, missing_samples, low_confidence_samples, curr_tree);
+                                              sort_before_placement_1, sort_before_placement_2, sort_before_placement_3, reverse_sort, collapse_tree,
+                                              collapse_output_tree, print_uncondensed_tree, print_parsimony_scores, retain_original_branch_len, no_add,
+                                              detailed_clades, print_subtrees_size, print_subtrees_single, missing_samples, low_confidence_samples, curr_tree);
 
                 if(return_val != 0) {
                     //if error encountered then stop reading the file for now
                     break;
                 }
-            } 
+            }
             //arguments were run, so delete the file
             fs::remove(arg_file_pair.first);
         }

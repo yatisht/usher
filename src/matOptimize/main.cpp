@@ -361,7 +361,7 @@ int main(int argc, char **argv) {
                 searched_full=false;
             }
             fprintf(stderr, "parsimony score after optimizing: %zu,with radius %d, searched %zu arcs, second from start %ld \n\n",
-             new_score,std::abs(radius),res.second,std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now()-start_time).count());
+                    new_score,std::abs(radius),res.second,std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now()-start_time).count());
             auto save_start=std::chrono::steady_clock::now();
             if(std::chrono::steady_clock::now()-last_save_time>=save_period) {
                 if(!no_write_intermediate) {

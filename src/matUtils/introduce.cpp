@@ -39,9 +39,9 @@ po::variables_map parse_introduce_command(po::parsed_options parsed) {
     ("minimum-to-report,R", po::value<float>()->default_value(0.05),
      "Set to never report origins below the indicated confidence value. Default 0.05.")
     ("num-to-look,X", po::value<size_t>()->default_value(0),
-    "Called introduction nodes must have this many nodes forward to root with lower confidences. Set to higher integers to merge nested clusters. Default 0")
+     "Called introduction nodes must have this many nodes forward to root with lower confidences. Set to higher integers to merge nested clusters. Default 0")
     ("minimum-gap,G", po::value<size_t>()->default_value(0),
-    "The minimum number of mutations between the last ancestor inferred to be in region to its parent to use the ancestor to define the cluster instead of the parent. Set to higher values to merge sibling clusters. Default 0.")
+     "The minimum number of mutations between the last ancestor inferred to be in region to its parent to use the ancestor to define the cluster instead of the parent. Set to higher values to merge sibling clusters. Default 0.")
     ("threads,T", po::value<uint32_t>(&num_threads)->default_value(num_cores), num_threads_message.c_str())
     ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
@@ -595,7 +595,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::unordered_map<std
                     anc_state = assignments.find(a->identifier)->second;
                 }
                 if (anc_state < min_origin_confidence) {
-                    //adding a new filter routine- looking ahead X nodes along the path to see if any have HIGHER confidence than the 
+                    //adding a new filter routine- looking ahead X nodes along the path to see if any have HIGHER confidence than the
                     //current node. If not, this node can't be used as the introduction point. Used to merge small subclusters into larger overarching clusters without adjusting the threshold itself.
                     MAT::Node* cnode;
                     bool lookahead_skip = false;
@@ -719,7 +719,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::unordered_map<std
                             intro_clades += kann->second;
                         }
                     }
-                    
+
                     //calculate the trait phylogeny association metrics
                     //only if additional info is requested because of how it affects total runtime.
                     size_t mc = 0;

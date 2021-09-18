@@ -50,10 +50,9 @@ int main (int argc, char** argv) {
         mask_main(parsed);
     } else if (cmd == "uncertainty") {
         uncertainty_main(parsed);
-    } 
-    else if (cmd == "merge"){
-        merge_main(parsed); 
-    }else if (cmd == "summary") {
+    } else if (cmd == "merge") {
+        merge_main(parsed);
+    } else if (cmd == "summary") {
         summary_main(parsed);
     } else if (cmd == "introduce") {
         introduce_main(parsed);

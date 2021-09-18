@@ -458,7 +458,7 @@ int usher_common(std::string dout_filename, std::string outdir, uint32_t max_tre
                         }  else if (best_set_difference <= max_parsimony) {
                             fprintf(stderr, "WARNING: Multiple parsimony-optimal placements found. Placement done without high confidence.\n");
                         }
-                    } 
+                    }
 
                     if (best_set_difference > max_parsimony) {
                         fprintf(stderr, "WARNING: Parsimony score of the most parsimonious placement exceeds the maximum allowed value (%u). Ignoring sample %s.\n", max_parsimony, sample.c_str());
