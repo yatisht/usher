@@ -1,8 +1,9 @@
-//Load mat files
-//uncondense leaves
 #include "merge.hpp"
+
+typedef tbb::concurrent_hash_map<std::string, std::string> concurMap;
 concurMap consistNodes;
 //tbb::reader_writer_lock rd_wr_lock;
+
 po::variables_map parse_merge_command(po::parsed_options parsed) {
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
     std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
@@ -63,27 +64,30 @@ bool consistent(MAT::Tree A, MAT::Tree B) {
         return false;
     }
     concurMap::accessor ac;
-    bool verify = true;
+    bool ret = true;
     static tbb::affinity_partitioner ap;
     /**
      * Parallel loop that parses through the depth first expansion of
      * both subtrees and compares each node's mutations
      **/
+    tbb::mutex m;
     tbb::parallel_for(
         tbb::blocked_range<size_t>(0, Adfs.size()),
     [&](tbb::blocked_range<size_t> r) {
         for (size_t k = r.begin(); k < r.end(); ++k) {
 
-            verify = chelper(Adfs[k], Bdfs[k]);
+            bool verify = chelper(Adfs[k], Bdfs[k]);
 
             if (verify == false) {
-                return false;
+                m.lock();
+                ret = false;
+                m.unlock();
             }
         }
     },
     ap);
 
-    return true;
+    return ret;
 }
 /**
  * Creates subtrees by removing all uncommon nodes from a
@@ -177,8 +181,8 @@ void merge_main(po::parsed_options parsed) {
         baseMat = mat2;
         otherMat = mat1;
     }
-    //Checks for consistency in mutation paths between the two trees
 
+    //Checks for consistency in mutation paths between the two trees
     if (consistent(baseMat, otherMat) == false) {
         fprintf(stderr, "ERROR: MAT files are not consistent!\n");
         exit(1);
@@ -194,8 +198,8 @@ void merge_main(po::parsed_options parsed) {
     auto otherLeaves = otherMat.get_leaves_ids();
     auto baseLeaves = baseMat.get_leaves_ids();
 
-    sort(otherLeaves.begin(), otherLeaves.end());
-    sort(baseLeaves.begin(), baseLeaves.end());
+    tbb::parallel_sort(otherLeaves.begin(), otherLeaves.end());
+    tbb::parallel_sort(baseLeaves.begin(), baseLeaves.end());
 
     //creates vector of new samples to be added
     std::set_difference(otherLeaves.begin(), otherLeaves.end(), baseLeaves.begin(), baseLeaves.end(), std::back_inserter(samples));
@@ -206,7 +210,13 @@ void merge_main(po::parsed_options parsed) {
     //concurMap::accessor ac;
     static tbb::affinity_partitioner ap;
     fprintf(stderr, "Merging %lu new samples\n", samples.size());
+    
     tbb::mutex m;
+    size_t num_mutex = 8*num_threads;
+    std::vector<tbb::mutex> m_vec(num_mutex);
+
+    std::map<std::string, size_t> node_to_first_sample;
+
     //parallel loop that concurrently parses through all the new samples
     int i = 0;
     tbb::parallel_for(
@@ -216,7 +226,6 @@ void merge_main(po::parsed_options parsed) {
 
             std::unordered_map<int, std::string> anc;
             std::string x = samples[k];
-            MAT::Node *s = otherMat.get_node(x);
             auto ancestors = otherMat.rsearch(x, true);
             std::string curr = finalMat.root->identifier;
             std::vector<int> indices;
@@ -230,10 +239,15 @@ void merge_main(po::parsed_options parsed) {
 
                     anc[y] = ac->second;
                     indices.push_back(y);
-
-                    ac.release();
                 }
                 m.unlock();
+            }
+
+            MAT::Node s(x, -1);
+            for (int y = ancestors.size()-1; y >= 0; y--) {
+                for (auto m: ancestors[y]->mutations) {
+                    s.add_mutation(m);
+                }
             }
 
             int min;
@@ -243,6 +257,9 @@ void merge_main(po::parsed_options parsed) {
                 curr = anc[min];
             }
 
+            size_t lock_id =  std::hash<std::string_view>{}(curr) % (num_mutex);
+            m_vec[lock_id].lock();
+
             //Roots bfs at closest consistent node identified in previous loop
             //Restricts tree search to a smaller subtree
             auto bfs = finalMat.breadth_first_expansion(curr);
@@ -251,7 +268,7 @@ void merge_main(po::parsed_options parsed) {
             std::vector<std::vector<MAT::Mutation> > node_excess_mutations(bfs.size());
             std::vector<std::vector<MAT::Mutation> > node_imputed_mutations(bfs.size());
             size_t best_node_num_leaves = 0;
-            int best_set_difference = s->mutations.size() + bfs[0]->mutations.size() + 1;
+            int best_set_difference = s.mutations.size() + bfs[0]->mutations.size() + 1;
             size_t best_j = 0;
             size_t num_best = 1;
             bool best_node_has_unique = false;
@@ -262,7 +279,7 @@ void merge_main(po::parsed_options parsed) {
             for (int k = 0; k < bfs.size(); k++) {
                 inp.T = &finalMat;
                 inp.node = bfs[k];
-                inp.missing_sample_mutations = &s->mutations;
+                inp.missing_sample_mutations = &s.mutations;
                 inp.excess_mutations = &node_excess_mutations[k];
                 inp.imputed_mutations = &node_imputed_mutations[k];
 
@@ -398,21 +415,12 @@ void merge_main(po::parsed_options parsed) {
                         node->add_mutation(m);
                     }
                 }
-
-                if (node_imputed_mutations[best_j].size() > 0) {
-                    fprintf(stderr, "Imputed mutations:\t");
-                    size_t tot = node_imputed_mutations[best_j].size();
-                    for (size_t curr = 0; curr < tot; curr++) {
-                        if (curr < tot - 1) {
-                            fprintf(stderr, "%i:%c;", node_imputed_mutations[best_j][curr].position, MAT::get_nuc(node_imputed_mutations[best_j][curr].mut_nuc));
-                        } else {
-                            fprintf(stderr, "%i:%c", node_imputed_mutations[best_j][curr].position, MAT::get_nuc(node_imputed_mutations[best_j][curr].mut_nuc));
-                        }
-                    }
-                    fprintf(stderr, "\n");
-                }
             }
+            m_vec[lock_id].unlock();
+
+            m.lock();
             fprintf(stderr, "\rAdded %d of %zu samples", ++i, samples.size());
+            m.unlock();
         }
     },
     ap);
