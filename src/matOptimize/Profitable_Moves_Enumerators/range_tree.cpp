@@ -283,9 +283,9 @@ void make_range_tree(const std::vector<MAT::Node*>& dfs_ordered_nodes,tbb::concu
         std::vector<std::shared_ptr<range_tree_temp>> child_nodes({top});
         heap.pop();
         int node_count=std::max(top->children.size(),(size_t)1);
-        if (top->covering_node->dfs_index==73050&&idx==241) {
+        /*if (top->covering_node->dfs_index==73050&&idx==241) {
             fputc('a', stderr);
-        }
+        }*/
         while (!heap.empty()&&heap.top()->covering_node==top->covering_node) {
             if (heap.top()->dfs_start_idx==top->dfs_start_idx) {
                 assert(heap.top()->dfs_end_idx==top->dfs_end_idx);
@@ -317,9 +317,9 @@ void make_range_tree(const std::vector<MAT::Node*>& dfs_ordered_nodes,tbb::concu
         heap.push(top);
     }
     assert(node_count<INT16_MAX);
-    if (idx==66) {
+    /*if (idx==66) {
         fputc('a', stderr);
-    }
+    }*/
     flatten(top, out.nodes,node_count);
     out.nodes.push_back(range_tree_node{UINT32_MAX,UINT32_MAX});
     out.end_idxes.reserve(out.nodes.size());

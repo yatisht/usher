@@ -53,7 +53,7 @@ static bool output_not_LCA(Mutation_Count_Change_Collection &parent_added,
     parent_of_parent_added.reserve(parent_added.size());
     node_stack_from_dst.push_back(dst_node);
     auto this_node = dst_node->parent;
-    /*if (dst_node->dfs_index==12628) {
+    /*if (dst_node->dfs_index==8350) {
         fputc('a', stderr);
     }*/
     while (this_node != src_side.LCA) {
@@ -239,11 +239,11 @@ int downward_integrated(MAT::Node *node, int radius_left,
     int par_score_from_split = src_side.par_score_change_from_src_remove;
     int par_score_from_split_lower_bound=src_side.src_par_score_lower_bound;
     int descendant_lower_bound = src_side.src_par_score_lower_bound;
-    if (node->dfs_index==8493) {
-        //fputc('a', stderr);
-    }
+    /*if (node->dfs_index==8350) {
+        fputc('a', stderr);
+    }*/
     for (const auto &mut : node->mutations) {
-        /*if (mut.get_position()==26801&&node->dfs_index==12365) {
+        /*if (mut.get_position()==29422&&node->dfs_index==8349) {
             fputc('a', stderr);
         }*/
         if (ignore_iter(mut.get_position())) {
@@ -396,7 +396,7 @@ static void search_subtree_bounded_internal(MAT::Node *node, const src_side_info
     for (auto child : node->children) {
         search_subtree_bounded(child, src_side, radius_left-1, muts, lower_bound,tag
 #ifdef CHECK_BOUND
-,do_continue,first_level
+,do_continue,false
 #endif
         );
     }

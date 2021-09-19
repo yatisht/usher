@@ -239,12 +239,12 @@ upward_integrated(src_side_info &src_side,
                   std::vector<Mutation_Count_Change_W_Lower_Bound_to_ancestor> &mut_out, const T &src_branch, S ignore_iter) {
                       auto old_LCA=src_side.LCA;
     MAT::Node *node = old_LCA->parent;
-    if (node->dfs_index==78891) {
-        fputc('a', stderr);
-    }
     if (!node) {
         return false;
     }
+    /*if (node->dfs_index==78891) {
+        fputc('a', stderr);
+    }*/
     // IN: alelle cnt change from this node (that will change the major allele
     // at parent node)
     auto src_allele_cnt_change_iter = src_branch.begin();
