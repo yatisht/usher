@@ -43,7 +43,7 @@ struct range_tree_temp{
         init(node);
         is_ori_node=false;
     }
-    range_tree_temp(const node_info& in,const std::vector<MAT::Node*>dfs_ordered_nodes):range_tree_temp(dfs_ordered_nodes[in.dfs_idx]){
+    range_tree_temp(const node_info& in,const std::vector<MAT::Node*>& dfs_ordered_nodes):range_tree_temp(dfs_ordered_nodes[in.dfs_idx]){
         min_level[in.base]=in.level;
         is_ori_node=true;
     }
