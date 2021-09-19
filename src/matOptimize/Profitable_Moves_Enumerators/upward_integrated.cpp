@@ -78,7 +78,7 @@ static void search_subtree_first_level(MAT::Node *node, MAT::Node *to_exclude,
             search_subtree_bounded(child, src_side, radius_left - 1, either,
                                    src_side.src_par_score_lower_bound,ignored_range                       
 #ifdef CHECK_BOUND
-,true,true
+,true
 #endif
                                    );
         }

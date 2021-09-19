@@ -163,7 +163,8 @@ static void add_mut(Mutation_Count_Change_W_Lower_Bound_Downward &mut, int radiu
 static void unmatched(Bounded_Mut_Change_Collection &mut_out,
                       const MAT::Mutation &mut, const MAT::Node *node,
                       int radius_left, int &descendant_lower_bound,
-                      go_descendant) {
+                      go_descendant
+                      ) {
     if (mut.is_valid()) {
         mut_out.emplace_back(
             mut, node, radius_left);
@@ -173,7 +174,8 @@ static void unmatched(Bounded_Mut_Change_Collection &mut_out,
         // assert((!mut_out.back().offsetable)||mut_out.back().have_content);
     }
 }
-static void unmatched(Bounded_Mut_Change_Collection & mut_out, const MAT::Mutation& mut,MAT::Node *node, int radius_left,int& descendant_lower_bound,no_descendant){
+static void unmatched(Bounded_Mut_Change_Collection & mut_out, const MAT::Mutation& mut,MAT::Node *node, int radius_left,int& descendant_lower_bound,no_descendant
+){
 }
 template <typename T>
 static void par_only(Mutation_Count_Change_W_Lower_Bound_Downward &mut,
@@ -221,7 +223,7 @@ int downward_integrated(MAT::Node *node, int radius_left,
                         const src_side_info &src_side,go_descendant go_des_tag,S ignore_iter
 #ifdef CHECK_BOUND
                         ,
-                        int prev_lower_bound,bool do_continue,bool first_level
+                        int prev_lower_bound,bool do_continue
 #endif
 
 ) {
@@ -337,24 +339,12 @@ int downward_integrated(MAT::Node *node, int radius_left,
     }
 #endif
 
-    bool found=output_not_LCA(split_allele_cnt_change, node, par_score_from_split,
+    output_not_LCA(split_allele_cnt_change, node, par_score_from_split,
                    par_score_from_split_lower_bound, src_side, radius_left
 #ifdef CHECK_BOUND
     ,do_continue
 #endif
                    );
-
-#ifdef CHECK_BOUND
-    if ((node->children.empty()||!radius_left
-        ||descendant_lower_bound>src_side.out.score_change
-        )&&(!found)&&(!first_level)
-    ) {
-                fprintf(stderr, "%s\n",src_side.src->identifier.c_str());
-                    #ifdef STOP_ON_ERROR
-            raise(SIGTRAP);
-            #endif    
-    }
-#endif
     return descendant_lower_bound;
 }
 template<typename T>
@@ -363,7 +353,7 @@ static void search_subtree_bounded_internal(MAT::Node *node, const src_side_info
                     Bounded_Mut_Change_Collection &par_muts,
                     int lower_bound,T tag
 #ifdef CHECK_BOUND
-                                      ,bool do_continue,bool first_level
+                                      ,bool do_continue
 #endif
                     ) {
     Bounded_Mut_Change_Collection muts;
@@ -371,14 +361,14 @@ static void search_subtree_bounded_internal(MAT::Node *node, const src_side_info
             lower_bound = downward_integrated(node, radius_left, par_muts, muts,
                                       src_side,go_descendant(), T(src_side.src->ignore)
 #ifdef CHECK_BOUND
-                                      ,lower_bound,do_continue,first_level
+                                      ,lower_bound,do_continue
 #endif
                                       );
     }else {
                     lower_bound = downward_integrated(node, radius_left, par_muts, muts,
                                       src_side,no_descendant(), T(src_side.src->ignore)
 #ifdef CHECK_BOUND
-                                      ,lower_bound,do_continue,first_level
+                                      ,lower_bound,do_continue
 #endif
                                       );
     }
@@ -396,7 +386,7 @@ static void search_subtree_bounded_internal(MAT::Node *node, const src_side_info
     for (auto child : node->children) {
         search_subtree_bounded(child, src_side, radius_left-1, muts, lower_bound,tag
 #ifdef CHECK_BOUND
-,do_continue,false
+,do_continue
 #endif
         );
     }
@@ -406,12 +396,12 @@ void search_subtree_bounded(MAT::Node *node, const src_side_info &src_side,
                     Bounded_Mut_Change_Collection &par_muts,
                     int lower_bound,ignore_ranger_nop tag
 #ifdef CHECK_BOUND
-                                      ,bool do_continue,bool first_level
+                                      ,bool do_continue
 #endif
                     ){
                         search_subtree_bounded_internal(node, src_side,radius_left,par_muts,lower_bound,tag
 #ifdef CHECK_BOUND
-                                      ,do_continue, first_level
+                                      ,do_continue
 #endif
                     );
                     }
@@ -420,12 +410,12 @@ void search_subtree_bounded(MAT::Node *node, const src_side_info &src_side,
                     Bounded_Mut_Change_Collection &par_muts,
                     int lower_bound,ignore_ranger tag
 #ifdef CHECK_BOUND
-                                      ,bool do_continue,bool first_level
+                                      ,bool do_continue
 #endif
                     ){
                                                 search_subtree_bounded_internal(node, src_side,radius_left,par_muts,lower_bound,tag
 #ifdef CHECK_BOUND
-                                      ,do_continue, first_level
+                                      ,do_continue
 #endif
                     );
                     }

@@ -69,7 +69,7 @@ class Mutation_Count_Change_W_Lower_Bound_Downward : public Mutation_Count_Chang
         if (get_position()==21724&&node->dfs_index==28242) {
             fputc('a', stderr);
         }*/
-        if (in.next_level > node->level) {
+        if (in.next_level==LEVEL_END) {
             #ifdef CHECK_IDX
             auto test_idx=addable_idxes[get_position()].find_idx(node);
             if(test_idx!=EMPTY_POS&&addable_idxes[get_position()].nodes[test_idx].level>=node->level){
@@ -348,7 +348,7 @@ void search_subtree_bounded(MAT::Node *node, const src_side_info &src_side,
                     Bounded_Mut_Change_Collection &par_muts,
                     int lower_bound,ignore_ranger_nop
 #ifdef CHECK_BOUND
-                                      ,bool do_continue,bool first_level
+                                      ,bool do_continue
 #endif
                     );
 void search_subtree_bounded(MAT::Node *node, const src_side_info &src_side,
@@ -356,6 +356,6 @@ void search_subtree_bounded(MAT::Node *node, const src_side_info &src_side,
                     Bounded_Mut_Change_Collection &par_muts,
                     int lower_bound,ignore_ranger
 #ifdef CHECK_BOUND
-                                      ,bool do_continue,bool first_level
+                                      ,bool do_continue
 #endif
                     );
