@@ -164,6 +164,7 @@ class Mutation_Count_Change_W_Lower_Bound_Downward : public Mutation_Count_Chang
                                         const MAT::Mutation &coincided_mut)
         : Mutation_Count_Change_W_Lower_Bound_Downward(in) {
         to_descendant_adjust_range(in, node, level_left);
+        set_par_nuc(coincided_mut.get_mut_one_hot());
         set_sensitive_increment( coincided_mut.get_sensitive_increment() &
                                   (coincided_mut.get_all_major_allele() |
                                    coincided_mut.get_boundary1_one_hot()));
