@@ -62,8 +62,10 @@ merge_mutation_LCA_to_dst(MAT::Node *child,
             //match, the state of src (incremented allele in m) dosen't change,
             //but need to update  par_nuc as moving under another node
             nuc_one_hot new_par_allele = child_mutation_iter->get_mut_one_hot();
-            child_mutations.emplace_back(m);
-            child_mutations.back().set_par_nuc(new_par_allele);
+            if (m.get_incremented()!=new_par_allele) {
+                child_mutations.emplace_back(m);
+                child_mutations.back().set_par_nuc(new_par_allele);
+            }
             child_mutation_iter++;
         } else {
             //copy over other undisturbed mutations
