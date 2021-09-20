@@ -1,8 +1,7 @@
 #include "merge.hpp"
 
-typedef tbb::concurrent_hash_map<std::string, std::string> concurMap;
+typedef tbb::concurrent_unordered_map<std::string, std::string> concurMap;
 concurMap consistNodes;
-//tbb::reader_writer_lock rd_wr_lock;
 
 po::variables_map parse_merge_command(po::parsed_options parsed) {
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
@@ -10,10 +9,15 @@ po::variables_map parse_merge_command(po::parsed_options parsed) {
 
     po::variables_map vm;
     po::options_description merge_desc("merge options");
-    merge_desc.add_options()("input-mat-1", po::value<std::string>()->required(),
-                             "Input mutation-annotated tree file [REQUIRED]. If only this argument is set, print the count of samples and nodes in the tree.")("input-mat-2", po::value<std::string>()->required(),
-                                     "Input mutation-annotated tree file [REQUIRED]. If only this argument is set, print the count of samples and nodes in the tree.")("output-mat,o", po::value<std::string>()->required(),
-                                             "Write output files to the target directory. Default is current directory.")("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str());
+    merge_desc.add_options()("input-mat-1", po::value<std::string>()->required(), 
+            "Input mutation-annotated tree file [REQUIRED]. If only this argument is set, print the count of samples and nodes in the tree.")
+        ("input-mat-2", po::value<std::string>()->required(),
+         "Input mutation-annotated tree file [REQUIRED]. If only this argument is set, print the count of samples and nodes in the tree.")
+        ("output-mat,o", po::value<std::string>()->required(),
+         "Write output files to the target directory. Default is current directory.")
+        ("max-depth,d", po::value<uint32_t>()->default_value(20),
+         "Max depth to consider in the subtree rooted at the consistent node.")
+        ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str());
 
     std::vector<std::string> opts = po::collect_unrecognized(parsed.options, po::include_positional);
     opts.erase(opts.begin());
@@ -56,14 +60,13 @@ bool consistent(MAT::Tree A, MAT::Tree B) {
 
     auto Asub = subtree(A, common_leaves);
     auto Bsub = subtree(B, common_leaves);
-    Asub.rotate_for_display();
-    Bsub.rotate_for_display();
+    Asub.rotate_for_consistency();
+    Bsub.rotate_for_consistency();
     auto Adfs = Asub.depth_first_expansion();
     auto Bdfs = Bsub.depth_first_expansion();
     if (Adfs.size() != Bdfs.size()) {
         return false;
     }
-    concurMap::accessor ac;
     bool ret = true;
     static tbb::affinity_partitioner ap;
     /**
@@ -95,7 +98,6 @@ bool consistent(MAT::Tree A, MAT::Tree B) {
  **/
 MAT::Tree subtree(MAT::Tree tree, std::vector<std::string> common) {
 
-    tbb::mutex m;
     auto tree_copy = get_tree_copy(tree);
     auto all_leaves = tree_copy.get_leaves_ids();
     std::vector<std::string> to_remove;
@@ -103,7 +105,6 @@ MAT::Tree subtree(MAT::Tree tree, std::vector<std::string> common) {
 
     for (auto k : to_remove) {
         tree_copy.remove_node(k, true);
-        // m.unlock();
     }
     return tree_copy;
 }
@@ -113,15 +114,10 @@ MAT::Tree subtree(MAT::Tree tree, std::vector<std::string> common) {
  * Maps all consistent nodes using the consistNodes hashmap
  **/
 bool chelper(MAT::Node *a, MAT::Node *b) {
-    tbb::mutex m;
-    concurMap::accessor ac;
-    if (a->is_root() && b->is_root()) {
-        return true;
-    }
     if (a->mutations.size() != b->mutations.size()) {
         return false;
     }
-    for (int x = 0; x < a->mutations.size(); x++) {
+    for (size_t x = 0; x < a->mutations.size(); x++) {
         MAT::Mutation mut1 = a->mutations[x];
         MAT::Mutation mut2 = b->mutations[x];
         if (mut1.position != mut2.position) {
@@ -133,9 +129,8 @@ bool chelper(MAT::Node *a, MAT::Node *b) {
         }
     }
     //Maps all nodes that are consistent
-    consistNodes.insert(ac, b->identifier);
-    ac->second = a->identifier;
-    ac.release();
+    consistNodes.emplace(std::pair<std::string, std::string> (b->identifier, a->identifier));
+    
     return true;
 }
 
@@ -147,6 +142,7 @@ void merge_main(po::parsed_options parsed) {
     std::string mat2_filename = vm["input-mat-2"].as<std::string>();
     std::string output_filename = vm["output-mat"].as<std::string>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
+    uint32_t max_levels = vm["max-depth"].as<uint32_t>();
 
 
     fprintf(stderr, "Initializing %u worker threads.\n\n", num_threads);
@@ -165,7 +161,7 @@ void merge_main(po::parsed_options parsed) {
     fprintf(stderr, "Checking MAT consistency.\n");
     MAT::Tree baseMat;
     MAT::Tree otherMat;
-    concurMap::accessor ac;
+
     //uncondenses nodes of both MAT files
     if (mat1.condensed_nodes.size() > 0) {
         mat1.uncondense_leaves();
@@ -207,7 +203,6 @@ void merge_main(po::parsed_options parsed) {
 
     timer.Start();
 
-    //concurMap::accessor ac;
     static tbb::affinity_partitioner ap;
     fprintf(stderr, "Merging %lu new samples\n", samples.size());
     
@@ -219,52 +214,36 @@ void merge_main(po::parsed_options parsed) {
 
     //parallel loop that concurrently parses through all the new samples
     int i = 0;
-    tbb::parallel_for(
-        tbb::blocked_range<size_t>(0, samples.size()),
-    [&](tbb::blocked_range<size_t> r) {
-        for (size_t k = r.begin(); k < r.end(); k++) {
+    for (size_t k = 0; k < samples.size(); k++) {
 
-            std::unordered_map<int, std::string> anc;
             std::string x = samples[k];
             auto ancestors = otherMat.rsearch(x, true);
             std::string curr = finalMat.root->identifier;
-            std::vector<int> indices;
+
             /**
              * Parses through the the ancestors of each sample on otherMat and finds
              * Closest consistent node on baseMat
              **/
-            for (int y = 0; y < ancestors.size(); y++) {
-                m.lock();
-                if (consistNodes.find(ac, ancestors[y]->identifier) == true) {
-
-                    anc[y] = ac->second;
-                    indices.push_back(y);
+            for (auto anc: ancestors) {
+                if (consistNodes.find(anc->identifier) != consistNodes.end()) {
+                    curr = consistNodes[anc->identifier];
+                    break;
                 }
-                m.unlock();
             }
 
             MAT::Node s(x, -1);
+            s.mutations.clear();
             for (int y = ancestors.size()-1; y >= 0; y--) {
                 for (auto m: ancestors[y]->mutations) {
                     s.add_mutation(m);
                 }
             }
-
-            int min;
-
-            if (indices.size() != 0) {
-                min = *std::min_element(indices.begin(), indices.end());
-                curr = anc[min];
-            }
-
-            size_t lock_id =  std::hash<std::string_view>{}(curr) % (num_mutex);
-            m_vec[lock_id].lock();
+            std::sort(s.mutations.begin(), s.mutations.end());
 
             //Roots bfs at closest consistent node identified in previous loop
             //Restricts tree search to a smaller subtree
             auto bfs = finalMat.breadth_first_expansion(curr);
-            mapper2_input inp;
-
+            
             std::vector<std::vector<MAT::Mutation> > node_excess_mutations(bfs.size());
             std::vector<std::vector<MAT::Mutation> > node_imputed_mutations(bfs.size());
             size_t best_node_num_leaves = 0;
@@ -276,7 +255,18 @@ void merge_main(po::parsed_options parsed) {
             std::vector<bool> node_has_unique(bfs.size(), false);
             std::vector<size_t> best_j_vec;
             best_j_vec.emplace_back(0);
-            for (int k = 0; k < bfs.size(); k++) {
+
+
+            tbb::parallel_for(
+                    tbb::blocked_range<size_t>(0, bfs.size()),
+                    [&](tbb::blocked_range<size_t> r) {
+            for (size_t k = r.begin(); k < r.end(); k++) {
+                if (bfs[k]->level - bfs[0]->level > max_levels) {
+                    continue;
+                }
+
+                mapper2_input inp;
+
                 inp.T = &finalMat;
                 inp.node = bfs[k];
                 inp.missing_sample_mutations = &s.mutations;
@@ -292,14 +282,15 @@ void merge_main(po::parsed_options parsed) {
                 inp.has_unique = &best_node_has_unique;
                 inp.best_j_vec = &best_j_vec;
                 inp.node_has_unique = &(node_has_unique);
-                mapper2_body(inp, false, true);
+                mapper2_body(inp, false);
             }
+                    }, ap);
 
             if (finalMat.get_node(x) == NULL) {
                 // Is placement as sibling
                 if (best_node->is_leaf() || best_node_has_unique) {
-                    std::string nid = finalMat.new_internal_node_id();
                     m.lock();
+                    std::string nid = finalMat.new_internal_node_id();
                     finalMat.create_node(nid, best_node->parent->identifier);
                     finalMat.create_node(x, nid);
                     finalMat.move_node(best_node->identifier, nid);
@@ -416,14 +407,9 @@ void merge_main(po::parsed_options parsed) {
                     }
                 }
             }
-            m_vec[lock_id].unlock();
-
-            m.lock();
+            
             fprintf(stderr, "\rAdded %d of %zu samples", ++i, samples.size());
-            m.unlock();
         }
-    },
-    ap);
 
     fprintf(stderr, "\n");
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
