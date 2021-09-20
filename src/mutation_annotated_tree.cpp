@@ -1255,11 +1255,10 @@ void Mutation_Annotated_Tree::Tree::rotate_for_consistency() {
             desc += num_desc[child];
         }
         num_desc[n] = desc;
-        
+
         if (n->is_leaf()) {
             smallest_desc[n] = n->identifier;
-        }
-        else {
+        } else {
             std::string smallest = smallest_desc[n->children[0]];
             for (auto child: n->children) {
                 if (child->identifier < smallest) {
@@ -1272,11 +1271,11 @@ void Mutation_Annotated_Tree::Tree::rotate_for_consistency() {
 
     for (auto n: dfs) {
         tbb::parallel_sort(n->children.begin(), n->children.end(),
-                [&](Node* n1, Node* n2) {
-                return ((num_desc[n1] > num_desc[n2]) || 
-                        ((num_desc[n1] == num_desc[n2]) && 
-                         (smallest_desc[n1] < smallest_desc[n2])));
-                });
+        [&](Node* n1, Node* n2) {
+            return ((num_desc[n1] > num_desc[n2]) ||
+                    ((num_desc[n1] == num_desc[n2]) &&
+                     (smallest_desc[n1] < smallest_desc[n2])));
+        });
     }
 }
 
