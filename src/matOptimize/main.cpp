@@ -286,7 +286,7 @@ int main(int argc, char **argv) {
     int stalled = 0;
 
 #ifndef NDEBUG
-    check_samples(t.root, origin_states, &t);
+    //check_samples(t.root, origin_states, &t);
 #endif
     t.populate_ignored_range();
     score_before = t.get_parsimony_score();
@@ -338,6 +338,13 @@ counters count;
         //Actual optimization loop
         bool searched_full=true;
         while (!nodes_to_search.empty()) {
+            if (nodes_to_search.size()<100) {
+                auto fh=fopen("nodes_to_search", "w");
+                for (const auto& node : nodes_to_search) {
+                    fprintf(fh, "%s\n",node->identifier.c_str());
+                }
+                fclose(fh);
+            }
             if (interrupted) {
                 break;
             }
@@ -375,6 +382,7 @@ counters count;
                 }
                 last_save_time=std::chrono::steady_clock::now();
             }
+            t.save_detailed_mutations("last_iter.pb");
             use_bound=false;
         }
         if (new_score >= score_before) {
@@ -394,7 +402,6 @@ counters count;
             interrupted=true;
             break;
         }
-        t.save_detailed_mutations("last_iter.pb");
     }
     fprintf(stderr, "Final Parsimony score %zu\n",t.get_parsimony_score());
     fclose(movalbe_src_log);

@@ -134,22 +134,22 @@ struct go_descendant{};
 struct no_descendant{};
 static void add_mut(Mutation_Count_Change_W_Lower_Bound_Downward &mut, int radius_left,
                     const MAT::Node *node, int &descendant_lower_bound,
-                    Bounded_Mut_Change_Collection &mut_out, go_descendant) {
-    mut_out.emplace_back(mut, node, radius_left);
+                    Bounded_Mut_Change_Collection &mut_out,std::vector<int>& start_useful_idx,std::vector<int>& end_useful_idx, go_descendant) {
+    mut_out.emplace_back(mut, node, radius_left,start_useful_idx,end_useful_idx);
     if (!mut_out.back().valid_on_subtree()) {
         descendant_lower_bound++;
     }
 }
 static void add_mut(Mutation_Count_Change_W_Lower_Bound_Downward &mut, int radius_left,
                     const MAT::Node *node, int &descendant_lower_bound,
-                    Bounded_Mut_Change_Collection &mut_out, no_descendant) {}
+                    Bounded_Mut_Change_Collection &mut_out,std::vector<int>& start_useful_idx,std::vector<int>& end_useful_idx, no_descendant) {}
 
 static void add_mut(Mutation_Count_Change_W_Lower_Bound_Downward &mut, int radius_left,
                     const MAT::Node *node, int &descendant_lower_bound,
                     Bounded_Mut_Change_Collection &mut_out,
-                    const MAT::Mutation &coincided_mut,go_descendant) {
+                    const MAT::Mutation &coincided_mut,std::vector<int>& start_useful_idx,std::vector<int>& end_useful_idx,go_descendant) {
     if (coincided_mut.get_mut_one_hot()!=mut.get_incremented()) {
-    mut_out.emplace_back(mut, node, radius_left, coincided_mut);
+    mut_out.emplace_back(mut, node, radius_left, coincided_mut,start_useful_idx,end_useful_idx);
     if (!mut_out.back().valid_on_subtree()) {
         descendant_lower_bound++;
     }
@@ -158,23 +158,23 @@ static void add_mut(Mutation_Count_Change_W_Lower_Bound_Downward &mut, int radiu
 static void add_mut(Mutation_Count_Change_W_Lower_Bound_Downward &mut, int radius_left,
                     const MAT::Node *node, int &descendant_lower_bound,
                     Bounded_Mut_Change_Collection &mut_out,
-                    const MAT::Mutation &coincided_mut,no_descendant) {
+                    const MAT::Mutation &coincided_mut,std::vector<int>& start_useful_idx,std::vector<int>& end_useful_idx,no_descendant) {
 }
 static void unmatched(Bounded_Mut_Change_Collection &mut_out,
                       const MAT::Mutation &mut, const MAT::Node *node,
-                      int radius_left, int &descendant_lower_bound,
+                      int radius_left, int &descendant_lower_bound,std::vector<int>& start_useful_idx,std::vector<int>& end_useful_idx,
                       go_descendant
                       ) {
     if (mut.is_valid()) {
         mut_out.emplace_back(
-            mut, node, radius_left);
+            mut, node, radius_left,start_useful_idx,end_useful_idx);
         if (use_bound && !mut_out.back().valid_on_subtree()) {
             descendant_lower_bound++;
         }
         // assert((!mut_out.back().offsetable)||mut_out.back().have_content);
     }
 }
-static void unmatched(Bounded_Mut_Change_Collection & mut_out, const MAT::Mutation& mut,MAT::Node *node, int radius_left,int& descendant_lower_bound,no_descendant
+static void unmatched(Bounded_Mut_Change_Collection & mut_out, const MAT::Mutation& mut,MAT::Node *node, int radius_left,int& descendant_lower_bound,std::vector<int>& start_useful_idx,std::vector<int>& end_useful_idx,no_descendant
 ){
 }
 template <typename T>
@@ -183,7 +183,7 @@ static void par_only(Mutation_Count_Change_W_Lower_Bound_Downward &mut,
                      int &par_score_from_split,
                      int &par_score_from_split_lower_bound, int radius_left,
                      const MAT::Node *node, int &descendant_lower_bound,
-                     Bounded_Mut_Change_Collection &mut_out, T go_des_tag
+                     Bounded_Mut_Change_Collection &mut_out,std::vector<int>& start_useful_idx,std::vector<int>& end_useful_idx, T go_des_tag
 #ifdef EASY_DEBUG
                      ,std::vector<int> &mergable
 #endif
@@ -203,7 +203,7 @@ static void par_only(Mutation_Count_Change_W_Lower_Bound_Downward &mut,
 #endif
         // assert((mut.have_content)||mut.par_sensitive_increment&mut.get_par_state());
     }
-    add_mut(mut, radius_left, node, descendant_lower_bound, mut_out,
+    add_mut(mut, radius_left, node, descendant_lower_bound, mut_out,start_useful_idx,end_useful_idx,
             go_des_tag);
 }
 #ifdef CHECK_BRANCH_REIMPLEMENT
@@ -220,7 +220,7 @@ template<typename go_descendant , typename S>
 int downward_integrated(MAT::Node *node, int radius_left,
                         Bounded_Mut_Change_Collection &from_parent,
                         Bounded_Mut_Change_Collection &mut_out,
-                        const src_side_info &src_side,go_descendant go_des_tag,S ignore_iter
+                        const src_side_info &src_side,std::vector<int>& start_useful_idx,std::vector<int>& end_useful_idx,go_descendant go_des_tag,S ignore_iter
 #ifdef CHECK_BOUND
                         ,
                         int prev_lower_bound,bool do_continue
@@ -235,9 +235,12 @@ int downward_integrated(MAT::Node *node, int radius_left,
     std::vector<int> mergable;
     #endif
     auto iter = from_parent.begin();
-    mut_out.reserve(from_parent.size()+node->mutations.size());
+    auto max_size=from_parent.size()+node->mutations.size();
+    mut_out.reserve(max_size);
+    start_useful_idx.reserve(max_size);
+    end_useful_idx.reserve(max_size);
     Mutation_Count_Change_Collection split_allele_cnt_change;
-    split_allele_cnt_change.reserve(from_parent.size()+ node->mutations.size());
+    split_allele_cnt_change.reserve(max_size);
     int par_score_from_split = src_side.par_score_change_from_src_remove;
     int par_score_from_split_lower_bound=src_side.src_par_score_lower_bound;
     int descendant_lower_bound = src_side.src_par_score_lower_bound;
@@ -256,7 +259,7 @@ int downward_integrated(MAT::Node *node, int radius_left,
             add_node_split(
                 *iter, split_allele_cnt_change_TEST, par_score_from_split_TEST);
 #endif
-            par_only(*iter, split_allele_cnt_change, par_score_from_split, par_score_from_split_lower_bound, radius_left, node, descendant_lower_bound, mut_out, go_des_tag
+            par_only(*iter, split_allele_cnt_change, par_score_from_split, par_score_from_split_lower_bound, radius_left, node, descendant_lower_bound, mut_out,start_useful_idx,end_useful_idx, go_des_tag
     #ifdef EASY_DEBUG
             , mergable
     #endif
@@ -293,7 +296,7 @@ int downward_integrated(MAT::Node *node, int radius_left,
     #endif
                 //assert((iter->have_content)||iter->par_sensitive_increment&iter->get_par_state());
             }
-            add_mut(*iter, radius_left, node, descendant_lower_bound, mut_out,mut,go_des_tag);
+            add_mut(*iter, radius_left, node, descendant_lower_bound, mut_out,mut,start_useful_idx,end_useful_idx,go_des_tag);
             iter++;
         } else {
 #ifdef CHECK_BRANCH_REIMPLEMENT
@@ -311,7 +314,7 @@ int downward_integrated(MAT::Node *node, int radius_left,
 #ifdef CHECK_BRANCH_REIMPLEMENT
             checker(par_score_from_split, par_score_from_split_TEST, split_allele_cnt_change_TEST, split_allele_cnt_change);
 #endif
-            unmatched(mut_out, mut, node, radius_left, descendant_lower_bound, go_des_tag);
+            unmatched(mut_out, mut, node, radius_left, descendant_lower_bound,start_useful_idx,end_useful_idx, go_des_tag);
         }
     }
     while (iter ->get_position()!=INT_MAX) {
@@ -319,7 +322,7 @@ int downward_integrated(MAT::Node *node, int radius_left,
                     add_node_split(
                 *iter, split_allele_cnt_change_TEST, par_score_from_split_TEST);
 #endif
-            par_only(*iter, split_allele_cnt_change, par_score_from_split, par_score_from_split_lower_bound, radius_left, node, descendant_lower_bound, mut_out, go_des_tag
+            par_only(*iter, split_allele_cnt_change, par_score_from_split, par_score_from_split_lower_bound, radius_left, node, descendant_lower_bound, mut_out,start_useful_idx,end_useful_idx, go_des_tag
     #ifdef EASY_DEBUG
             , mergable
     #endif
@@ -357,16 +360,18 @@ static void search_subtree_bounded_internal(MAT::Node *node, const src_side_info
 #endif
                     ) {
     Bounded_Mut_Change_Collection muts;
+    std::vector<int> start_useful_idx;
+    std::vector<int> end_useful_idx;
     if (radius_left&&node->children.size()) {
             lower_bound = downward_integrated(node, radius_left, par_muts, muts,
-                                      src_side,go_descendant(), T(src_side.src->ignore)
+                                      src_side,start_useful_idx,end_useful_idx,go_descendant(), T(src_side.src->ignore)
 #ifdef CHECK_BOUND
                                       ,lower_bound,do_continue
 #endif
                                       );
     }else {
                     lower_bound = downward_integrated(node, radius_left, par_muts, muts,
-                                      src_side,no_descendant(), T(src_side.src->ignore)
+                                      src_side,start_useful_idx,end_useful_idx,no_descendant(), T(src_side.src->ignore)
 #ifdef CHECK_BOUND
                                       ,lower_bound,do_continue
 #endif
@@ -384,7 +389,24 @@ static void search_subtree_bounded_internal(MAT::Node *node, const src_side_info
 #endif
     }
     for (auto child : node->children) {
-        search_subtree_bounded(child, src_side, radius_left-1, muts, lower_bound,tag
+        int child_specific_lower_bound=lower_bound;
+        auto node_start_idx=node->dfs_index;
+        auto node_end_idx=node->dfs_end_index;
+        if (use_bound) {
+        for (int idx=0; idx<start_useful_idx.size(); idx++) {
+            if (node_end_idx<start_useful_idx[idx]||end_useful_idx[idx]<node_start_idx) {
+                child_specific_lower_bound++;
+            }
+        }
+        if (child_specific_lower_bound>src_side.out.score_change) {
+#ifndef CHECK_BOUND
+        continue;
+#else
+        do_continue=false;
+#endif      
+        }
+        }
+        search_subtree_bounded(child, src_side, radius_left-1, muts, child_specific_lower_bound,tag
 #ifdef CHECK_BOUND
 ,do_continue
 #endif

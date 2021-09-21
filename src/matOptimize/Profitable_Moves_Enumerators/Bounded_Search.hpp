@@ -43,43 +43,71 @@ class Mutation_Count_Change_W_Lower_Bound_Downward : public Mutation_Count_Chang
     uint8_t par_sensitive_increment;
     uint8_t next_level;
     uint16_t idx;
-    bool descend(const range_tree & addable_idxes_this_pos,uint8_t level){
+    bool descend(const range_tree & addable_idxes_this_pos,uint8_t level,std::vector<int>& start_useful_idxes,std::vector<int>& end_useful_idxes,uint8_t max_level,uint32_t end_dfs_idx){
         if (addable_idxes_this_pos.nodes[idx].level==level) {
+            uint16_t end_idx=idx;
+            bool continue_find_end_idx=true;
             while (idx != EMPTY_POS&&addable_idxes_this_pos.nodes[idx].level==level) {
-                idx=addable_idxes_this_pos.nodes[idx].children_start_idx;
-            }
-            if (idx==EMPTY_POS) {
+                for(;addable_idxes_this_pos.nodes[idx].dfs_end_idx<=end_dfs_idx;idx++){
+                    const auto& this_idx_tree_node=addable_idxes_this_pos.nodes[idx];
+                    if (this_idx_tree_node.children_start_idx!=EMPTY_POS&&test_level(max_level,this_idx_tree_node)) {
+                        goto FOUND;
+                    }
+                }
                 next_level=LEVEL_END;
                 return true;
-            }else {
-                next_level=0;
-                return true;
+FOUND:
+                if (continue_find_end_idx) {
+                    end_idx=std::max(end_idx,idx);
+                    bool found_at_least_one=false;
+                    for (uint16_t prode_idx=end_idx; addable_idxes_this_pos.nodes[prode_idx].dfs_end_idx<=end_dfs_idx;prode_idx++) {
+                        const auto& this_idx_tree_node=addable_idxes_this_pos.nodes[prode_idx];
+                        if (this_idx_tree_node.children_start_idx!=EMPTY_POS&&test_level(max_level,this_idx_tree_node)) {
+                            end_idx=std::max(end_idx,prode_idx);
+                            found_at_least_one=true;
+                        }
+                    }
+                    if (found_at_least_one) {
+                        end_idx=addable_idxes_this_pos.nodes[end_idx].children_start_idx;
+                    }else {
+                        continue_find_end_idx=false;
+                    }
+                }
+                idx=addable_idxes_this_pos.nodes[idx].children_start_idx;
+
             }
+            start_useful_idxes.push_back(addable_idxes_this_pos.nodes[idx].dfs_start_idx);
+            end_useful_idxes.push_back(addable_idxes_this_pos.nodes[idx].dfs_end_idx);
+            next_level=0;
+            return true;
         }
         return false;
     }
+    bool forward_useless_idx(const MAT::Node* node, int level_left){
+                for (; addable_idxes[get_position()].nodes[idx].dfs_start_idx <=
+                   node->dfs_end_index;
+                 idx++) {
+                const auto &addable = addable_idxes[get_position()].nodes[idx];
+                if (test_level(level_left+node->level, addable)) {
+                    return false;;
+                }
+            }
+            next_level=LEVEL_END;
+            return true;
+    }
+    
     void to_descendant_adjust_range(Mutation_Count_Change_W_Lower_Bound_Downward &in,
-                                    const MAT::Node *node, int level_left) {
+                                    const MAT::Node *node, int level_left,std::vector<int>& start_useful_idx,std::vector<int>& end_useful_idx) {
         if (!use_bound) {
             return;
         }
-        /*        if (get_position()==21724&&node->dfs_index==27943) {
+        /*if (get_position()==11782&&node->dfs_index==14445) {
             fputc('a', stderr);
         }
         if (get_position()==21724&&node->dfs_index==28242) {
             fputc('a', stderr);
         }*/
         if (in.next_level==LEVEL_END) {
-            #ifdef CHECK_IDX
-            auto test_idx=addable_idxes[get_position()].find_idx(node);
-            if(test_idx!=EMPTY_POS&&addable_idxes[get_position()].nodes[test_idx].level>=node->level){
-                for(;addable_idxes[get_position()].start_idxes[test_idx]<=node->dfs_end_index;test_idx++){
-                    if (test_level(node->level+level_left, addable_idxes[get_position()].nodes[test_idx])) {
-                        assert(addable_idxes[get_position()].nodes[test_idx].level>=node->level);
-                    }
-                }
-            }
-            #endif
             return;
         }
         next_level=LEVEL_END;
@@ -108,11 +136,14 @@ class Mutation_Count_Change_W_Lower_Bound_Downward : public Mutation_Count_Chang
         //assert(in.idx==addable_idxes_this_pos.find_idx(node));
         assert(in.idx==EMPTY_POS||in.idx<addable_idxes_this_pos.nodes.size());
         idx=in.idx;
-        if(descend(addable_idxes_this_pos, node->level)){
+        if(descend(addable_idxes_this_pos, node->level,start_useful_idx,end_useful_idx,level_left+node->level,node->dfs_end_index)){
+            return;
+        }
+        if (forward_useless_idx(node, level_left)) {
             return;
         }
         assert(addable_idxes_this_pos.nodes[in.idx].level>node->level);
-        set_next_level(node, level_left);
+        set_next_level(node, level_left,start_useful_idx,end_useful_idx,in.idx);
         assert(in.idx==EMPTY_POS||in.idx<addable_idxes_this_pos.nodes.size());
     }
     // going to descendant
@@ -126,20 +157,26 @@ class Mutation_Count_Change_W_Lower_Bound_Downward : public Mutation_Count_Chang
         }
         return false;
     }
-    void set_next_level(const MAT::Node* node, int level_left){
+    void set_next_level(const MAT::Node* node, int level_left,std::vector<int>& start_useful_idxes,std::vector<int>& end_useful_idxes,uint16_t& end_idx){
             next_level = LEVEL_END;
             bool found=false;
-            for (auto end_idx=idx; addable_idxes[get_position()].nodes[end_idx].dfs_start_idx <=
+            uint16_t end_useful_idx=0;
+            const auto& this_useful_idx=addable_idxes[get_position()];
+            for (end_idx=idx; this_useful_idx.nodes[end_idx].dfs_start_idx <=
                    node->dfs_end_index;
                  end_idx++) {
-                const auto &addable = addable_idxes[get_position()].nodes[end_idx];
+                const auto &addable = this_useful_idx.nodes[end_idx];
                 next_level=std::min((uint8_t)addable.level,next_level);
                 if (test_level(level_left+node->level, addable)) {
                     found=true;
+                    end_useful_idx=std::max(end_useful_idx,end_idx);
                 }
             }
             if (!found) {
                 next_level=LEVEL_END;
+            }else {
+                start_useful_idxes.push_back(this_useful_idx.nodes[idx].dfs_start_idx);
+                end_useful_idxes.push_back(this_useful_idx.nodes[end_useful_idx].dfs_start_idx);
             }
     }
   public:
@@ -157,17 +194,17 @@ class Mutation_Count_Change_W_Lower_Bound_Downward : public Mutation_Count_Chang
     // Going down no coincide
     Mutation_Count_Change_W_Lower_Bound_Downward(){}
     Mutation_Count_Change_W_Lower_Bound_Downward(Mutation_Count_Change_W_Lower_Bound_Downward &in,
-                                        const MAT::Node *node, int level_left)
+                                        const MAT::Node *node, int level_left,std::vector<int>& start_useful_idx,std::vector<int>& end_useful_idx)
         : Mutation_Count_Change_W_Lower_Bound_Downward(in) {
-        to_descendant_adjust_range(in, node, level_left);
+        to_descendant_adjust_range(in, node, level_left,start_useful_idx,end_useful_idx);
         set_sensitive_increment(in.get_par_state());
     }
     // Going Down coincide
     Mutation_Count_Change_W_Lower_Bound_Downward(Mutation_Count_Change_W_Lower_Bound_Downward &in,
                                         const MAT::Node *node, int level_left,
-                                        const MAT::Mutation &coincided_mut)
+                                        const MAT::Mutation &coincided_mut,std::vector<int>& start_useful_idx,std::vector<int>& end_useful_idx)
         : Mutation_Count_Change_W_Lower_Bound_Downward(in) {
-        to_descendant_adjust_range(in, node, level_left);
+        to_descendant_adjust_range(in, node, level_left,start_useful_idx,end_useful_idx);
         set_par_nuc(coincided_mut.get_mut_one_hot());
         set_sensitive_increment( coincided_mut.get_sensitive_increment() &
                                   (coincided_mut.get_all_major_allele() |
@@ -177,9 +214,9 @@ class Mutation_Count_Change_W_Lower_Bound_Downward : public Mutation_Count_Chang
 
     // Going down new
     Mutation_Count_Change_W_Lower_Bound_Downward(const MAT::Mutation &in,
-                                        const MAT::Node *node, int level_left)
+                                        const MAT::Node *node, int level_left,std::vector<int>& start_useful_idx,std::vector<int>& end_useful_idx)
         : Mutation_Count_Change(in, 0, in.get_par_one_hot()) {
-        /*if (get_position()==29870&&node->dfs_index==59641) {
+        /*if (get_position()==12809&&node->dfs_index==32047) {
             fputc('a', stderr);
         }*/
         assert(in.is_valid());
@@ -197,19 +234,15 @@ class Mutation_Count_Change_W_Lower_Bound_Downward : public Mutation_Count_Chang
             return;
         }
         idx=start_idx;
-        if(descend(addable_idxes[get_position()], node->level)){
+        if(descend(addable_idxes[get_position()], node->level,start_useful_idx,end_useful_idx,node->level+level_left,node->dfs_end_index)){
             return;
         }
         assert(this_possition_addable_idx.nodes[start_idx].level>node->level);
-        for (; addable_idxes[get_position()].nodes[idx].dfs_start_idx <
-                   node->dfs_end_index;
-                 idx++) {
-                const auto &addable = addable_idxes[get_position()].nodes[idx];
-                if (test_level(level_left+node->level, addable)) {
-                    break;
-                }
-            }
-        set_next_level(node, level_left);
+        if (forward_useless_idx(node, level_left)) {
+            return;
+        }
+        uint16_t ignored;
+        set_next_level(node, level_left,start_useful_idx,end_useful_idx,ignored);
     }
     bool valid_on_subtree()const{
         return next_level!=LEVEL_END||(get_incremented()&get_senesitive_increment());

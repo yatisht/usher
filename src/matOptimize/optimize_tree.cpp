@@ -100,7 +100,7 @@ std::pair<size_t, size_t> optimize_tree(std::vector<MAT::Node *> &bfs_ordered_no
                      tbb::concurrent_vector<MAT::Node *> &nodes_to_search,
                      MAT::Tree &t,int radius,FILE* log,bool allow_drift,int iteration
 #ifndef NDEBUG
-                     , Original_State_t origin_states
+                     , Original_State_t& origin_states
 #endif
                     ) {
     std::atomic<size_t> node_searched_this_iter(0);
@@ -256,7 +256,7 @@ counters count;
     auto recycle_end=std::chrono::steady_clock::now();
     elpased_time =recycle_end-apply_end;
 #ifndef NDEBUG
-    check_samples(t.root, origin_states, &t);
+    //check_samples(t.root, origin_states, &t);
 #endif
     nodes_to_search = std::move(deferred_nodes);
     progress_meter.join();
