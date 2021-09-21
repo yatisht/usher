@@ -17,7 +17,7 @@ configure_file(src/version.hpp.in version.hpp)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native -mtune=native -std=c++17 -Wall -ggdb3 -Wno-unused-function -Wno-deprecated-declarations")
 #-DDEBUG_PARSIMONY_SCORE_CHANGE_CORRECT -DCHECK_PAR_MAIN   -fsanitize=address 
-set(CMAKE_CXX_FLAGS_DEBUG "-O3  -DCHECK_BOUND -DCHECK_PAR_MAIN -DEASY_DEBUG  ")
+set(CMAKE_CXX_FLAGS_DEBUG "-O3  -DCHECK_BOUND -DCHECK_PAR_MAIN -DEASY_DEBUG -DSTOP_ON_ERROR ")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3  -DNDEBUG ")
 set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O3")
 set(CMAKE_INCLUDE_CURRENT_DIR ON) 

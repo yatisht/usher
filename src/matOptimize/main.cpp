@@ -345,6 +345,7 @@ counters count;
                 }
                 fclose(fh);
             }
+            t.save_detailed_mutations("last_iter.pb");
             if (interrupted) {
                 break;
             }
@@ -382,7 +383,6 @@ counters count;
                 }
                 last_save_time=std::chrono::steady_clock::now();
             }
-            t.save_detailed_mutations("last_iter.pb");
             use_bound=false;
         }
         if (new_score >= score_before) {

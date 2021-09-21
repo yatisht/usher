@@ -133,6 +133,7 @@ nuc_one_hot get_parent_state(Node* ancestor,int position) {
     return Mutation::refs[position];
 }
 void Mutation_Annotated_Tree::Node::populate_ignored_range(){
+    ignore.clear();
     for (const auto& mut : mutations) {
         if (mut.get_all_major_allele()==0xf) {
             if (ignore.empty()||ignore.back().second!=(mut.get_position()-1)) {

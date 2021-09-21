@@ -125,6 +125,7 @@ std::pair<size_t, size_t> optimize_tree(std::vector<MAT::Node *> &bfs_ordered_no
 std::atomic<size_t> saved(0);
 std::atomic<size_t> total(0);
 #endif
+    t.populate_ignored_range();
 /*
 counters count;
 find_moves_bounded(t.get_node("s14640s"), out,radius,count);
