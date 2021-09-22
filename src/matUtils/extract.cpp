@@ -166,7 +166,7 @@ void extract_main (po::parsed_options parsed) {
 
     std::vector<std::string> additional_meta_fields;
     MAT::string_split(raw_meta_fields, ',', additional_meta_fields);
-    
+
     bool collapse_tree = vm["collapse-tree"].as<bool>();
     bool no_genotypes = vm["no-genotypes"].as<bool>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();

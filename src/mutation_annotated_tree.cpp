@@ -1242,6 +1242,43 @@ void Mutation_Annotated_Tree::Tree::rotate_for_display(bool reverse) {
     }
 }
 
+void Mutation_Annotated_Tree::Tree::rotate_for_consistency() {
+    auto dfs = depth_first_expansion();
+
+    std::unordered_map<Node*, int> num_desc;
+    std::unordered_map<Node*, std::string> smallest_desc;
+
+    for (int i=int(dfs.size())-1; i>=0; i--) {
+        auto n = dfs[i];
+        int desc = 1;
+        for (auto child: n->children) {
+            desc += num_desc[child];
+        }
+        num_desc[n] = desc;
+
+        if (n->is_leaf()) {
+            smallest_desc[n] = n->identifier;
+        } else {
+            std::string smallest = smallest_desc[n->children[0]];
+            for (auto child: n->children) {
+                if (child->identifier < smallest) {
+                    smallest = child->identifier;
+                }
+            }
+            smallest_desc[n] = smallest;
+        }
+    }
+
+    for (auto n: dfs) {
+        tbb::parallel_sort(n->children.begin(), n->children.end(),
+        [&](Node* n1, Node* n2) {
+            return ((smallest_desc[n1] < smallest_desc[n2]) ||
+                    ((smallest_desc[n1] == smallest_desc[n2]) &&
+                     (num_desc[n1] < num_desc[n2])));
+        });
+    }
+}
+
 
 Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_tree_copy(const Mutation_Annotated_Tree::Tree& tree, const std::string& identifier) {
     TIMEIT();

@@ -3,9 +3,9 @@
 
 // column numbers of fixed metadata
 typedef struct {
-	int strain_column;
-	int date_column;
-	int genbank_column;
+    int strain_column;
+    int date_column;
+    int genbank_column;
 } MetaColumns;
 
 typedef struct {

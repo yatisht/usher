@@ -273,7 +273,7 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
         if (node->is_root()) {
             // For the root node, modify mutation_result with "fake" mutations,
             // to enable correct coloring by amino acid in Taxodium
-            std::unordered_map<std::string, bool> done_codons = {}; // some codons are duplicated in codon_map, track them 
+            std::unordered_map<std::string, bool> done_codons = {}; // some codons are duplicated in codon_map, track them
             std::string root_mutations = ""; // add "mutations" at the root
             for (int32_t pos = 0; pos < (int32_t) reference.length(); pos++) {
                 if (codon_map.find(pos) == codon_map.end()) {
@@ -321,7 +321,7 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
             for (const auto &m : generic_metadata) {
                 m.protobuf_data_ptr->add_node_values(0); // no metadata for this node
             }
-        } else if (metadata.find(node->identifier) == metadata.end()) { 
+        } else if (metadata.find(node->identifier) == metadata.end()) {
             node_data->add_names(split(node->identifier, '|')[0]);
 
             if (fixed_columns.date_column > -1) {
@@ -333,7 +333,7 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
             for (const auto &m : generic_metadata) {
                 m.protobuf_data_ptr->add_node_values(0); // no metadata for this node
             }
-        
+
         } else {
 
             // All of the metadata values (integer-encoded for those with mappings) for the current node
