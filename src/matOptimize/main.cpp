@@ -338,14 +338,14 @@ counters count;
         //Actual optimization loop
         bool searched_full=true;
         while (!nodes_to_search.empty()) {
-            if (nodes_to_search.size()<100) {
+            /*if (nodes_to_search.size()<100) {
                 auto fh=fopen("nodes_to_search", "w");
                 for (const auto& node : nodes_to_search) {
                     fprintf(fh, "%s\n",node->identifier.c_str());
                 }
                 fclose(fh);
             }
-            t.save_detailed_mutations("last_iter.pb");
+            t.save_detailed_mutations("last_iter.pb");*/
             if (interrupted) {
                 break;
             }
