@@ -16,8 +16,8 @@ message(STATUS "${usher_VERSION}")
 configure_file(src/version.hpp.in version.hpp)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native -mtune=native -std=c++17 -Wall -ggdb3 -Wno-unused-function -Wno-deprecated-declarations")
-#-DDEBUG_PARSIMONY_SCORE_CHANGE_CORRECT -DCHECK_PAR_MAIN   -fsanitize=address 
-set(CMAKE_CXX_FLAGS_DEBUG "-O3  -DCHECK_BOUND -DCHECK_PAR_MAIN -DEASY_DEBUG -DSTOP_ON_ERROR ")
+#-DDEBUG_PARSIMONY_SCORE_CHANGE_CORRECT -DCHECK_PAR_MAIN   
+set(CMAKE_CXX_FLAGS_DEBUG "-O3 -DCHECK_BOUND -DCHECK_PAR_MAIN -fsanitize=address -DEASY_DEBUG -DSTOP_ON_ERROR ")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3  -DNDEBUG ")
 set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O3")
 set(CMAKE_INCLUDE_CURRENT_DIR ON) 
@@ -32,7 +32,8 @@ endif()
 if(Protobuf_FOUND)
     message(STATUS "Using Protocol Buffers ${Protobuf_VERSION}")
 endif()
-
+find_package(MPI REQUIRED)
+include_directories(SYSTEM ${MPI_INCLUDE_PATH})
 include_directories(${Protobuf_INCLUDE_DIRS})
 
 include(${TBB_DIR}/cmake/TBBBuild.cmake)
@@ -51,6 +52,10 @@ file(GLOB RIPPLES_SRCS "src/ripples/*.cpp" "src/ripples/*.hpp")
 #set_source_files_properties(src/matOptimize/Profitable_Moves_Enumerators/upward_integrated.cpp PROPERTIES COMPILE_FLAGS -O0)
 #set_source_files_properties(src/matOptimize/Profitable_Moves_Enumerators/downward_integrated.cpp PROPERTIES COMPILE_FLAGS -O0)
 #set_source_files_properties(src/matOptimize/Profitable_Moves_Enumerators/range_tree.cpp PROPERTIES COMPILE_FLAGS -O0)
+
+#set_source_files_properties(src/matOptimize/detailed_mutations_store.cpp PROPERTIES COMPILE_FLAGS -O0)
+#set_source_files_properties(src/matOptimize/detailed_mutations_load.cpp PROPERTIES COMPILE_FLAGS -O0)
+#set_source_files_properties(src/matOptimize/serializer_test.cpp PROPERTIES COMPILE_FLAGS -O0)
 find_package(ZLIB)
 if(DEFINED Protobuf_PATH)
     add_executable(usher
@@ -199,7 +204,8 @@ else()
         src/matOptimize/mutation_annotated_tree.cpp
         src/matOptimize/mutation_annotated_tree_node.cpp
         src/matOptimize/mutation_annotated_tree_load_store.cpp
-        src/matOptimize/detailed_mutations_load_store.cpp
+        src/matOptimize/detailed_mutations_store.cpp
+        src/matOptimize/detailed_mutations_load.cpp
         src/matOptimize/mutation_annotated_tree_nuc_util.cpp
         src/matOptimize/main.cpp
         src/matOptimize/optimize_tree.cpp
@@ -237,20 +243,28 @@ else()
         src/matOptimize/transpose_vcf/transposed_vcf_print_name.cpp
         src/matOptimize/mutation_annotated_tree_nuc_util.cpp
         )
-        #[[add_executable(test_sensitive_nuc
-        src/matOptimize/possible_change.cpp
+        add_executable(serialize_test
         src/matOptimize/mutation_annotated_tree.cpp
         src/matOptimize/mutation_annotated_tree_node.cpp
+        src/matOptimize/serializer_test.cpp
+        src/matOptimize/detailed_mutations_store.cpp
         src/matOptimize/mutation_annotated_tree_load_store.cpp
-        src/matOptimize/detailed_mutations_load_store.cpp
-        src/matOptimize/Mutation_Collection.cpp
+        src/matOptimize/detailed_mutations_load.cpp
         src/matOptimize/mutation_annotated_tree_nuc_util.cpp
-        ${New_Profitable_Moves_Enumerators}
+        src/matOptimize/import_vcf_fast.cpp
+        src/matOptimize/condense.cpp
+        src/matOptimize/VCF_load_tree.cpp
+        src/matOptimize/main_load_tree.cpp
+        src/matOptimize/main_helper.cpp
+        src/matOptimize/Mutation_Collection.cpp
+        src/matOptimize/Fitch_Sankoff.cpp
+        src/matOptimize/check_samples.cpp
         ${PROTO_SRCS}
         ${PROTO_HDRS}
+        ${patch_tree}
         ${DETAILED_MUTATIONS_PROTO_SRCS}
         ${DETAILED_MUTATIONS_PROTO_HDRS}
-        )]]#
+        )
 endif()
 
 if(SAVE_PROFILE)
@@ -269,12 +283,12 @@ endif(SAVE_PROFILE)
 
 #set_property(TARGET matOptimize PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 TARGET_LINK_LIBRARIES(compareVCF PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
-TARGET_LINK_LIBRARIES(matOptimize PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
+TARGET_LINK_LIBRARIES(matOptimize PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB MPI) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(transpose_vcf PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(transposed_vcf_to_vcf PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(transposed_vcf_to_fa PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(transposed_vcf_print_name PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
-#TARGET_LINK_LIBRARIES(test_sensitive_nuc PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
+TARGET_LINK_LIBRARIES(serialize_test PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 
 TARGET_LINK_LIBRARIES(usher PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 target_include_directories(usher PUBLIC "${PROJECT_BINARY_DIR}")

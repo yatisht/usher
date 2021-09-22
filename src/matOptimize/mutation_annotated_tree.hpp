@@ -131,7 +131,9 @@ class Mutation {
     Mutation(int pos):position(pos),chrom_idx(0),par_mut_nuc(0),boundary1_all_major_allele(0) {}
 
     Mutation(uint8_t chrom_idx,int pos,uint8_t par_nuc,uint8_t mut_nuc):position(pos),chrom_idx(chrom_idx),par_mut_nuc((par_nuc<<4)|mut_nuc),boundary1_all_major_allele(mut_nuc) {}
-
+    struct ignored{};
+    Mutation(uint8_t chrom_idx,int pos,uint8_t par_nuc,uint8_t mut_nuc,ignored):position(pos),chrom_idx(chrom_idx),par_mut_nuc((par_nuc<<4)|mut_nuc),boundary1_all_major_allele(0xf) {}
+    
     bool same_chrom(const Mutation& other) const {
         return chrom_idx==other.chrom_idx;
     }
