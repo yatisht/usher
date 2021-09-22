@@ -111,12 +111,12 @@ static size_t search_subtree_not_LCA(
         //Haven't exhausted hops, recurse down to explore more dsts
         for (MAT::Node *child : root->children) {
             searched_nodes+=search_subtree_not_LCA(child, LCA, src, child_mutations,
-                                   profitable_moves, root_mutations_altered,radius-1,
-                                   parsimony_score_change_from_removal, node_stack_from_src,allocator
+                                                   profitable_moves, root_mutations_altered,radius-1,
+                                                   parsimony_score_change_from_removal, node_stack_from_src,allocator
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-                                   ,debug_from_src,tree
+                                                   ,debug_from_src,tree
 #endif
-                                  );
+                                                  );
         }
     }
     return searched_nodes;
@@ -164,13 +164,13 @@ size_t search_subtree(
         for (MAT::Node *child : LCA->children) {
             if (child !=exclude) {
                 nodes_searched+=search_subtree_not_LCA(child, LCA, src,mutations,
-                                       profitable_moves, src_branch_mutations_altered,radius-1,
-                                       parsimony_score_change_from_removal, node_stack_from_src,
-                                       allocator
+                                                       profitable_moves, src_branch_mutations_altered,radius-1,
+                                                       parsimony_score_change_from_removal, node_stack_from_src,
+                                                       allocator
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-                                       ,debug_from_src,tree
+                                                       ,debug_from_src,tree
 #endif
-                                      );
+                                                      );
             }
         }
     }
@@ -228,11 +228,11 @@ struct Profitable_Move_Comparator {
     }
 };
 size_t find_profitable_moves(MAT::Node *src, output_t &out,int radius,
-                           stack_allocator<Mutation_Count_Change>& allocator,int starting_parsimony_score
+                             stack_allocator<Mutation_Count_Change>& allocator,int starting_parsimony_score
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-                           ,MAT::Tree* tree
+                             ,MAT::Tree* tree
 #endif
-                          ) {
+                            ) {
     if (src->is_root()) {
         return 0;
     }
@@ -253,12 +253,12 @@ size_t find_profitable_moves(MAT::Node *src, output_t &out,int radius,
     size_t nodes_searched=0;
     {
         nodes_searched+=search_subtree(root, src, mutations, out,
-                       Mutation_Count_Change_Collection(),radius, 0,
-                       node_stack,allocator
+                                       Mutation_Count_Change_Collection(),radius, 0,
+                                       node_stack,allocator
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-                       ,std::vector<Mutation_Count_Change_Collection>(),tree
+                                       ,std::vector<Mutation_Count_Change_Collection>(),tree
 #endif
-                      );
+                                      );
     }
 
     get_parent_altered_remove(alter_mutations, src, parsimony_score_change);
@@ -270,13 +270,13 @@ size_t find_profitable_moves(MAT::Node *src, output_t &out,int radius,
     root=root->parent;
     while (root&&radius) {
         nodes_searched+=search_subtree(root, src, mutations, out,
-                       alter_mutations,radius, parsimony_score_change,
-                       node_stack,allocator
+                                       alter_mutations,radius, parsimony_score_change,
+                                       node_stack,allocator
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-                       ,
-                       std::vector<Mutation_Count_Change_Collection>(debug),tree
+                                       ,
+                                       std::vector<Mutation_Count_Change_Collection>(debug),tree
 #endif
-                      );
+                                      );
 
         get_intermediate_nodes_mutations(root,node_stack.back(),alter_mutations, new_alter_mutations, parsimony_score_change);
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT

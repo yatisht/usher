@@ -69,10 +69,18 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
      "Use to write a newick tree to the indicated file.")
     ("write-taxodium,l", po::value<std::string>()->default_value(""),
      "Write protobuf in alternate format consumed by Taxodium.")
+    ("title,B", po::value<std::string>()->default_value(""),
+     "Title of MAT to display in Taxodium (used with --write-taxodium).")
+    ("description,D", po::value<std::string>()->default_value(""),
+     "Description of MAT to display in Taxodium (used with --write-taxodium).")
+    ("extra-fields,F", po::value<std::string>()->default_value(""),
+     "Comma-separated list of additional metadata column names beyond the defaults of: strain, genbank_accession, country, date, pangolin_lineage (used with --write-taxodium).")
     ("retain-branch-length,E", po::bool_switch(),
      "Use to not recalculate branch lengths when saving newick output. Used only with -t")
     ("minimum-subtrees-size,N", po::value<size_t>()->default_value(0),
      "Use to generate a series of JSON or Newick format files representing subtrees of the indicated size which cover all queried samples. Uses and overrides -j and -t output arguments.")
+    ("reroot,y", po::value<std::string>()->default_value(""),
+     "Indicate an internal node ID to reroot the output tree to. Applied before all other manipulation steps.")
     ("usher-single-subtree-size,X", po::value<size_t>()->default_value(0),
      "Use to produce an usher-style single sample subtree of the indicated size with all selected samples plus random samples to fill. Produces .nh and .txt files.")
     ("usher-minimum-subtrees-size,x", po::value<size_t>()->default_value(0),
@@ -116,6 +124,7 @@ void extract_main (po::parsed_options parsed) {
     std::string mutation_choice = vm["mutation"].as<std::string>();
     std::string match_choice = vm["match"].as<std::string>();
     std::string internal_choice = vm["get-internal-descendents"].as<std::string>();
+    std::string reroot_node = vm["reroot"].as<std::string>();
     int max_parsimony = vm["max-parsimony"].as<int>();
     int max_branch = vm["max-branch-length"].as<int>();
     size_t max_epps = vm["max-epps"].as<size_t>();
@@ -147,11 +156,16 @@ void extract_main (po::parsed_options parsed) {
     std::string vcf_filename = dir_prefix + vm["write-vcf"].as<std::string>();
     std::string output_mat_filename = dir_prefix + vm["write-mat"].as<std::string>();
     std::string output_tax_filename = dir_prefix + vm["write-taxodium"].as<std::string>();
+    std::string tax_title = vm["title"].as<std::string>();
+    std::string tax_description = vm["description"].as<std::string>();
+    std::string raw_meta_fields = vm["extra-fields"].as<std::string>();
     std::string json_filename = dir_prefix + vm["write-json"].as<std::string>();
     std::string meta_filename = vm["metadata"].as<std::string>();
     std::string gtf_filename = dir_prefix + vm["input-gtf"].as<std::string>();
     std::string fasta_filename = dir_prefix + vm["input-fasta"].as<std::string>();
 
+    std::vector<std::string> additional_meta_fields;
+    MAT::string_split(raw_meta_fields, ',', additional_meta_fields);
 
     bool collapse_tree = vm["collapse-tree"].as<bool>();
     bool no_genotypes = vm["no-genotypes"].as<bool>();
@@ -369,6 +383,10 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
             exit(1);
         }
     }
+    //before performing any other action, reroot the tree if requested.
+    if (reroot_node != "") {
+        reroot_tree(&T, reroot_node);
+    }
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     //retrive path information for samples, clades, everything before pruning occurs. Behavioral change
     //to get the paths post-pruning, will need to save a new tree .pb and then repeat the extract command on that
@@ -458,7 +476,7 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         //TODO: filter_master can support pruning directly rather than generating an inverse set and pruning all but,
         //but downstream stuff wants the inverse set of sample names to work with
         //so there's a better way to do this in at least some cases.
-        subtree = filter_master(T, samples, false);
+        subtree = filter_master(T, samples, false, true);
     }
     //if polytomy resolution was requested, apply it
     if (resolve_polytomies) {
@@ -519,7 +537,7 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         fprintf(stderr, "Completed in %ld msec\n\n", timer.Stop());
     }
 
-    std::vector<std::map<std::string,std::map<std::string,std::string>>> catmeta;
+    std::vector<std::unordered_map<std::string,std::unordered_map<std::string,std::string>>> catmeta;
     std::vector<std::string> metav;
     if (meta_filename != "") {
         std::stringstream mns(meta_filename);
@@ -540,7 +558,7 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
     //if json output AND mutation context is requested, add an additional metadata column indicating whether each branch contains
     //the mutation of interest. the metadata map is not limited to leaf nodes.
     if ((json_filename != "") && (mutation_choice != "")) {
-        std::map<std::string,std::string> mutmap;
+        std::unordered_map<std::string,std::string> mutmap;
         std::vector<std::string> mutations;
         std::stringstream mns(mutation_choice);
         std::string m;
@@ -563,7 +581,7 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
             }
             mutmap[n->identifier] = metastr;
         }
-        std::map<std::string,std::map<std::string,std::string>> submet;
+        std::unordered_map<std::string,std::unordered_map<std::string,std::string>> submet;
         submet["mutation_of_interest"]=mutmap;
         catmeta.push_back(submet);
     }
@@ -614,13 +632,13 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
     }
     //if json output AND sample context is requested, add an additional metadata column which simply indicates the focal sample versus context
     if ((json_filename != "") && (nearest_k != "")) {
-        std::map<std::string,std::string> conmap;
+        std::unordered_map<std::string,std::string> conmap;
         for (auto s: samples) {
             if (s == sample_id) {
                 conmap[s] = "focal";
             }
         }
-        std::map<std::string,std::map<std::string,std::string>> submet;
+        std::unordered_map<std::string,std::unordered_map<std::string,std::string>> submet;
         submet["focal_view"] = conmap;
         catmeta.emplace_back(submet);
     }
@@ -676,7 +694,7 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         if (!resolve_polytomies) {
             subtree.condense_leaves();
         }
-        save_taxodium_tree(subtree, output_tax_filename, metav, gtf_filename, fasta_filename);
+        save_taxodium_tree(subtree, output_tax_filename, metav, gtf_filename, fasta_filename, tax_title, tax_description, additional_meta_fields);
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
 }

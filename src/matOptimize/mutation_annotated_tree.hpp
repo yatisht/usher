@@ -436,7 +436,7 @@ class Tree {
     Tree (Node* n);
 
     std::vector<Node*> new_nodes;
-    //size_t max_level;
+    size_t max_level;
 
     Node* root;
     condensed_node_t condensed_nodes;
@@ -474,6 +474,7 @@ class Tree {
     void uncondense_leaves();
     std::vector<Node*> get_leaves() const;
     void populate_ignored_range();
+    size_t get_max_level();
     friend class Node;
     void delete_nodes();
 };

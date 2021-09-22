@@ -18,12 +18,13 @@
 #include <unistd.h>
 #include <utility>
 #include "Profitable_Moves_Enumerators/Profitable_Moves_Enumerators.hpp"
+extern bool changing_radius;
 size_t find_profitable_moves(MAT::Node *src, output_t &out,int radius,
-                           stack_allocator<Mutation_Count_Change>& allocator,int starting_parsimony_score
+                             stack_allocator<Mutation_Count_Change>& allocator,int starting_parsimony_score
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-                           ,MAT::Tree* tree
+                             ,MAT::Tree* tree
 #endif
-                          );
+                            );
 thread_local allocator_state<Mutation_Count_Change> FIFO_allocator_state;
 extern tbb::task_group_context search_context;
 MAT::Node* get_LCA(MAT::Node* src,MAT::Node* dst) {
@@ -90,19 +91,19 @@ static void print_progress(
                 checked_nodes_temp, seconds_left / 60, deferred_nodes->size());
     }
 }
-void log_move_detail(const std::vector<Profitable_Moves_ptr_t> & moves, FILE* out,int iteration,int radius){
-    for(const auto move:moves){
+void log_move_detail(const std::vector<Profitable_Moves_ptr_t> & moves, FILE* out,int iteration,int radius) {
+    for(const auto move:moves) {
         fprintf(out, "%s\t%s\t%d\t%d\t%d\t%lu\n",move->src->identifier.c_str(),move->get_dst()->identifier.c_str()
-            ,iteration,move->score_change,radius-move->radius_left,move->src->dfs_end_index-move->src->dfs_index);
+                ,iteration,move->score_change,radius-move->radius_left,move->src->dfs_end_index-move->src->dfs_index);
     }
 }
 std::pair<size_t, size_t> optimize_tree(std::vector<MAT::Node *> &bfs_ordered_nodes,
-                     tbb::concurrent_vector<MAT::Node *> &nodes_to_search,
-                     MAT::Tree &t,int radius,FILE* log,bool allow_drift,int iteration
+                                        tbb::concurrent_vector<MAT::Node *> &nodes_to_search,
+                                        MAT::Tree &t,int radius,FILE* log,bool allow_drift,int iteration
 #ifndef NDEBUG
                      , Original_State_t& origin_states
 #endif
-                    ) {
+                                       ) {
     std::atomic<size_t> node_searched_this_iter(0);
     fprintf(stderr, "%zu nodes to search \n", nodes_to_search.size());
     fprintf(stderr, "Node size: %zu\n", bfs_ordered_nodes.size());

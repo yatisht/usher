@@ -15,10 +15,10 @@ message(STATUS "${usher_VERSION}")
 
 configure_file(src/version.hpp.in version.hpp)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native -mtune=native -std=c++17 -Wall -ggdb3 -Wno-unused-function -Wno-deprecated-declarations")
-#-DDEBUG_PARSIMONY_SCORE_CHANGE_CORRECT -DCHECK_PAR_MAIN   
-set(CMAKE_CXX_FLAGS_DEBUG "-O3 -DCHECK_BOUND -DCHECK_PAR_MAIN -fsanitize=address -DEASY_DEBUG -DSTOP_ON_ERROR ")
-set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3  -DNDEBUG ")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -std=c++17 -Wall -g -Wno-unused-function -Wno-deprecated-declarations")
+#-DDEBUG_PARSIMONY_SCORE_CHANGE_CORRECT  -DCHECK_PAR_MAIN  -DEASY_DEBUG -DSTOP_ON_ERROR 
+set(CMAKE_CXX_FLAGS_DEBUG "-O3 -fsanitize=address")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-DNDEBUG -O3")
 set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O3")
 set(CMAKE_INCLUDE_CURRENT_DIR ON) 
 
@@ -61,6 +61,7 @@ if(DEFINED Protobuf_PATH)
     add_executable(usher
         src/mutation_annotated_tree.cpp
         src/usher_mapper.cpp
+        src/usher_common.cpp
         src/usher.cpp
         )
 
@@ -111,7 +112,14 @@ if(DEFINED Protobuf_PATH)
         src/matOptimize/transpose_vcf/transposed_vcf_to_vcf.cpp
         src/matOptimize/mutation_annotated_tree_nuc_util.cpp
         )
-
+    if(USHER_SERVER)
+        add_executable(usher_server
+            src/mutation_annotated_tree.cpp
+            src/usher_mapper.cpp
+            src/usher_common.cpp
+            src/usher_server.cpp
+            )
+    endif()
 
     protobuf_generate(
         LANGUAGE cpp
@@ -151,7 +159,14 @@ if(DEFINED Protobuf_PATH)
         LANGUAGE cpp
         TARGET matUtils
         PROTOS taxodium.proto)
-        
+    
+    if(USHER_SERVER)
+        protobuf_generate(
+            LANGUAGE cpp
+            TARGET usher_server
+            PROTOS parsimony.proto)
+    endif()
+
 else()
     protobuf_generate_cpp(
         PROTO_SRCS PROTO_HDRS
@@ -169,6 +184,7 @@ else()
     add_executable(usher
         src/mutation_annotated_tree.cpp
         src/usher_mapper.cpp
+        src/usher_common.cpp
         src/usher.cpp
         ${PROTO_SRCS}
         ${PROTO_HDRS}
@@ -265,6 +281,16 @@ else()
         ${DETAILED_MUTATIONS_PROTO_SRCS}
         ${DETAILED_MUTATIONS_PROTO_HDRS}
         )
+    if(USHER_SERVER)
+        add_executable(usher_server
+            src/mutation_annotated_tree.cpp
+            src/usher_mapper.cpp
+            src/usher_common.cpp
+            src/usher_server.cpp
+            ${PROTO_SRCS}
+            ${PROTO_HDRS}
+            )
+    endif()
 endif()
 
 if(SAVE_PROFILE)
@@ -299,4 +325,10 @@ TARGET_LINK_LIBRARIES(matUtils PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED
 TARGET_COMPILE_OPTIONS(ripples PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
 TARGET_LINK_LIBRARIES(ripples PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
 
-install(TARGETS usher matUtils matOptimize ripples DESTINATION bin)
+if(USHER_SERVER)
+    TARGET_COMPILE_OPTIONS(usher_server PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
+    TARGET_LINK_LIBRARIES(usher_server PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
+    install(TARGETS usher matUtils matOptimize ripples usher_server DESTINATION bin)
+else()
+    install(TARGETS usher matUtils matOptimize ripples DESTINATION bin)
+endif()

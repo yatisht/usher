@@ -42,10 +42,10 @@ struct Sample_Pos_Mut {
         auto node=tree.get_node(name);
         if (node) {
             bfs_idx = node->bfs_index;
-        }else {
+        } else {
             bfs_idx=-1;
         }
-        
+
     }
 };
 
@@ -181,7 +181,7 @@ struct output_vcf_rows {
         size_t idx=start_idx;
         std::vector<mut_iterator> iters;
         for (const auto &samp : all_samples) {
-            if (samp.bfs_idx!=-1) {                
+            if (samp.bfs_idx!=(size_t)-1) {
                 iters.emplace_back(samp, positions[idx]);
             }
         }

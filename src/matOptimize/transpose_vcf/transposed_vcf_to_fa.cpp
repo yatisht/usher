@@ -54,7 +54,7 @@ struct Sample_Pos_Mut_Printer {
     int print(uint8_t *out) {
         int end;
         if (not_Ns_iter == not_Ns_end ||
-            (Ns_iter != Ns_end && Ns_iter->first < not_Ns_iter->position)) {
+                (Ns_iter != Ns_end && Ns_iter->first < not_Ns_iter->position)) {
             memset(out, 'N', Ns_iter->second - Ns_iter->first + 1);
             end = Ns_iter->second;
             Ns_iter++;
@@ -68,8 +68,8 @@ struct Sample_Pos_Mut_Printer {
     }
     int next_pos() const {
         auto next_pos=std::min(not_Ns_end == not_Ns_iter ? INT_MAX
-                                                   : not_Ns_iter->position,
-                         Ns_end == Ns_iter ? INT_MAX : Ns_iter->first);
+                               : not_Ns_iter->position,
+                               Ns_end == Ns_iter ? INT_MAX : Ns_iter->first);
         assert(next_pos!=INT_MAX);
         return (next_pos);
     }
@@ -89,7 +89,7 @@ struct Sample_Pos_Mut_Wrap {
 };
 
 typedef tbb::enumerable_thread_specific<std::vector<Sample_Pos_Mut>>
-    sample_pos_mut_local_t;
+        sample_pos_mut_local_t;
 sample_pos_mut_local_t sample_pos_mut_local;
 struct All_Sample_Appender {
     Sample_Pos_Mut_Wrap set_name(std::string &&name) {
@@ -144,7 +144,7 @@ struct Batch_Printer {
     mutable uint8_t *inbuf;
     mutable uint8_t *outbuf;
     Batch_Printer(const std::vector<Sample_Pos_Mut> &in, const std::string &seq,
-                size_t inbuf_siz,int fd,std::mutex& out_mutex)
+                  size_t inbuf_siz,int fd,std::mutex& out_mutex)
         : in(in), seq(seq), inbuf_siz(inbuf_siz),fd(fd),out_mutex(out_mutex), inbuf(nullptr),
           outbuf(nullptr) {
         stream.opaque = nullptr;
@@ -158,57 +158,69 @@ struct Batch_Printer {
         stream.zalloc = nullptr;
         stream.zfree = nullptr;
     }
-    void init() const{
+    void init() const {
         if (!inbuf) {
             inbuf=(uint8_t*) malloc(inbuf_siz);
             outbuf=(uint8_t*) malloc(OUT_BUF_SIZ);
-            auto err = deflateInit2(&stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED,
-                        15 | 16, 9, Z_DEFAULT_STRATEGY);
-            assert(err==Z_OK);
-        }else {
-            auto err=deflateReset(&stream);
-            assert(err==Z_OK);
+            //auto err =
+            deflateInit2(&stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED,
+                         15 | 16, 9, Z_DEFAULT_STRATEGY);
+            //assert(err==Z_OK);
+        } else {
+            //auto err=
+            deflateReset(&stream);
+            //assert(err==Z_OK);
         }
         stream.avail_out=OUT_BUF_SIZ;
         stream.next_out=outbuf;
     }
-    void output()const{
+    void output()const {
         if (stream.avail_out<OUT_BUF_SIZ/2) {
-            auto err = deflate(&stream, Z_FINISH);
-            assert(err==Z_STREAM_END);
+            //auto err =
+            deflate(&stream, Z_FINISH);
+            //assert(err==Z_STREAM_END);
             out_mutex.lock();
-            write(fd,outbuf,stream.next_out-outbuf);
+            auto out=write(fd,outbuf,stream.next_out-outbuf);
+            if (out!=stream.next_out-outbuf) {
+                fprintf(stderr, "Couldn't output\n");
+                exit(EXIT_FAILURE);
+            }
             out_mutex.unlock();
             deflateReset(&stream);
             stream.avail_out=OUT_BUF_SIZ;
             stream.next_out=outbuf;
         }
     }
-    void operator()(tbb::blocked_range<size_t> range) const{
+    void operator()(tbb::blocked_range<size_t> range) const {
         //fprintf(stderr, "%zu ",range.size());
         init();
         stream.avail_out = OUT_BUF_SIZ;
         stream.next_out = outbuf;
         for (size_t samp_idx = range.begin(); samp_idx < range.end();
-             samp_idx++) {
-                auto bytes_written=write_sample(inbuf, in[samp_idx], seq);
-                stream.next_in=inbuf;
-                stream.avail_in=bytes_written;
-                auto err = deflate(&stream, Z_NO_FLUSH);
-                assert(stream.avail_out);
-                if (err!=Z_OK) {
-                    fprintf(stderr, "%d\n",err);
-                }
-                assert(err==Z_OK);
-                output();
+                samp_idx++) {
+            auto bytes_written=write_sample(inbuf, in[samp_idx], seq);
+            stream.next_in=inbuf;
+            stream.avail_in=bytes_written;
+            auto err = deflate(&stream, Z_NO_FLUSH);
+            assert(stream.avail_out);
+            if (err!=Z_OK) {
+                fprintf(stderr, "%d\n",err);
+            }
+            assert(err==Z_OK);
+            output();
         }
-        auto err = deflate(&stream, Z_FINISH);
-        assert(err==Z_STREAM_END);
+        //auto err =
+        deflate(&stream, Z_FINISH);
+        //assert(err==Z_STREAM_END);
         out_mutex.lock();
-        write(fd, outbuf, stream.next_out-outbuf);
+        auto written_bytes=write(fd, outbuf, stream.next_out-outbuf);
+        if (written_bytes!=stream.next_out-outbuf) {
+            fprintf(stderr, "Couldn't output\n");
+            exit(EXIT_FAILURE);
+        }
         out_mutex.unlock();
     }
-    ~Batch_Printer(){
+    ~Batch_Printer() {
         if (inbuf) {
             free(inbuf);
             free(outbuf);
@@ -231,18 +243,18 @@ int main(int argc, char **argv) {
     desc.add_options()(
         "fa,o", po::value<std::string>(&output_fa_file)->required(),
         "Output FASTA file (in uncompressed or gzip-compressed .gz format) ")(
-        "threads,T",
-        po::value<uint32_t>(&num_threads)->default_value(num_cores),
-        num_threads_message
+            "threads,T",
+            po::value<uint32_t>(&num_threads)->default_value(num_cores),
+            num_threads_message
             .c_str())("reference,r",
                       po::value<std::string>(&reference)->required(),
                       "Reference file")("samples,s",
                                         po::value<std::string>(&rename_file),
                                         "rename file")("output_path,i",
-                                                       po::value<std::string>(
-                                                           &input_path)
-                                                           ->required(),
-                                                       "Load transposed VCF");
+                                                po::value<std::string>(
+                                                        &input_path)
+                                                ->required(),
+                                                "Load transposed VCF");
     po::options_description all_options;
     all_options.add(desc);
     po::variables_map vm;
@@ -291,7 +303,7 @@ int main(int argc, char **argv) {
         fprintf(stderr, "sample %s not found \n", name.first.c_str());
     }
     size_t max_name_len=0;
-    for(const auto& samp:all_samples){
+    for(const auto& samp:all_samples) {
         max_name_len=std::max(max_name_len,samp.name.size());
     }
     auto inbuf_size=max_name_len+ref.size()+8;

@@ -5,6 +5,7 @@
 #include <cctype>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <fstream>
 #include <functional>
 #include <ios>
@@ -235,7 +236,7 @@ static int read_header(gzFile* fd,std::vector<std::string>& out) {
 }
 struct Sample_Mut_Msg {
     std::string buffer;
-    Sample_Mut_Msg(){}
+    Sample_Mut_Msg() {}
     Sample_Mut_Msg(const std::string& sample, const std::vector<Pos_Mut>& not_Ns,const std::vector<std::pair<int, int>>& Ns) {
         buffer.reserve(sample.size()+5*not_Ns.size()+8*Ns.size());
         buffer.insert(buffer.end(),(const uint8_t*)sample.c_str(),(const uint8_t*)(sample.c_str()+1+sample.size()));
@@ -380,41 +381,34 @@ struct Write_Node {
         delete[] in.first;
     }
 };
+struct Empty {
+    void add_Not_N(int position, uint8_t allele) {
+    }
+    void add_N(int first, int second) {
+    }
+};
+
+struct Get_Sample_Names {
+    tbb::concurrent_vector<std::string>& all_names;
+    Empty set_name(std::string &&name) {
+        all_names.emplace_back(std::move(name));
+        return Empty{};
+    }
+};
 void get_samp_names(const std::string sample_names_fn,const std::vector<std::string>& fields,std::vector<bool>& do_add) {
-    std::unordered_set<std::string> sample_set;
-    std::ifstream infile(sample_names_fn, std::ios::in | std::ios::binary);
-    if (infile.good()) {
-        boost::iostreams::filtering_istream instream;
-        instream.push(boost::iostreams::gzip_decompressor());
-        instream.push(infile);
-        std::string sample;
-        std::getline(instream, sample);
-        sample_set.reserve(std::stoi(sample));
-        while (instream.good()) {
-            sample.clear();
-            std::getline(instream, sample);
-            sample_set.insert(sample);
-        }
-    }
+    tbb::concurrent_vector<std::string> sample_set_raw;
+    Get_Sample_Names name_getter{sample_set_raw};
+    load_mutations(sample_names_fn.c_str(), 80, name_getter);
     do_add.resize(fields.size());
+    std::unordered_set<std::string> sample_set(sample_set_raw.begin(),sample_set_raw.end());
     for (size_t idx=SAMPLE_START_IDX; idx<fields.size(); idx++) {
-        auto res=sample_set.insert(fields[idx]);
-        do_add[idx]=res.second;
-    }
-    infile.close();
-    std::ofstream outfile(sample_names_fn, std::ios::out | std::ios::binary);
-    boost::iostreams::filtering_streambuf<boost::iostreams::output> outbuf;
-    outbuf.push(boost::iostreams::gzip_compressor());
-    outbuf.push(outfile);
-    std::ostream  out(&outbuf);
-    out<<sample_set.size()<<'\n';
-    for (const auto& sample_name : sample_set) {
-        out<<sample_name<<'\n';
+        bool res=sample_set.count(fields[idx])==0;
+        do_add[idx]=res;
     }
 }
 #define CHUNK_SIZ 5
 template<typename T>
-void output_transposed_vcf(const char* out_name,T& data_source){
+void output_transposed_vcf(const char* out_name,T& data_source) {
     tbb::flow::graph output_graph;
     Packed_Msgs* blk_str=new Packed_Msgs;
     block_serializer_t serializer_head(output_graph,tbb::flow::serial,Block_Serializer{blk_str});
@@ -428,75 +422,72 @@ void output_transposed_vcf(const char* out_name,T& data_source){
     output_graph.wait_for_all();
     fclose(out_file);
 }
-void add_output(compressor_t& compressor,block_serializer_t& serializer_head,Sample_Mut_Msg* out,Packed_Msgs*& packed_out){
+void add_output(compressor_t& compressor,block_serializer_t& serializer_head,Sample_Mut_Msg* out,Packed_Msgs*& packed_out) {
     if (!packed_out->push_back(out)) {
-                compressor.try_put(packed_out);
-                packed_out=new Packed_Msgs();
-                auto ret=packed_out->push_back(out);
-                if (!ret) {
-                    fprintf(stderr, "Message size %zu, cannot fit %d, new content %zu\n",out->buffer.size(),MAX_SIZ,packed_out->acc_size);
-                }
-                assert(ret);
-            }
+        compressor.try_put(packed_out);
+        packed_out=new Packed_Msgs();
+        auto ret=packed_out->push_back(out);
+        if (!ret) {
+            fprintf(stderr, "Message size %zu, cannot fit %d, new content %zu\n",out->buffer.size(),MAX_SIZ,packed_out->acc_size);
+        }
+        assert(ret);
+    }
 }
-struct VCF_inputer{
+struct VCF_inputer {
     uint32_t nthreads;
-    std::thread* sample_name_thread;
     gzFile fd;
     unsigned int header_size;
     std::vector<std::string> fields;
     std::vector<bool> do_add;
-    VCF_inputer(const char * name,uint32_t nthreads, const std::string& sample_names_fn){
-    //open file set increase buffer size
-    fd=gzopen(name, "r");
-    if (!fd) {
-        fprintf(stderr, "cannnot open vcf file : %s, exiting.\n",name);
-        exit(EXIT_FAILURE);
-    }
-    gzbuffer(fd,ZLIB_BUFSIZ);
-
-    header_size=read_header(&fd, fields);
-    sample_name_thread=new std::thread (get_samp_names,sample_names_fn, std::ref(fields), std::ref(do_add));
-    }
-    void operator()(compressor_t& compressor,block_serializer_t& serializer_head){
-
-    std::vector<std::vector<Pos_Mut_Block>> sample_pos_mut(fields.size());
-    for(auto& samp:sample_pos_mut) {
-        samp.reserve(30);
-    }
-
-    tbb::parallel_pipeline(nthreads,
-                           tbb::make_filter<void,char*>(tbb::filter::serial_in_order,Decompressor{&fd,CHUNK_SIZ*header_size,2*header_size})&
-                           tbb::make_filter<char*,std::vector<Pos_Mut_Block>*>(tbb::filter::parallel,Line_Parser{fields.size()})&
-                           tbb::make_filter<std::vector<Pos_Mut_Block>*,void>(tbb::filter::serial_out_of_order,Appender{sample_pos_mut}));
-    gzclose(fd);
-    sample_name_thread->join();
-    delete sample_name_thread;
-
-    tbb::parallel_for(tbb::blocked_range<size_t>(SAMPLE_START_IDX,fields.size()),[this,&sample_pos_mut,&serializer_head,&compressor](tbb::blocked_range<size_t>& range) {
-        auto packed_out=new Packed_Msgs();
-        for(size_t idx=range.begin(); idx<range.end(); idx++) {
-            if (!do_add[idx]) {
-                continue;
-            }
-            auto out=serialize(fields[idx],sample_pos_mut[idx]);
-            add_output(compressor, serializer_head, out, packed_out);
+    VCF_inputer(const char * name,uint32_t nthreads, const std::string& sample_names_fn) {
+        //open file set increase buffer size
+        fd=gzopen(name, "r");
+        if (!fd) {
+            fprintf(stderr, "cannnot open vcf file : %s, exiting.\n",name);
+            exit(EXIT_FAILURE);
         }
-        serializer_head.try_put(packed_out);
-    });
+        gzbuffer(fd,ZLIB_BUFSIZ);
+
+        header_size=read_header(&fd, fields);
+        get_samp_names(sample_names_fn, fields, do_add);
+    }
+    void operator()(compressor_t& compressor,block_serializer_t& serializer_head) {
+
+        std::vector<std::vector<Pos_Mut_Block>> sample_pos_mut(fields.size());
+        for(auto& samp:sample_pos_mut) {
+            samp.reserve(30);
+        }
+
+        tbb::parallel_pipeline(nthreads,
+                               tbb::make_filter<void,char*>(tbb::filter::serial_in_order,Decompressor{&fd,CHUNK_SIZ*header_size,2*header_size})&
+                               tbb::make_filter<char*,std::vector<Pos_Mut_Block>*>(tbb::filter::parallel,Line_Parser{fields.size()})&
+                               tbb::make_filter<std::vector<Pos_Mut_Block>*,void>(tbb::filter::serial_out_of_order,Appender{sample_pos_mut}));
+        gzclose(fd);
+
+        tbb::parallel_for(tbb::blocked_range<size_t>(SAMPLE_START_IDX,fields.size()),[this,&sample_pos_mut,&serializer_head,&compressor](tbb::blocked_range<size_t>& range) {
+            auto packed_out=new Packed_Msgs();
+            for(size_t idx=range.begin(); idx<range.end(); idx++) {
+                if (!do_add[idx]) {
+                    continue;
+                }
+                auto out=serialize(fields[idx],sample_pos_mut[idx]);
+                add_output(compressor, serializer_head, out, packed_out);
+            }
+            serializer_head.try_put(packed_out);
+        });
     }
 };
-class Rename_Data_Source{
+class Rename_Data_Source {
     mapped_file file;
     std::unordered_map<std::string, std::string> rename_map;
     const bool filter;
     const int nthread;
-    struct renamer{
+    struct renamer {
         const std::unordered_map<std::string, std::string>& rename_map;
         compressor_t& compressor;
         block_serializer_t& serializer_head;
         const bool filter;
-        Sample_Mut_Msg* rename_one_sample(const uint8_t*& start) const{
+        Sample_Mut_Msg* rename_one_sample(const uint8_t*& start) const {
             auto out=new Sample_Mut_Msg;
             while (*start) {
                 out->buffer.push_back(*start);
@@ -506,7 +497,7 @@ class Rename_Data_Source{
             auto iter=rename_map.find(out->buffer);
             if (iter!=rename_map.end()) {
                 out->buffer=iter->second;
-            }else if (filter) {
+            } else if (filter) {
                 delete out;
                 return nullptr;
             }
@@ -531,7 +522,10 @@ class Rename_Data_Source{
             unsigned int item_len=*(int*) in;
             size_t out_len=MAX_SIZ;
             auto uncompress_out=uncompress(buffer, &out_len, in+4, item_len);
-            assert(uncompress_out==Z_OK);
+            if(uncompress_out!=Z_OK) {
+                fprintf(stderr, "Corrupted input\n");
+                exit(EXIT_FAILURE);
+            }
             const uint8_t* start=buffer;
             auto end=buffer+out_len;
             while(start!=end) {
@@ -544,19 +538,19 @@ class Rename_Data_Source{
             serializer_head.try_put(packed_out);
         }
     };
-    public:
-    Rename_Data_Source(const std::string& pb_file,const std::string& rename_file,bool filter,int nthreads):file(pb_file.c_str()),filter(filter),nthread(nthreads){
+  public:
+    Rename_Data_Source(const std::string& pb_file,const std::string& rename_file,bool filter,int nthreads):file(pb_file.c_str()),filter(filter),nthread(nthreads) {
         parse_rename_file(rename_file, rename_map);
     }
-    void operator()(compressor_t& compressor,block_serializer_t& serializer_head){
+    void operator()(compressor_t& compressor,block_serializer_t& serializer_head) {
         const uint8_t *last_out;
         const uint8_t *end;
         file.get_mapped_range(last_out, end);
         tbb::parallel_pipeline(
-        nthread, tbb::make_filter<void, const uint8_t *>(
-                     tbb::filter::serial_in_order, partitioner{last_out, end}) &
-                     tbb::make_filter<const uint8_t *, void>(
-                         tbb::filter::parallel, renamer{rename_map,compressor,serializer_head,filter}));
+            nthread, tbb::make_filter<void, const uint8_t *>(
+                tbb::filter::serial_in_order, partitioner{last_out, end}) &
+            tbb::make_filter<const uint8_t *, void>(
+                tbb::filter::parallel, renamer{rename_map,compressor,serializer_head,filter}));
     }
 };
 namespace po = boost::program_options;
@@ -595,9 +589,9 @@ int main(int argc,char** argv) {
     }
     tbb::task_scheduler_init init(num_threads);
     if (input_vcf_path!="") {
-        VCF_inputer vcf_in(input_vcf_path.c_str(),num_threads,output_path+".sample_names.gz");
-        output_transposed_vcf(output_path.c_str(), vcf_in);        
-    }else {
+        VCF_inputer vcf_in(input_vcf_path.c_str(),num_threads,output_path);
+        output_transposed_vcf(output_path.c_str(), vcf_in);
+    } else {
         Rename_Data_Source remaper(input_pb_path,input_remap_path,filter,num_threads);
         output_transposed_vcf(output_path.c_str(), remaper);
     }
