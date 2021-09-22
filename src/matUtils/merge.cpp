@@ -60,6 +60,8 @@ bool consistent(MAT::Tree A, MAT::Tree B) {
 
     auto Asub = subtree(A, common_leaves);
     auto Bsub = subtree(B, common_leaves);
+//    fprintf(stdout, "%s\n", MAT::get_newick_string(Asub, true, true).c_str());
+//    fprintf(stdout, "%s", MAT::get_newick_string(Bsub, true, true).c_str());
     Asub.rotate_for_consistency();
     Bsub.rotate_for_consistency();
     auto Adfs = Asub.depth_first_expansion();
@@ -90,6 +92,10 @@ bool consistent(MAT::Tree A, MAT::Tree B) {
     },
     ap);
 
+    if (consistNodes.size() != Adfs.size()) {
+        fprintf (stderr, "WARNING: MATs not consistent!\n");
+    }
+    fprintf (stderr, "%zu of %zu nodes consistent.\n", consistNodes.size(), Adfs.size());
     return ret;
 }
 /**
@@ -115,16 +121,19 @@ MAT::Tree subtree(MAT::Tree tree, std::vector<std::string> common) {
  **/
 bool chelper(MAT::Node *a, MAT::Node *b) {
     if (a->mutations.size() != b->mutations.size()) {
+        //fprintf(stderr, "WARNING: different mutation vector sizes for %s (%zu) and %s (%zu)\n", a->identifier.c_str(), a->mutations.size(), b->identifier.c_str(), b->mutations.size());
         return false;
     }
+    std::sort(a->mutations.begin(), a->mutations.end());
+    std::sort(b->mutations.begin(), b->mutations.end());
     for (size_t x = 0; x < a->mutations.size(); x++) {
         MAT::Mutation mut1 = a->mutations[x];
         MAT::Mutation mut2 = b->mutations[x];
         if (mut1.position != mut2.position) {
-            return false;
-        } else if (mut1.ref_nuc != mut2.ref_nuc) {
+            //fprintf(stderr, "WARNING: different mutation positions for %s (%zu) and %s (%zu)\n", a->identifier.c_str(), mut1.position, b->identifier.c_str(), mut1.position);
             return false;
         } else if (mut1.mut_nuc != mut2.mut_nuc) {
+            //fprintf(stderr, "WARNING: different mutation nuc for %s (%zu) and %s (%zu)\n", a->identifier.c_str(), mut1.mut_nuc, b->identifier.c_str(), mut1.mut_nuc);
             return false;
         }
     }
@@ -180,8 +189,8 @@ void merge_main(po::parsed_options parsed) {
 
     //Checks for consistency in mutation paths between the two trees
     if (consistent(baseMat, otherMat) == false) {
-        fprintf(stderr, "ERROR: MAT files are not consistent!\n");
-        exit(1);
+        //fprintf(stderr, "WARNING: MAT files are not consistent!\n");
+        //exit(1);
     }
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 

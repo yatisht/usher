@@ -1272,9 +1272,9 @@ void Mutation_Annotated_Tree::Tree::rotate_for_consistency() {
     for (auto n: dfs) {
         tbb::parallel_sort(n->children.begin(), n->children.end(),
         [&](Node* n1, Node* n2) {
-            return ((num_desc[n1] > num_desc[n2]) ||
-                    ((num_desc[n1] == num_desc[n2]) &&
-                     (smallest_desc[n1] < smallest_desc[n2])));
+            return ((smallest_desc[n1] < smallest_desc[n2]) ||
+                    ((smallest_desc[n1] == smallest_desc[n2]) &&
+                     (num_desc[n1] < num_desc[n2])));
         });
     }
 }
