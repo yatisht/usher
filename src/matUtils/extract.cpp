@@ -69,8 +69,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
      "Use to write a newick tree to the indicated file.")
     ("write-taxodium,l", po::value<std::string>()->default_value(""),
      "Write protobuf in alternate format consumed by Taxodium.")
-    ("title,B", po::value<std::string>()->default_value(""),
-     "Title of MAT to display in Taxodium (used with --write-taxodium).")
+    ("title,B", po::value<std::string>()->default_value("mutation_annotated_tree"),
+     "Title of MAT to display in Taxodium or Auspice (used with --write-taxodium or -j).")
     ("description,D", po::value<std::string>()->default_value(""),
      "Description of MAT to display in Taxodium (used with --write-taxodium).")
     ("extra-fields,F", po::value<std::string>()->default_value(""),
@@ -625,7 +625,7 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
                 while ((pos = batch_samples[s].find("/")) != std::string::npos) {
                     batch_samples[s].replace(pos, 1, "_");
                 }
-                write_json_from_mat(&subt, batch_samples[s] + "_context.json", &catmeta);
+                write_json_from_mat(&subt, batch_samples[s] + "_context.json", &catmeta, tax_title);
             }
         }, ap) ;
         fprintf(stderr, "%ld batch sample jsons written in %ld msec.\n\n", batch_samples.size(), timer.Stop());
@@ -649,7 +649,7 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
     }
     if (json_filename != dir_prefix) {
         fprintf(stderr, "Generating JSON of final tree\n");
-        write_json_from_mat(&subtree, json_filename, &catmeta);
+        write_json_from_mat(&subtree, json_filename, &catmeta, tax_title);
     }
     if (tree_filename != dir_prefix) {
         fprintf(stderr, "Generating Newick file of final tree\n");
