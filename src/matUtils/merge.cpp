@@ -1,8 +1,5 @@
 #include "merge.hpp"
 
-typedef tbb::concurrent_unordered_map<std::string, std::string> concurMap;
-concurMap consistNodes;
-
 po::variables_map parse_merge_command(po::parsed_options parsed) {
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
     std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
@@ -42,7 +39,7 @@ po::variables_map parse_merge_command(po::parsed_options parsed) {
 /**
  * Checks for consistency between both MAT files to ensure that they are able to merge
  **/
-bool consistent(MAT::Tree A, MAT::Tree B) {
+bool consistent(MAT::Tree A, MAT::Tree B, concurMap& consistNodes) {
     //vectors of all leaves in both input trees
     std::vector<std::string> A_leaves = A.get_leaves_ids();
     std::vector<std::string> B_leaves = B.get_leaves_ids();
@@ -78,10 +75,6 @@ bool consistent(MAT::Tree A, MAT::Tree B) {
     }
 
 
-    //auto Asub = subtree(A, common_leaves);
-    //auto Bsub = subtree(B, common_leaves);
-    MAT::save_mutation_annotated_tree(Asub, "Asub.pb");
-    MAT::save_mutation_annotated_tree(Bsub, "Bsub.pb");
     Asub.rotate_for_consistency();
     Bsub.rotate_for_consistency();
     auto Adfs = Asub.depth_first_expansion();
@@ -89,6 +82,7 @@ bool consistent(MAT::Tree A, MAT::Tree B) {
     if (Adfs.size() != Bdfs.size()) {
         return false;
     }
+
     bool ret = true;
     static tbb::affinity_partitioner ap;
     /**
@@ -101,7 +95,7 @@ bool consistent(MAT::Tree A, MAT::Tree B) {
     [&](tbb::blocked_range<size_t> r) {
         for (size_t k = r.begin(); k < r.end(); ++k) {
 
-            bool verify = chelper(Adfs[k], Bdfs[k]);
+            bool verify = chelper(Adfs[k], Bdfs[k], consistNodes);
 
             if (verify == false) {
                 m.lock();
@@ -118,28 +112,31 @@ bool consistent(MAT::Tree A, MAT::Tree B) {
     fprintf (stderr, "%zu of %zu nodes consistent.\n", consistNodes.size(), Adfs.size());
     return ret;
 }
-/**
- * Creates subtrees by removing all uncommon nodes from a
- * copy of the original tree
- **/
-MAT::Tree subtree(MAT::Tree tree, std::vector<std::string>& common) {
 
-    auto tree_copy = get_tree_copy(tree);
-    auto all_leaves = tree_copy.get_leaves_ids();
-    std::vector<std::string> to_remove;
-    std::set_difference(all_leaves.begin(), all_leaves.end(), common.begin(), common.end(), std::back_inserter(to_remove));
+///**
+// * Creates subtrees by removing all uncommon nodes from a
+// * copy of the original tree
+// **/
+//MAT::Tree subtree(MAT::Tree tree, std::vector<std::string>& common) {
+//
+//    auto tree_copy = get_tree_copy(tree);
+//    auto all_leaves = tree_copy.get_leaves_ids();
+//    std::vector<std::string> to_remove;
+//    std::set_difference(all_leaves.begin(), all_leaves.end(), common.begin(), common.end(), std::back_inserter(to_remove));
+//
+//    for (auto k : to_remove) {
+//        tree_copy.remove_node(k, true);
+//    }
+//    return tree_copy;
+//}
 
-    for (auto k : to_remove) {
-        tree_copy.remove_node(k, true);
-    }
-    return tree_copy;
-}
 /**
  * Helper function for consistency that individually compares each node's mutation
  * to make sure that the mutation paths are identical
  * Maps all consistent nodes using the consistNodes hashmap
  **/
-bool chelper(MAT::Node *a, MAT::Node *b) {
+
+bool chelper(MAT::Node *a, MAT::Node *b, concurMap& consistNodes) {
     if (a->mutations.size() != b->mutations.size()) {
         //fprintf(stderr, "WARNING: different mutation vector sizes for %s (%zu) and %s (%zu)\n", a->identifier.c_str(), a->mutations.size(), b->identifier.c_str(), b->mutations.size());
         return false;
@@ -179,17 +176,24 @@ void merge_main(po::parsed_options parsed) {
 
     fprintf(stderr, "Loading first input MAT\n");
     MAT::Tree mat1 = MAT::load_mutation_annotated_tree(mat1_filename);
+    for (auto n: mat1.depth_first_expansion()) {
+        n->clear_annotations();
+    }
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 
     timer.Start();
     fprintf(stderr, "Loading second input MAT\n");
     MAT::Tree mat2 = MAT::load_mutation_annotated_tree(mat2_filename);
+    for (auto n: mat2.depth_first_expansion()) {
+        n->clear_annotations();
+    }
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 
     timer.Start();
     fprintf(stderr, "Checking MAT consistency.\n");
     MAT::Tree baseMat;
     MAT::Tree otherMat;
+    concurMap consistNodes;
 
     //uncondenses nodes of both MAT files
     if (mat1.condensed_nodes.size() > 0) {
@@ -208,10 +212,11 @@ void merge_main(po::parsed_options parsed) {
     }
 
     //Checks for consistency in mutation paths between the two trees
-    if (consistent(baseMat, otherMat) == false) {
+    //if (consistent(baseMat, otherMat) == false) {
         //fprintf(stderr, "WARNING: MAT files are not consistent!\n");
         //exit(1);
-    }
+    //}
+    consistent(baseMat, otherMat, consistNodes);
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 
     timer.Start();
