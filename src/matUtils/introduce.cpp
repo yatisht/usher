@@ -78,7 +78,7 @@ std::unordered_map<std::string, std::vector<std::string>> read_two_column (std::
     std::string line;
     while (std::getline(infile, line)) {
         std::vector<std::string> words;
-        MAT::string_split(line, words);
+        MAT::string_split(line, '\t', words);
 
         std::string sname = words[0];
         std::string rname;
@@ -706,6 +706,9 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::unordered_map<std
                                     clade_indeces_recorded[i] = ann;
                                 }
                             }
+                        }
+                        if (clade_indeces_recorded.size() == clid_count) {
+                            break;
                         }
                     }
                     for (size_t i = 0; i < clid_count; i++) {
