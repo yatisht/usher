@@ -53,6 +53,7 @@ bool consistent(MAT::Tree A, MAT::Tree B) {
     std::vector<std::string> common_leaves;
     set_intersection(B_leaves.begin(), B_leaves.end(), A_leaves.begin(), A_leaves.end(), std::back_inserter(common_leaves));
     tbb::parallel_sort(common_leaves.begin(), common_leaves.end());
+    fprintf(stderr, "%zu common leaves.\n", common_leaves.size());
 
 
     if (common_leaves.size() == 0) {
@@ -112,7 +113,7 @@ bool consistent(MAT::Tree A, MAT::Tree B) {
     ap);
 
     if (consistNodes.size() != Adfs.size()) {
-        fprintf (stderr, "WARNING: MATs not consistent!\n");
+        fprintf (stderr, "WARNING: MATs not completely consistent!\n");
     }
     fprintf (stderr, "%zu of %zu nodes consistent.\n", consistNodes.size(), Adfs.size());
     return ret;

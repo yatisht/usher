@@ -1264,8 +1264,8 @@ void Mutation_Annotated_Tree::Tree::rotate_for_consistency() {
         } else {
             std::string smallest = smallest_desc[n->children[0]];
             for (auto child: n->children) {
-                if (child->identifier < smallest) {
-                    smallest = child->identifier;
+                if (smallest_desc[child] < smallest) {
+                    smallest = smallest_desc[child];
                 }
             }
             smallest_desc[n] = smallest;
