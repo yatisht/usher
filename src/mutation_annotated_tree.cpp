@@ -933,6 +933,9 @@ void Mutation_Annotated_Tree::Tree::remove_node_helper (std::string nid, bool mo
             auto child = curr_parent->children[0];
             if (curr_parent->parent != NULL) {
                 for (size_t k=0; k < curr_parent->clade_annotations.size(); k++) {
+                    if (k >= child->clade_annotations.size()) {
+                        fprintf (stderr, "ERROR! %s %zu %zu %zu\n", child->identifier.c_str(), k, child->clade_annotations[k].size(), curr_parent->clade_annotations.size());
+                    }
                     if (child->clade_annotations[k] == "") {
                         child->clade_annotations[k] = curr_parent->clade_annotations[k];
                     }

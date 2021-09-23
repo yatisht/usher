@@ -46,10 +46,13 @@ bool consistent(MAT::Tree A, MAT::Tree B) {
     //vectors of all leaves in both input trees
     std::vector<std::string> A_leaves = A.get_leaves_ids();
     std::vector<std::string> B_leaves = B.get_leaves_ids();
+    tbb::parallel_sort(A_leaves.begin(), A_leaves.end());
+    tbb::parallel_sort(B_leaves.begin(), B_leaves.end());
 
     //creates a vector of common_leaves between two input trees
     std::vector<std::string> common_leaves;
     set_intersection(B_leaves.begin(), B_leaves.end(), A_leaves.begin(), A_leaves.end(), std::back_inserter(common_leaves));
+    tbb::parallel_sort(common_leaves.begin(), common_leaves.end());
 
 
     if (common_leaves.size() == 0) {
@@ -57,11 +60,27 @@ bool consistent(MAT::Tree A, MAT::Tree B) {
     }
 
     //creates two subtrees using the common_leaves
+    std::vector<std::string> A_to_remove, B_to_remove;
+    
+    auto Asub = get_tree_copy(A);
+    std::set_difference(A_leaves.begin(), A_leaves.end(), common_leaves.begin(), common_leaves.end(), std::back_inserter(A_to_remove));
 
-    auto Asub = subtree(A, common_leaves);
-    auto Bsub = subtree(B, common_leaves);
-//    fprintf(stdout, "%s\n", MAT::get_newick_string(Asub, true, true).c_str());
-//    fprintf(stdout, "%s", MAT::get_newick_string(Bsub, true, true).c_str());
+    for (auto l : A_to_remove) {
+        Asub.remove_node(l, true);
+    }
+
+    auto Bsub = get_tree_copy(B);
+    std::set_difference(B_leaves.begin(), B_leaves.end(), common_leaves.begin(), common_leaves.end(), std::back_inserter(B_to_remove));
+
+    for (auto l : B_to_remove) {
+        Bsub.remove_node(l, true);
+    }
+
+
+    //auto Asub = subtree(A, common_leaves);
+    //auto Bsub = subtree(B, common_leaves);
+    MAT::save_mutation_annotated_tree(Asub, "Asub.pb");
+    MAT::save_mutation_annotated_tree(Bsub, "Bsub.pb");
     Asub.rotate_for_consistency();
     Bsub.rotate_for_consistency();
     auto Adfs = Asub.depth_first_expansion();
@@ -102,7 +121,7 @@ bool consistent(MAT::Tree A, MAT::Tree B) {
  * Creates subtrees by removing all uncommon nodes from a
  * copy of the original tree
  **/
-MAT::Tree subtree(MAT::Tree tree, std::vector<std::string> common) {
+MAT::Tree subtree(MAT::Tree tree, std::vector<std::string>& common) {
 
     auto tree_copy = get_tree_copy(tree);
     auto all_leaves = tree_copy.get_leaves_ids();
