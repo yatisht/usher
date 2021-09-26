@@ -59,7 +59,7 @@ bool consistent(MAT::Tree A, MAT::Tree B, concurMap& consistNodes) {
 
     //creates two subtrees using the common_leaves
     std::vector<std::string> A_to_remove, B_to_remove;
-    
+
     auto Asub = get_tree_copy(A);
     std::set_difference(A_leaves.begin(), A_leaves.end(), common_leaves.begin(), common_leaves.end(), std::back_inserter(A_to_remove));
 
@@ -174,7 +174,7 @@ void merge_main(po::parsed_options parsed) {
     fprintf(stderr, "Initializing %u worker threads.\n\n", num_threads);
     tbb::task_scheduler_init init(num_threads);
 
-    fprintf(stderr, "Loading first input MAT\n");
+    fprintf(stderr, "Loading first input MAT. Existing clade annotations will be cleared\n");
     MAT::Tree mat1 = MAT::load_mutation_annotated_tree(mat1_filename);
     for (auto n: mat1.depth_first_expansion()) {
         n->clear_annotations();
@@ -182,7 +182,7 @@ void merge_main(po::parsed_options parsed) {
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 
     timer.Start();
-    fprintf(stderr, "Loading second input MAT\n");
+    fprintf(stderr, "Loading second input MAT. Existing clade annotations will be cleared\n");
     MAT::Tree mat2 = MAT::load_mutation_annotated_tree(mat2_filename);
     for (auto n: mat2.depth_first_expansion()) {
         n->clear_annotations();
@@ -213,8 +213,8 @@ void merge_main(po::parsed_options parsed) {
 
     //Checks for consistency in mutation paths between the two trees
     //if (consistent(baseMat, otherMat) == false) {
-        //fprintf(stderr, "WARNING: MAT files are not consistent!\n");
-        //exit(1);
+    //fprintf(stderr, "WARNING: MAT files are not consistent!\n");
+    //exit(1);
     //}
     consistent(baseMat, otherMat, consistNodes);
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
@@ -454,5 +454,5 @@ void merge_main(po::parsed_options parsed) {
     finalMat.condense_leaves();
     MAT::save_mutation_annotated_tree(finalMat, output_filename);
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
-
 }
+
