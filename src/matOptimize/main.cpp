@@ -24,6 +24,7 @@
 #include <fcntl.h>
 #include <string>
 #include <tbb/task_scheduler_init.h>
+#include <thread>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <unordered_set>
@@ -87,7 +88,8 @@ int main(int argc, char **argv) {
         fprintf(stderr, "%s ",argv[arg_idx]);
     }
     fputc('\n', stderr);
-    MPI_Init(&argc, &argv);
+    int ignored;
+    MPI_Init_thread(&argc, &argv,MPI_THREAD_MULTIPLE,&ignored);
     MPI_Comm_rank(MPI_COMM_WORLD, &this_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &process_count);
     std::string output_path;
@@ -256,11 +258,11 @@ int main(int argc, char **argv) {
     auto start_time=std::chrono::steady_clock::now();
     auto end_time=start_time+max_optimize_duration;
 
-    tbb::task_scheduler_init init(num_threads);
 
     //Loading tree
     Original_State_t origin_states;
-
+    {
+    tbb::task_scheduler_init init(process_count*num_threads);
     if (input_complete_pb_path!="") {
         t.load_detatiled_mutations(input_complete_pb_path);
     } else {
@@ -300,19 +302,20 @@ int main(int argc, char **argv) {
         }
     }
     last_save_time=std::chrono::steady_clock::now();
-    size_t new_score;
-    size_t score_before;
-    int stalled = 0;
 
 #ifndef NDEBUG
     //check_samples(t.root, origin_states, &t);
 #endif
     t.populate_ignored_range();
+    }
+    size_t new_score;
+    size_t score_before;
+    int stalled = 0;
     score_before = t.get_parsimony_score();
     new_score = score_before;
     fprintf(stderr, "after state reassignment:%zu\n", score_before);
     fprintf(stderr, "Height:%zu\n", t.get_max_level());
-
+    
     std::vector<MAT::Node *> nodes_to_search;
     std::vector<MAT::Node *> bfs_ordered_nodes;
     bfs_ordered_nodes = t.breadth_first_expansion();
@@ -327,6 +330,7 @@ int main(int argc, char **argv) {
     int iteration=1;
     size_t nodes_seached_last_iter=0;
     size_t nodes_seached_this_iter=0;
+    tbb::task_scheduler_init init(num_threads);
     while(stalled<drift_iter) {
         if (interrupted) {
             break;
@@ -361,15 +365,18 @@ counters count;
         while (!nodes_to_search.empty()) {
             t.populate_ignored_range();
             auto dfs_ordered_nodes=t.depth_first_expansion();
-            std::random_shuffle(nodes_to_search.begin(), nodes_to_search.end());
+            std::mt19937_64 rng;
+            std::shuffle(nodes_to_search.begin(), nodes_to_search.end(),rng);
             bool distribute=(process_count>1)&&(nodes_to_search.size()>100);
             if (distribute) {
                 auto nodes_to_search_count_per_process=nodes_to_search.size()/process_count+1;
+                MPI_Request request;
+                MPI_Ibcast(&nodes_to_search_count_per_process, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD,&request);
                 std::vector<size_t> nodes_to_search_dfs_idx(nodes_to_search_count_per_process*process_count);
                 for (int idx=0; idx<nodes_to_search.size(); idx++) {
                     nodes_to_search_dfs_idx[idx]=nodes_to_search[idx]->dfs_index;
                 }
-                MPI_Bcast(&nodes_to_search_count_per_process, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
+                MPI_Wait(&request, MPI_STATUS_IGNORE);
                 fprintf(stderr, "sent %zu nodes to search \n",nodes_to_search_count_per_process);
                 MPI_Bcast(&radius, 1, MPI_INT, 0, MPI_COMM_WORLD);
                 t.MPI_send_tree();
@@ -453,15 +460,24 @@ counters count;
         }
     }
     size_t temp=0;
-    MPI_Bcast(&temp, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
+    MPI_Request req;
+    MPI_Ibcast(&temp, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD,&req);
     fprintf(stderr, "Final Parsimony score %zu\n",t.get_parsimony_score());
     fclose(movalbe_src_log);
     save_final_tree(t, origin_states, output_path);
+    MPI_Wait(&req, MPI_STATUS_IGNORE);
     }else{
+        tbb::task_scheduler_init init(num_threads);
         while(true){
             size_t nodes_to_search_count_per_process;
             fprintf(stderr, "recieciving node to seach count\n");
-            MPI_Bcast(&nodes_to_search_count_per_process, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
+            MPI_Request request;
+            MPI_Ibcast(&nodes_to_search_count_per_process, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD,&request);
+            int done=0;
+            while (done==0) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                MPI_Test(&request, &done, MPI_STATUS_IGNORE);
+            }
             fprintf(stderr, "%zu node to seach count\n",nodes_to_search_count_per_process);
             if(nodes_to_search_count_per_process==0){
                 break;

@@ -68,11 +68,7 @@ static void print_progress(
             }
             std::unique_lock<std::mutex> done_lock(*done_mutex);
             //I want it to print every second, but it somehow managed to print every minute...
-            if (timed_print_progress) {
-                progress_bar_cv.wait_for(done_lock,std::chrono::seconds(1));
-            } else {
-                progress_bar_cv.wait(done_lock);
-            }
+            progress_bar_cv.wait_for(done_lock,std::chrono::minutes(1));
         }
         if (*done) {
             return;
@@ -87,8 +83,8 @@ static void print_progress(
             fprintf(stderr, "Timeout\n");
             return;
         }*/
-        fprintf(stderr,"\rchecked %d nodes, estimated %f minutes left,found %zu nodes "
-                "profitable",
+        fprintf(stderr,"checked %d nodes, estimated %f minutes left,found %zu nodes "
+                "profitable\n",
                 checked_nodes_temp, seconds_left / 60, deferred_nodes->size());
     }
 }
@@ -128,10 +124,19 @@ static void MPI_recieve_move(const std::vector<MAT::Node*>& dfs_ordered_nodes,re
     delete[] buffer;
 }
 struct MPI_move_sender{
+    int* buffer;
+    void init(){
+        buffer=new int[1+4*MAX_MOVE_SIZE];
+    }
+    MPI_move_sender(){
+        init();
+    }
+    MPI_move_sender(const MPI_move_sender&){
+        init();
+    }
     void operator()(std::vector<Profitable_Moves_ptr_t>* to_send){
         size_t moves_to_send=std::min(to_send->size(),MAX_MOVE_SIZE);
         size_t msg_size=1+4*moves_to_send;
-        int* buffer=new int[msg_size];
         buffer[0]=(*to_send)[0]->src->dfs_index;
         for (size_t move_idx=0; move_idx<moves_to_send; move_idx++) {
             const auto& this_move=(*(*to_send)[move_idx]);
@@ -143,8 +148,10 @@ struct MPI_move_sender{
         }
         //fprintf(stderr, "Sent %zu moves\n",moves_to_send);
         MPI_Send(buffer, msg_size, MPI_INT, 0, MOVE_TAG, MPI_COMM_WORLD);
-        delete[] buffer;
         delete to_send;
+    }
+    ~MPI_move_sender(){
+        delete[] buffer;
     }
 };
 struct progress_meter_t{
@@ -276,7 +283,7 @@ void optimize_tree_main_thread(std::vector<MAT::Node *> &nodes_to_search,
         }
     }
     fprintf(stderr, "finished recieving defered nodes\n");
-    int temp;    
+    int temp;
     MPI_Send(&temp, 0, MPI_INT, 0, MOVE_TAG, MPI_COMM_WORLD);
     fprintf(stderr, "Sent finish msg\n");
     move_reciever.join();

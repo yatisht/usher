@@ -269,6 +269,8 @@ void make_range_tree(const std::vector<MAT::Node*>& dfs_ordered_nodes,tbb::concu
     if (in.empty()) {
         return;
     }
+    out.nodes.clear();
+    out.end_idxes.clear();
     size_t node_count=0;
     std::vector<std::shared_ptr<range_tree_temp>> content;
     content.reserve(in.size());
