@@ -20,7 +20,6 @@ struct src_side_info {
     MAT::Node *LCA;
     MAT::Node *src;
     Mutation_Count_Change_Collection allele_count_change_from_src;
-    std::vector<MAT::Node *> node_stack_from_src;
 };
 struct ignore_ranger_nop{
     ignore_ranger_nop(const Mutation_Annotated_Tree::ignored_t& in){}

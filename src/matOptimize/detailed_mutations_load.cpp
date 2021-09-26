@@ -1,8 +1,14 @@
 #include "detailed_mutation_load_store.hpp"
+#include "src/matOptimize/mutation_annotated_tree.hpp"
 #include <climits>
+#include <cstddef>
 #include <cstdint>
+#include <cstdlib>
+#include <mpi.h>
 #include <sys/mman.h>
 #include <tbb/flow_graph.h>
+#include <thread>
+#include <unistd.h>
 #include <utility>
 namespace MAT = Mutation_Annotated_Tree;
 // mapping between chromosome string and chromosome index
@@ -260,6 +266,7 @@ struct file_loader {
         return true;
     }
 };
+typedef tbb::flow::function_node<uint8_t *> decompressor_node_t;
 static std::pair<uint8_t *, uint8_t *>
 uncompress_file(const std::string &path) {
     int fd = open(path.c_str(), O_RDONLY);
@@ -273,7 +280,7 @@ uncompress_file(const std::string &path) {
     uint8_t *uncompressed_buffer = (uint8_t *)malloc(uncompressed_size);
     tbb::flow::graph g;
     uint8_t *curr = file;
-    tbb::flow::function_node<uint8_t *> decompressor(
+    decompressor_node_t decompressor(
         g, tbb::flow::unlimited,
         decompressor_t<no_free_input>{uncompressed_buffer});
     tbb::flow::source_node<uint8_t *> src(g, file_loader{curr, end_of_file-8});
@@ -284,27 +291,72 @@ uncompress_file(const std::string &path) {
     return std::make_pair(uncompressed_buffer,
                           uncompressed_buffer + uncompressed_size);
 }
-// main load function
-void Mutation_Annotated_Tree::Tree::load_detatiled_mutations(
-    const std::string &path) {
-    fputs("Loading intermediate protobuf\n", stderr);
-    auto uncompressed = uncompress_file(path);
+static void receive_MPI(decompressor_node_t& decompressor,size_t& uncompressed_size){
+    while (true) {
+        size_t msg_size;
+        fprintf(stderr,"====Waiting segment length\n");
+        MPI_Bcast(&msg_size, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
+        fprintf(stderr,"====Receiving segmane tof length %zu \n", msg_size );
+        if (msg_size==UINT64_MAX) {
+            MPI_Bcast(&uncompressed_size, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
+            return;
+        }
+        uint8_t* buffer=(uint8_t*) malloc(msg_size);
+        MPI_Bcast(buffer, msg_size, MPI_BYTE, 0, MPI_COMM_WORLD);
+        fprintf(stderr,"====Finished Receiving segmane tof length %zu \n", msg_size );
+        decompressor.try_put(buffer);
+    }
+    fprintf(stderr,"====Finished recieving \n" );
+}
+static std::pair<uint8_t *, uint8_t *>
+receive_mpi_uncompress() {
+    size_t max_memory;
+    MPI_Bcast(&max_memory, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
+    fprintf(stderr, "received memory requirement of %zu \n",max_memory);
+    uint8_t *uncompressed_buffer = (uint8_t *)malloc(max_memory<<10);
+    size_t uncompressed_size;
+    tbb::flow::graph g;
+    decompressor_node_t decompressor(
+        g, tbb::flow::unlimited,
+        decompressor_t<free_input>{uncompressed_buffer});
+    receive_MPI(decompressor,uncompressed_size);
+    g.wait_for_all();
+    return std::make_pair(uncompressed_buffer,
+                          uncompressed_buffer + uncompressed_size);
+}
+
+template<typename T>
+static void deserialize_common(std::pair<uint8_t*,uint8_t*> uncompressed,MAT::Tree* tree){
     auto file = uncompressed.first;
     auto file_end = uncompressed.second;
     uint64_t meta_offset = *(uint64_t*)(file_end - 8);
-    auto temp = load_meta(this, file + meta_offset,
+    auto temp = load_meta(tree, file + meta_offset,
                           file_end - 8 - (file + meta_offset));
     MAT::Mutations_Collection root_muts;
     root_muts.mutations.emplace_back(INT_MAX);
     tbb::task::spawn_root_and_wait(
         *new (tbb::task::allocate_root())
-            Load_Subtree_pararllel<deserialize_condensed_nodes>(
-                nullptr, (uint8_t *)file, temp.first, temp.second, this->root,
-                this->condensed_nodes, root_muts));
+            Load_Subtree_pararllel<T>(
+                nullptr, (uint8_t *)file, temp.first, temp.second, tree->root,
+                tree->condensed_nodes, root_muts));
     free(uncompressed.first);
-    std::vector<MAT::Node *> dfs_nodes = depth_first_expansion();
+    std::vector<MAT::Node *> dfs_nodes = tree->depth_first_expansion();
     for (auto node : dfs_nodes) {
-        all_nodes.emplace(node->identifier, node);
+        tree->all_nodes.emplace(node->identifier, node);
     }
+}
+// main load function
+void Mutation_Annotated_Tree::Tree::load_detatiled_mutations(
+    const std::string &path) {
+    fputs("Loading intermediate protobuf\n", stderr);
+    auto uncompressed = uncompress_file(path);
+    deserialize_common<deserialize_condensed_nodes>(uncompressed, this);
+    fputs("Finished loading intermediate protobuf\n", stderr);
+}
+// main load function
+void Mutation_Annotated_Tree::Tree::MPI_receive_tree() {
+    fputs("Loading intermediate protobuf\n", stderr);
+    auto uncompressed = receive_mpi_uncompress();
+    deserialize_common<no_deserialize_condensed_nodes>(uncompressed, this);
     fputs("Finished loading intermediate protobuf\n", stderr);
 }

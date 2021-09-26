@@ -174,5 +174,42 @@ struct range_tree{
         return find_idx(node,ignored,0);
     }
 };
+bool output_result(MAT::Node *src, MAT::Node *dst, MAT::Node *LCA,
+                   int parsimony_score_change, output_t &output,int radius_left);
 extern std::vector<range_tree> addable_idxes;
+void check_parsimony_score_change_above_LCA(MAT::Node *start_node, int &parsimony_score_change,
+        Mutation_Count_Change_Collection &parent_added,
+        Mutation_Count_Change_Collection &parent_of_parent_added);
+bool dst_branch(const MAT::Node *LCA,
+                const range<Mutation_Count_Change> &mutations,
+                int &parsimony_score_change, MAT::Node *this_node,
+                Mutation_Count_Change_Collection &parent_added,int src_side_max_improvement
+#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
+                ,std::vector<Mutation_Count_Change_Collection> &debug_from_dst
+#endif
+               );
+int check_move_profitable_LCA(
+    MAT::Node *src, MAT::Node *LCA,
+    const Mutation_Count_Change_Collection &mutations,
+    const Mutation_Count_Change_Collection &root_mutations_altered,
+    int parsimony_score_change,
+    const MAT::Node* last_src_branch_node_below_LCA,
+    output_t &output,int radius
+#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
+    ,
+    const std::vector<Mutation_Count_Change_Collection> &debug_above_LCA,
+    const MAT::Tree* tree
+#endif
+);
+int check_move_profitable_dst_not_LCA(
+    MAT::Node *src, MAT::Node *dst, MAT::Node *LCA,
+    const range<Mutation_Count_Change>  &mutations,
+    const Mutation_Count_Change_Collection &root_mutations_altered,
+    int parsimony_score_change, output_t &output,int radius
+#ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
+    ,
+    const std::vector<Mutation_Count_Change_Collection> debug_from_src,
+    const MAT::Tree* tree
+#endif
+);
 #endif

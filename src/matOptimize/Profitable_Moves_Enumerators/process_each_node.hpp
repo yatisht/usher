@@ -59,7 +59,7 @@ template <typename Functor> class merge_func {
     change in number of mutations on edge between node and its direct children
  */
 void get_intermediate_nodes_mutations(
-    const MAT::Node *node,const MAT::Node* changed_child,
+    const MAT::Node *node,
     const Mutation_Count_Change_Collection &this_node_mutation_count_change,
     Mutation_Count_Change_Collection &parent_node_mutation_count_change,
     int &parent_parsimony_score_change);
@@ -124,14 +124,8 @@ static void register_change_from_new_state(Mutation_Count_Change_Collection &out
  * @return (void)
  */
 void get_LCA_mutation(
-    const MAT::Node *LCA, const MAT::Node *src_branch, bool is_src_terminal,
+    const MAT::Node *LCA, const MAT::Node *src,
     const Mutation_Count_Change_Collection &from_src_remove,
     const Mutation_Count_Change_Collection &from_dst_add,
     Mutation_Count_Change_Collection &LCA_parent_mutation_count_change_out,
-    int &parsimony_score_change);
-void check_parsimony_score_change_above_LCA(MAT::Node *LCA, int &parsimony_score_change,
-        Mutation_Count_Change_Collection &parent_added,
-        const std::vector<MAT::Node *> &node_stack_from_src,
-        std::vector<MAT::Node *> &node_stack_above_LCA,
-        Mutation_Count_Change_Collection &parent_of_parent_added,
-        MAT::Node *ancestor);
+    int &parsimony_score_change) ;

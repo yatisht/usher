@@ -64,7 +64,7 @@ struct intermediate_mut_functor_one_children {
 //Specialization for nodes with two children, they are most common kind of nodes
 
 void get_intermediate_nodes_mutations(
-    const MAT::Node *node,const MAT::Node* changed_child,
+    const MAT::Node *node,
     const Mutation_Count_Change_Collection &this_node_mutation_count_change,
     Mutation_Count_Change_Collection &parent_node_mutation_count_change,
     int &parent_parsimony_score_change) {

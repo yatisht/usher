@@ -12,27 +12,12 @@
 #include <signal.h>
 //#define CHECK_BRANCH_REIMPLEMENT
 typedef Bounded_Mut_Change_Collection::const_iterator Bounded_Mut_Iter;
-static void
-add_remaining_dst_to_LCA_nodes(MAT::Node *cur, const MAT::Node *LCA,
-                               std::vector<MAT::Node *> &dst_stack) {
-    while (cur != LCA) {
-        // assert(dst_stack.empty()||dst_stack.back()!=cur);
-        dst_stack.push_back(cur);
-        cur = cur->parent;
-    }
-}
 void dump(const Mutation_Count_Change_Collection& in){
     for (const auto& mut : in) {
         fprintf(stderr, "Pos:%d,dec:%d,inc:%d\t",mut.get_position(),mut.get_decremented(),mut.get_incremented());
     }
     fputc('\n', stderr);
 }
-bool output_result(MAT::Node *src, MAT::Node *dst, MAT::Node *LCA,
-                   int parsimony_score_change, output_t &output,
-                   const std::vector<MAT::Node *> &node_stack_from_src,
-                   std::vector<MAT::Node *> &node_stack_from_dst,
-                   std::vector<MAT::Node *> &node_stack_above_LCA,
-                   int radius_left);
 static bool output_not_LCA(Mutation_Count_Change_Collection &parent_added,
                     MAT::Node *dst_node, int parsimony_score_change,
                     int lower_bound, const src_side_info &src_side,
@@ -48,29 +33,23 @@ static bool output_not_LCA(Mutation_Count_Change_Collection &parent_added,
         do_continue=false;
 #endif
     }
-    std::vector<MAT::Node *> node_stack_from_dst;
     Mutation_Count_Change_Collection parent_of_parent_added;
     parent_of_parent_added.reserve(parent_added.size());
-    node_stack_from_dst.push_back(dst_node);
     auto this_node = dst_node->parent;
     /*if (dst_node->dfs_index==8350) {
         fputc('a', stderr);
     }*/
     while (this_node != src_side.LCA) {
         parent_of_parent_added.clear();
-        get_intermediate_nodes_mutations(this_node, node_stack_from_dst.back(),
+        get_intermediate_nodes_mutations(this_node,
                                          parent_added, parent_of_parent_added,
                                          parsimony_score_change);
-        node_stack_from_dst.push_back(this_node);
         parent_added.swap(parent_of_parent_added);
         if (parent_added.empty()) {
-            add_remaining_dst_to_LCA_nodes(this_node->parent, src_side.LCA,
-                                           node_stack_from_dst);
             break;
         }
         this_node = this_node->parent;
     }
-    std::vector<MAT::Node *> node_stack_above_LCA;
     parent_of_parent_added.reserve(
         parent_added.size() + src_side.allele_count_change_from_src.size());
     // Adjust LCA node and above
@@ -79,20 +58,16 @@ static bool output_not_LCA(Mutation_Count_Change_Collection &parent_added,
     if ((!(src_side.allele_count_change_from_src.empty() &&
            parent_added.empty())) ||
         is_src_terminal) {
-        get_LCA_mutation(src_side.LCA,
-                         is_src_terminal ? src_side.src
-                                         : src_side.node_stack_from_src.back(),
-                         is_src_terminal, src_side.allele_count_change_from_src,
+        get_LCA_mutation(src_side.LCA,src_side.src,
+                          src_side.allele_count_change_from_src,
                          parent_added, parent_of_parent_added,
                          parsimony_score_change);
     }
-    node_stack_above_LCA.push_back(src_side.LCA);
     parent_added.swap(parent_of_parent_added);
     parent_of_parent_added.clear();
     check_parsimony_score_change_above_LCA(
-        src_side.LCA, parsimony_score_change, parent_added,
-        src_side.node_stack_from_src, node_stack_above_LCA,
-        parent_of_parent_added, src_side.LCA->parent);
+        src_side.LCA->parent, parsimony_score_change, parent_added,
+        parent_of_parent_added);
     #ifdef CHECK_PAR_MAIN
     output_t temp;
     auto refout=individual_move(src_side.src, dst_node, src_side.LCA, temp);
@@ -127,8 +102,7 @@ static bool output_not_LCA(Mutation_Count_Change_Collection &parent_added,
     src_side.savings.total++;
 #endif
     return output_result(src_side.src, dst_node, src_side.LCA, parsimony_score_change,
-                  src_side.out, src_side.node_stack_from_src,
-                  node_stack_from_dst, node_stack_above_LCA, radius);
+                  src_side.out,radius);
 }
 struct go_descendant{};
 struct no_descendant{};

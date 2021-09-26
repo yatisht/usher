@@ -36,7 +36,7 @@ static nuc_one_hot get_new_state_from_change(const MAT::Mutation& ori_mut,const 
  * @return whether there are mutations that src_branch_node have but the src node have, if not it is better to split between src_branch_node and its descendent, rather than here.
  */
 bool LCA_place_mezzanine(
-    MAT::Node *src_branch_node,
+    const MAT::Node *src_branch_node,
     const Mutation_Count_Change_Collection &dst_mutations,
     const Mutation_Count_Change_Collection &src_branch_node_mutations_altered,
     Mutation_Count_Change_Collection &out, int &parsimony_score_change
@@ -97,46 +97,21 @@ bool LCA_place_mezzanine(
     }
     return have_not_shared;
 }
-void check_parsimony_score_change_above_LCA(MAT::Node *LCA, int &parsimony_score_change,
+void check_parsimony_score_change_above_LCA(MAT::Node *curr_node, int &parsimony_score_change,
         Mutation_Count_Change_Collection &parent_added,
-        const std::vector<MAT::Node *> &node_stack_from_src,
-        std::vector<MAT::Node *> &node_stack_above_LCA,
-        Mutation_Count_Change_Collection &parent_of_parent_added,
-        MAT::Node *ancestor) {
-    while (ancestor && (!parent_added.empty())) {
+        Mutation_Count_Change_Collection &parent_of_parent_added) {
+    while (curr_node && (!parent_added.empty())) {
         parent_of_parent_added.clear();
         get_intermediate_nodes_mutations(
-            ancestor,
-            node_stack_above_LCA.empty() ? node_stack_from_src.back()
-            : node_stack_above_LCA.back(),
+            curr_node,
             parent_added, parent_of_parent_added, parsimony_score_change);
-        node_stack_above_LCA.push_back(ancestor);
         parent_added.swap(parent_of_parent_added);
-        ancestor = ancestor->parent;
+        curr_node = curr_node->parent;
     }
     // Hit root
-    if (!ancestor) {
+    if (!curr_node) {
         for (auto &a : parent_added) {
             parsimony_score_change += a.get_default_change_internal();
         }
-        ancestor = node_stack_above_LCA.back();
-    }
-    if (node_stack_above_LCA.empty()) {
-        node_stack_above_LCA.push_back(LCA);
     }
 }
-/**
- * @brief Calculate parsimony score change due to state changes of nodes above LCA
- * @param src
- * @param dst
- * @param LCA
- * @param mutations mutations needed above src node for moving src under parent of dst
- * @param root_mutations_altered fitch set change of src_branch_node from removing src
- * @param parsimony_score_change
- * @param node_stack_from_dst nodes from dst to LCA
- * @param parent_added state change of dst_branch_node from inserting src to its new location
- * @param node_stack_from_src nodes from src to LCA
- * @param node_stack_above_LCA node above LCA that have change in their Fitch set
- * @param debug_above_LCA
- * @return The highest node had their Fitch set changed
- */

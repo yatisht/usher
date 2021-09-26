@@ -12,19 +12,6 @@
 #include <vector>
 #include <signal.h>
 typedef Bounded_Mut_Change_Collection::iterator Bounded_Mut_Iter;
-void check_parsimony_score_change_above_LCA(
-    MAT::Node *LCA, int &parsimony_score_change,
-    Mutation_Count_Change_Collection &parent_added,
-    const std::vector<MAT::Node *> &node_stack_from_src,
-    std::vector<MAT::Node *> &node_stack_above_LCA,
-    Mutation_Count_Change_Collection &parent_of_parent_added,
-    MAT::Node *ancestor);
-bool output_result(MAT::Node *src, MAT::Node *dst, MAT::Node *LCA,
-                   int parsimony_score_change, output_t &output,
-                   const std::vector<MAT::Node *> &node_stack_from_src,
-                   std::vector<MAT::Node *> &node_stack_from_dst,
-                   std::vector<MAT::Node *> &node_stack_above_LCA,
-                   int radius_left);
 
 void output_LCA(
     Mutation_Count_Change_Collection &allele_count_change_from_splitting_LCA,
@@ -36,11 +23,9 @@ void output_LCA(
     if (!actual_LCA) {
         return;
     }
-    std::vector<MAT::Node *> node_stack_above_LCA{actual_LCA};
     check_parsimony_score_change_above_LCA(
         actual_LCA, par_score_change, allele_count_change_from_splitting_LCA,
-        src_side.node_stack_from_src, node_stack_above_LCA,
-        parent_of_parent_added, actual_LCA);
+        parent_of_parent_added);
     std::vector<MAT::Node *> ignored;
     #ifdef CHECK_PAR_MAIN
     output_t temp;
@@ -64,8 +49,7 @@ void output_LCA(
     }
     #endif
     output_result(src_side.src, actual_LCA, actual_LCA, par_score_change,
-                  src_side.out, src_side.node_stack_from_src, ignored,
-                  node_stack_above_LCA, radius_left);
+                  src_side.out, radius_left);
 }
 template<typename T>
 static void search_subtree_first_level(MAT::Node *node, MAT::Node *to_exclude,
@@ -340,7 +324,6 @@ upward_integrated(src_side_info &src_side,
     
     src_side.par_score_change_from_src_remove = next_src_par_score;
     src_side.allele_count_change_from_src = std::move(allele_change_out);
-    src_side.node_stack_from_src.push_back(node);
 
     output_LCA(split_allele_count_change_out, par_score_change_split_LCA+next_src_par_score,
                src_side, radius_left);

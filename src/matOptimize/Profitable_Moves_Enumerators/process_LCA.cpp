@@ -17,7 +17,7 @@ struct process_LCA_more_than_two_src_terminal {
     Mutation_Count_Change_Collection &LCA_parent_mutation_count_change_out;
     int &parsimony_score_change;
     process_LCA_more_than_two_src_terminal(
-        const MAT::Node *LCA, const MAT::Node *src_branch,
+        const MAT::Node *LCA,
         Mutation_Count_Change_Collection &LCA_parent_mutation_count_change_out,
         int &parsimony_score_change)
         : LCA_parent_mutation_count_change_out(
@@ -65,7 +65,7 @@ struct process_LCA_more_than_two_src_not_terminal {
     Mutation_Count_Change_Collection &LCA_parent_mutation_count_change_out;
     int &parsimony_score_change;
     process_LCA_more_than_two_src_not_terminal(
-        const MAT::Node *LCA, const MAT::Node *src_branch,
+        const MAT::Node *LCA,
         Mutation_Count_Change_Collection &LCA_parent_mutation_count_change_out,
         int &parsimony_score_change)
         : LCA_parent_mutation_count_change_out(
@@ -227,12 +227,12 @@ template <typename Functor> class process_LCA {
   public:
     template <typename src_t>
     void operator()(
-        const MAT::Node *LCA, const MAT::Node *src_branch,
+        const MAT::Node *LCA, 
         const src_t &from_src_remove,
         const Mutation_Count_Change_Collection &from_dst_add,
         Mutation_Count_Change_Collection &LCA_parent_mutation_count_change_out,
         int &parsimony_score_change) {
-        Functor functor(LCA, src_branch, LCA_parent_mutation_count_change_out,
+        Functor functor(LCA, LCA_parent_mutation_count_change_out,
                         parsimony_score_change);
         range<MAT::Mutation> LCA_mut(LCA->mutations);
         range<Mutation_Count_Change> dst_add_count_iter(
@@ -247,19 +247,19 @@ template <typename Functor> class process_LCA {
 // This just dispatch the appropriate function based on number of children on
 // LCA, and whether src_branch_node is removed
 void get_LCA_mutation(
-    const MAT::Node *LCA, const MAT::Node *src_branch, bool is_src_terminal,
+    const MAT::Node *LCA, const MAT::Node *src,
     const Mutation_Count_Change_Collection &from_src_remove,
     const Mutation_Count_Change_Collection &from_dst_add,
     Mutation_Count_Change_Collection &LCA_parent_mutation_count_change_out,
     int &parsimony_score_change) {
     assert(LCA->children.size()>1);
-        if (is_src_terminal) {
+        if (src->parent==LCA) {
             process_LCA<process_LCA_more_than_two_src_terminal>()(
-                LCA, src_branch, src_branch->mutations, from_dst_add,
+                LCA,  src->mutations, from_dst_add,
                 LCA_parent_mutation_count_change_out, parsimony_score_change);
         } else {
             process_LCA<process_LCA_more_than_two_src_not_terminal>()(
-                LCA, src_branch, from_src_remove, from_dst_add,
+                LCA,  from_src_remove, from_dst_add,
                 LCA_parent_mutation_count_change_out, parsimony_score_change);
         }
   

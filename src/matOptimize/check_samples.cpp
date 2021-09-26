@@ -153,6 +153,9 @@ void check_samples(Mutation_Annotated_Tree::Node *root,
                 have_missed=true;
             }
         }
+        if (have_missed) {
+         fprintf(stderr, "have_missing samples\n");
+        }
         assert(!have_missed);
         fputs("checked\n", stderr);
     }

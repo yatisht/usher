@@ -1,8 +1,12 @@
 #include "detailed_mutation_load_store.hpp"
+#include "src/matOptimize/mutation_annotated_tree.hpp"
+#include "src/matOptimize/tree_rearrangement_internal.hpp"
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <tbb/flow_graph.h>
 #include <unistd.h>
+#include <mpi.h>
 /*
 File structure:
 offset of metadata message (8 byte)
@@ -251,10 +255,31 @@ struct file_writer_t {
     const int fd;
     file_writer_t(int fd) : fd(fd) {}
     void operator()(compressor_out to_write) {
-        write(fd, to_write.content, to_write.size);
+        auto size_written=write(fd, to_write.content, to_write.size);
+        if (size_written!=to_write.size) {
+            puts("Failed to write intermediate protobuf");
+        }
         free(to_write.content);
     }
 };
+struct mpi_writer{
+    void operator()(compressor_out to_write) {
+        MPI_Bcast( &to_write.size,1,MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
+        fprintf(stderr,":::::Sending segmane tof length %zu\n", to_write.size );
+        MPI_Bcast(to_write.content, to_write.size, MPI_BYTE, 0, MPI_COMM_WORLD);
+        free(to_write.content);
+    }
+};
+template<typename T>
+size_t serialize_tree_general(const MAT::Tree* tree,serializer_t& serializer){
+        u_int64_t root_offset;
+    u_int64_t root_length;
+    tbb::task::spawn_root_and_wait(
+        *(new (tbb::task::allocate_root())
+              subtree_serializer<T>(
+                  root_offset, root_length, tree->root, *tree, serializer)));
+    return save_meta(*tree, root_offset, root_length, serializer);
+}
 // main save function
 void Mutation_Annotated_Tree::Tree::save_detailed_mutations(
     const std::string &path) const {
@@ -267,15 +292,27 @@ void Mutation_Annotated_Tree::Tree::save_detailed_mutations(
         g, 1, file_writer_t(fd), tbb::flow::queueing());
     tbb::flow::make_edge(compressor, file_writer);
     serializer_t serializer(compressor);
-    u_int64_t root_offset;
-    u_int64_t root_length;
-    tbb::task::spawn_root_and_wait(
-        *(new (tbb::task::allocate_root())
-              subtree_serializer<serialize_condensed_node>(
-                  root_offset, root_length, root, *this, serializer)));
-    size_t uncompressed_length =
-        save_meta(*this, root_offset, root_length, serializer);
+    auto uncompressed_length=serialize_tree_general<serialize_condensed_node>(this,serializer);
     g.wait_for_all();
-    write(fd, &uncompressed_length, 8);
+    if(write(fd, &uncompressed_length, 8)!=8){
+        puts("Failed to write intermediate protobuf");
+    }
     close(fd);
+}
+
+void Mutation_Annotated_Tree::Tree::MPI_send_tree() const {
+    size_t max_memory=get_memory();
+    MPI_Bcast(&max_memory, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
+    fprintf(stderr, "Sending memory requirement of %zu \n",max_memory);
+    tbb::flow::graph g;
+    compressor_node_t compressor(g, tbb::flow::unlimited, compressor_node());
+    tbb::flow::function_node<compressor_out> sender(
+        g, 1, mpi_writer(), tbb::flow::queueing());
+    tbb::flow::make_edge(compressor, sender);
+    serializer_t serializer(compressor);
+    auto uncompressed_length=serialize_tree_general<no_serialize_condensed_node>(this,serializer);
+    g.wait_for_all();
+    size_t size_t_max=UINT64_MAX;
+    MPI_Bcast(&size_t_max, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&uncompressed_length, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
 }

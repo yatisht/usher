@@ -476,6 +476,8 @@ class Tree {
     void populate_ignored_range();
     size_t get_max_level();
     friend class Node;
+    void MPI_send_tree() const;
+    void MPI_receive_tree();
     void delete_nodes();
 };
 

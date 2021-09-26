@@ -61,13 +61,13 @@ static void mark_changed_neighbor(int radius, MAT::Node* root, MAT::Node* exclud
 
 //find src node to search
 void find_nodes_to_move(const std::vector<MAT::Node *> &bfs_ordered_nodes,
-                        tbb::concurrent_vector<MAT::Node *> &output,
+                        std::vector<MAT::Node *> &output,
                         bool is_first, int radius_in,MAT::Tree &tree) {
     auto start=std::chrono::steady_clock::now();
     unsigned int radius=abs(radius_in);
     output.clear();
     if (is_first||(radius_in<0&&radius<tree.max_level)) {
-        output=tbb::concurrent_vector<MAT::Node*>(bfs_ordered_nodes.begin(),bfs_ordered_nodes.end());
+        output=bfs_ordered_nodes;
         for(auto node:bfs_ordered_nodes) {
             node->to_search=false;
             node->last_searched_arcs=0;
