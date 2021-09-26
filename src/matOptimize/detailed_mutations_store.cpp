@@ -265,7 +265,7 @@ struct file_writer_t {
 struct mpi_writer{
     void operator()(compressor_out to_write) {
         MPI_Bcast( &to_write.size,1,MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
-        fprintf(stderr,":::::Sending segmane tof length %zu\n", to_write.size );
+        //fprintf(stderr,":::::Sending segmane tof length %zu\n", to_write.size );
         MPI_Bcast(to_write.content, to_write.size, MPI_BYTE, 0, MPI_COMM_WORLD);
         free(to_write.content);
     }
@@ -303,7 +303,7 @@ void Mutation_Annotated_Tree::Tree::save_detailed_mutations(
 void Mutation_Annotated_Tree::Tree::MPI_send_tree() const {
     size_t max_memory=get_memory();
     MPI_Bcast(&max_memory, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
-    fprintf(stderr, "Sending memory requirement of %zu \n",max_memory);
+    //fprintf(stderr, "Sending memory requirement of %zu \n",max_memory);
     tbb::flow::graph g;
     compressor_node_t compressor(g, tbb::flow::unlimited, compressor_node());
     tbb::flow::function_node<compressor_out> sender(

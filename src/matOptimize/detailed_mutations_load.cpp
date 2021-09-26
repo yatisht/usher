@@ -294,25 +294,25 @@ uncompress_file(const std::string &path) {
 static void receive_MPI(decompressor_node_t& decompressor,size_t& uncompressed_size){
     while (true) {
         size_t msg_size;
-        fprintf(stderr,"====Waiting segment length\n");
+        //fprintf(stderr,"====Waiting segment length\n");
         MPI_Bcast(&msg_size, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
-        fprintf(stderr,"====Receiving segmane tof length %zu \n", msg_size );
+        //fprintf(stderr,"====Receiving segmane tof length %zu \n", msg_size );
         if (msg_size==UINT64_MAX) {
             MPI_Bcast(&uncompressed_size, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
             return;
         }
         uint8_t* buffer=(uint8_t*) malloc(msg_size);
         MPI_Bcast(buffer, msg_size, MPI_BYTE, 0, MPI_COMM_WORLD);
-        fprintf(stderr,"====Finished Receiving segmane tof length %zu \n", msg_size );
+        //fprintf(stderr,"====Finished Receiving segmane tof length %zu \n", msg_size );
         decompressor.try_put(buffer);
     }
-    fprintf(stderr,"====Finished recieving \n" );
+    //fprintf(stderr,"====Finished recieving \n" );
 }
 static std::pair<uint8_t *, uint8_t *>
 receive_mpi_uncompress() {
     size_t max_memory;
     MPI_Bcast(&max_memory, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
-    fprintf(stderr, "received memory requirement of %zu \n",max_memory);
+    //fprintf(stderr, "received memory requirement of %zu \n",max_memory);
     uint8_t *uncompressed_buffer = (uint8_t *)malloc(max_memory<<10);
     size_t uncompressed_size;
     tbb::flow::graph g;

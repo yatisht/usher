@@ -4,6 +4,7 @@
 #include "version.hpp"
 #include "src/matOptimize/mutation_annotated_tree.hpp"
 #include "tree_rearrangement_internal.hpp"
+#include <algorithm>
 #include <boost/filesystem/operations.hpp>
 #include <boost/filesystem/path.hpp>
 #include <boost/program_options/value_semantic.hpp>
@@ -360,7 +361,9 @@ counters count;
         while (!nodes_to_search.empty()) {
             t.populate_ignored_range();
             auto dfs_ordered_nodes=t.depth_first_expansion();
-            if (process_count>1) {
+            std::random_shuffle(nodes_to_search.begin(), nodes_to_search.end());
+            bool distribute=(process_count>1)&&(nodes_to_search.size()>100);
+            if (distribute) {
                 auto nodes_to_search_count_per_process=nodes_to_search.size()/process_count+1;
                 std::vector<size_t> nodes_to_search_dfs_idx(nodes_to_search_count_per_process*process_count);
                 for (int idx=0; idx<nodes_to_search.size(); idx++) {
@@ -396,7 +399,7 @@ counters count;
                 save_period=ori_save_period;
             }
             std::vector<MAT::Node*> defered_nodes;
-            optimize_tree_main_thread( nodes_to_search, t,std::abs(radius),movalbe_src_log,allow_drift,log_moves?iteration:-1,defered_nodes,true
+            optimize_tree_main_thread( nodes_to_search, t,std::abs(radius),movalbe_src_log,allow_drift,log_moves?iteration:-1,defered_nodes,distribute
 #ifndef NDEBUG
                               , origin_states
 #endif

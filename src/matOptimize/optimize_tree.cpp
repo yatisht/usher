@@ -253,10 +253,6 @@ void optimize_tree_main_thread(std::vector<MAT::Node *> &nodes_to_search,
     search(nodes_to_search,t,radius,deferred_nodes_this_thread,resover_node);
     std::vector<std::string> defered_node_identifier;
     if (MPI_involved) {
-        MPI_Barrier(MPI_COMM_WORLD);
-        int temp;    
-        MPI_Send(&temp, 0, MPI_INT, 0, MOVE_TAG, MPI_COMM_WORLD);
-        fprintf(stderr, "Sent finish msg\n");
         std::vector<int> other_process_deferred_size(process_count);
         size_t self_count=0;
         MPI_Gather(&self_count, 1, MPI_INT, other_process_deferred_size.data(), 1,MPI_INT, 0 ,MPI_COMM_WORLD);
@@ -269,7 +265,6 @@ void optimize_tree_main_thread(std::vector<MAT::Node *> &nodes_to_search,
         }
         std::vector<size_t> other_defered_nodes_dfs_idx(offset_so_far);
         fprintf(stderr, "Expecting %zu nodes in total\n",offset_so_far);
-        MPI_Barrier(MPI_COMM_WORLD);
         MPI_Gatherv(&offset_so_far, 0, MPI_UNSIGNED_LONG, other_defered_nodes_dfs_idx.data(),other_process_deferred_size.data(), recieve_offsets.data(),MPI_UNSIGNED_LONG, 0,MPI_COMM_WORLD);
         fprintf(stderr, "reserving %zu nodes in total\n",deferred_nodes_this_thread.size()+offset_so_far);
         defered_node_identifier.reserve(deferred_nodes_this_thread.size()+offset_so_far);
@@ -279,10 +274,11 @@ void optimize_tree_main_thread(std::vector<MAT::Node *> &nodes_to_search,
         for(auto idx:other_defered_nodes_dfs_idx){
             defered_node_identifier.push_back(dfs_ordered_nodes[idx]->identifier);
         }
-        MPI_Barrier(MPI_COMM_WORLD);
     }
     fprintf(stderr, "finished recieving defered nodes\n");
-
+    int temp;    
+    MPI_Send(&temp, 0, MPI_INT, 0, MOVE_TAG, MPI_COMM_WORLD);
+    fprintf(stderr, "Sent finish msg\n");
     move_reciever.join();
     resolver_g.wait_for_all();
     //apply moves
@@ -383,7 +379,6 @@ void optimize_tree_worker_thread(MAT::Tree &t,int radius,std::vector<MAT::Node *
     resolver_node_t resolver_node(sender_g,1,MPI_move_sender());
     search(nodes_to_search, t, radius, defered_nodes, resolver_node);
     sender_g.wait_for_all();
-    MPI_Barrier(MPI_COMM_WORLD);
     int defered_size=defered_nodes.size();
     fprintf(stderr, "Sending %d deferend nodes form %d\n",defered_size,this_rank);
     MPI_Gather(&defered_size, 1, MPI_INT, NULL, 0, MPI_INT, 0, MPI_COMM_WORLD);
@@ -392,9 +387,7 @@ void optimize_tree_worker_thread(MAT::Tree &t,int radius,std::vector<MAT::Node *
     for (const auto node : defered_nodes) {
         deferred_idx.push_back(node->dfs_index);
     }
-    MPI_Barrier(MPI_COMM_WORLD);
     MPI_Gatherv(deferred_idx.data(), defered_size, MPI_UNSIGNED_LONG, NULL, NULL, NULL, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
-    MPI_Barrier(MPI_COMM_WORLD);
 }
 tbb::concurrent_unordered_map<MAT::Mutation,
     tbb::concurrent_unordered_map<std::string, nuc_one_hot> *,
