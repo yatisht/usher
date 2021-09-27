@@ -59,6 +59,9 @@ char Conflict_Resolver::operator()(std::vector<Profitable_Moves_ptr_t>* candidat
     std::vector<Profitable_Moves_ptr_t>& candidate_move=*candidate_move_ptr;
     char ret=0;
     Profitable_Moves_ptr_t selected_move=nullptr;
+    if (defered_nodes) {
+        defered_nodes->push_back(candidate_move[0]->src->identifier);        
+    }
     for (Profitable_Moves_ptr_t& move : candidate_move) {
         move->populate_involved_nodes();
         //don't need check-lock-check-set, as there is little contension on conflict resolver

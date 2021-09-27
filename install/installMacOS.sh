@@ -1,4 +1,4 @@
-brew install cmake boost protobuf wget rsync
+brew install cmake boost protobuf wget rsync openmpi
 
 # create build directory
 startDir=$pwd

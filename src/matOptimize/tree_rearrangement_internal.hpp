@@ -14,6 +14,8 @@
 #pragma once
 #define EMPTY_POS UINT16_MAX
 #define MOVE_TAG 0
+#define WORK_REQ_TAG 1
+#define WORK_RES_TAG 2
 extern int this_rank;
 extern int process_count;
 extern bool use_bound; 
@@ -89,7 +91,7 @@ void find_nodes_to_move(const std::vector<MAT::Node *> &bfs_ordered_nodes,
 void add_root(MAT::Tree *tree) ;
 void VCF_input(const char * name,MAT::Tree& tree);
 
-void optimize_tree_main_thread(std::vector<MAT::Node *> &nodes_to_search,
+void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
                                         MAT::Tree &t,int radius,FILE* log,bool allow_drift,int iteration,
                                         std::vector<MAT::Node*>& deferred_nodes_out,bool MPI_involved
 #ifndef NDEBUG
@@ -97,7 +99,7 @@ void optimize_tree_main_thread(std::vector<MAT::Node *> &nodes_to_search,
 #endif
                                        );
 
-void optimize_tree_worker_thread(MAT::Tree &t,int radius,std::vector<MAT::Node *> &nodes_to_search);
+void optimize_tree_worker_thread(MAT::Tree &t,int radius);
 void save_final_tree(MAT::Tree &t, Original_State_t& origin_states,const std::string &output_path);
 //For removing nodes with no valid mutations between rounds
 void clean_tree(MAT::Tree& t);

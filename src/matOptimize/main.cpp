@@ -361,7 +361,6 @@ counters count;
             break;
         }
         //Actual optimization loop
-        bool searched_full=true;
         while (!nodes_to_search.empty()) {
             t.populate_ignored_range();
             auto dfs_ordered_nodes=t.depth_first_expansion();
@@ -369,44 +368,28 @@ counters count;
             std::shuffle(nodes_to_search.begin(), nodes_to_search.end(),rng);
             bool distribute=(process_count>1)&&(nodes_to_search.size()>100);
             if (distribute) {
-                auto nodes_to_search_count_per_process=nodes_to_search.size()/process_count+1;
-                MPI_Request request;
-                MPI_Ibcast(&nodes_to_search_count_per_process, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD,&request);
-                std::vector<size_t> nodes_to_search_dfs_idx(nodes_to_search_count_per_process*process_count);
-                for (int idx=0; idx<nodes_to_search.size(); idx++) {
-                    nodes_to_search_dfs_idx[idx]=nodes_to_search[idx]->dfs_index;
-                }
-                MPI_Wait(&request, MPI_STATUS_IGNORE);
-                fprintf(stderr, "sent %zu nodes to search \n",nodes_to_search_count_per_process);
-                MPI_Bcast(&radius, 1, MPI_INT, 0, MPI_COMM_WORLD);
+                MPI_Request req;
+                MPI_Ibcast(&radius, 1, MPI_INT, 0, MPI_COMM_WORLD, &req);
+                fprintf(stderr, "Sent radius\n");
+                MPI_Wait(&req, MPI_STATUS_IGNORE);
+                fprintf(stderr, "Start Send tree\n");
                 t.MPI_send_tree();
-                std::vector<size_t> nodes_to_search_dfs_idx_this_thread(nodes_to_search_count_per_process);
-                MPI_Scatter(nodes_to_search_dfs_idx.data(), nodes_to_search_count_per_process, MPI_UNSIGNED_LONG, nodes_to_search_dfs_idx_this_thread.data(), nodes_to_search_count_per_process, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
-                nodes_to_search.clear();
-                for (int idx=0; idx<nodes_to_search_count_per_process; idx++) {
-                    nodes_to_search.push_back(dfs_ordered_nodes[idx]);
-                }
-                fprintf(stderr, "%zu nodes to search on %d\n",nodes_to_search.size(),this_rank);
             }
-            /*if (nodes_to_search.size()<100) {
-                auto fh=fopen("nodes_to_search", "w");
-                for (const auto& node : nodes_to_search) {
-                    fprintf(fh, "%s\n",node->identifier.c_str());
-                }
-                fclose(fh);
+            std::vector<size_t> nodes_to_search_idx;
+            nodes_to_search_idx.reserve(nodes_to_search.size());
+            for(const auto node:nodes_to_search){
+                nodes_to_search_idx.push_back(node->dfs_index);
             }
-            t.save_detailed_mutations("last_iter.pb");*/
             if (interrupted) {
                 break;
             }
-            bfs_ordered_nodes = t.breadth_first_expansion();
             if (max_optimize_hours) {
                 save_period=std::min(ori_save_period,end_time-std::chrono::steady_clock::now());
             } else {
                 save_period=ori_save_period;
             }
             std::vector<MAT::Node*> defered_nodes;
-            optimize_tree_main_thread( nodes_to_search, t,std::abs(radius),movalbe_src_log,allow_drift,log_moves?iteration:-1,defered_nodes,distribute
+            optimize_tree_main_thread(nodes_to_search_idx, t,std::abs(radius),movalbe_src_log,allow_drift,log_moves?iteration:-1,defered_nodes,distribute
 #ifndef NDEBUG
                               , origin_states
 #endif
@@ -417,8 +400,9 @@ counters count;
                 interrupted=true;
                 break;
             }
+            new_score=t.get_parsimony_score();
             fprintf(stderr, "parsimony score after optimizing: %zu,with radius %d, second from start %ld \n\n",
-                    t.get_parsimony_score(),std::abs(radius),std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now()-start_time).count());
+                    new_score,std::abs(radius),std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now()-start_time).count());
             auto save_start=std::chrono::steady_clock::now();
             if(std::chrono::steady_clock::now()-last_save_time>=save_period) {
                 if(!no_write_intermediate) {
@@ -459,9 +443,9 @@ counters count;
             break;
         }
     }
-    size_t temp=0;
+    int temp=0;
     MPI_Request req;
-    MPI_Ibcast(&temp, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD,&req);
+    MPI_Ibcast(&temp, 1, MPI_INT, 0, MPI_COMM_WORLD,&req);
     fprintf(stderr, "Final Parsimony score %zu\n",t.get_parsimony_score());
     fclose(movalbe_src_log);
     save_final_tree(t, origin_states, output_path);
@@ -469,34 +453,20 @@ counters count;
     }else{
         tbb::task_scheduler_init init(num_threads);
         while(true){
-            size_t nodes_to_search_count_per_process;
-            fprintf(stderr, "recieciving node to seach count\n");
             MPI_Request request;
-            MPI_Ibcast(&nodes_to_search_count_per_process, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD,&request);
+            fprintf(stderr, "Wait radius\n");
+            MPI_Ibcast(&radius, 1, MPI_INT, 0, MPI_COMM_WORLD,&request);
             int done=0;
             while (done==0) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
                 MPI_Test(&request, &done, MPI_STATUS_IGNORE);
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
             }
-            fprintf(stderr, "%zu node to seach count\n",nodes_to_search_count_per_process);
-            if(nodes_to_search_count_per_process==0){
+            fprintf(stderr, "Received radius\n");
+            if(radius==0){
                 break;
             }
-            MPI_Bcast(&radius, 1, MPI_INT, 0, MPI_COMM_WORLD);
             t.MPI_receive_tree();
-            auto dfs_ordered_nodes=t.depth_first_expansion();
-            std::vector<size_t> nodes_to_search_dfs_idx_this_thread(nodes_to_search_count_per_process);
-            MPI_Scatter(NULL, 0,MPI_UNSIGNED_LONG, nodes_to_search_dfs_idx_this_thread.data(),nodes_to_search_count_per_process, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
-            std::vector<MAT::Node*> nodes_to_search;
-            nodes_to_search.reserve(nodes_to_search_count_per_process);
-            for (int idx=0; idx<nodes_to_search_count_per_process; idx++) {
-                auto node_idx=nodes_to_search_dfs_idx_this_thread[idx];
-                if (node_idx!=0) {
-                    nodes_to_search.push_back(dfs_ordered_nodes[node_idx]);                
-                }
-            }
-            fprintf(stderr, "%zu nodes to search on %d\n",nodes_to_search.size(),this_rank);
-            optimize_tree_worker_thread(t, radius, nodes_to_search);
+            optimize_tree_worker_thread(t, radius);
         }
     }
     for(auto& pos:mutated_positions) {
