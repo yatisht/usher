@@ -83,11 +83,6 @@ void print_file_info(std::string info_msg,std::string error_msg,const std::strin
     }
 }
 int main(int argc, char **argv) {
-    fprintf(stderr, "original arguments:\n");
-    for (int arg_idx=0;arg_idx<argc;arg_idx++) {
-        fprintf(stderr, "%s ",argv[arg_idx]);
-    }
-    fputc('\n', stderr);
     int ignored;
     MPI_Init_thread(&argc, &argv,MPI_THREAD_MULTIPLE,&ignored);
     MPI_Comm_rank(MPI_COMM_WORLD, &this_rank);
@@ -156,13 +151,14 @@ int main(int argc, char **argv) {
             std::cerr << "matOptimize (v" << PROJECT_VERSION << ")" << std::endl;
             std::cerr << desc << std::endl;
         }
-
+        }
+        MPI_Finalize();
         // Return with error code 1 unless the user specifies help
-        if(vm.count("help"))
+        if(vm.count("help")){   
             return 0;
+        }
         else
             return 1;
-        }
     }
     Mutation_Annotated_Tree::Tree t;
     if (this_rank==0) {
