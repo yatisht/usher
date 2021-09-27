@@ -6,7 +6,7 @@
 #include "Profitable_Moves_Enumerators.hpp"
 #include <iterator>
 #include <cstdio>
-#include <linux/limits.h>
+#include <climits>
 #include <queue>
 #include <stack>
 #include <tbb/concurrent_vector.h>
