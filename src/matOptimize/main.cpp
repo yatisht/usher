@@ -370,6 +370,8 @@ counters count;
                 MPI_Wait(&req, MPI_STATUS_IGNORE);
                 fprintf(stderr, "Start Send tree\n");
                 t.MPI_send_tree();
+                adjust_all(t);
+                use_bound=true;
             }
             std::vector<size_t> nodes_to_search_idx;
             nodes_to_search_idx.reserve(nodes_to_search.size());
@@ -462,6 +464,8 @@ counters count;
                 break;
             }
             t.MPI_receive_tree();
+            adjust_all(t);
+            use_bound=true;
             optimize_tree_worker_thread(t, radius);
         }
     }
