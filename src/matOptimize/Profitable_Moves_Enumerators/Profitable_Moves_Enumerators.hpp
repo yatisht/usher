@@ -4,6 +4,7 @@
 #include "src/matOptimize/mutation_annotated_tree.hpp"
 #include <cstdint>
 #include <vector>
+#include <array>
 #include "../stack_allocator.hpp"
 typedef std::vector<std::array<std::vector<unsigned int>, 4>> mutated_node_dfs_idx_t;
 extern mutated_node_dfs_idx_t mutated_node_dfs_idx; 
