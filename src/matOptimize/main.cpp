@@ -42,28 +42,14 @@ size_t get_memory(){
 int process_count;
 int this_rank;
 uint32_t num_threads;
-std::chrono::time_point<std::chrono::steady_clock> last_save_time;
-bool no_write_intermediate;
-size_t max_queued_moves;
-std::chrono::steady_clock::duration save_period;
 MAT::Node* get_LCA(MAT::Node* src,MAT::Node* dst);
 FILE* movalbe_src_log;
-bool interrupted;
 bool changing_radius=false;
-std::condition_variable progress_bar_cv;
-bool timed_print_progress;
-tbb::task_group_context search_context;
 void interrupt_handler(int) {
     fputs("interrupted\n", stderr);
-    search_context.cancel_group_execution();
-    interrupted=true;
     fflush(movalbe_src_log);
 }
 
-void log_flush_handle(int) {
-    fflush(movalbe_src_log);
-    progress_bar_cv.notify_all();
-}
 namespace po = boost::program_options;
 namespace MAT = Mutation_Annotated_Tree;
 MAT::Node* get_LCA(MAT::Node* src,MAT::Node* dst);
@@ -94,7 +80,6 @@ int main(int argc, char **argv) {
     std::string input_vcf_path;
     std::string intermediate_pb_base_name="";
     std::string profitable_src_log;
-    std::chrono::steady_clock::duration ori_save_period;
     std::string transposed_vcf_path;
     int drift_iter;
     unsigned int max_optimize_hours;
@@ -102,6 +87,7 @@ int main(int argc, char **argv) {
     unsigned int minutes_between_save;
     int max_round;
     float min_improvement;
+    bool no_write_intermediate;
 
     po::options_description desc{"Options"};
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
@@ -118,7 +104,6 @@ int main(int argc, char **argv) {
      "The file to log from which node a profitable move can be found.")
     ("ambi-protobuf,a", po::value<std::string>(&input_complete_pb_path)->default_value(""),
      "Continue from intermediate protobuf")
-    ("max-queued-moves,q",po::value<size_t>(&max_queued_moves)->default_value(INT_MAX),"Maximium number of profitable moves found before applying these moves")
     ("minutes-between-save,s",po::value<unsigned int>(&minutes_between_save)->default_value(0),"Minutes between saving intermediate protobuf")
     ("min-improvement,m",po::value<float>(&min_improvement)->default_value(0.0005),"Minimum improvement in the parsimony score as a fraction of the previous score in ordder to perform another iteration.")
     ("do-not-write-intermediate-files,n","Do not write intermediate files.")
@@ -130,16 +115,11 @@ int main(int argc, char **argv) {
     ("version", "Print version number")
     ("drift_iter,d",po::value(&drift_iter)->default_value(1),"Number of iteration to continue if no parsimony improvement")
     ("help,h", "Print help messages");
-
+    auto search_end_time=std::chrono::steady_clock::now()+std::chrono::hours(max_optimize_hours)-std::chrono::minutes(30);
     po::options_description all_options;
     all_options.add(desc);
-    interrupted=false;
     signal(SIGUSR2,interrupt_handler);
-#ifndef PROFILE_HEAP
-    signal(SIGUSR1, log_flush_handle);
-#endif
     po::variables_map vm;
-
     try {
         po::store(po::command_line_parser(argc, argv).options(all_options).run(), vm);
         po::notify(vm);
@@ -226,34 +206,16 @@ int main(int argc, char **argv) {
         fprintf(stderr,"Will write list of source nodes where a profitable move can be found to %s. \n",profitable_src_log.c_str());
         fprintf(stderr,"Run kill -s SIGUSR1 %d to flush the source node log\n",pid);
     }
-    timed_print_progress=isatty(fileno(stderr));
-    if (!timed_print_progress) {
-        fprintf(stderr,"stderr is not a terminal, will not print progress\n");
-        fprintf(stderr,"Run kill -s SIGUSR1 %d to print progress\n",pid);
-    }
     if (radius>=0) {
         fprintf(stderr,"Will consider SPR moves within a radius of %d. \n",radius);
     } else {
         fprintf(stderr,"Will double radius after each iteration\n");
         changing_radius=true;
     }
-    if (max_queued_moves) {
-        fprintf(stderr, "Will stop search and apply all moves found when %zu moves are found\n",max_queued_moves);
-    } else {
-        max_queued_moves=std::numeric_limits<decltype(max_queued_moves)>::max();
-    }
-    if (minutes_between_save) {
-        fprintf(stderr, "Will save intermediate result every %d minutes\n",minutes_between_save);
-        ori_save_period=std::chrono::minutes(minutes_between_save);
-    } else {
-        ori_save_period=ori_save_period.max();
-    }
     fprintf(stderr,"Run kill -s SIGUSR2 %d to apply all the move found immediately, then output and exit.\n",pid);
     fprintf(stderr,"Using %d threads. \n",num_threads);
-    std::chrono::steady_clock::duration max_optimize_duration=std::chrono::hours(max_optimize_hours)-std::chrono::minutes(30);
     auto start_time=std::chrono::steady_clock::now();
-    auto end_time=start_time+max_optimize_duration;
-
+    auto save_period=std::chrono::minutes(minutes_between_save);
 
     //Loading tree
     Original_State_t origin_states;
@@ -297,13 +259,13 @@ int main(int argc, char **argv) {
             fputs("Finished checkpointing initial tree.\n",stderr);
         }
     }
-    last_save_time=std::chrono::steady_clock::now();
 
 #ifndef NDEBUG
     //check_samples(t.root, origin_states, &t);
 #endif
     t.populate_ignored_range();
     }
+    auto last_save_time=std::chrono::steady_clock::now();
     size_t new_score;
     size_t score_before;
     int stalled = 0;
@@ -324,35 +286,18 @@ int main(int argc, char **argv) {
     bool isfirst=true;
     bool allow_drift=false;
     int iteration=1;
-    size_t nodes_seached_last_iter=0;
-    size_t nodes_seached_this_iter=0;
     tbb::task_scheduler_init init(num_threads);
     while(stalled<drift_iter) {
-        if (interrupted) {
-            break;
-        }
         bfs_ordered_nodes = t.breadth_first_expansion();
         fputs("Start Finding nodes to move \n",stderr);
-        find_nodes_to_move(bfs_ordered_nodes, nodes_to_search,isfirst,radius,t);
-        if (radius<0&&(isfirst||nodes_seached_this_iter>nodes_seached_last_iter)) {
+        if (radius<0) {
             radius*=2;
-            nodes_seached_last_iter=nodes_seached_this_iter;
+            nodes_to_search=bfs_ordered_nodes;
+        }else {
+            find_nodes_to_move(bfs_ordered_nodes, nodes_to_search,isfirst,radius,t);
         }
         isfirst=false;
         fprintf(stderr,"%zu nodes to search\n",nodes_to_search.size());
-        use_bound=true;
-        adjust_all(t); 
-        /*output_t temp;
-counters count;
-        find_moves_bounded(t.get_node("11106"), temp,radius,count);
-        while (true) {
-        fprintf(stderr, "%zu\n", t.get_parsimony_score());
-        find_moves_bounded(t.get_node("s310249s"), temp,8,count);
-        tbb::concurrent_vector<MAT::Node *> ignored;
-        temp.moves.resize(1);
-        apply_moves(temp.moves, t, bfs_ordered_nodes,ignored);
-        fprintf(stderr, "%zu\n", t.get_parsimony_score());
-        }*/
         if (nodes_to_search.empty()) {
             break;
         }
@@ -365,79 +310,70 @@ counters count;
             bool distribute=(process_count>1)&&(nodes_to_search.size()>100);
             if (distribute) {
                 MPI_Request req;
-                MPI_Ibcast(&radius, 1, MPI_INT, 0, MPI_COMM_WORLD, &req);
+                int radius_to_boardcast=abs(radius);
+                MPI_Ibcast(&radius_to_boardcast, 1, MPI_INT, 0, MPI_COMM_WORLD, &req);
                 fprintf(stderr, "Sent radius\n");
                 MPI_Wait(&req, MPI_STATUS_IGNORE);
                 fprintf(stderr, "Start Send tree\n");
                 t.MPI_send_tree();
                 adjust_all(t);
                 use_bound=true;
+            }else {
+                use_bound=false;
             }
             std::vector<size_t> nodes_to_search_idx;
             nodes_to_search_idx.reserve(nodes_to_search.size());
             for(const auto node:nodes_to_search){
                 nodes_to_search_idx.push_back(node->dfs_index);
             }
-            if (interrupted) {
-                break;
-            }
-            if (max_optimize_hours) {
-                save_period=std::min(ori_save_period,end_time-std::chrono::steady_clock::now());
-            } else {
-                save_period=ori_save_period;
-            }
             std::vector<MAT::Node*> defered_nodes;
-            optimize_tree_main_thread(nodes_to_search_idx, t,std::abs(radius),movalbe_src_log,allow_drift,log_moves?iteration:-1,defered_nodes,distribute
+            auto next_save_time=last_save_time+save_period;
+            bool do_continue=true;
+            auto search_stop_time=next_save_time;
+            if (no_write_intermediate||search_end_time<next_save_time) {
+                do_continue=false;
+                search_stop_time=search_end_time;
+            }
+            optimize_tree_main_thread(nodes_to_search_idx, t,std::abs(radius),movalbe_src_log,allow_drift,log_moves?iteration:-1,defered_nodes,distribute,search_stop_time,do_continue
 #ifndef NDEBUG
                               , origin_states
 #endif
                              );
             fprintf(stderr, "Defered %zu nodes\n",defered_nodes.size());
             nodes_to_search=std::move(defered_nodes);
-            if (max_optimize_hours&&(std::chrono::steady_clock::now()-start_time>max_optimize_duration)) {
-                interrupted=true;
-                break;
-            }
             new_score=t.get_parsimony_score();
             fprintf(stderr, "parsimony score after optimizing: %zu,with radius %d, second from start %ld \n\n",
                     new_score,std::abs(radius),std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now()-start_time).count());
-            auto save_start=std::chrono::steady_clock::now();
-            if(std::chrono::steady_clock::now()-last_save_time>=save_period) {
-                if(!no_write_intermediate) {
+            if(!no_write_intermediate) {
                     intermediate_writing=intermediate_template;
                     make_output_path(intermediate_writing);
+                    auto save_start=std::chrono::steady_clock::now();
                     t.save_detailed_mutations(intermediate_writing);
                     rename(intermediate_writing.c_str(), intermediate_pb_base_name.c_str());
                     last_save_time=std::chrono::steady_clock::now();
-                    fprintf(stderr, "Took %lldsecond to save intermediate protobuf\n",std::chrono::duration_cast<std::chrono::seconds>(last_save_time-save_start).count());
-                }
-                last_save_time=std::chrono::steady_clock::now();
+                    fprintf(stderr, "Took %ldsecond to save intermediate protobuf\n",std::chrono::duration_cast<std::chrono::seconds>(last_save_time-save_start).count());
             }
-            use_bound=false;
+            if (std::chrono::steady_clock::now()>=search_end_time) {
+                break;
+            }
         }
         float improvement=1-((float)new_score/(float)score_before);
         fprintf(stderr, "Last round improvement %f\n",improvement);
-        if (improvement <min_improvement ) {
-            if (nodes_seached_this_iter>nodes_seached_last_iter&&radius<0) {
-                radius*=2;
-            } else {
+        if (improvement <min_improvement && radius >=0) {
                 fprintf(stderr, "Less than minimium improvement\n");
                 stalled++;
                 allow_drift=true;
-            }
         } else {
             score_before = new_score;
             stalled = 0;
         }
         clean_tree(t);
         iteration++;
-        if (max_optimize_hours&&(std::chrono::steady_clock::now()-start_time>max_optimize_duration)) {
-            interrupted=true;
-            break;
-        }
         if(iteration>=max_round) {
             fprintf(stderr, "Reached %d interations\n", iteration);
-            interrupted=true;
+            break;
+        }
+        if (std::chrono::steady_clock::now()>=search_end_time) {
             break;
         }
     }

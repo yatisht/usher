@@ -19,18 +19,12 @@
 extern int this_rank;
 extern int process_count;
 extern bool use_bound; 
-extern std::chrono::time_point<std::chrono::steady_clock> last_save_time;
-extern bool no_write_intermediate;
-extern size_t max_queued_moves;
 extern uint32_t num_threads;
-extern std::chrono::steady_clock::duration save_period;
 namespace MAT = Mutation_Annotated_Tree;
 extern std::vector<std::string> changed_nodes;
 extern tbb::concurrent_unordered_map<MAT::Mutation, tbb::concurrent_unordered_map<std::string, nuc_one_hot>*,Mutation_Pos_Only_Hash,
        Mutation_Pos_Only_Comparator>
        mutated_positions;
-extern std::condition_variable progress_bar_cv;
-extern bool timed_print_progress;
 struct Profitable_Moves {
     int score_change;
     MAT::Node* src;
@@ -93,7 +87,7 @@ void VCF_input(const char * name,MAT::Tree& tree);
 
 void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
                                         MAT::Tree &t,int radius,FILE* log,bool allow_drift,int iteration,
-                                        std::vector<MAT::Node*>& deferred_nodes_out,bool MPI_involved
+                                        std::vector<MAT::Node*>& deferred_nodes_out,bool MPI_involved,std::chrono::steady_clock::time_point end_time,bool do_continue
 #ifndef NDEBUG
                      , Original_State_t& origin_states
 #endif

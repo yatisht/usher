@@ -6,6 +6,7 @@
 #include <atomic>
 #include <cctype>
 #include <chrono>
+#include <condition_variable>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -22,7 +23,7 @@
 //Decouple parsing (slow) and decompression, segment file into blocks for parallelized parsing
 typedef tbb::flow::source_node<char*> decompressor_node_t;
 typedef tbb::flow::multifunction_node<char*,tbb::flow::tuple<Parsed_VCF_Line*>> line_parser_t;
-
+std::condition_variable progress_bar_cv;
 struct Decompressor {
     gzFile fd;
     size_t init_read_size;
@@ -190,12 +191,7 @@ void print_progress(std::atomic<bool>* done,std::mutex* done_mutex) {
     while (true) {
         {
             std::unique_lock<std::mutex> lk(*done_mutex);
-            if (timed_print_progress) {
-                progress_bar_cv.wait_for(lk,std::chrono::seconds(1));
-
-            } else {
-                progress_bar_cv.wait(lk);
-            }
+            progress_bar_cv.wait_for(lk,std::chrono::seconds(1));
             if (done->load()) {
                 return;
             }
