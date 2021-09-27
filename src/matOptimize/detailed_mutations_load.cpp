@@ -243,7 +243,7 @@ template <typename do_free_input> struct decompressor_t {
     void operator()(uint8_t *to_load) {
         size_t offset = *(uint64_t*)to_load;
         size_t length = *(uint64_t*)(to_load + 8);
-        uint64_t uncompressed_out = INT_MAX;
+        unsigned long uncompressed_out = INT_MAX;
         auto result =
             uncompress(start + offset, &uncompressed_out, to_load + 16, length);
         if (result != Z_OK) {
