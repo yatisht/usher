@@ -259,7 +259,7 @@ else()
         src/matOptimize/transpose_vcf/transposed_vcf_print_name.cpp
         src/matOptimize/mutation_annotated_tree_nuc_util.cpp
         )
-        add_executable(serialize_test
+        #[[add_executable(serialize_test
         src/matOptimize/mutation_annotated_tree.cpp
         src/matOptimize/mutation_annotated_tree_node.cpp
         src/matOptimize/serializer_test.cpp
@@ -280,7 +280,7 @@ else()
         ${patch_tree}
         ${DETAILED_MUTATIONS_PROTO_SRCS}
         ${DETAILED_MUTATIONS_PROTO_HDRS}
-        )
+        )]]
     if(USHER_SERVER)
         add_executable(usher_server
             src/mutation_annotated_tree.cpp
@@ -314,7 +314,7 @@ TARGET_LINK_LIBRARIES(transpose_vcf PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMP
 TARGET_LINK_LIBRARIES(transposed_vcf_to_vcf PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(transposed_vcf_to_fa PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(transposed_vcf_print_name PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
-TARGET_LINK_LIBRARIES(serialize_test PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
+#TARGET_LINK_LIBRARIES(serialize_test PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 
 TARGET_LINK_LIBRARIES(usher PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 target_include_directories(usher PUBLIC "${PROJECT_BINARY_DIR}")
