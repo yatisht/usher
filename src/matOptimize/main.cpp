@@ -115,7 +115,10 @@ int main(int argc, char **argv) {
     ("version", "Print version number")
     ("drift_iter,d",po::value(&drift_iter)->default_value(1),"Number of iteration to continue if no parsimony improvement")
     ("help,h", "Print help messages");
-    auto search_end_time=std::chrono::steady_clock::now()+std::chrono::hours(max_optimize_hours)-std::chrono::minutes(30);
+    auto search_end_time=std::chrono::steady_clock::time_point::max();
+    if (max_optimize_hours) {
+        search_end_time=std::chrono::steady_clock::now()+std::chrono::hours(max_optimize_hours)-std::chrono::minutes(30);    
+    }
     po::options_description all_options;
     all_options.add(desc);
     signal(SIGUSR2,interrupt_handler);

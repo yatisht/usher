@@ -164,6 +164,7 @@ static void node_distributor(const std::vector<size_t>& node_to_search_idx,std::
         MPI_Send(node_to_search_idx.data()+idx, count_to_send, MPI_UNSIGNED_LONG, stat.MPI_SOURCE, WORK_RES_TAG, MPI_COMM_WORLD);
         idx+=count_to_send;
         if (std::chrono::steady_clock::now()>=stop_time) {
+            fprintf(stderr, "timeout");
             nodes_not_searched.insert(nodes_not_searched.end(),node_to_search_idx.begin()+idx,node_to_search_idx.end());
             break;
         }
@@ -232,8 +233,7 @@ void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
 #ifndef NDEBUG
                      , Original_State_t& origin_states
 #endif
-                                       ){
-                                           
+                                       ){              
     t.breadth_first_expansion();
     auto dfs_ordered_nodes=t.depth_first_expansion();
     fprintf(stderr, "%zu nodes to search \n", nodes_to_search.size());
