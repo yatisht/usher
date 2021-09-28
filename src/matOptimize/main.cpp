@@ -330,7 +330,7 @@ int main(int argc, char **argv) {
                 nodes_to_search_idx.push_back(node->dfs_index);
             }
             std::vector<MAT::Node*> defered_nodes;
-            auto next_save_time=last_save_time+save_period;
+            auto next_save_time=minutes_between_save?last_save_time+save_period:std::chrono::steady_clock::time_point::max();
             bool do_continue=true;
             auto search_stop_time=next_save_time;
             if (no_write_intermediate||search_end_time<next_save_time) {

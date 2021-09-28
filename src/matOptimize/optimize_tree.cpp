@@ -164,7 +164,7 @@ static void node_distributor(const std::vector<size_t>& node_to_search_idx,std::
         MPI_Send(node_to_search_idx.data()+idx, count_to_send, MPI_UNSIGNED_LONG, stat.MPI_SOURCE, WORK_RES_TAG, MPI_COMM_WORLD);
         idx+=count_to_send;
         if (std::chrono::steady_clock::now()>=stop_time) {
-            fprintf(stderr, "timeout");
+            fprintf(stderr, "================timeout=========\n");
             nodes_not_searched.insert(nodes_not_searched.end(),node_to_search_idx.begin()+idx,node_to_search_idx.end());
             break;
         }
@@ -184,7 +184,7 @@ struct fetcher{
     std::chrono::steady_clock::time_point& last_request_time;
     fetcher(std::vector<size_t>& nodes_to_push,bool use_MPI,std::chrono::steady_clock::time_point& last_request_time):nodes_to_push(nodes_to_push),do_request(use_MPI),last_request_time(last_request_time){
         nodes_per_min_per_thread=100;
-        update_rate=0.01;
+        update_rate=0.1;
     }
     bool operator()(std::vector<size_t>*& out) const{
         if (nodes_to_push.empty()) {
