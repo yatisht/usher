@@ -78,7 +78,7 @@ std::unordered_map<std::string, std::vector<std::string>> read_two_column (std::
     std::string line;
     while (std::getline(infile, line)) {
         std::vector<std::string> words;
-        MAT::string_split(line, words);
+        MAT::string_split(line, '\t', words);
 
         std::string sname = words[0];
         std::string rname;
@@ -707,6 +707,9 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::unordered_map<std
                                 }
                             }
                         }
+                        if (clade_indeces_recorded.size() == clid_count) {
+                            break;
+                        }
                     }
                     for (size_t i = 0; i < clid_count; i++) {
                         if (i > 0) {
@@ -744,9 +747,18 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::unordered_map<std
                     std::stringstream ostr;
                     //mcl stores just cluster-specific information for a separate output file.
                     std::stringstream mcl;
+                    size_t mgap;
+                    if (muts_of_last_encountered <= minimum_gap) {
+                        //the gap in this case is the mutations of the current node, instead of the last one
+                        mgap = a->mutations.size();
+                    } else {
+                        mgap = muts_of_last_encountered;
+                        //remove those mutations from the traversal so that it's consistent with span
+                        traversed -= muts_of_last_encountered;
+                    }
                     if (region_assignments.size() == 1) {
-                        ostr << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed << "\t" << a->mutations.size() << "\t" << intro_clades << "\t" << intro_mut_path;
-                        mcl << last_anc_state << "\t" << anc_state << "\t" << a->mutations.size() << "\t" << intro_clades << "\t" << intro_mut_path;
+                        ostr << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed << "\t" << mgap << "\t" << intro_clades << "\t" << intro_mut_path;
+                        mcl << last_anc_state << "\t" << anc_state << "\t" << mgap << "\t" << intro_clades << "\t" << intro_mut_path;
                         if (eval_uncertainty) {
                             ostr << "\t" << assignments.find(s)->second;
                         }
@@ -757,8 +769,8 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::unordered_map<std
                             ostr << "\n";
                         }
                     } else {
-                        ostr << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed << "\t" << a->mutations.size() << "\t" << region << "\t" << origins << "\t" << origins_cons.str() << "\t" << intro_clades << "\t" << intro_mut_path;
-                        mcl << last_anc_state << "\t" << anc_state << "\t" << a->mutations.size() << "\t" << region << "\t" << origins << "\t" << origins_cons.str() << "\t" << intro_clades << "\t" << intro_mut_path;
+                        ostr << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed << "\t" << mgap << "\t" << region << "\t" << origins << "\t" << origins_cons.str() << "\t" << intro_clades << "\t" << intro_mut_path;
+                        mcl << last_anc_state << "\t" << anc_state << "\t" << mgap << "\t" << region << "\t" << origins << "\t" << origins_cons.str() << "\t" << intro_clades << "\t" << intro_mut_path;
                         if (eval_uncertainty) {
                             ostr << "\t" << assignments.find(s)->second;
                         }

@@ -4,6 +4,7 @@
 #include <iostream>
 #include <memory>
 #include <vector>
+#include <random>
 #include <boost/program_options.hpp>
 #include <boost/filesystem.hpp>
 #include "tbb/concurrent_unordered_set.h"
@@ -247,6 +248,7 @@ int main(int argc, char** argv) {
         nodes_to_consider_vec.emplace_back(elem);
     }
     std::sort(nodes_to_consider_vec.begin(), nodes_to_consider_vec.end());
+    std::shuffle(nodes_to_consider_vec.begin(), nodes_to_consider_vec.end(), std::default_random_engine(0));
 
     fprintf(stderr, "Found %zu long branches\n", nodes_to_consider.size());
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());

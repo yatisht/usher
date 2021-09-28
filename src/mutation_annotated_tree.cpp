@@ -943,16 +943,16 @@ void Mutation_Annotated_Tree::Tree::remove_node_helper (std::string nid, bool mo
 
                 std::vector<Mutation> tmp;
                 for (auto m: child->mutations) {
-                    tmp.emplace_back(m.copy());
+                    tmp.emplace_back(m);
                 }
 
                 //Clear and add back mutations in chrono order
                 child->clear_mutations();
                 for (auto m: curr_parent->mutations) {
-                    child->add_mutation(m.copy());
+                    child->add_mutation(m);
                 }
                 for (auto m: tmp) {
-                    child->add_mutation(m.copy());
+                    child->add_mutation(m);
                 }
 
                 curr_parent->parent->children.push_back(child);
@@ -1261,8 +1261,8 @@ void Mutation_Annotated_Tree::Tree::rotate_for_consistency() {
         } else {
             std::string smallest = smallest_desc[n->children[0]];
             for (auto child: n->children) {
-                if (child->identifier < smallest) {
-                    smallest = child->identifier;
+                if (smallest_desc[child] < smallest) {
+                    smallest = smallest_desc[child];
                 }
             }
             smallest_desc[n] = smallest;
