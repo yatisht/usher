@@ -1,9 +1,9 @@
 set -e
 sudo -E apt update 
-sudo -E apt-get --yes install build-essential \
+sudo -E apt-get install -yq --no-install-recommends build-essential \
  wget cmake  libboost-filesystem-dev libboost-program-options-dev libboost-iostreams-dev libboost-date-time-dev \
  libprotoc-dev libprotoc-dev protobuf-compiler \
- mafft rsync libtbb-dev libopenmpi-dev
+ mafft rsync libtbb-dev mpich
 
 # create build directory
 startDir=$pwd
