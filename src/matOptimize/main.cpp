@@ -403,11 +403,14 @@ int main(int argc, char **argv) {
             adjust_all(t);
             use_bound=true;
             optimize_tree_worker_thread(t, radius);
+            t.delete_nodes();
         }
     }
     for(auto& pos:mutated_positions) {
         delete pos.second;
     }
-    t.delete_nodes();
+    if (this_rank==0) {
+        t.delete_nodes();    
+    }
     MPI_Finalize();
 }

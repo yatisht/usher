@@ -71,6 +71,7 @@ static void MPI_recieve_move(const std::vector<MAT::Node*>& dfs_ordered_nodes,re
     int msg_size;
     MPI_Get_count(&stat, MPI_INT,&msg_size);
     if (msg_size==0) {
+        delete[] buffer;
         fprintf(stderr, "+++++++++Move receiver exit\n");
         return;
     }
@@ -151,6 +152,7 @@ struct move_searcher{
         float currate=to_search->size()/((seconds_duration+1.0)/60.0);
         nodes_per_min_per_thread=nodes_per_min_per_thread*(1-update_rate)+update_rate*currate;
         //fprintf(stderr, "Cur rate %f, %zu\n",currate,nodes_per_min_per_thread);
+        delete to_search;
     }
 };
 static void node_distributor(const std::vector<size_t>& node_to_search_idx,std::atomic<bool>& done,std::vector<size_t>& nodes_not_searched,std::chrono::steady_clock::time_point stop_time){
