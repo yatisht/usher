@@ -1,7 +1,7 @@
 set -e
 sudo -E apt update 
 sudo -E apt-get --yes install build-essential \
- wget cmake  libboost-all-dev \
+ wget cmake  libboost-filesystem-dev libboost-program-options-dev libboost-iostreams-dev libboost-date-time-dev \
  libprotoc-dev libprotoc-dev protobuf-compiler \
  mafft rsync libtbb-dev libopenmpi-dev
 
