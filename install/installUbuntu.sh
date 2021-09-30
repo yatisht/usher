@@ -3,7 +3,7 @@ sudo -E apt update
 sudo -E apt-get install -yq --no-install-recommends build-essential \
  wget cmake  libboost-filesystem-dev libboost-program-options-dev libboost-iostreams-dev libboost-date-time-dev \
  libprotoc-dev libprotoc-dev protobuf-compiler \
- mafft rsync libtbb-dev mpich
+ mafft rsync libtbb-dev mpich libmpich-dev
 
 # create build directory
 startDir=$pwd
