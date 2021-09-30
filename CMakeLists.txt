@@ -2,7 +2,9 @@
 cmake_minimum_required (VERSION 3.8) 
 cmake_policy(SET CMP0069 NEW)
 project(usher)
-
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE "RelWithDebInfo")
+endif()
 set(usher_VERSION "?.?.?")
 execute_process(COMMAND head -n1 ${CMAKE_SOURCE_DIR}/version.txt OUTPUT_VARIABLE VERSION)
 string(REGEX REPLACE "^v([0-9]+)\\..*" "\\1" VERSION_MAJOR "${VERSION}")
