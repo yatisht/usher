@@ -308,6 +308,8 @@ int main(int argc, char **argv) {
             std::mt19937_64 rng;
             std::shuffle(nodes_to_search.begin(), nodes_to_search.end(),rng);
             bool distribute=(process_count>1)&&(nodes_to_search.size()>1000);
+            adjust_all(t);
+            use_bound=true;
             if (distribute) {
                 MPI_Request req;
                 int radius_to_boardcast=abs(radius);
@@ -316,10 +318,6 @@ int main(int argc, char **argv) {
                 MPI_Wait(&req, MPI_STATUS_IGNORE);
                 fprintf(stderr, "Start Send tree\n");
                 t.MPI_send_tree();
-                adjust_all(t);
-                use_bound=true;
-            }else {
-                use_bound=false;
             }
             std::vector<size_t> nodes_to_search_idx;
             nodes_to_search_idx.reserve(nodes_to_search.size());
