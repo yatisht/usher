@@ -380,6 +380,7 @@ void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
         return;
     }
     deferred_nodes_out.clear();
+    fprintf(stderr, "First stage %zu deferred node \n",defered_node_identifier.size());
     deferred_nodes_out.reserve(defered_node_identifier.size());
     for (const auto& id : defered_node_identifier) {
         auto iter=t.all_nodes.find(id);

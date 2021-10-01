@@ -518,7 +518,7 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
     }
     google::protobuf::io::IstreamInputStream stream(&instream);
     google::protobuf::io::CodedInputStream input(&stream);
-    input.SetTotalBytesLimit(BIG_SIZE, BIG_SIZE);
+    //input.SetTotalBytesLimit(BIG_SIZE, BIG_SIZE);
     data.ParseFromCodedStream(&input);
     //check if the pb has a metadata field
     bool hasmeta = (data.metadata_size()>0);
