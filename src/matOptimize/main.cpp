@@ -329,7 +329,6 @@ int main(int argc, char **argv) {
             bool do_continue=true;
             auto search_stop_time=next_save_time;
             if (no_write_intermediate||search_end_time<next_save_time) {
-                do_continue=false;
                 search_stop_time=search_end_time;
             }
             optimize_tree_main_thread(nodes_to_search_idx, t,std::abs(radius),movalbe_src_log,allow_drift,log_moves?iteration:-1,defered_nodes,distribute,search_stop_time,do_continue
