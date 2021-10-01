@@ -157,12 +157,20 @@ struct move_searcher{
 };
 static void node_distributor(const std::vector<size_t>& node_to_search_idx,std::atomic<bool>& done,std::vector<size_t>& nodes_not_searched,std::chrono::steady_clock::time_point stop_time){
     size_t idx=0;
+    std::vector<size_t> rates(process_count,1000);
+    size_t total_rate=process_count*1000;
     while (idx<node_to_search_idx.size()) {
-        size_t count_to_send;
+        size_t curr_proc_rate;
         MPI_Status stat;
-        MPI_Recv(&count_to_send, 1, MPI_UNSIGNED_LONG, MPI_ANY_SOURCE, WORK_REQ_TAG, MPI_COMM_WORLD, &stat);
-        count_to_send=std::min(count_to_send,node_to_search_idx.size()-idx);
-        fprintf(stderr, " %zu nodes left \n",node_to_search_idx.size()-idx);
+        MPI_Recv(&curr_proc_rate, 1, MPI_UNSIGNED_LONG, MPI_ANY_SOURCE, WORK_REQ_TAG, MPI_COMM_WORLD, &stat);
+        total_rate+=(curr_proc_rate-rates[stat.MPI_SOURCE]);
+        rates[stat.MPI_SOURCE]=curr_proc_rate;
+        size_t remaining_nodes=node_to_search_idx.size()-idx;
+        float time_left=(float)remaining_nodes/(float)total_rate;
+        float release_time=std::max(0.1f,time_left/2);
+        size_t release_node_count=std::min(size_t(1+release_time*curr_proc_rate),curr_proc_rate);
+        size_t count_to_send=std::min(release_node_count,remaining_nodes);
+        fprintf(stderr, " %zu nodes left, %0.1f min left\n",remaining_nodes,time_left);
         MPI_Send(node_to_search_idx.data()+idx, count_to_send, MPI_UNSIGNED_LONG, stat.MPI_SOURCE, WORK_RES_TAG, MPI_COMM_WORLD);
         idx+=count_to_send;
         if (std::chrono::steady_clock::now()>=stop_time) {
@@ -182,10 +190,12 @@ static void node_distributor(const std::vector<size_t>& node_to_search_idx,std::
 struct fetcher{
     std::vector<size_t>& nodes_to_push;
     bool do_request;
-    mutable int is_longer_count; 
+    mutable size_t release_rate;
+    //mutable int is_longer_count; 
     std::chrono::steady_clock::time_point& last_request_time;
     fetcher(std::vector<size_t>& nodes_to_push,bool use_MPI,std::chrono::steady_clock::time_point& last_request_time):nodes_to_push(nodes_to_push),do_request(use_MPI),last_request_time(last_request_time){
         nodes_per_min_per_thread=100;
+        release_rate=100;
         update_rate=0.1;
     }
     bool operator()(std::vector<size_t>*& out) const{
@@ -202,7 +212,7 @@ struct fetcher{
             int recieve_count;
             MPI_Get_count(&stat, MPI_UNSIGNED_LONG, &recieve_count);
             auto request_period=std::chrono::duration_cast<std::chrono::seconds>(this_request_time-last_request_time).count();
-            if (request_period>60) {
+            /*if (request_period>60) {
                 is_longer_count++;
             }else {
                 is_longer_count--;
@@ -211,8 +221,9 @@ struct fetcher{
                 update_rate=std::max(0.01,update_rate-0.01);
             }else {
                 update_rate=std::min(0.5,update_rate+0.01);
-            }
-            fprintf(stderr, "requesting %zu nodes from %d after %zu seconds, got %d nodes,update rate %f \n",req_size,this_rank,request_period,recieve_count,update_rate);
+            }*/
+            fprintf(stderr, "requesting %zu nodes from %d after %zu seconds, got %d nodes \n",req_size,this_rank,request_period,recieve_count);
+            release_rate=1+recieve_count/num_threads;
             last_request_time=this_request_time;
             if (recieve_count==0) {
                 fprintf(stderr, "fetcher exit\n");
@@ -220,7 +231,7 @@ struct fetcher{
             }
             nodes_to_push.resize(recieve_count);
         }
-        auto nodes_to_release_this_round=std::min(nodes_to_push.size(),nodes_per_min_per_thread);
+        auto nodes_to_release_this_round=std::min(nodes_to_push.size(),release_rate);
         //fprintf(stderr, "buf size %zu, releasing %lu nodes \n",nodes_to_push.size(),nodes_to_release_this_round);
         auto split_iter=nodes_to_push.end()-nodes_to_release_this_round;
         out=new std::vector<size_t>(split_iter,nodes_to_push.end());
@@ -238,6 +249,7 @@ void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
                                        ){              
     t.breadth_first_expansion();
     auto dfs_ordered_nodes=t.depth_first_expansion();
+    auto start_time=std::chrono::steady_clock::now();
     fprintf(stderr, "%zu nodes to search \n", nodes_to_search.size());
     fprintf(stderr, "Node size: %zu\n", dfs_ordered_nodes.size());
     std::thread* distributor_thread=nullptr;
@@ -284,6 +296,8 @@ void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
             defered_node_identifier.push_back(dfs_ordered_nodes[idx]->identifier);
         }
     }
+    double search_min=std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now()-start_time).count();
+    fprintf(stderr, "Search took %f min \n",search_min/60000.0);
     //apply moves
     #ifdef CHECK_BOUND
     fprintf(stderr, "Total %lu arcs, saved %lu arcs\n",total.load(),saved.load());
@@ -375,6 +389,7 @@ void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
     }
     fprintf(stderr, "recycled %f of conflicting moves \n",(double)recycled/(double)init_deferred);
     fprintf(stderr, "recycling moves took %ld seconds\n",elpased_time.count());
+    t.populate_ignored_range();
 }
 void optimize_tree_worker_thread(MAT::Tree &t,int radius){
     auto dfs_ordered_nodes=t.depth_first_expansion();

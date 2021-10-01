@@ -384,7 +384,7 @@ class Node {
     size_t bfs_index; //index in bfs
     size_t level;
     bool changed;
-    size_t last_searched_arcs;
+    //size_t last_searched_arcs;
     bool to_search;
     bool have_masked;
     bool is_leaf() const;

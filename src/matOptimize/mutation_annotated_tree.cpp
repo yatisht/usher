@@ -154,4 +154,5 @@ void Mutation_Annotated_Tree::Tree::populate_ignored_range(){
             leaf->populate_ignored_range();
         }
     });
+    fprintf(stderr, "populated ignored range\n");
 }

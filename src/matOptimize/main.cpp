@@ -253,20 +253,20 @@ int main(int argc, char **argv) {
         } else {
             t = load_tree(input_pb_path, origin_states);
         }
-        if(!no_write_intermediate) {
-            fputs("Checkpoint initial tree.\n",stderr);
-            intermediate_writing=intermediate_template;
-            make_output_path(intermediate_writing);
-            t.save_detailed_mutations(intermediate_writing);
-            rename(intermediate_writing.c_str(), intermediate_pb_base_name.c_str());
-            fputs("Finished checkpointing initial tree.\n",stderr);
-        }
     }
 
 #ifndef NDEBUG
     //check_samples(t.root, origin_states, &t);
 #endif
     t.populate_ignored_range();
+    if(!no_write_intermediate&&input_complete_pb_path=="") {
+        fputs("Checkpoint initial tree.\n",stderr);
+        intermediate_writing=intermediate_template;
+        make_output_path(intermediate_writing);
+        t.save_detailed_mutations(intermediate_writing);
+        rename(intermediate_writing.c_str(), intermediate_pb_base_name.c_str());
+        fputs("Finished checkpointing initial tree.\n",stderr);
+    }
     }
     auto last_save_time=std::chrono::steady_clock::now();
     size_t new_score;
@@ -295,10 +295,8 @@ int main(int argc, char **argv) {
         fputs("Start Finding nodes to move \n",stderr);
         if (radius<0) {
             radius*=2;
-            nodes_to_search=bfs_ordered_nodes;
-        }else {
-            find_nodes_to_move(bfs_ordered_nodes, nodes_to_search,isfirst,radius,t);
         }
+        find_nodes_to_move(bfs_ordered_nodes, nodes_to_search,isfirst,radius,t);  
         isfirst=false;
         fprintf(stderr,"%zu nodes to search\n",nodes_to_search.size());
         if (nodes_to_search.empty()) {
@@ -306,11 +304,10 @@ int main(int argc, char **argv) {
         }
         //Actual optimization loop
         while (!nodes_to_search.empty()) {
-            t.populate_ignored_range();
             auto dfs_ordered_nodes=t.depth_first_expansion();
             std::mt19937_64 rng;
             std::shuffle(nodes_to_search.begin(), nodes_to_search.end(),rng);
-            bool distribute=(process_count>1)&&(nodes_to_search.size()>100);
+            bool distribute=(process_count>1)&&(nodes_to_search.size()>1000);
             if (distribute) {
                 MPI_Request req;
                 int radius_to_boardcast=abs(radius);

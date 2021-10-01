@@ -66,17 +66,19 @@ void find_nodes_to_move(const std::vector<MAT::Node *> &bfs_ordered_nodes,
     auto start=std::chrono::steady_clock::now();
     unsigned int radius=abs(radius_in);
     output.clear();
-    if (is_first||(radius_in<0&&radius<tree.max_level)) {
+    if (is_first||(radius_in<0&&radius<=2*tree.max_level)) {
         output=bfs_ordered_nodes;
+        fprintf(stderr, "Search all nodes\n");
         for(auto node:bfs_ordered_nodes) {
             node->to_search=false;
-            node->last_searched_arcs=0;
+            //node->last_searched_arcs=0;
         }
     } else {
         //mark surrounding of changed nodes
         tbb::parallel_sort(changed_nodes.begin(),changed_nodes.end());
         auto end_iter=std::unique(changed_nodes.begin(),changed_nodes.end());
         changed_nodes.erase(end_iter,changed_nodes.end());
+        fprintf(stderr, "%zu changed nodes \n",changed_nodes.size());
         tbb::parallel_for(tbb::blocked_range<size_t>(0,changed_nodes.size()),[radius,&tree](const tbb::blocked_range<size_t>& r) {
             for (size_t idx=r.begin(); idx<r.end(); idx++) {
                 auto node=tree.get_node(changed_nodes[idx]);
