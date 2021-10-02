@@ -16,6 +16,7 @@
 #include <cstdlib>
 #include <ctime>
 //#include <malloc.h>
+#include <fstream>
 #include <limits>
 #include <mpi.h>
 #include <tbb/concurrent_vector.h>
@@ -81,7 +82,7 @@ int main(int argc, char **argv) {
     std::string intermediate_pb_base_name="";
     std::string profitable_src_log;
     std::string transposed_vcf_path;
-    int drift_iter;
+    std::string node_list;
     unsigned int max_optimize_hours;
     int radius;
     unsigned int minutes_between_save;
@@ -109,11 +110,10 @@ int main(int argc, char **argv) {
     ("do-not-write-intermediate-files,n","Do not write intermediate files.")
     ("max-iterations,N", po::value<int>(&max_round)->default_value(1000), \
      "Maximum number of optimization iterations to perform.")
-    ("exhaustive-mode,e","Search every non-root node as source node.")
     ("max-hours,M",po::value(&max_optimize_hours)->default_value(0),"Maximium number of hours to run")
     ("transposed-vcf-path,V",po::value(&transposed_vcf_path)->default_value(""),"Auxiliary transposed VCF for ambiguous bases, used in combination with usher protobuf (-i)")
     ("version", "Print version number")
-    ("drift_iter,d",po::value(&drift_iter)->default_value(1),"Number of iteration to continue if no parsimony improvement")
+    ("nodes_file,z",po::value(&node_list),"Restrict source nodes to search in the first round to nodes whose identifier is in the file")
     ("help,h", "Print help messages");
     auto search_end_time=std::chrono::steady_clock::time_point::max();
     if (max_optimize_hours) {
@@ -289,14 +289,32 @@ int main(int argc, char **argv) {
     bool isfirst=true;
     bool allow_drift=false;
     int iteration=1;
+    bool first_loop=true;
     tbb::task_scheduler_init init(num_threads);
-    while(stalled<drift_iter) {
+    while(stalled<1) {
         bfs_ordered_nodes = t.breadth_first_expansion();
         fputs("Start Finding nodes to move \n",stderr);
         if (radius<0) {
             radius*=2;
         }
-        find_nodes_to_move(bfs_ordered_nodes, nodes_to_search,isfirst,radius,t);  
+        if(first_loop&&node_list!=""){
+            std::ifstream node_list_fh(node_list);
+            std::string node_name;
+            fprintf(stderr, "Reading node list \n");
+            while (node_list_fh) {
+                std::getline(node_list_fh,node_name);
+                auto node=t.get_node(node_name);
+                if (node) {
+                    nodes_to_search.push_back(node);
+                }else {
+                    fprintf(stderr, "%s not found\n",node_name.c_str());
+                }     
+            }
+
+        }else{
+            find_nodes_to_move(bfs_ordered_nodes, nodes_to_search,isfirst,radius,t);
+        }
+        first_loop=false;
         isfirst=false;
         fprintf(stderr,"%zu nodes to search\n",nodes_to_search.size());
         if (nodes_to_search.empty()) {
