@@ -493,7 +493,7 @@ void write_json_from_mat(MAT::Tree* T, std::string output_filename, std::vector<
     };
     //add metadata to the header colorings if any exist
     if (catmeta->size()>0) {
-        for (auto cmet: *catmeta) {
+        for (const auto& cmet: *catmeta) {
             for (const auto& cmi: cmet) {
                 if (cmi.first.find("continuous") != std::string::npos) {
                     //if the substring "continuous" is found in the metadata column name, attempt to interpet the values accordingly.
