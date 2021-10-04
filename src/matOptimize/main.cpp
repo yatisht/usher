@@ -367,7 +367,7 @@ int main(int argc, char **argv) {
         }
         float improvement=1-((float)new_score/(float)score_before);
         fprintf(stderr, "Last round improvement %f\n",improvement);
-        if (improvement <min_improvement && radius >=0) {
+        if (improvement <min_improvement) {
                 fprintf(stderr, "Less than minimium improvement\n");
                 stalled++;
                 allow_drift=true;
