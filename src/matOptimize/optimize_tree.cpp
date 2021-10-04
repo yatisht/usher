@@ -321,7 +321,7 @@ void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
 #endif
                );
     auto apply_end=std::chrono::steady_clock::now();
-    auto elpased_time =apply_end-apply_start;
+    auto elpased_time =std::chrono::duration_cast<std::chrono::seconds>(apply_end-apply_start);
     fprintf(stderr, "apply moves took %ld seconds\n",elpased_time.count());
     //recycle conflicting moves
     int init_deferred=deferred_moves.size();
@@ -377,7 +377,7 @@ void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
     }
     fprintf(stderr, "Recycled %d moves\n",recycled);
     auto recycle_end=std::chrono::steady_clock::now();
-    elpased_time =recycle_end-apply_end;
+    elpased_time =std::chrono::duration_cast<std::chrono::seconds>(recycle_end-apply_end);
 #ifndef NDEBUG
     //check_samples(t.root, origin_states, &t);
 #endif

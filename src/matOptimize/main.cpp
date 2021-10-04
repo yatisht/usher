@@ -419,6 +419,6 @@ int main(int argc, char **argv) {
     if (this_rank==0) {
         t.delete_nodes();    
     }
-    fprintf(stderr, "Maximum memory usage from %d: %zu kb",this_rank,get_memory());
+    fprintf(stderr, "Maximum memory usage from %d: %zu kb \n",this_rank,get_memory());
     MPI_Finalize();
 }
