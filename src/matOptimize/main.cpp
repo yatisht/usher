@@ -370,6 +370,7 @@ int main(int argc, char **argv) {
         if (improvement <min_improvement) {
                 fprintf(stderr, "Less than minimium improvement\n");
                 stalled++;
+                break;
                 allow_drift=true;
         } else {
             score_before = new_score;
