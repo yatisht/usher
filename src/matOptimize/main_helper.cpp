@@ -66,7 +66,10 @@ void find_nodes_to_move(const std::vector<MAT::Node *> &bfs_ordered_nodes,
     auto start=std::chrono::steady_clock::now();
     unsigned int radius=abs(radius_in);
     output.clear();
-    if (is_first||(radius_in<0)||radius>=2*tree.get_max_level()) {
+    fprintf(stderr, "find max_level\n");
+    auto max_level=tree.get_max_level();
+    fprintf(stderr, "Max level %zu\n",max_level);
+    if (is_first||(radius_in<0)||radius>=(2*max_level)) {
         output=bfs_ordered_nodes;
         fprintf(stderr, "Search all nodes\n");
         for(auto node:bfs_ordered_nodes) {
