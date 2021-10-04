@@ -12,7 +12,9 @@
 #include "check_samples.hpp"
 #include <random>
 #pragma once
-#define EMPTY_POS UINT16_MAX
+#define LEVEL_T uint8_t
+#define IDX_TREE_IDX_T uint32_t
+#define EMPTY_POS UINT32_MAX
 #define MOVE_TAG 0
 #define WORK_REQ_TAG 1
 #define WORK_RES_TAG 2
@@ -94,7 +96,7 @@ void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
                                        );
 
 void optimize_tree_worker_thread(MAT::Tree &t,int radius);
-void save_final_tree(MAT::Tree &t, Original_State_t& origin_states,const std::string &output_path);
+void save_final_tree(MAT::Tree &t,const std::string &output_path);
 //For removing nodes with no valid mutations between rounds
 void clean_tree(MAT::Tree& t);
 void populate_mutated_pos(const Original_State_t& origin_state);

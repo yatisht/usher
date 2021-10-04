@@ -17,6 +17,7 @@
 #include <ctime>
 //#include <malloc.h>
 #include <fstream>
+#include <iterator>
 #include <limits>
 #include <mpi.h>
 #include <tbb/concurrent_vector.h>
@@ -82,7 +83,8 @@ int main(int argc, char **argv) {
     std::string intermediate_pb_base_name="";
     std::string profitable_src_log;
     std::string transposed_vcf_path;
-    std::string node_list;
+    float search_proportion=2;
+    int rand_sel_seed=0;
     unsigned int max_optimize_hours;
     int radius;
     unsigned int minutes_between_save;
@@ -113,12 +115,10 @@ int main(int argc, char **argv) {
     ("max-hours,M",po::value(&max_optimize_hours)->default_value(0),"Maximium number of hours to run")
     ("transposed-vcf-path,V",po::value(&transposed_vcf_path)->default_value(""),"Auxiliary transposed VCF for ambiguous bases, used in combination with usher protobuf (-i)")
     ("version", "Print version number")
-    ("nodes_file,z",po::value(&node_list),"Restrict source nodes to search in the first round to nodes whose identifier is in the file")
+    ("node_proportion,z",po::value(&search_proportion)->default_value(2),"the proportion of nodes to search")
+    ("node_sel,y",po::value(&rand_sel_seed),"Random seed for selecting nodes to search")
     ("help,h", "Print help messages");
     auto search_end_time=std::chrono::steady_clock::time_point::max();
-    if (max_optimize_hours) {
-        search_end_time=std::chrono::steady_clock::now()+std::chrono::hours(max_optimize_hours)-std::chrono::minutes(30);    
-    }
     po::options_description all_options;
     all_options.add(desc);
     signal(SIGUSR2,interrupt_handler);
@@ -142,6 +142,10 @@ int main(int argc, char **argv) {
         }
         else
             return 1;
+    }
+    if (max_optimize_hours) {
+        search_end_time=std::chrono::steady_clock::now()+std::chrono::hours(max_optimize_hours)-std::chrono::minutes(30);
+        fprintf(stderr, "Set max opt time, will stop in %zu minutes\n",std::chrono::duration_cast<std::chrono::minutes>(search_end_time-std::chrono::steady_clock::now()).count());
     }
     Mutation_Annotated_Tree::Tree t;
     if (this_rank==0) {
@@ -289,7 +293,6 @@ int main(int argc, char **argv) {
     bool isfirst=true;
     bool allow_drift=false;
     int iteration=1;
-    bool first_loop=true;
     tbb::task_scheduler_init init(num_threads);
     while(stalled<1) {
         bfs_ordered_nodes = t.breadth_first_expansion();
@@ -297,24 +300,14 @@ int main(int argc, char **argv) {
         if (radius<0) {
             radius*=2;
         }
-        if(first_loop&&node_list!=""){
-            std::ifstream node_list_fh(node_list);
-            std::string node_name;
-            fprintf(stderr, "Reading node list \n");
-            while (node_list_fh) {
-                std::getline(node_list_fh,node_name);
-                auto node=t.get_node(node_name);
-                if (node) {
-                    nodes_to_search.push_back(node);
-                }else {
-                    fprintf(stderr, "%s not found\n",node_name.c_str());
-                }     
-            }
-
-        }else{
-            find_nodes_to_move(bfs_ordered_nodes, nodes_to_search,isfirst,radius,t);
+        find_nodes_to_move(bfs_ordered_nodes, nodes_to_search,isfirst,radius,t);
+        if (search_proportion<1) {
+            std::vector<MAT::Node *> nodes_to_search_temp;
+            nodes_to_search_temp.reserve(nodes_to_search.size()*search_proportion);
+            std::mt19937_64 rng(rand_sel_seed);
+            std::sample(nodes_to_search.begin(), nodes_to_search.end(), std::back_inserter(nodes_to_search_temp),size_t(std::round(nodes_to_search.size()*search_proportion)),rng);
+            nodes_to_search.swap(nodes_to_search_temp);
         }
-        first_loop=false;
         isfirst=false;
         fprintf(stderr,"%zu nodes to search\n",nodes_to_search.size());
         if (nodes_to_search.empty()) {
@@ -326,8 +319,6 @@ int main(int argc, char **argv) {
             std::mt19937_64 rng;
             std::shuffle(nodes_to_search.begin(), nodes_to_search.end(),rng);
             bool distribute=(process_count>1)&&(nodes_to_search.size()>1000);
-            adjust_all(t);
-            use_bound=true;
             if (distribute) {
                 MPI_Request req;
                 int radius_to_boardcast=abs(radius);
@@ -337,6 +328,8 @@ int main(int argc, char **argv) {
                 fprintf(stderr, "Start Send tree\n");
                 t.MPI_send_tree();
             }
+            adjust_all(t);
+            use_bound=true;
             std::vector<size_t> nodes_to_search_idx;
             nodes_to_search_idx.reserve(nodes_to_search.size());
             for(const auto node:nodes_to_search){
@@ -382,7 +375,6 @@ int main(int argc, char **argv) {
             score_before = new_score;
             stalled = 0;
         }
-        clean_tree(t);
         iteration++;
         if(iteration>=max_round) {
             fprintf(stderr, "Reached %d interations\n", iteration);
@@ -397,7 +389,7 @@ int main(int argc, char **argv) {
     MPI_Ibcast(&temp, 1, MPI_INT, 0, MPI_COMM_WORLD,&req);
     fprintf(stderr, "Final Parsimony score %zu\n",t.get_parsimony_score());
     fclose(movalbe_src_log);
-    save_final_tree(t, origin_states, output_path);
+    save_final_tree(t, output_path);
     MPI_Wait(&req, MPI_STATUS_IGNORE);
     }else{
         tbb::task_scheduler_init init(num_threads);

@@ -14,7 +14,7 @@
 typedef Bounded_Mut_Change_Collection::const_iterator Bounded_Mut_Iter;
 void dump(const Mutation_Count_Change_Collection& in){
     for (const auto& mut : in) {
-        fprintf(stderr, "Pos:%d,dec:%d,inc:%d\t",mut.get_position(),mut.get_decremented(),mut.get_incremented());
+        fprintf(stderr, "Pos:%d,dec:%d,inc:%d\t",mut.get_position(),mut.get_decremented().get_nuc_no_check(),mut.get_incremented().get_nuc_no_check());
     }
     fputc('\n', stderr);
 }
@@ -364,10 +364,10 @@ static void search_subtree_bounded_internal(MAT::Node *node, const src_side_info
     }
     for (auto child : node->children) {
         int child_specific_lower_bound=lower_bound;
-        auto node_start_idx=node->dfs_index;
-        auto node_end_idx=node->dfs_end_index;
+        int node_start_idx=node->dfs_index;
+        int node_end_idx=node->dfs_end_index;
         if (use_bound) {
-        for (int idx=0; idx<start_useful_idx.size(); idx++) {
+        for (size_t idx=0; idx<start_useful_idx.size(); idx++) {
             if (node_end_idx<start_useful_idx[idx]||end_useful_idx[idx]<node_start_idx) {
                 child_specific_lower_bound++;
             }

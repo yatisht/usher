@@ -6,7 +6,10 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdio>
+#include <ctime>
 #include <functional>
+#include <iomanip>
+#include <iostream>
 #include <memory>
 #include <mpi.h>
 #include <mutex>
@@ -157,6 +160,8 @@ struct move_searcher{
 };
 static void node_distributor(const std::vector<size_t>& node_to_search_idx,std::atomic<bool>& done,std::vector<size_t>& nodes_not_searched,std::chrono::steady_clock::time_point stop_time){
     size_t idx=0;
+    auto stop_in_min=std::chrono::duration_cast<std::chrono::minutes>(stop_time-std::chrono::steady_clock::now()).count();
+    fprintf(stderr,"Will stop in %zu min\n",stop_in_min );
     std::vector<size_t> rates(process_count,1000);
     size_t total_rate=process_count*1000;
     while (idx<node_to_search_idx.size()) {
@@ -379,6 +384,7 @@ void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
     if(!do_continue){
         return;
     }
+    clean_tree(t);
     deferred_nodes_out.clear();
     fprintf(stderr, "First stage %zu deferred node \n",defered_node_identifier.size());
     deferred_nodes_out.reserve(defered_node_identifier.size());
@@ -411,19 +417,3 @@ tbb::concurrent_unordered_map<MAT::Mutation,
     tbb::concurrent_unordered_map<std::string, nuc_one_hot> *,
     Mutation_Pos_Only_Hash, Mutation_Pos_Only_Comparator>
     mutated_positions;
-void save_final_tree(MAT::Tree &t, Original_State_t& origin_states,
-                     const std::string &output_path) {
-#ifndef NDEBUG
-    check_samples(t.root, origin_states, &t);
-#endif
-    std::vector<MAT::Node *> dfs = t.depth_first_expansion();
-    tbb::parallel_for(tbb::blocked_range<size_t>(0, dfs.size()),
-    [&dfs](tbb::blocked_range<size_t> r) {
-        for (size_t i = r.begin(); i < r.end(); i++) {
-            dfs[i]->mutations.remove_invalid();
-        }
-    });
-    fix_condensed_nodes(&t);
-    fprintf(stderr, "%zu condensed_nodes\n",t.condensed_nodes.size());
-    Mutation_Annotated_Tree::save_mutation_annotated_tree(t, output_path);
-}

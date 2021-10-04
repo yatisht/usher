@@ -243,7 +243,7 @@ std::vector<std::string> get_nearby (MAT::Tree* T, std::string sample_id, int nu
 
             std::sort(node_distances.begin(), node_distances.end());
             for (auto n: node_distances) {
-                if (leaves_to_keep.size() == number_to_get) {
+                if ((int)leaves_to_keep.size() == number_to_get) {
                     break;
                 }
                 leaves_to_keep.emplace_back(n.node->identifier);

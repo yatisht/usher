@@ -159,19 +159,19 @@ struct node_info{
 struct range_tree_node{
     uint32_t dfs_start_idx;
     uint32_t dfs_end_idx;
-    std::array<uint16_t, 4> min_level;
-    uint16_t children_start_idx;
-    uint16_t parent_idx;
-    uint16_t level;
+    std::array<LEVEL_T, 4> min_level;
+    IDX_TREE_IDX_T children_start_idx;
+    IDX_TREE_IDX_T parent_idx;
+    IDX_TREE_IDX_T level;
     //uint8_t child_size;
     //uint8_t dist_from_end;
 };
 struct range_tree{
     std::vector<uint32_t> end_idxes;
     std::vector<range_tree_node> nodes;
-    uint16_t find_idx(const MAT::Node* node,uint16_t& last_probe_idx,uint16_t probe_start_idx=0) const ;
-    uint16_t find_idx(const MAT::Node* node) const{
-        uint16_t ignored;
+    IDX_TREE_IDX_T find_idx(const MAT::Node* node,IDX_TREE_IDX_T& last_probe_idx,IDX_TREE_IDX_T probe_start_idx=0) const ;
+    IDX_TREE_IDX_T find_idx(const MAT::Node* node) const{
+        IDX_TREE_IDX_T ignored;
         return find_idx(node,ignored,0);
     }
 };

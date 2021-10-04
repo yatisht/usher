@@ -19,10 +19,10 @@ std::vector<range_tree> addable_idxes;
 struct range_tree_temp{
     uint32_t dfs_start_idx;
     uint32_t dfs_end_idx;
-    std::array<uint16_t, 4> min_level;
+    std::array<LEVEL_T, 4> min_level;
     std::vector<std::shared_ptr<range_tree_temp>> children;
-    uint16_t level;
-    uint16_t secondary_level;
+    LEVEL_T level;
+    LEVEL_T secondary_level;
     bool is_ori_node;
     const MAT::Node* covering_node;
     range_tree_temp(){
@@ -32,7 +32,7 @@ struct range_tree_temp{
         level=node->level;
         secondary_level=0;
         for (int i=0; i<4; i++) {
-            min_level[i]=UINT16_MAX;
+            min_level[i]=UINT8_MAX;
         }
         covering_node=node;
     }
@@ -52,10 +52,10 @@ struct range_tree_temp{
         #ifndef NDEBUG
         int last_end=node->dfs_index;
         for(const auto& child:children){
-            assert(child->dfs_start_idx>=last_end);
+            assert((int)child->dfs_start_idx>=last_end);
             last_end=child->dfs_end_idx;
         }
-        assert(last_end<=node->dfs_end_index);
+        assert(last_end<=(int)node->dfs_end_index);
         #endif
         dfs_start_idx=children.front()->dfs_start_idx;
         dfs_end_idx=children.back()->dfs_end_idx;
@@ -186,8 +186,8 @@ struct range_tree_temp{
         return dfs_start_idx<other->dfs_start_idx&&dfs_end_idx>=other->dfs_end_idx;
     }
 
-    range_tree_node out(uint16_t par_idx){
-        return range_tree_node{dfs_start_idx,dfs_end_idx,min_level,UINT16_MAX,par_idx,level};
+    range_tree_node out(IDX_TREE_IDX_T par_idx){
+        return range_tree_node{dfs_start_idx,dfs_end_idx,min_level,EMPTY_POS,par_idx,level};
     }
 };
 
@@ -223,7 +223,7 @@ static void flatten(std::shared_ptr<range_tree_temp> top, std::vector<range_tree
     //set_secondary_level(top, -1, -1);
     std::vector<bfs_queue_content> container;
     container.reserve(node_count);
-    out.push_back(top->out(UINT16_MAX));
+    out.push_back(top->out(EMPTY_POS));
     if (top->children.size()==0) {
         return;
     }
@@ -331,18 +331,18 @@ void make_range_tree(const std::vector<MAT::Node*>& dfs_ordered_nodes,tbb::concu
     }
 }
 
-uint16_t range_tree::find_idx(const MAT::Node* node,uint16_t& last_idx,uint16_t probe_start_idx_in) const{
+IDX_TREE_IDX_T range_tree::find_idx(const MAT::Node* node,IDX_TREE_IDX_T& last_idx,IDX_TREE_IDX_T probe_start_idx_in) const{
     auto probe_start_idx=probe_start_idx_in;
     if (end_idxes.empty()) {
-        return UINT16_MAX;
+        return EMPTY_POS;
     }
     for (; end_idxes[probe_start_idx]<node->dfs_index; probe_start_idx++) {}
     if (nodes[probe_start_idx].dfs_start_idx>node->dfs_end_index) {
-        return UINT16_MAX;
+        return EMPTY_POS;
     }
     if (nodes[probe_start_idx].level<node->level) {
-        if (nodes[probe_start_idx].children_start_idx==UINT16_MAX) {
-            return UINT16_MAX;
+        if (nodes[probe_start_idx].children_start_idx==EMPTY_POS) {
+            return EMPTY_POS;
         }
         last_idx=probe_start_idx;
         return find_idx(node,last_idx,nodes[probe_start_idx].children_start_idx);

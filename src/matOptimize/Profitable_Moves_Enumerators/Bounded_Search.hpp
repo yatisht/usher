@@ -41,10 +41,10 @@ struct ignore_ranger{
 class Mutation_Count_Change_W_Lower_Bound_Downward : public Mutation_Count_Change {
     uint8_t par_sensitive_increment;
     uint8_t next_level;
-    uint16_t idx;
+    uint32_t idx;
     bool descend(const range_tree & addable_idxes_this_pos,uint8_t level,std::vector<int>& start_useful_idxes,std::vector<int>& end_useful_idxes,uint8_t max_level,uint32_t end_dfs_idx){
         if (addable_idxes_this_pos.nodes[idx].level==level) {
-            uint16_t end_idx=idx;
+            auto end_idx=idx;
             bool continue_find_end_idx=true;
             while (idx != EMPTY_POS&&addable_idxes_this_pos.nodes[idx].level==level) {
                 for(;addable_idxes_this_pos.nodes[idx].dfs_end_idx<=end_dfs_idx;idx++){
@@ -59,7 +59,7 @@ FOUND:
                 if (continue_find_end_idx) {
                     end_idx=std::max(end_idx,idx);
                     bool found_at_least_one=false;
-                    for (uint16_t prode_idx=end_idx; addable_idxes_this_pos.nodes[prode_idx].dfs_end_idx<=end_dfs_idx;prode_idx++) {
+                    for (uint32_t prode_idx=end_idx; addable_idxes_this_pos.nodes[prode_idx].dfs_end_idx<=end_dfs_idx;prode_idx++) {
                         const auto& this_idx_tree_node=addable_idxes_this_pos.nodes[prode_idx];
                         if (this_idx_tree_node.children_start_idx!=EMPTY_POS&&test_level(max_level,this_idx_tree_node)) {
                             end_idx=std::max(end_idx,prode_idx);
@@ -156,10 +156,10 @@ FOUND:
         }
         return false;
     }
-    void set_next_level(const MAT::Node* node, int level_left,std::vector<int>& start_useful_idxes,std::vector<int>& end_useful_idxes,uint16_t& end_idx){
+    void set_next_level(const MAT::Node* node, int level_left,std::vector<int>& start_useful_idxes,std::vector<int>& end_useful_idxes,uint32_t& end_idx){
             next_level = LEVEL_END;
             bool found=false;
-            uint16_t end_useful_idx=0;
+            uint32_t end_useful_idx=0;
             const auto& this_useful_idx=addable_idxes[get_position()];
             for (end_idx=idx; this_useful_idx.nodes[end_idx].dfs_start_idx <=
                    node->dfs_end_index;
@@ -240,7 +240,7 @@ FOUND:
         if (forward_useless_idx(node, level_left)) {
             return;
         }
-        uint16_t ignored;
+        uint32_t ignored;
         set_next_level(node, level_left,start_useful_idx,end_useful_idx,ignored);
     }
     bool valid_on_subtree()const{
@@ -248,13 +248,13 @@ FOUND:
     }
 };
 class Mutation_Count_Change_W_Lower_Bound_to_ancestor : public Mutation_Count_Change {
-    uint16_t idx;
+    uint32_t idx;
     void init(const MAT::Node *node) {
         if (!use_bound) {
             return;
         }
         const auto& this_aux=addable_idxes[get_position()];
-        uint16_t next_idx=EMPTY_POS;
+        uint32_t next_idx=EMPTY_POS;
         /*if (get_position()==2061) {
             fputc('a', stderr);
         }*/
@@ -265,7 +265,7 @@ class Mutation_Count_Change_W_Lower_Bound_to_ancestor : public Mutation_Count_Ch
     }
   public:
     void to_ancestor_adjust_range(const MAT::Node *node,std::vector<Mutation_Count_Change_W_Lower_Bound_Downward>& sibling_out) {
-        uint16_t start_idx=EMPTY_POS;
+        uint32_t start_idx=EMPTY_POS;
         if (!use_bound) {
              sibling_out.emplace_back(*this,get_par_state(),0,0);
             return;
@@ -312,7 +312,7 @@ class Mutation_Count_Change_W_Lower_Bound_to_ancestor : public Mutation_Count_Ch
         }*/
             start_idx=addable_idxes_this_pos.nodes[start_idx].children_start_idx;
         }
-        /*uint16_t next_idx=start_idx;
+        /*uint32_t next_idx=start_idx;
         next_idx=addable_idxes_this_pos.nodes[start_idx].children_start_idx;
         while (next_idx!=EMPTY_POS&&addable_idxes_this_pos.nodes[next_idx].level==node->level+1) {
             start_idx=next_idx;
