@@ -1,8 +1,10 @@
 #include "Fitch_Sankoff.hpp"
 #include "check_samples.hpp"
+#include "src/matOptimize/Profitable_Moves_Enumerators/Profitable_Moves_Enumerators.hpp"
 #include "version.hpp"
 #include "src/matOptimize/mutation_annotated_tree.hpp"
 #include "tree_rearrangement_internal.hpp"
+#include <algorithm>
 #include <boost/filesystem/operations.hpp>
 #include <boost/filesystem/path.hpp>
 #include <boost/program_options/value_semantic.hpp>
@@ -14,13 +16,17 @@
 #include <cstdlib>
 #include <ctime>
 //#include <malloc.h>
+#include <fstream>
+#include <iterator>
 #include <limits>
+#include <mpi.h>
 #include <tbb/concurrent_vector.h>
 #include <tbb/task.h>
 #include <cstdio>
 #include <fcntl.h>
 #include <string>
 #include <tbb/task_scheduler_init.h>
+#include <thread>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <unordered_set>
@@ -29,34 +35,23 @@
 #include <iostream>
 #include <sys/resource.h>
 thread_local TlRng rng;
-void print_memory() {
+bool use_bound;
+size_t get_memory(){
     struct rusage usage;
     getrusage(RUSAGE_SELF, &usage);
-    fprintf(stderr, "Max resident %zu kb\n",usage.ru_maxrss);
+    return usage.ru_maxrss;
 }
+int process_count;
+int this_rank;
 uint32_t num_threads;
-std::chrono::time_point<std::chrono::steady_clock> last_save_time;
-bool no_write_intermediate;
-size_t max_queued_moves;
-std::chrono::steady_clock::duration save_period;
 MAT::Node* get_LCA(MAT::Node* src,MAT::Node* dst);
 FILE* movalbe_src_log;
-bool interrupted;
 bool changing_radius=false;
-std::condition_variable progress_bar_cv;
-bool timed_print_progress;
-tbb::task_group_context search_context;
 void interrupt_handler(int) {
     fputs("interrupted\n", stderr);
-    search_context.cancel_group_execution();
-    interrupted=true;
     fflush(movalbe_src_log);
 }
 
-void log_flush_handle(int) {
-    fflush(movalbe_src_log);
-    progress_bar_cv.notify_all();
-}
 namespace po = boost::program_options;
 namespace MAT = Mutation_Annotated_Tree;
 MAT::Node* get_LCA(MAT::Node* src,MAT::Node* dst);
@@ -76,6 +71,10 @@ void print_file_info(std::string info_msg,std::string error_msg,const std::strin
     }
 }
 int main(int argc, char **argv) {
+    int ignored;
+    MPI_Init_thread(&argc, &argv,MPI_THREAD_MULTIPLE,&ignored);
+    MPI_Comm_rank(MPI_COMM_WORLD, &this_rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &process_count);
     std::string output_path;
     std::string input_pb_path;
     std::string input_complete_pb_path;
@@ -83,14 +82,15 @@ int main(int argc, char **argv) {
     std::string input_vcf_path;
     std::string intermediate_pb_base_name="";
     std::string profitable_src_log;
-    std::chrono::steady_clock::duration ori_save_period;
     std::string transposed_vcf_path;
-    int drift_iter;
+    float search_proportion=2;
+    int rand_sel_seed=0;
     unsigned int max_optimize_hours;
     int radius;
     unsigned int minutes_between_save;
     int max_round;
     float min_improvement;
+    bool no_write_intermediate;
 
     po::options_description desc{"Options"};
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
@@ -107,48 +107,48 @@ int main(int argc, char **argv) {
      "The file to log from which node a profitable move can be found.")
     ("ambi-protobuf,a", po::value<std::string>(&input_complete_pb_path)->default_value(""),
      "Continue from intermediate protobuf")
-    ("max-queued-moves,q",po::value<size_t>(&max_queued_moves)->default_value(INT_MAX),"Maximium number of profitable moves found before applying these moves")
     ("minutes-between-save,s",po::value<unsigned int>(&minutes_between_save)->default_value(0),"Minutes between saving intermediate protobuf")
     ("min-improvement,m",po::value<float>(&min_improvement)->default_value(0.0005),"Minimum improvement in the parsimony score as a fraction of the previous score in ordder to perform another iteration.")
     ("do-not-write-intermediate-files,n","Do not write intermediate files.")
     ("max-iterations,N", po::value<int>(&max_round)->default_value(1000), \
      "Maximum number of optimization iterations to perform.")
-    ("exhaustive-mode,e","Search every non-root node as source node.")
     ("max-hours,M",po::value(&max_optimize_hours)->default_value(0),"Maximium number of hours to run")
     ("transposed-vcf-path,V",po::value(&transposed_vcf_path)->default_value(""),"Auxiliary transposed VCF for ambiguous bases, used in combination with usher protobuf (-i)")
     ("version", "Print version number")
-    ("drift_iter,d",po::value(&drift_iter)->default_value(1),"Number of iteration to continue if no parsimony improvement")
+    ("node_proportion,z",po::value(&search_proportion)->default_value(2),"the proportion of nodes to search")
+    ("node_sel,y",po::value(&rand_sel_seed),"Random seed for selecting nodes to search")
     ("help,h", "Print help messages");
-
+    auto search_end_time=std::chrono::steady_clock::time_point::max();
     po::options_description all_options;
     all_options.add(desc);
-    interrupted=false;
     signal(SIGUSR2,interrupt_handler);
-#ifndef PROFILE_HEAP
-    signal(SIGUSR1, log_flush_handle);
-#endif
     po::variables_map vm;
-    if (argc==1) {
-        std::cerr << desc << std::endl;
-        return EXIT_FAILURE;
-    }
     try {
         po::store(po::command_line_parser(argc, argv).options(all_options).run(), vm);
         po::notify(vm);
     } catch(std::exception &e) {
+        if (this_rank==0) {
         if (vm.count("version")) {
             std::cout << "matOptimize (v" << PROJECT_VERSION << ")" << std::endl;
         } else {
             std::cerr << "matOptimize (v" << PROJECT_VERSION << ")" << std::endl;
             std::cerr << desc << std::endl;
         }
-
+        }
+        MPI_Finalize();
         // Return with error code 1 unless the user specifies help
-        if(vm.count("help"))
+        if(vm.count("help")){   
             return 0;
+        }
         else
             return 1;
     }
+    if (max_optimize_hours) {
+        search_end_time=std::chrono::steady_clock::now()+std::chrono::hours(max_optimize_hours)-std::chrono::minutes(30);
+        fprintf(stderr, "Set max opt time, will stop in %zu minutes\n",std::chrono::duration_cast<std::chrono::minutes>(search_end_time-std::chrono::steady_clock::now()).count());
+    }
+    Mutation_Annotated_Tree::Tree t;
+    if (this_rank==0) {
     //std::string cwd=get_current_dir_name();
     no_write_intermediate=vm.count("do-not-write-intermediate-files");
     try {
@@ -213,39 +213,21 @@ int main(int argc, char **argv) {
         fprintf(stderr,"Will write list of source nodes where a profitable move can be found to %s. \n",profitable_src_log.c_str());
         fprintf(stderr,"Run kill -s SIGUSR1 %d to flush the source node log\n",pid);
     }
-    timed_print_progress=isatty(fileno(stderr));
-    if (!timed_print_progress) {
-        fprintf(stderr,"stderr is not a terminal, will not print progress\n");
-        fprintf(stderr,"Run kill -s SIGUSR1 %d to print progress\n",pid);
-    }
     if (radius>=0) {
         fprintf(stderr,"Will consider SPR moves within a radius of %d. \n",radius);
     } else {
         fprintf(stderr,"Will double radius after each iteration\n");
         changing_radius=true;
     }
-    if (max_queued_moves) {
-        fprintf(stderr, "Will stop search and apply all moves found when %zu moves are found\n",max_queued_moves);
-    } else {
-        max_queued_moves=std::numeric_limits<decltype(max_queued_moves)>::max();
-    }
-    if (minutes_between_save) {
-        fprintf(stderr, "Will save intermediate result every %d minutes\n",minutes_between_save);
-        ori_save_period=std::chrono::minutes(minutes_between_save);
-    } else {
-        ori_save_period=ori_save_period.max();
-    }
     fprintf(stderr,"Run kill -s SIGUSR2 %d to apply all the move found immediately, then output and exit.\n",pid);
     fprintf(stderr,"Using %d threads. \n",num_threads);
-    std::chrono::steady_clock::duration max_optimize_duration=std::chrono::hours(max_optimize_hours)-std::chrono::minutes(30);
     auto start_time=std::chrono::steady_clock::now();
-    auto end_time=start_time+max_optimize_duration;
-    tbb::task_scheduler_init init(num_threads);
+    auto save_period=std::chrono::minutes(minutes_between_save);
 
     //Loading tree
     Original_State_t origin_states;
-    Mutation_Annotated_Tree::Tree t;
-
+    {
+    tbb::task_scheduler_init init(process_count*num_threads);
     if (input_complete_pb_path!="") {
         t.load_detatiled_mutations(input_complete_pb_path);
     } else {
@@ -266,41 +248,40 @@ int main(int argc, char **argv) {
 #ifdef PROFILE_HEAP
             raise(SIGUSR1);
 #endif
-            print_memory();
             //malloc_stats();
             add_ambiguous_mutation(transposed_vcf_path.c_str(),t);
 #ifdef PROFILE_HEAP
             raise(SIGUSR1);
 #endif
-            print_memory();
             //malloc_stats();
         } else {
             t = load_tree(input_pb_path, origin_states);
         }
-        if(!no_write_intermediate) {
-            fputs("Checkpoint initial tree.\n",stderr);
-            intermediate_writing=intermediate_template;
-            make_output_path(intermediate_writing);
-            t.save_detailed_mutations(intermediate_writing);
-            rename(intermediate_writing.c_str(), intermediate_pb_base_name.c_str());
-            fputs("Finished checkpointing initial tree.\n",stderr);
-        }
     }
-    last_save_time=std::chrono::steady_clock::now();
+
+#ifndef NDEBUG
+    //check_samples(t.root, origin_states, &t);
+#endif
+    t.populate_ignored_range();
+    if(!no_write_intermediate&&input_complete_pb_path=="") {
+        fputs("Checkpoint initial tree.\n",stderr);
+        intermediate_writing=intermediate_template;
+        make_output_path(intermediate_writing);
+        t.save_detailed_mutations(intermediate_writing);
+        rename(intermediate_writing.c_str(), intermediate_pb_base_name.c_str());
+        fputs("Finished checkpointing initial tree.\n",stderr);
+    }
+    }
+    auto last_save_time=std::chrono::steady_clock::now();
     size_t new_score;
     size_t score_before;
     int stalled = 0;
-
-#ifndef NDEBUG
-    check_samples(t.root, origin_states, &t);
-#endif
-
     score_before = t.get_parsimony_score();
     new_score = score_before;
     fprintf(stderr, "after state reassignment:%zu\n", score_before);
     fprintf(stderr, "Height:%zu\n", t.get_max_level());
-
-    tbb::concurrent_vector<MAT::Node *> nodes_to_search;
+    
+    std::vector<MAT::Node *> nodes_to_search;
     std::vector<MAT::Node *> bfs_ordered_nodes;
     bfs_ordered_nodes = t.breadth_first_expansion();
     movalbe_src_log=fopen(profitable_src_log.c_str(),"w");
@@ -312,100 +293,133 @@ int main(int argc, char **argv) {
     bool isfirst=true;
     bool allow_drift=false;
     int iteration=1;
-    size_t nodes_seached_last_iter=0;
-    size_t nodes_seached_this_iter=0;
-    while(stalled<drift_iter) {
-        if (interrupted) {
-            break;
-        }
+    tbb::task_scheduler_init init(num_threads);
+    while(stalled<1) {
         bfs_ordered_nodes = t.breadth_first_expansion();
         fputs("Start Finding nodes to move \n",stderr);
-        find_nodes_to_move(bfs_ordered_nodes, nodes_to_search,isfirst,radius,t);
-        if (radius<0&&(isfirst||nodes_seached_this_iter>nodes_seached_last_iter)) {
+        if (radius<0) {
             radius*=2;
-            nodes_seached_last_iter=nodes_seached_this_iter;
+        }
+        find_nodes_to_move(bfs_ordered_nodes, nodes_to_search,isfirst,radius,t);
+        if (search_proportion<1) {
+            std::vector<MAT::Node *> nodes_to_search_temp;
+            nodes_to_search_temp.reserve(nodes_to_search.size()*search_proportion);
+            std::mt19937_64 rng(rand_sel_seed);
+            std::sample(nodes_to_search.begin(), nodes_to_search.end(), std::back_inserter(nodes_to_search_temp),size_t(std::round(nodes_to_search.size()*search_proportion)),rng);
+            nodes_to_search.swap(nodes_to_search_temp);
         }
         isfirst=false;
         fprintf(stderr,"%zu nodes to search\n",nodes_to_search.size());
-        if (allow_drift) {
-            nodes_to_search=tbb::concurrent_vector<MAT::Node *>(bfs_ordered_nodes.begin(),bfs_ordered_nodes.end());
-        }
         if (nodes_to_search.empty()) {
             break;
         }
         //Actual optimization loop
-        bool searched_full=true;
         while (!nodes_to_search.empty()) {
-            if (interrupted) {
-                break;
+            auto dfs_ordered_nodes=t.depth_first_expansion();
+            std::mt19937_64 rng;
+            std::shuffle(nodes_to_search.begin(), nodes_to_search.end(),rng);
+            bool distribute=(process_count>1)&&(nodes_to_search.size()>1000);
+            if (distribute) {
+                MPI_Request req;
+                int radius_to_boardcast=abs(radius);
+                MPI_Ibcast(&radius_to_boardcast, 1, MPI_INT, 0, MPI_COMM_WORLD, &req);
+                fprintf(stderr, "Sent radius\n");
+                MPI_Wait(&req, MPI_STATUS_IGNORE);
+                fprintf(stderr, "Start Send tree\n");
+                t.MPI_send_tree();
             }
-            bfs_ordered_nodes = t.breadth_first_expansion();
-            if (max_optimize_hours) {
-                save_period=std::min(ori_save_period,end_time-std::chrono::steady_clock::now());
-            } else {
-                save_period=ori_save_period;
+            adjust_all(t);
+            use_bound=true;
+            std::vector<size_t> nodes_to_search_idx;
+            nodes_to_search_idx.reserve(nodes_to_search.size());
+            for(const auto node:nodes_to_search){
+                nodes_to_search_idx.push_back(node->dfs_index);
             }
-            auto res =
-                optimize_tree(bfs_ordered_nodes, nodes_to_search, t,std::abs(radius),movalbe_src_log,allow_drift,log_moves?iteration:-1
+            std::vector<MAT::Node*> defered_nodes;
+            auto next_save_time=minutes_between_save?last_save_time+save_period:std::chrono::steady_clock::time_point::max();
+            bool do_continue=true;
+            auto search_stop_time=next_save_time;
+            if (no_write_intermediate||search_end_time<next_save_time) {
+                search_stop_time=search_end_time;
+            }
+            optimize_tree_main_thread(nodes_to_search_idx, t,std::abs(radius),movalbe_src_log,allow_drift,log_moves?iteration:-1,defered_nodes,distribute,search_stop_time,do_continue
 #ifndef NDEBUG
                               , origin_states
 #endif
                              );
-            if (max_optimize_hours&&(std::chrono::steady_clock::now()-start_time>max_optimize_duration)) {
-                interrupted=true;
-                break;
-            }
-            new_score=res.first;
-            if (searched_full) {
-                nodes_seached_this_iter=res.second;
-                searched_full=false;
-            }
-            fprintf(stderr, "parsimony score after optimizing: %zu,with radius %d, searched %zu arcs, second from start %ld \n\n",
-                    new_score,std::abs(radius),res.second,std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now()-start_time).count());
-            auto save_start=std::chrono::steady_clock::now();
-            if(std::chrono::steady_clock::now()-last_save_time>=save_period) {
-                if(!no_write_intermediate) {
+            fprintf(stderr, "Defered %zu nodes\n",defered_nodes.size());
+            nodes_to_search=std::move(defered_nodes);
+            new_score=t.get_parsimony_score();
+            fprintf(stderr, "parsimony score after optimizing: %zu,with radius %d, second from start %ld \n\n",
+                    new_score,std::abs(radius),std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now()-start_time).count());
+            if(!no_write_intermediate) {
                     intermediate_writing=intermediate_template;
                     make_output_path(intermediate_writing);
+                    auto save_start=std::chrono::steady_clock::now();
                     t.save_detailed_mutations(intermediate_writing);
                     rename(intermediate_writing.c_str(), intermediate_pb_base_name.c_str());
                     last_save_time=std::chrono::steady_clock::now();
-                    fprintf(stderr, "Took %lldsecond to save intermediate protobuf\n",std::chrono::duration_cast<std::chrono::seconds>(last_save_time-save_start).count());
-                }
-                last_save_time=std::chrono::steady_clock::now();
+                    fprintf(stderr, "Took %ldsecond to save intermediate protobuf\n",std::chrono::duration_cast<std::chrono::seconds>(last_save_time-save_start).count());
+            }
+            if (std::chrono::steady_clock::now()>=search_end_time) {
+                break;
             }
         }
         float improvement=1-((float)new_score/(float)score_before);
         fprintf(stderr, "Last round improvement %f\n",improvement);
-        if (improvement <min_improvement ) {
-            if (nodes_seached_this_iter>nodes_seached_last_iter&&radius<0) {
-                radius*=2;
-            } else {
+        if (improvement <min_improvement) {
                 fprintf(stderr, "Less than minimium improvement\n");
                 stalled++;
+                break;
                 allow_drift=true;
-            }
         } else {
             score_before = new_score;
             stalled = 0;
         }
-        clean_tree(t);
         iteration++;
-        if (max_optimize_hours&&(std::chrono::steady_clock::now()-start_time>max_optimize_duration)) {
-            interrupted=true;
-            break;
-        }
         if(iteration>=max_round) {
             fprintf(stderr, "Reached %d interations\n", iteration);
-            interrupted=true;
+            break;
+        }
+        if (std::chrono::steady_clock::now()>=search_end_time) {
             break;
         }
     }
+    int temp=0;
+    MPI_Request req;
+    MPI_Ibcast(&temp, 1, MPI_INT, 0, MPI_COMM_WORLD,&req);
     fprintf(stderr, "Final Parsimony score %zu\n",t.get_parsimony_score());
     fclose(movalbe_src_log);
-    save_final_tree(t, origin_states, output_path);
+    save_final_tree(t, output_path);
+    MPI_Wait(&req, MPI_STATUS_IGNORE);
+    }else{
+        tbb::task_scheduler_init init(num_threads);
+        while(true){
+            MPI_Request request;
+            fprintf(stderr, "Wait radius\n");
+            MPI_Ibcast(&radius, 1, MPI_INT, 0, MPI_COMM_WORLD,&request);
+            int done=0;
+            while (done==0) {
+                MPI_Test(&request, &done, MPI_STATUS_IGNORE);
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            }
+            fprintf(stderr, "Received radius\n");
+            if(radius==0){
+                break;
+            }
+            t.MPI_receive_tree();
+            adjust_all(t);
+            use_bound=true;
+            optimize_tree_worker_thread(t, radius);
+            t.delete_nodes();
+        }
+    }
     for(auto& pos:mutated_positions) {
         delete pos.second;
     }
-    t.delete_nodes();
+    if (this_rank==0) {
+        t.delete_nodes();    
+    }
+    fprintf(stderr, "Maximum memory usage from %d: %zu kb \n",this_rank,get_memory());
+    MPI_Finalize();
 }

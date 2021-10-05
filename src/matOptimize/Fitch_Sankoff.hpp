@@ -5,18 +5,17 @@
 #include <vector>
 namespace MAT=Mutation_Annotated_Tree;
 struct backward_pass_range {
-    union {
-        size_t first_child_bfs_idx;
-        const std::string* identifier;
-    };
+    size_t first_child_bfs_idx;
     size_t child_size;
 };
 
-struct forward_pass_range {
-    size_t parent_bfs_idx;
-    size_t child_size;
-    size_t left_child_idx;
-    size_t right_child_idx;
+class forward_pass_range {
+    size_t content;
+    public:
+    forward_pass_range(){}
+    forward_pass_range(size_t parent_idx,bool is_leaf):content(is_leaf|(parent_idx<<1)){}
+    bool is_leaf()const {return content&1;}
+    size_t get_par_idx() const {return content>>1;}
 };
 typedef std::vector<std::pair<long, nuc_one_hot>> mutated_t;
 struct mutated_t_comparator {

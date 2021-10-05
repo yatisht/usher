@@ -243,7 +243,7 @@ static nuc_one_hot set_state(const forward_pass_range & this_range,uint8_t bound
     if (major_allele.is_ambiguous()||(boundary1_allele)||need_add) {
         MAT::Mutation to_add(base);
         to_add.set_par_mut(par_state, this_state);
-        if (this_range.child_size<=1) {
+        if (this_range.is_leaf()) {
             //assert(!boundary1_allele);
             boundary1_allele=(~major_allele)&0xf;
         }
@@ -254,33 +254,6 @@ static nuc_one_hot set_state(const forward_pass_range & this_range,uint8_t bound
     return this_state;
 }
 
-static nuc_one_hot set_binary_node_state(uint8_t this_boundary1_major_allele, nuc_one_hot par_state, nuc_one_hot left_child_major_allele,nuc_one_hot right_child_major_allele,const MAT::Mutation& base,mut_vect_t& output,MAT::Tree* try_similar) {
-    nuc_one_hot this_major_allele=this_boundary1_major_allele&0xf;
-    if (this_major_allele&par_state) {
-        if (this_major_allele!=par_state||(this_boundary1_major_allele>>4)) {
-            MAT::Mutation to_add(base);
-            to_add.set_par_mut(par_state, par_state);
-            //same as the generic node, but also record the state of its two children
-            to_add.set_children(this_boundary1_major_allele>>4,this_major_allele, left_child_major_allele, right_child_major_allele);
-            output.push_back(to_add);
-        }
-        return par_state;
-    }
-    nuc_one_hot this_state=this_major_allele.choose_first();
-#ifdef CHECK_STATE_REASSIGN
-    if (try_similar) {
-        nuc_one_hot ori_state=get_this_state(try_similar->get_node(node->identifier), base.get_position());
-        if (ori_state&this_major_allele) {
-            this_state=ori_state;
-        }
-    }
-#endif
-    MAT::Mutation to_add(base);
-    to_add.set_par_mut(par_state, this_state);
-    to_add.set_children(this_boundary1_major_allele>>4,this_major_allele, left_child_major_allele, right_child_major_allele);
-    output.push_back(to_add);
-    return this_state;
-}
 //just dispatch based on number of children
 void forward_per_node(
     const forward_pass_range & this_range,
@@ -290,17 +263,9 @@ void forward_per_node(
     &output,
     std::vector<nuc_one_hot> &states, size_t node_idx,
     nuc_one_hot parent_state,MAT::Tree* try_similar) {
-    if (this_range.child_size == 2) {
-        states[node_idx] = set_binary_node_state(
-                               boundary1_major_allele[node_idx], parent_state,
-                               boundary1_major_allele[this_range.left_child_idx] & 0xf,
-                               boundary1_major_allele[this_range.right_child_idx] & 0xf, base,
-                               output[node_idx],try_similar);
-    } else {
         states[node_idx] =
             set_state(this_range, boundary1_major_allele[node_idx], parent_state,
                       base, output[node_idx],try_similar);
-    }
 }
 static void FS_forward_pass(
     const std::vector<forward_pass_range>& forward_pass_idx,
@@ -313,7 +278,7 @@ static void FS_forward_pass(
                      states, 0,base.get_ref_one_hot(),try_similar);
     //parent is visited before children in bfs order, so iterate in forward order
     for (size_t node_idx=1; node_idx<forward_pass_idx.size(); node_idx++) {
-        nuc_one_hot parent_state= states[forward_pass_idx[node_idx].parent_bfs_idx];
+        nuc_one_hot parent_state= states[forward_pass_idx[node_idx].get_par_idx()];
         forward_per_node(forward_pass_idx[node_idx], boundary1_major_allele, base, output,
                          states, node_idx, parent_state,try_similar);
     }
@@ -359,18 +324,8 @@ void Fitch_Sankoff_prep(const std::vector<Mutation_Annotated_Tree::Node*>& bfs_o
         child_idx_range.back().child_size=node->children.size();
         if (child_idx_range.back().child_size) {
             child_idx_range.back().first_child_bfs_idx=node->children[0]->bfs_index;
-        } else {
-            child_idx_range.back().identifier=&node->identifier;
         }
-        parent_idx.emplace_back();
-        if (node->parent) {
-            parent_idx.back().parent_bfs_idx=node->parent->bfs_index;
-        }
-        parent_idx.back().child_size=node->children.size();
-        if(parent_idx.back().child_size==2) {
-            parent_idx.back().left_child_idx=node->children[0]->bfs_index;
-            parent_idx.back().right_child_idx=node->children[1]->bfs_index;
-        }
+        parent_idx.emplace_back(node->parent?node->parent->bfs_index:-1,node->is_leaf());
     }
 }
 void deallocate_FS_cache(FS_result_per_thread_t& in) {

@@ -86,9 +86,7 @@ void compare_mutation_tree(MAT::Tree &t,MAT::Tree &new_tree) {
  * @param bfs_ordered_nodes all nodes in bfs order
  * @param to_filter nodes to search in the next round, with removed nodes filtered out
  */
-void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t,
-                 std::vector<MAT::Node *> &bfs_ordered_nodes,
-                 tbb::concurrent_vector<MAT::Node *> &to_filter
+void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t
 #ifdef CHECK_STATE_REASSIGN
                  ,
                  const Original_State_t &original_state
@@ -121,6 +119,7 @@ void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t,
         fflush(log);
 #endif
 #endif
+        //fprintf(stderr, "applying move %zu to %zu \n",move->src->dfs_index,move->dst->dfs_index);
         //Prelimary move perserving state of all nodes
         move_node(move->src, move->get_dst(), altered_node, t,
                   deleted_node_ptrs, nodes_to_clean);
@@ -129,7 +128,6 @@ void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t,
             to_check.erase(node->identifier);
         }
         assert(to_check.empty());*/
-        delete move;
     }
     //need to redo dfs, as the Fitch sankoff patching need to process nodes in dfs order to have the
     // major allele set of children of a node fully updated before assigning major allele to this node
@@ -176,14 +174,6 @@ void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t,
     compare_mutation_tree(t, new_tree);
 #endif
     //filter out deleted nodes from nodes to search in the next round
-    tbb::concurrent_vector<MAT::Node*> filtered;
-    filtered.reserve(to_filter.size());
-    for(const auto node:to_filter) {
-        if (!deleted_node_ptrs.count((size_t)node)) {
-            filtered.push_back(node);
-        }
-    }
-    to_filter.swap(filtered);
     //delayed deletion of removed nodes (these are identified by there memory location, if freed to early, it can be reused)
     for(auto node:deleted_node_ptrs) {
         t.all_nodes.erase(((MAT::Node*) node)->identifier);

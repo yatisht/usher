@@ -294,7 +294,6 @@ void asign_and_fill(std::vector<Sample_Pos_Mut>& all_samples, MAT::Tree &tree,st
     FS_result_per_thread_t output;
     assign_state(all_samples, tree, output, bfs_ordered_nodes);
     //raise(SIGUSR1);
-    print_memory();
     //malloc_stats();
     fill_muts(output, bfs_ordered_nodes);
 }
@@ -310,7 +309,6 @@ void add_ambiguous_mutation(const char *input_path, MAT::Tree &tree) {
     auto par_score = tree.get_parsimony_score();
     fprintf(stderr, "Before condensing %zu\n", par_score);
     //raise(SIGUSR1);
-    print_memory();
     //malloc_stats();
     recondense_tree(tree);
 }

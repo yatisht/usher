@@ -2,6 +2,7 @@
 #include "src/matOptimize/mutation_annotated_tree.hpp"
 #include "process_individual_mutation.hpp"
 //functor for adding src to split the edge between dst and its parent, same as geting major allele of a binary node
+//Helper function for adding Fitch set change from original state of a loci and changed state of a loci
 struct get_parsimony_score_from_add {
     typedef Mutation_Count_Change_Collection T1;
     typedef MAT::Mutations_Collection T2;
@@ -84,14 +85,14 @@ struct get_parent_altered_remove {
         }
     }
     void T2_only(const T2::value_type &parent_variable) {
-        Mutation_Count_Change temp(parent_variable,parent_variable.get_mut_one_hot(),0,0,true);
+        Mutation_Count_Change temp(parent_variable,parent_variable.get_mut_one_hot(),0);
         decrement_mutation_count(parent_mutation_count_change_out, parent_variable, temp,parent_parsimony_score_change);
         //decrement_mutation_count manipulate parsimony score change only on how such change change the number of children able to have major allele state (as if src branch node is not removed), so need to decrement artificailly to account for src->parent have one less children
         parent_parsimony_score_change--;
     }
     void T1_T2_match(const T1::value_type &src_mut,
                      const T2::value_type &parent_variable) {
-        Mutation_Count_Change temp(src_mut,src_mut.get_all_major_allele(), 0, 0,true);
+        Mutation_Count_Change temp(src_mut,src_mut.get_all_major_allele(), 0);
         decrement_mutation_count(
             parent_mutation_count_change_out, parent_variable, temp,
             parent_parsimony_score_change);
@@ -114,21 +115,4 @@ void get_parent_altered_remove(
 ) {
     struct get_parent_altered_remove functor(parent_mutation_count_change_out,parent_parsimony_score_change);
     merge_func<struct get_parent_altered_remove>()(src->mutations,src->parent->mutations,functor);
-}
-
-//specialization when src->parent is binary, then it just have the same major allele set as its remaining children
-void get_child_removed_binary_node(
-    Mutation_Count_Change_Collection &parent_mutation_count_change_out,
-    const MAT::Node *src, int &parent_parsimony_score_change) {
-    MAT::Node *parent_node = src->parent;
-    bool removed_left_child = parent_node->children[0] == src;
-    assert(removed_left_child || parent_node->children[1] == src);
-    for (const auto &mutation : parent_node->mutations) {
-        nuc_one_hot new_major_allele = removed_left_child
-                                       ? mutation.get_right_child_state()
-                                       : mutation.get_left_child_state();
-        int score_change = register_change_from_new_state(
-                               parent_mutation_count_change_out, 0, mutation, new_major_allele);
-        parent_parsimony_score_change += score_change;
-    }
 }

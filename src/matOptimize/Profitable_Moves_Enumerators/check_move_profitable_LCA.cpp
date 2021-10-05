@@ -1,12 +1,10 @@
 #include "process_each_node.hpp"
 #include "src/matOptimize/Profitable_Moves_Enumerators/Profitable_Moves_Enumerators.hpp"
 #include "src/matOptimize/mutation_annotated_tree.hpp"
-
 //Mutation added by moving src to LCA doesn't match any sensitive mutation on LCA. Spliting the edge is equivalent to adding a binary node with parent state and src state at this node
 static void added_no_match(const Mutation_Count_Change &mutation_to_add,
                            Mutation_Count_Change_Collection &out,
-                           int &parsimony_score_change,
-                           MAT::Node *src_branch_node) {
+                           int &parsimony_score_change) {
     //assert(mutation_to_add.get_par_state() ==get_parent_state(src_branch_node, mutation_to_add.get_position()));
     nuc_one_hot major_allele =
         mutation_to_add.get_par_state() & mutation_to_add.get_incremented();
@@ -15,12 +13,12 @@ static void added_no_match(const Mutation_Count_Change &mutation_to_add,
         major_allele =
             mutation_to_add.get_par_state() | mutation_to_add.get_incremented();
         out.emplace_back(mutation_to_add);
-        out.back().set_ori_state(mutation_to_add.get_par_state());
-        out.back().set_change(0, mutation_to_add.get_incremented(),
-                              major_allele);
+        out.back().set_change(0, mutation_to_add.get_incremented());
     }
 }
-
+static nuc_one_hot get_new_state_from_change(const MAT::Mutation& ori_mut,const Mutation_Count_Change & child_mut_change){
+    return (ori_mut.get_all_major_allele()|child_mut_change.get_incremented())&(~child_mut_change.get_decremented());
+}
 /**
  * @brief Calculate parsimony score change and fitch set change if the src node is moved directly under LCA (dst==LCA)
         LCA
@@ -38,7 +36,7 @@ static void added_no_match(const Mutation_Count_Change &mutation_to_add,
  * @return whether there are mutations that src_branch_node have but the src node have, if not it is better to split between src_branch_node and its descendent, rather than here.
  */
 bool LCA_place_mezzanine(
-    MAT::Node *src_branch_node,
+    const MAT::Node *src_branch_node,
     const Mutation_Count_Change_Collection &dst_mutations,
     const Mutation_Count_Change_Collection &src_branch_node_mutations_altered,
     Mutation_Count_Change_Collection &out, int &parsimony_score_change
@@ -58,7 +56,7 @@ bool LCA_place_mezzanine(
         //parsimony score as inserting here or its descendant, so cannot be the sole reason of trying here.
         while (added_iter < added_end &&
                 added_iter->get_position() < m.get_position()) {
-            added_no_match(*added_iter, out, parsimony_score_change, src_branch_node);
+            added_no_match(*added_iter, out, parsimony_score_change);
             //assert(added_iter < added_end );
             added_iter++;
         }
@@ -69,7 +67,7 @@ bool LCA_place_mezzanine(
         //Override the Fitch set of src_branch_node if modified
         if (src_branch_node_change_iter != src_branch_node_change_end &&
                 src_branch_node_change_iter->get_position() == m.get_position()) {
-            major_allele = src_branch_node_change_iter->get_new_state();
+            major_allele = get_new_state_from_change(m, *src_branch_node_change_iter);
             src_branch_node_change_iter++;
         }
         //Coincide
@@ -94,51 +92,26 @@ bool LCA_place_mezzanine(
         parsimony_score_change += score_change;
     }
     while (added_iter<added_end) {
-        added_no_match(*added_iter, out, parsimony_score_change, src_branch_node);
+        added_no_match(*added_iter, out, parsimony_score_change);
         added_iter++;
     }
     return have_not_shared;
 }
-void check_parsimony_score_change_above_LCA(MAT::Node *LCA, int &parsimony_score_change,
+void check_parsimony_score_change_above_LCA(MAT::Node *curr_node, int &parsimony_score_change,
         Mutation_Count_Change_Collection &parent_added,
-        const std::vector<MAT::Node *> &node_stack_from_src,
-        std::vector<MAT::Node *> &node_stack_above_LCA,
-        Mutation_Count_Change_Collection &parent_of_parent_added,
-        MAT::Node *ancestor) {
-    while (ancestor && (!parent_added.empty())) {
+        Mutation_Count_Change_Collection &parent_of_parent_added) {
+    while (curr_node && (!parent_added.empty())) {
         parent_of_parent_added.clear();
         get_intermediate_nodes_mutations(
-            ancestor,
-            node_stack_above_LCA.empty() ? node_stack_from_src.back()
-            : node_stack_above_LCA.back(),
+            curr_node,
             parent_added, parent_of_parent_added, parsimony_score_change);
-        node_stack_above_LCA.push_back(ancestor);
         parent_added.swap(parent_of_parent_added);
-        ancestor = ancestor->parent;
+        curr_node = curr_node->parent;
     }
     // Hit root
-    if (!ancestor) {
+    if (!curr_node) {
         for (auto &a : parent_added) {
             parsimony_score_change += a.get_default_change_internal();
         }
-        ancestor = node_stack_above_LCA.back();
-    }
-    if (node_stack_above_LCA.empty()) {
-        node_stack_above_LCA.push_back(LCA);
     }
 }
-/**
- * @brief Calculate parsimony score change due to state changes of nodes above LCA
- * @param src
- * @param dst
- * @param LCA
- * @param mutations mutations needed above src node for moving src under parent of dst
- * @param root_mutations_altered fitch set change of src_branch_node from removing src
- * @param parsimony_score_change
- * @param node_stack_from_dst nodes from dst to LCA
- * @param parent_added state change of dst_branch_node from inserting src to its new location
- * @param node_stack_from_src nodes from src to LCA
- * @param node_stack_above_LCA node above LCA that have change in their Fitch set
- * @param debug_above_LCA
- * @return The highest node had their Fitch set changed
- */

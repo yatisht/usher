@@ -482,7 +482,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::unordered_map<std
     static tbb::affinity_partitioner ap;
     tbb::parallel_for(tbb::blocked_range<size_t>( 0, regions.size() ),
     [&](const tbb::blocked_range<size_t> r) {
-        for ( int l = r.begin() ; l < r.end() ; l ++ ) {
+        for ( size_t l = r.begin() ; l < r.end() ; l ++ ) {
             //if ( sample_regions[regions[l]].size() < region_minimum ) continue ;
             std::string region = regions[l] ;
             std::vector<std::string> samples = sample_regions[regions[l]] ;
@@ -644,7 +644,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::unordered_map<std
                             if (num_to_report > 0) {
                                 count = num_to_report;
                             }
-                            for (auto i = 0; i < assign_search->second.size(); i++) {
+                            for (size_t i = 0; i < assign_search->second.size(); i++) {
                                 //vectors for confidence and region tags were generated in parallel and should remain aligned
                                 if (assign_search->second[i] == region) {
                                     //don't allow it to be its own point of origin, that's silly.

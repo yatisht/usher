@@ -61,22 +61,27 @@ static void mark_changed_neighbor(int radius, MAT::Node* root, MAT::Node* exclud
 
 //find src node to search
 void find_nodes_to_move(const std::vector<MAT::Node *> &bfs_ordered_nodes,
-                        tbb::concurrent_vector<MAT::Node *> &output,
+                        std::vector<MAT::Node *> &output,
                         bool is_first, int radius_in,MAT::Tree &tree) {
     auto start=std::chrono::steady_clock::now();
     unsigned int radius=abs(radius_in);
     output.clear();
-    if (is_first||(radius_in<0&&radius<tree.max_level)) {
-        output=tbb::concurrent_vector<MAT::Node*>(bfs_ordered_nodes.begin(),bfs_ordered_nodes.end());
+    fprintf(stderr, "find max_level\n");
+    auto max_level=tree.get_max_level();
+    fprintf(stderr, "Max level %zu\n",max_level);
+    if (is_first||(radius_in<0)||radius>=(2*max_level)) {
+        output=bfs_ordered_nodes;
+        fprintf(stderr, "Search all nodes\n");
         for(auto node:bfs_ordered_nodes) {
             node->to_search=false;
-            node->last_searched_arcs=0;
+            //node->last_searched_arcs=0;
         }
     } else {
         //mark surrounding of changed nodes
         tbb::parallel_sort(changed_nodes.begin(),changed_nodes.end());
         auto end_iter=std::unique(changed_nodes.begin(),changed_nodes.end());
         changed_nodes.erase(end_iter,changed_nodes.end());
+        fprintf(stderr, "%zu changed nodes \n",changed_nodes.size());
         tbb::parallel_for(tbb::blocked_range<size_t>(0,changed_nodes.size()),[radius,&tree](const tbb::blocked_range<size_t>& r) {
             for (size_t idx=r.begin(); idx<r.end(); idx++) {
                 auto node=tree.get_node(changed_nodes[idx]);
@@ -98,4 +103,17 @@ void find_nodes_to_move(const std::vector<MAT::Node *> &bfs_ordered_nodes,
     fprintf(stderr, "Will search %f of nodes\n",(double)output.size()/(double)bfs_ordered_nodes.size());
     std::chrono::duration<double> elapsed_seconds = std::chrono::steady_clock::now()-start;
     fprintf(stderr, "Took %f s to find nodes to move\n",elapsed_seconds.count());
+}
+void save_final_tree(MAT::Tree &t,
+                     const std::string &output_path) {
+    std::vector<MAT::Node *> dfs = t.depth_first_expansion();
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, dfs.size()),
+    [&dfs](tbb::blocked_range<size_t> r) {
+        for (size_t i = r.begin(); i < r.end(); i++) {
+            dfs[i]->mutations.remove_invalid();
+        }
+    });
+    fix_condensed_nodes(&t);
+    fprintf(stderr, "%zu condensed_nodes\n",t.condensed_nodes.size());
+    Mutation_Annotated_Tree::save_mutation_annotated_tree(t, output_path);
 }

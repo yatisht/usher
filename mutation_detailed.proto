@@ -1,17 +1,15 @@
 syntax = "proto3";                                                                                                                                                                                              
 package Mutation_Detailed;
 
-message detailed_mutation {
-    int32 position = 1;
-    fixed32 other_fields = 2;
-}
-
 message node {
-    repeated detailed_mutation node_mutations = 1;
-    string identifier = 2;
-    repeated int64 children_offsets =3;
-    repeated int32 children_lengths =4;
-    repeated string condensed_nodes =5;
+    repeated int32 mutation_positions = 1;
+    repeated fixed32 mutation_other_fields = 2;
+    repeated int32 ignored_range_start = 3;
+    repeated int32 ignored_range_end = 4;
+    string identifier = 5;
+    repeated int64 children_offsets =6;
+    repeated int32 children_lengths =7;
+    repeated string condensed_nodes =8;
 }
 
 message meta {

@@ -53,18 +53,19 @@ std::vector<Mutation_Annotated_Tree::Node*> Mutation_Annotated_Tree::Tree::bread
     return traversal;
 }
 
-static void depth_first_expansion_helper(Mutation_Annotated_Tree::Node* node, std::vector<Mutation_Annotated_Tree::Node*>& vec, size_t& index) {
+static void depth_first_expansion_helper(Mutation_Annotated_Tree::Node* node, std::vector<Mutation_Annotated_Tree::Node*>& vec, size_t& index,size_t level) {
 #ifdef DETAIL_DEBUG_NO_LOOP
     assert(std::find(vec.begin(),vec.end(),node)==vec.end());
 #endif
     vec.push_back(node);
+    node->level=level;
     //assert(vec.size()-1==index);
     node->dfs_index=index;
     index++;
     for (auto c: node->children) {
-        depth_first_expansion_helper(c, vec,index);
+        depth_first_expansion_helper(c, vec,index,level+1);
     }
-    node->dfs_end_index=index;
+    node->dfs_end_index=index-1;
 }
 
 std::vector<Mutation_Annotated_Tree::Node*> Mutation_Annotated_Tree::Tree::depth_first_expansion(Mutation_Annotated_Tree::Node* node) const {
@@ -77,7 +78,7 @@ std::vector<Mutation_Annotated_Tree::Node*> Mutation_Annotated_Tree::Tree::depth
     if (node == NULL) {
         return traversal;
     }
-    depth_first_expansion_helper(node, traversal,index);
+    depth_first_expansion_helper(node, traversal,index,0);
     return traversal;
 }
 
@@ -129,4 +130,29 @@ void Node::delete_this() {
 }
 void Mutation_Annotated_Tree::Tree::delete_nodes() {
     root->delete_this();
+}
+static void get_leaves_helper(Node* root, std::vector<Node*>& out){
+    for(auto child:root->children){
+        if (child->is_leaf()) {
+            out.push_back(child);
+        }else {
+            get_leaves_helper(child, out);
+        }
+    }
+}
+std::vector<Node*> Mutation_Annotated_Tree::Tree::get_leaves() const{
+    std::vector<Node*> out;
+    get_leaves_helper(root, out);
+    return out;
+}
+
+void Mutation_Annotated_Tree::Tree::populate_ignored_range(){
+    auto leaves=breadth_first_expansion();
+    tbb::parallel_for(tbb::blocked_range<size_t>(0,leaves.size()),[&leaves](const tbb::blocked_range<size_t>& range){
+        for (auto idx=range.begin(); idx<range.end(); idx++) {
+            auto leaf=leaves[idx];
+            leaf->populate_ignored_range();
+        }
+    });
+    fprintf(stderr, "populated ignored range\n");
 }

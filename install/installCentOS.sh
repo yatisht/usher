@@ -1,5 +1,5 @@
 sudo yum group install -y  "Development Tools"                                                                                                                                                                  
-sudo yum install -y wget boost-devel rsync
+sudo yum install -y wget boost-devel rsync openmpi
 
 # create build directory
 startDir=$pwd

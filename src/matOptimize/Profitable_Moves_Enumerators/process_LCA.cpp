@@ -9,106 +9,6 @@ struct use_remaining_LCA {};
 // src_branch_node is not src, and LCA have 2 children, reconstitute that 2
 // children with their new state to get new major allele and parsimony score
 // from scratch
-struct process_LCA_two_children_src_not_terminal {
-    typedef ignore_remaining_LCA remaining_LCA_useful;
-    bool is_src_left;
-    Mutation_Count_Change_Collection &LCA_parent_mutation_count_change_out;
-    int &parsimony_score_change;
-    process_LCA_two_children_src_not_terminal(
-        const MAT::Node *LCA, const MAT::Node *src_branch,
-        Mutation_Count_Change_Collection &LCA_parent_mutation_count_change_out,
-        int &parsimony_score_change)
-        : is_src_left(src_branch == LCA->children[0]),
-          LCA_parent_mutation_count_change_out(
-              LCA_parent_mutation_count_change_out),
-          parsimony_score_change(parsimony_score_change) {}
-    void LCA_no_match(const MAT::Mutation &LCA_mut) {}
-    void LCA_dst_match(const MAT::Mutation &LCA_matching_mutation,
-                       const Mutation_Count_Change &dst_add_count) {
-        // Fitch set change at dst branch
-        nuc_one_hot major_allele;
-        // reconstitute both children
-        int new_par_score = get_new_major_allele_binary_node(
-                                is_src_left ? LCA_matching_mutation.get_left_child_state()
-                                : LCA_matching_mutation.get_right_child_state(),
-                                dst_add_count.get_new_state(), major_allele);
-        parsimony_score_change += register_change_from_new_state(
-                                      LCA_parent_mutation_count_change_out, new_par_score,
-                                      LCA_matching_mutation, major_allele);
-    }
-    void LCA_src_dst_match(const MAT::Mutation &LCA_mutation,
-                           const Mutation_Count_Change &src_count_change,
-                           const Mutation_Count_Change &dst_count_change) {
-        nuc_one_hot major_allele;
-        int new_mut_count = get_new_major_allele_binary_node(
-                                src_count_change.get_new_state(), dst_count_change.get_new_state(),
-                                major_allele);
-        parsimony_score_change += register_change_from_new_state(
-                                      LCA_parent_mutation_count_change_out, new_mut_count, LCA_mutation,
-                                      major_allele);
-    }
-    void LCA_src_match(const MAT::Mutation &LCA_mutation,
-                       const Mutation_Count_Change &src_count_change) {
-        nuc_one_hot major_allele;
-        int new_mut_count = get_new_major_allele_binary_node(
-                                src_count_change.get_new_state(),
-                                is_src_left ? LCA_mutation.get_right_child_state()
-                                : LCA_mutation.get_left_child_state(),
-                                major_allele);
-        parsimony_score_change += register_change_from_new_state(
-                                      LCA_parent_mutation_count_change_out, new_mut_count, LCA_mutation,
-                                      major_allele);
-    }
-};
-// LCA originally only have 2 children, now only have dst_branch_node, so the
-// new state is just the state of dst branch node
-struct process_LCA_two_children_src_terminal {
-    bool is_src_left;
-    typedef use_remaining_LCA remaining_LCA_useful;
-    Mutation_Count_Change_Collection &LCA_parent_mutation_count_change_out;
-    int &parsimony_score_change;
-    process_LCA_two_children_src_terminal(
-        const MAT::Node *LCA, const MAT::Node *src_branch,
-        Mutation_Count_Change_Collection &LCA_parent_mutation_count_change_out,
-        int &parsimony_score_change)
-        : is_src_left(src_branch == LCA->children[0]),
-          LCA_parent_mutation_count_change_out(
-              LCA_parent_mutation_count_change_out),
-          parsimony_score_change(parsimony_score_change) {}
-    void LCA_no_match(const MAT::Mutation &LCA_mut) {
-        nuc_one_hot major_allele = is_src_left ? LCA_mut.get_right_child_state()
-                                   : LCA_mut.get_left_child_state();
-        parsimony_score_change += register_change_from_new_state(
-                                      LCA_parent_mutation_count_change_out, 0, LCA_mut, major_allele);
-    }
-    void LCA_dst_match(const MAT::Mutation &LCA_matching_mutation,
-                       const Mutation_Count_Change &dst_add_count) {
-        // Fitch set change at dst branch
-        nuc_one_hot major_allele;
-        major_allele = dst_add_count.get_new_state();
-        parsimony_score_change += register_change_from_new_state(
-                                      LCA_parent_mutation_count_change_out, 0, LCA_matching_mutation,
-                                      major_allele);
-    }
-    void LCA_src_dst_match(const MAT::Mutation &LCA_mutation,
-                           const Mutation_Count_Change &src_count_change,
-                           const Mutation_Count_Change &dst_count_change) {
-        nuc_one_hot major_allele;
-        major_allele = dst_count_change.get_new_state();
-        parsimony_score_change +=
-            register_change_from_new_state(LCA_parent_mutation_count_change_out,
-                                           0, LCA_mutation, major_allele);
-    }
-    void LCA_src_match(const MAT::Mutation &LCA_mutation,
-                       const Mutation_Count_Change &src_count_change) {
-        nuc_one_hot major_allele;
-        major_allele = is_src_left ? LCA_mutation.get_right_child_state()
-                       : LCA_mutation.get_left_child_state();
-        parsimony_score_change +=
-            register_change_from_new_state(LCA_parent_mutation_count_change_out,
-                                           0, LCA_mutation, major_allele);
-    }
-};
 // More than 2 children with src node being direct children of LCA,
 // so all alleles cared by src are decremented,
 // calling respective process_individual_mutation layer functions
@@ -117,15 +17,14 @@ struct process_LCA_more_than_two_src_terminal {
     Mutation_Count_Change_Collection &LCA_parent_mutation_count_change_out;
     int &parsimony_score_change;
     process_LCA_more_than_two_src_terminal(
-        const MAT::Node *LCA, const MAT::Node *src_branch,
+        const MAT::Node *LCA,
         Mutation_Count_Change_Collection &LCA_parent_mutation_count_change_out,
         int &parsimony_score_change)
         : LCA_parent_mutation_count_change_out(
               LCA_parent_mutation_count_change_out),
           parsimony_score_change(parsimony_score_change) {}
     void LCA_no_match(const MAT::Mutation &LCA_mut) {
-        Mutation_Count_Change temp(LCA_mut, LCA_mut.get_mut_one_hot(), 0, 0,
-                                   true);
+        Mutation_Count_Change temp(LCA_mut, LCA_mut.get_mut_one_hot(), 0);
         decrement_mutation_count(LCA_parent_mutation_count_change_out, LCA_mut,
                                  temp, parsimony_score_change);
         parsimony_score_change--;
@@ -135,8 +34,7 @@ struct process_LCA_more_than_two_src_terminal {
                        const Mutation_Count_Change &dst_add_count) {
         nuc_one_hot major_allele;
         Mutation_Count_Change temp(LCA_matching_mutation,
-                                   LCA_matching_mutation.get_mut_one_hot(), 0,
-                                   0, true);
+                                   LCA_matching_mutation.get_mut_one_hot(), 0);
         major_allele = dbl_inc_dec_mutations(
                            dst_add_count, temp, LCA_matching_mutation, parsimony_score_change,
                            LCA_parent_mutation_count_change_out);
@@ -167,7 +65,7 @@ struct process_LCA_more_than_two_src_not_terminal {
     Mutation_Count_Change_Collection &LCA_parent_mutation_count_change_out;
     int &parsimony_score_change;
     process_LCA_more_than_two_src_not_terminal(
-        const MAT::Node *LCA, const MAT::Node *src_branch,
+        const MAT::Node *LCA,
         Mutation_Count_Change_Collection &LCA_parent_mutation_count_change_out,
         int &parsimony_score_change)
         : LCA_parent_mutation_count_change_out(
@@ -320,7 +218,7 @@ template <typename Functor> class process_LCA {
                   Functor &functor, Tag_t tag) {
         for (const MAT::Mutation &src_mut : from_src_remove) {
             Mutation_Count_Change src_count_change(
-                src_mut, src_mut.get_all_major_allele(), 0, 0, true);
+                src_mut, src_mut.get_all_major_allele(), 0);
             proc_src(src_count_change, LCA_mut, dst_add_count_iter, functor,
                      tag);
         }
@@ -329,12 +227,12 @@ template <typename Functor> class process_LCA {
   public:
     template <typename src_t>
     void operator()(
-        const MAT::Node *LCA, const MAT::Node *src_branch,
+        const MAT::Node *LCA, 
         const src_t &from_src_remove,
         const Mutation_Count_Change_Collection &from_dst_add,
         Mutation_Count_Change_Collection &LCA_parent_mutation_count_change_out,
         int &parsimony_score_change) {
-        Functor functor(LCA, src_branch, LCA_parent_mutation_count_change_out,
+        Functor functor(LCA, LCA_parent_mutation_count_change_out,
                         parsimony_score_change);
         range<MAT::Mutation> LCA_mut(LCA->mutations);
         range<Mutation_Count_Change> dst_add_count_iter(
@@ -349,33 +247,20 @@ template <typename Functor> class process_LCA {
 // This just dispatch the appropriate function based on number of children on
 // LCA, and whether src_branch_node is removed
 void get_LCA_mutation(
-    const MAT::Node *LCA, const MAT::Node *src_branch, bool is_src_terminal,
+    const MAT::Node *LCA, const MAT::Node *src,
     const Mutation_Count_Change_Collection &from_src_remove,
     const Mutation_Count_Change_Collection &from_dst_add,
     Mutation_Count_Change_Collection &LCA_parent_mutation_count_change_out,
     int &parsimony_score_change) {
-    if (LCA->children.size() == 2) {
-        if (is_src_terminal) {
-            process_LCA<process_LCA_two_children_src_terminal>()(
-                LCA, src_branch, from_src_remove, from_dst_add,
-                LCA_parent_mutation_count_change_out, parsimony_score_change);
-        } else {
-            process_LCA<process_LCA_two_children_src_not_terminal>()(
-                LCA, src_branch, from_src_remove, from_dst_add,
-                LCA_parent_mutation_count_change_out, parsimony_score_change);
-        }
-
-    } else if (LCA->children.size() > 2) {
-        if (is_src_terminal) {
+    assert(LCA->children.size()>1);
+        if (src->parent==LCA) {
             process_LCA<process_LCA_more_than_two_src_terminal>()(
-                LCA, src_branch, src_branch->mutations, from_dst_add,
+                LCA,  src->mutations, from_dst_add,
                 LCA_parent_mutation_count_change_out, parsimony_score_change);
         } else {
             process_LCA<process_LCA_more_than_two_src_not_terminal>()(
-                LCA, src_branch, from_src_remove, from_dst_add,
+                LCA,  from_src_remove, from_dst_add,
                 LCA_parent_mutation_count_change_out, parsimony_score_change);
         }
-    } else {
-        assert(false);
-    }
+  
 }
