@@ -289,8 +289,10 @@ void Mutation_Annotated_Tree::Tree::save_detailed_mutations(
                    S_IRUSR | S_IRGRP | S_IROTH);
     perror("");
     tbb::flow::function_node<compressor_out> file_writer(
-        g, 1, file_writer_t(fd), tbb::flow::queueing());
-    tbb::flow::make_edge(compressor, file_writer);
+        g, 1, file_writer_t(fd));
+    tbb::flow::buffer_node<compressor_out> buffer(g);
+    tbb::flow::make_edge(buffer,file_writer);
+    tbb::flow::make_edge(compressor, buffer);
     serializer_t serializer(compressor);
     auto uncompressed_length=serialize_tree_general<serialize_condensed_node>(this,serializer);
     g.wait_for_all();
@@ -307,8 +309,10 @@ void Mutation_Annotated_Tree::Tree::MPI_send_tree() const {
     tbb::flow::graph g;
     compressor_node_t compressor(g, tbb::flow::unlimited, compressor_node());
     tbb::flow::function_node<compressor_out> sender(
-        g, 1, mpi_writer(), tbb::flow::queueing());
-    tbb::flow::make_edge(compressor, sender);
+        g, 1, mpi_writer());
+    tbb::flow::buffer_node<compressor_out> buffer(g);
+    tbb::flow::make_edge(buffer, sender);
+    tbb::flow::make_edge(compressor, buffer);
     serializer_t serializer(compressor);
     auto uncompressed_length=serialize_tree_general<no_serialize_condensed_node>(this,serializer);
     g.wait_for_all();

@@ -65,7 +65,7 @@ void log_move_detail(const std::vector<Profitable_Moves_ptr_t> & moves, FILE* ou
 }
 
 typedef tbb::flow::function_node<std::vector<Profitable_Moves_ptr_t>*> resolver_node_t;
-static void MPI_recieve_move(const std::vector<MAT::Node*>& dfs_ordered_nodes,resolver_node_t& resover_node ){
+static void MPI_recieve_move(const std::vector<MAT::Node*>& dfs_ordered_nodes,tbb::flow::buffer_node<std::vector<Profitable_Moves_ptr_t>*>& resover_node ){
     int* buffer=new int[MAX_MOVE_MSG_SIZE];
     while (true) {
     std::vector<Profitable_Moves_ptr_t>* out =new std::vector<Profitable_Moves_ptr_t>;
@@ -158,7 +158,7 @@ struct move_searcher{
         delete to_search;
     }
 };
-static void node_distributor(const std::vector<size_t>& node_to_search_idx,std::atomic<bool>& done,std::vector<size_t>& nodes_not_searched,std::chrono::steady_clock::time_point stop_time){
+static void node_distributor(const std::vector<size_t>& node_to_search_idx,std::atomic<bool>& done,std::vector<size_t>& nodes_not_searched,std::chrono::steady_clock::time_point stop_time,bool is_one_proc){
     size_t idx=0;
     auto stop_in_min=std::chrono::duration_cast<std::chrono::minutes>(stop_time-std::chrono::steady_clock::now()).count();
     fprintf(stderr,"Will stop in %zu min\n",stop_in_min );
@@ -183,8 +183,12 @@ static void node_distributor(const std::vector<size_t>& node_to_search_idx,std::
             nodes_not_searched.insert(nodes_not_searched.end(),node_to_search_idx.begin()+idx,node_to_search_idx.end());
             break;
         }
+        if (interrupted) {
+            fprintf(stderr, "================interrupted=========\n");
+            break;
+        }
     }
-    for (int zero_sent=0;zero_sent<process_count;zero_sent++) {
+    for (int zero_sent=0;zero_sent<(is_one_proc?1:process_count);zero_sent++) {
         size_t count_to_send=0;
         MPI_Status stat;
         MPI_Recv(&count_to_send, 1, MPI_UNSIGNED_LONG, MPI_ANY_SOURCE, WORK_REQ_TAG, MPI_COMM_WORLD, &stat);
@@ -194,20 +198,16 @@ static void node_distributor(const std::vector<size_t>& node_to_search_idx,std::
 }
 struct fetcher{
     std::vector<size_t>& nodes_to_push;
-    bool do_request;
     mutable size_t release_rate;
     //mutable int is_longer_count; 
     std::chrono::steady_clock::time_point& last_request_time;
-    fetcher(std::vector<size_t>& nodes_to_push,bool use_MPI,std::chrono::steady_clock::time_point& last_request_time):nodes_to_push(nodes_to_push),do_request(use_MPI),last_request_time(last_request_time){
+    fetcher(std::vector<size_t>& nodes_to_push,std::chrono::steady_clock::time_point& last_request_time):nodes_to_push(nodes_to_push),last_request_time(last_request_time){
         nodes_per_min_per_thread=100;
         release_rate=100;
         update_rate=0.1;
     }
     bool operator()(std::vector<size_t>*& out) const{
         if (nodes_to_push.empty()) {
-            if (!do_request) {
-                return false;
-            }
             size_t req_size=num_threads*nodes_per_min_per_thread;
             auto this_request_time=std::chrono::steady_clock::now();
             MPI_Send(&req_size, 1, MPI_UNSIGNED_LONG, 0, WORK_REQ_TAG, MPI_COMM_WORLD);
@@ -257,29 +257,27 @@ void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
     auto start_time=std::chrono::steady_clock::now();
     fprintf(stderr, "%zu nodes to search \n", nodes_to_search.size());
     fprintf(stderr, "Node size: %zu\n", dfs_ordered_nodes.size());
-    std::thread* distributor_thread=nullptr;
     std::atomic<bool> done(false);
     std::vector<size_t> incomplete_idx;
-    if (MPI_involved) {
-        distributor_thread=new std::thread(node_distributor,std::ref(nodes_to_search), std::ref(done),std::ref(incomplete_idx),end_time);
-    }
+    std::thread distributor_thread(node_distributor,std::ref(nodes_to_search), std::ref(done),std::ref(incomplete_idx),end_time,!MPI_involved);
     //for resolving conflicting moves
     Deferred_Move_t deferred_moves;
     Cross_t potential_crosses(dfs_ordered_nodes.size(),nullptr);
     tbb::flow::graph g;
     std::vector<std::string> defered_node_identifier; 
-    resolver_node_t resover_node(g, 1,
+    resolver_node_t resover_node_nobuffer(g, 1,
                                  Conflict_Resolver(potential_crosses,
                                                    deferred_moves,
-                                                   &defered_node_identifier),
-                                 tbb::flow::queueing());
+                                                   &defered_node_identifier));
+    tbb::flow::buffer_node<std::vector<Profitable_Moves_ptr_t>*> resover_node(g);
+    tbb::flow::make_edge(resover_node,resover_node_nobuffer);
     std::thread move_reciever(MPI_recieve_move,std::ref(dfs_ordered_nodes),std::ref(resover_node));
     //progress bar
     searcher_node_t searcher(g,num_threads+1,move_searcher{dfs_ordered_nodes,radius});
     tbb::flow::make_edge(std::get<0>(searcher.output_ports()),resover_node);
     std::vector<size_t> local_nodes_to_search;
     auto last_request_time=std::chrono::steady_clock::now();
-    tbb::flow::source_node<std::vector<size_t>*> fetcher_node(g,fetcher(MPI_involved?local_nodes_to_search:nodes_to_search,MPI_involved,last_request_time));
+    tbb::flow::source_node<std::vector<size_t>*> fetcher_node(g,fetcher(local_nodes_to_search,last_request_time));
     tbb::flow::make_edge(fetcher_node,searcher);
     if (MPI_involved) {
         MPI_Barrier(MPI_COMM_WORLD);
@@ -291,10 +289,7 @@ void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
     g.wait_for_all();
     done.store(true);
     //fprintf(stderr, "Waiting for distributor thread\n");
-    if (MPI_involved) {
-        distributor_thread->join();
-        delete distributor_thread;
-    }
+    distributor_thread.join();
     if(do_continue){
         defered_node_identifier.reserve(defered_node_identifier.size()+incomplete_idx.size());
         for(auto idx:incomplete_idx){
@@ -335,7 +330,9 @@ void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
             potential_crosses.resize(bfs_ordered_nodes.size(),nullptr);
             tbb::flow::graph resolver_g;
             std::vector<MAT::Node*> ignored;
-            resolver_node_t resover_node(resolver_g,1,Conflict_Resolver(potential_crosses,deferred_moves_next,nullptr),tbb::flow::queueing());
+            resolver_node_t resover_node_nobuffer(resolver_g,1,Conflict_Resolver(potential_crosses,deferred_moves_next,nullptr));
+            tbb::flow::buffer_node<std::vector<Profitable_Moves_ptr_t>*> resover_node(g);
+            tbb::flow::make_edge(resover_node,resover_node_nobuffer);
             tbb::parallel_for(tbb::blocked_range<size_t>(0,deferred_moves.size()),[&deferred_moves,&resover_node,&t](const tbb::blocked_range<size_t>& r) {
                 for (size_t i=r.begin(); i<r.end(); i++) {
                     MAT::Node* src=t.get_node(deferred_moves[i].first);
@@ -401,12 +398,14 @@ void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
 void optimize_tree_worker_thread(MAT::Tree &t,int radius){
     auto dfs_ordered_nodes=t.depth_first_expansion();
     tbb::flow::graph g;
-    resolver_node_t resolver_node(g,1,MPI_move_sender(),tbb::flow::queueing());
+    resolver_node_t resover_node_nobuffer(g,1,MPI_move_sender());
+    tbb::flow::buffer_node<std::vector<Profitable_Moves_ptr_t>*> resolver_node(g);
+    tbb::flow::make_edge(resolver_node,resover_node_nobuffer);
     searcher_node_t searcher(g,num_threads+1,move_searcher{dfs_ordered_nodes,radius});
     tbb::flow::make_edge(std::get<0>(searcher.output_ports()),resolver_node);
     std::vector<size_t> nodes_to_search;
     auto last_request_time=std::chrono::steady_clock::now();
-    tbb::flow::source_node<std::vector<size_t>*> fetcher_node(g,fetcher(nodes_to_search,true,last_request_time));
+    tbb::flow::source_node<std::vector<size_t>*> fetcher_node(g,fetcher(nodes_to_search,last_request_time));
     tbb::flow::make_edge(fetcher_node,searcher);
     g.wait_for_all();
     MPI_Barrier(MPI_COMM_WORLD);

@@ -35,6 +35,7 @@
 #include <iostream>
 #include <sys/resource.h>
 thread_local TlRng rng;
+std::atomic_bool interrupted(false);
 bool use_bound;
 size_t get_memory(){
     struct rusage usage;
@@ -49,6 +50,7 @@ FILE* movalbe_src_log;
 bool changing_radius=false;
 void interrupt_handler(int) {
     fputs("interrupted\n", stderr);
+    interrupted=true;
     fflush(movalbe_src_log);
 }
 
@@ -364,6 +366,12 @@ int main(int argc, char **argv) {
             if (std::chrono::steady_clock::now()>=search_end_time) {
                 break;
             }
+            if (interrupted) {
+                break;
+            }
+        }
+        if (interrupted) {
+            break;
         }
         float improvement=1-((float)new_score/(float)score_before);
         fprintf(stderr, "Last round improvement %f\n",improvement);
