@@ -23,6 +23,7 @@ extern int process_count;
 extern bool use_bound; 
 extern uint32_t num_threads;
 namespace MAT = Mutation_Annotated_Tree;
+extern std::atomic_bool interrupted;
 extern std::vector<std::string> changed_nodes;
 extern tbb::concurrent_unordered_map<MAT::Mutation, tbb::concurrent_unordered_map<std::string, nuc_one_hot>*,Mutation_Pos_Only_Hash,
        Mutation_Pos_Only_Comparator>
