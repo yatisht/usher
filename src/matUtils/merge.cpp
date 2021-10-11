@@ -64,24 +64,27 @@ bool consistent(MAT::Tree A, MAT::Tree B, concurMap& consistNodes) {
     std::set_difference(A_leaves.begin(), A_leaves.end(), common_leaves.begin(), common_leaves.end(), std::back_inserter(A_to_remove));
 
     for (auto l : A_to_remove) {
-        Asub.remove_node(l, true);
+        Asub.remove_node(l, false);
     }
+    Asub.remove_single_child_nodes();
 
     auto Bsub = get_tree_copy(B);
     std::set_difference(B_leaves.begin(), B_leaves.end(), common_leaves.begin(), common_leaves.end(), std::back_inserter(B_to_remove));
 
     for (auto l : B_to_remove) {
-        Bsub.remove_node(l, true);
+        Bsub.remove_node(l, false);
     }
+    Bsub.remove_single_child_nodes();
 
 
-    Asub.rotate_for_consistency();
-    Bsub.rotate_for_consistency();
     auto Adfs = Asub.depth_first_expansion();
     auto Bdfs = Bsub.depth_first_expansion();
     if (Adfs.size() != Bdfs.size()) {
-        return false;
+        fprintf(stderr, "ERROR: Different DFS sizes for the common subtrees (%zu and %zu). MATs may not be consistent.", 
+                Adfs.size(), Bdfs.size());
     }
+    Asub.rotate_for_consistency();
+    Bsub.rotate_for_consistency();
 
     bool ret = true;
     static tbb::affinity_partitioner ap;
@@ -147,7 +150,7 @@ bool chelper(MAT::Node *a, MAT::Node *b, concurMap& consistNodes) {
         MAT::Mutation mut1 = a->mutations[x];
         MAT::Mutation mut2 = b->mutations[x];
         if (mut1.position != mut2.position) {
-            //fprintf(stderr, "WARNING: different mutation positions for %s (%zu) and %s (%zu)\n", a->identifier.c_str(), mut1.position, b->identifier.c_str(), mut1.position);
+            //fprintf(stderr, "WARNING: different mutation positions for %s (%zu) and %s (%zu)\n", a->identifier.c_str(), mut1.position, b->identifier.c_str(), mut2.position);
             return false;
         } else if (mut1.mut_nuc != mut2.mut_nuc) {
             //fprintf(stderr, "WARNING: different mutation nuc for %s (%zu) and %s (%zu)\n", a->identifier.c_str(), mut1.mut_nuc, b->identifier.c_str(), mut1.mut_nuc);

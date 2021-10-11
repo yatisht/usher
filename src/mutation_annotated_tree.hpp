@@ -131,6 +131,7 @@ class Tree {
     std::vector<Node*> rsearch (const std::string& nid, bool include_self = false) const;
     std::string get_clade_assignment (const Node* n, int clade_id, bool include_self = true) const;
     void remove_node (std::string nid, bool move_level);
+    void remove_single_child_nodes();
     void move_node (std::string source, std::string destination, bool move_level=true);
     std::vector<Node*> breadth_first_expansion(std::string nid="");
     std::vector<Node*> depth_first_expansion(Node* node=NULL) const;
