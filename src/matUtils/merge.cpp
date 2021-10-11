@@ -77,23 +77,7 @@ bool consistent(MAT::Tree A, MAT::Tree B, concurMap& consistNodes) {
     }
     Asub.remove_single_child_nodes();
 
-//    auto Bsub = get_tree_copy(B);
-//    std::set_difference(B_leaves.begin(), B_leaves.end(), common_leaves.begin(), common_leaves.end(), std::back_inserter(B_to_remove));
-//
-//    for (auto l : B_to_remove) {
-//        Bsub.remove_node(l, false);
-//    }
-//    Bsub.remove_single_child_nodes();
-
-
     auto Adfs = Asub.depth_first_expansion();
-//    auto Bdfs = Bsub.depth_first_expansion();
-//    if (Adfs.size() != Bdfs.size()) {
-//        fprintf(stderr, "ERROR: Different DFS sizes for the common subtrees (%zu and %zu). MATs may not be consistent.",
-//                Adfs.size(), Bdfs.size());
-//    }
-//    Asub.rotate_for_consistency();
-//    Bsub.rotate_for_consistency();
 
     bool ret = true;
     static tbb::affinity_partitioner ap;
@@ -189,10 +173,6 @@ void merge_main(po::parsed_options parsed) {
     }
 
     //Checks for consistency in mutation paths between the two trees
-    //if (consistent(baseMat, otherMat) == false) {
-    //fprintf(stderr, "WARNING: MAT files are not consistent!\n");
-    //exit(1);
-    //}
     consistent(baseMat, otherMat, consistNodes);
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 
