@@ -1053,7 +1053,7 @@ void Mutation_Annotated_Tree::Tree::remove_single_child_nodes() {
             auto to_delete = curr_parent;
             curr_parent = curr_parent->parent;
             delete to_delete;
-        }  
+        }
     }
 }
 

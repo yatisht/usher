@@ -131,24 +131,24 @@ void Node::delete_this() {
 void Mutation_Annotated_Tree::Tree::delete_nodes() {
     root->delete_this();
 }
-static void get_leaves_helper(Node* root, std::vector<Node*>& out){
-    for(auto child:root->children){
+static void get_leaves_helper(Node* root, std::vector<Node*>& out) {
+    for(auto child:root->children) {
         if (child->is_leaf()) {
             out.push_back(child);
-        }else {
+        } else {
             get_leaves_helper(child, out);
         }
     }
 }
-std::vector<Node*> Mutation_Annotated_Tree::Tree::get_leaves() const{
+std::vector<Node*> Mutation_Annotated_Tree::Tree::get_leaves() const {
     std::vector<Node*> out;
     get_leaves_helper(root, out);
     return out;
 }
 
-void Mutation_Annotated_Tree::Tree::populate_ignored_range(){
+void Mutation_Annotated_Tree::Tree::populate_ignored_range() {
     auto leaves=breadth_first_expansion();
-    tbb::parallel_for(tbb::blocked_range<size_t>(0,leaves.size()),[&leaves](const tbb::blocked_range<size_t>& range){
+    tbb::parallel_for(tbb::blocked_range<size_t>(0,leaves.size()),[&leaves](const tbb::blocked_range<size_t>& range) {
         for (auto idx=range.begin(); idx<range.end(); idx++) {
             auto leaf=leaves[idx];
             leaf->populate_ignored_range();

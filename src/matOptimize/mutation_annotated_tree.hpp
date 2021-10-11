@@ -117,13 +117,13 @@ class Mutation {
     void set_boundary_one_hot(nuc_one_hot boundary1) {
         boundary1_all_major_allele=(boundary1_all_major_allele&0xf)|(boundary1<<4);
     }
-    nuc_one_hot get_sensitive_decrement()const{
+    nuc_one_hot get_sensitive_decrement()const {
         return decrement_increment_effect>>4;
     }
-    nuc_one_hot get_sensitive_increment()const{
+    nuc_one_hot get_sensitive_increment()const {
         return decrement_increment_effect&0xf;
     }
-    void set_sensitive_change(nuc_one_hot decrement,nuc_one_hot increment){
+    void set_sensitive_change(nuc_one_hot decrement,nuc_one_hot increment) {
         decrement_increment_effect=(decrement<<4)|increment;
     }
     Mutation(const std::string& chromosome,int position,nuc_one_hot mut,nuc_one_hot par,nuc_one_hot tie,nuc_one_hot ref=0);
@@ -131,9 +131,9 @@ class Mutation {
     Mutation(int pos):position(pos),chrom_idx(0),par_mut_nuc(0),boundary1_all_major_allele(0) {}
 
     Mutation(uint8_t chrom_idx,int pos,uint8_t par_nuc,uint8_t mut_nuc):position(pos),chrom_idx(chrom_idx),par_mut_nuc((par_nuc<<4)|mut_nuc),boundary1_all_major_allele(mut_nuc) {}
-    struct ignored{};
+    struct ignored {};
     Mutation(uint8_t chrom_idx,int pos,uint8_t par_nuc,uint8_t mut_nuc,ignored):position(pos),chrom_idx(chrom_idx),par_mut_nuc((par_nuc<<4)|mut_nuc),boundary1_all_major_allele(0xf) {}
-    
+
     bool same_chrom(const Mutation& other) const {
         return chrom_idx==other.chrom_idx;
     }
@@ -160,7 +160,7 @@ class Mutation {
                 return m;
             }
      */
-    Mutation():position(-1),chrom_idx(0),par_mut_nuc(0),boundary1_all_major_allele(0){
+    Mutation():position(-1),chrom_idx(0),par_mut_nuc(0),boundary1_all_major_allele(0) {
     }
 
     nuc_one_hot get_ref_one_hot() const {

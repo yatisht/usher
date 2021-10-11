@@ -60,7 +60,7 @@ char Conflict_Resolver::operator()(std::vector<Profitable_Moves_ptr_t>* candidat
     char ret=0;
     Profitable_Moves_ptr_t selected_move=nullptr;
     if (defered_nodes) {
-        defered_nodes->push_back(candidate_move[0]->src->identifier);        
+        defered_nodes->push_back(candidate_move[0]->src->identifier);
     }
     for (Profitable_Moves_ptr_t& move : candidate_move) {
         move->populate_involved_nodes();
@@ -91,9 +91,9 @@ void schedule_moves(Cross_t& potential_crosses, std::vector<Profitable_Moves_ptr
     //before most of the other
     for (auto& this_move:potential_crosses) {
         if (this_move) {
-                out.push_back(this_move);
-                //remove it to prevent it from enqueued again
-                remove_move(potential_crosses, this_move, 0);
+            out.push_back(this_move);
+            //remove it to prevent it from enqueued again
+            remove_move(potential_crosses, this_move, 0);
         }
     }
 #ifndef NDEBUG

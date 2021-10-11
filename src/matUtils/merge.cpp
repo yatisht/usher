@@ -89,7 +89,7 @@ bool consistent(MAT::Tree A, MAT::Tree B, concurMap& consistNodes) {
     auto Adfs = Asub.depth_first_expansion();
 //    auto Bdfs = Bsub.depth_first_expansion();
 //    if (Adfs.size() != Bdfs.size()) {
-//        fprintf(stderr, "ERROR: Different DFS sizes for the common subtrees (%zu and %zu). MATs may not be consistent.", 
+//        fprintf(stderr, "ERROR: Different DFS sizes for the common subtrees (%zu and %zu). MATs may not be consistent.",
 //                Adfs.size(), Bdfs.size());
 //    }
 //    Asub.rotate_for_consistency();
@@ -118,8 +118,7 @@ bool consistent(MAT::Tree A, MAT::Tree B, concurMap& consistNodes) {
 
                 if ((lca1 != NULL) && (lca2!= NULL)) {
                     consistNodes.emplace(std::pair<std::string, std::string> (lca2->identifier, lca1->identifier));
-                }
-                else {
+                } else {
                     fprintf(stderr, "NULL found!\n");
                 }
             }

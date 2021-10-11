@@ -54,8 +54,12 @@ struct output_mutation {
         }
         mut_out.push_back(last_mut);
     }
-    void push_back(const MAT::Mutation &mut) { mut_out.push_back(mut); }
-    void reserve(size_t in) { mut_out.reserve(in); }
+    void push_back(const MAT::Mutation &mut) {
+        mut_out.push_back(mut);
+    }
+    void reserve(size_t in) {
+        mut_out.reserve(in);
+    }
     void exhaust(MAT::Mutations_Collection::const_iterator &par_iter) {
         while (par_iter->position < INT_MAX) {
             mut_out.push_back(*par_iter);
@@ -77,7 +81,7 @@ void fill_ignored_mutations(
     Mutation_Annotated_Tree::ignored_t::const_iterator &ignored_iter,
     outputer_type next_level_muts) {
     for (int position = ignored_iter->first; position <= ignored_iter->second;
-         position++) {
+            position++) {
         while (par_iter->position < position) {
             next_level_muts.push_back(*par_iter);
             par_iter++;
@@ -167,7 +171,9 @@ struct no_deserialize_condensed_nodes {
 };
 struct Load_Subtree_pararllel_Continuation : public tbb::task {
     MAT::Mutations_Collection mutation_so_far;
-    tbb::task *execute() { return nullptr; }
+    tbb::task *execute() {
+        return nullptr;
+    }
 };
 template <typename do_serialize_condensed>
 struct Load_Subtree_pararllel : public tbb::task {
@@ -189,7 +195,7 @@ struct Load_Subtree_pararllel : public tbb::task {
         out = new MAT::Node();
         out->parent = parent;
         google::protobuf::io::CodedInputStream inputi(file_start + start_offset,
-                                                      length);
+                length);
         Mutation_Detailed::node node;
         node.ParseFromCodedStream(&inputi);
         out->identifier = node.identifier();
@@ -197,15 +203,15 @@ struct Load_Subtree_pararllel : public tbb::task {
         size_t ignore_range_size = node.ignored_range_end_size();
         int ignored_size = 0;
         if (ignore_range_size) {
-        out->ignore.reserve(ignore_range_size+1);
-        for (size_t ignore_idx = 0; ignore_idx < ignore_range_size;
-             ignore_idx++) {
-            auto start = node.ignored_range_start(ignore_idx);
-            auto end = node.ignored_range_end(ignore_idx);
-            out->ignore.emplace_back(start, end);
-            ignored_size += (end - start)+1;
-        }
-        out->ignore.emplace_back(INT_MAX, INT_MAX);
+            out->ignore.reserve(ignore_range_size+1);
+            for (size_t ignore_idx = 0; ignore_idx < ignore_range_size;
+                    ignore_idx++) {
+                auto start = node.ignored_range_start(ignore_idx);
+                auto end = node.ignored_range_end(ignore_idx);
+                out->ignore.emplace_back(start, end);
+                ignored_size += (end - start)+1;
+            }
+            out->ignore.emplace_back(INT_MAX, INT_MAX);
         }
         // deserialize condensed nodes
         do_serialize_condensed()(node, condensed_nodes, out);
@@ -213,18 +219,18 @@ struct Load_Subtree_pararllel : public tbb::task {
         if (child_size) {
             out->children.resize(child_size);
             auto continuation = new (allocate_continuation())
-                Load_Subtree_pararllel_Continuation;
+            Load_Subtree_pararllel_Continuation;
             continuation->set_ref_count(child_size);
             load_mutations(out, node, ignored_size, parent_mutations,
                            continuation->mutation_so_far);
             for (size_t child_idx = 0; child_idx < child_size; child_idx++) {
                 continuation->spawn(
                     *new (continuation->allocate_child())
-                        Load_Subtree_pararllel(
-                            out, file_start, node.children_offsets(child_idx),
-                            node.children_lengths(child_idx),
-                            out->children[child_idx], condensed_nodes,
-                            continuation->mutation_so_far));
+                    Load_Subtree_pararllel(
+                        out, file_start, node.children_offsets(child_idx),
+                        node.children_lengths(child_idx),
+                        out->children[child_idx], condensed_nodes,
+                        continuation->mutation_so_far));
             }
             return nullptr;
         }
@@ -236,7 +242,9 @@ struct no_free_input {
     void operator()(uint8_t *in) {}
 };
 struct free_input {
-    void operator()(uint8_t *in) { free(in); }
+    void operator()(uint8_t *in) {
+        free(in);
+    }
 };
 template <typename do_free_input> struct decompressor_t {
     uint8_t *start;
@@ -282,7 +290,7 @@ uncompress_file(const std::string &path) {
     uint8_t *curr = file;
     decompressor_node_t decompressor(
         g, tbb::flow::unlimited,
-        decompressor_t<no_free_input>{uncompressed_buffer});
+        decompressor_t<no_free_input> {uncompressed_buffer});
     tbb::flow::source_node<uint8_t *> src(g, file_loader{curr, end_of_file-8});
     tbb::flow::make_edge(src, decompressor);
     g.wait_for_all();
@@ -291,7 +299,7 @@ uncompress_file(const std::string &path) {
     return std::make_pair(uncompressed_buffer,
                           uncompressed_buffer + uncompressed_size);
 }
-static void receive_MPI(decompressor_node_t& decompressor,size_t& uncompressed_size){
+static void receive_MPI(decompressor_node_t& decompressor,size_t& uncompressed_size) {
     while (true) {
         size_t msg_size;
         //fprintf(stderr,"====Waiting segment length\n");
@@ -318,7 +326,7 @@ receive_mpi_uncompress() {
     tbb::flow::graph g;
     decompressor_node_t decompressor(
         g, tbb::flow::unlimited,
-        decompressor_t<free_input>{uncompressed_buffer});
+        decompressor_t<free_input> {uncompressed_buffer});
     receive_MPI(decompressor,uncompressed_size);
     g.wait_for_all();
     return std::make_pair(uncompressed_buffer,
@@ -326,7 +334,7 @@ receive_mpi_uncompress() {
 }
 
 template<typename T>
-static void deserialize_common(std::pair<uint8_t*,uint8_t*> uncompressed,MAT::Tree* tree){
+static void deserialize_common(std::pair<uint8_t*,uint8_t*> uncompressed,MAT::Tree* tree) {
     auto file = uncompressed.first;
     auto file_end = uncompressed.second;
     uint64_t meta_offset = *(uint64_t*)(file_end - 8);
@@ -336,9 +344,9 @@ static void deserialize_common(std::pair<uint8_t*,uint8_t*> uncompressed,MAT::Tr
     root_muts.mutations.emplace_back(INT_MAX);
     tbb::task::spawn_root_and_wait(
         *new (tbb::task::allocate_root())
-            Load_Subtree_pararllel<T>(
-                nullptr, (uint8_t *)file, temp.first, temp.second, tree->root,
-                tree->condensed_nodes, root_muts));
+        Load_Subtree_pararllel<T>(
+            nullptr, (uint8_t *)file, temp.first, temp.second, tree->root,
+            tree->condensed_nodes, root_muts));
     free(uncompressed.first);
     std::vector<MAT::Node *> dfs_nodes = tree->depth_first_expansion();
     for (auto node : dfs_nodes) {

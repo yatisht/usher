@@ -36,17 +36,23 @@ struct to_compress_container {
         curr_size += in->size();
         to_compress.push_back(in);
     }
-    bool exceed_limit() { return curr_size >= BLOCK_SIZE; }
-    operator bool() { return curr_size != 0; }
+    bool exceed_limit() {
+        return curr_size >= BLOCK_SIZE;
+    }
+    operator bool() {
+        return curr_size != 0;
+    }
 };
 struct compressor_out {
     uint8_t *content;
     size_t size;
-    compressor_out(){}
+    compressor_out() {}
     compressor_out(size_t reserve_size) {
         content = (uint8_t *)malloc(reserve_size);
     }
-    operator uint8_t *() { return content; }
+    operator uint8_t *() {
+        return content;
+    }
 };
 struct compressor_node {
     compressor_out operator()(to_compress_container *to_compress) {
@@ -71,7 +77,7 @@ struct compressor_node {
 };
 
 typedef tbb::flow::function_node<to_compress_container *, compressor_out>
-    compressor_node_t;
+compressor_node_t;
 struct serializer_t {
     std::mutex out_mutex;
     size_t curr_offset;
@@ -160,7 +166,7 @@ static void serialize_node(const MAT::Node *root, const MAT::Tree &tree,
     this_node.mutable_children_lengths()->Reserve(children_offset.size());
     this_node.mutable_children_offsets()->Reserve(children_offset.size());
     for (size_t child_idx = 0; child_idx < children_offset.size();
-         child_idx++) {
+            child_idx++) {
         this_node.add_children_lengths(children_length[child_idx]);
         this_node.add_children_offsets(children_offset[child_idx]);
     }
@@ -215,22 +221,22 @@ struct subtree_serializer : public tbb::task {
         auto child_size = root->children.size();
         if (child_size) {
             auto continuation = new (allocate_continuation())
-                subtree_serializer_continuation<condensed_node_serializer>(
-                    offset_out, length_out, root, tree, out_stream,child_size);
+            subtree_serializer_continuation<condensed_node_serializer>(
+                offset_out, length_out, root, tree, out_stream,child_size);
             std::vector<std::pair<u_int64_t, u_int64_t>> child_addr(child_size);
             continuation->set_ref_count(child_size);
             for (size_t child_idx = 0; child_idx < child_size; child_idx++) {
                 continuation->spawn(
                     *(new (continuation->allocate_child())
-                          subtree_serializer<condensed_node_serializer>(
-                              continuation->children_offset[child_idx],
-                              continuation->children_length[child_idx],
-                              root->children[child_idx], tree, out_stream)));
+                      subtree_serializer<condensed_node_serializer>(
+                          continuation->children_offset[child_idx],
+                          continuation->children_length[child_idx],
+                          root->children[child_idx], tree, out_stream)));
             }
             return nullptr;
         } else {
             serialize_node<condensed_node_serializer>(root, tree, offset_out,
-                                                      length_out, out_stream);
+                    length_out, out_stream);
             return new (allocate_continuation()) tbb::empty_task();
         }
     }
@@ -262,7 +268,7 @@ struct file_writer_t {
         free(to_write.content);
     }
 };
-struct mpi_writer{
+struct mpi_writer {
     void operator()(compressor_out to_write) {
         MPI_Bcast( &to_write.size,1,MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
         //fprintf(stderr,":::::Sending segmane tof length %zu\n", to_write.size );
@@ -271,13 +277,13 @@ struct mpi_writer{
     }
 };
 template<typename T>
-size_t serialize_tree_general(const MAT::Tree* tree,serializer_t& serializer){
-        u_int64_t root_offset;
+size_t serialize_tree_general(const MAT::Tree* tree,serializer_t& serializer) {
+    u_int64_t root_offset;
     u_int64_t root_length;
     tbb::task::spawn_root_and_wait(
         *(new (tbb::task::allocate_root())
-              subtree_serializer<T>(
-                  root_offset, root_length, tree->root, *tree, serializer)));
+          subtree_serializer<T>(
+              root_offset, root_length, tree->root, *tree, serializer)));
     return save_meta(*tree, root_offset, root_length, serializer);
 }
 // main save function
@@ -296,7 +302,7 @@ void Mutation_Annotated_Tree::Tree::save_detailed_mutations(
     serializer_t serializer(compressor);
     auto uncompressed_length=serialize_tree_general<serialize_condensed_node>(this,serializer);
     g.wait_for_all();
-    if(write(fd, &uncompressed_length, 8)!=8){
+    if(write(fd, &uncompressed_length, 8)!=8) {
         puts("Failed to write intermediate protobuf");
     }
     close(fd);

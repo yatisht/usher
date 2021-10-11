@@ -227,7 +227,7 @@ template <typename Functor> class process_LCA {
   public:
     template <typename src_t>
     void operator()(
-        const MAT::Node *LCA, 
+        const MAT::Node *LCA,
         const src_t &from_src_remove,
         const Mutation_Count_Change_Collection &from_dst_add,
         Mutation_Count_Change_Collection &LCA_parent_mutation_count_change_out,
@@ -253,14 +253,14 @@ void get_LCA_mutation(
     Mutation_Count_Change_Collection &LCA_parent_mutation_count_change_out,
     int &parsimony_score_change) {
     assert(LCA->children.size()>1);
-        if (src->parent==LCA) {
-            process_LCA<process_LCA_more_than_two_src_terminal>()(
-                LCA,  src->mutations, from_dst_add,
-                LCA_parent_mutation_count_change_out, parsimony_score_change);
-        } else {
-            process_LCA<process_LCA_more_than_two_src_not_terminal>()(
-                LCA,  from_src_remove, from_dst_add,
-                LCA_parent_mutation_count_change_out, parsimony_score_change);
-        }
-  
+    if (src->parent==LCA) {
+        process_LCA<process_LCA_more_than_two_src_terminal>()(
+            LCA,  src->mutations, from_dst_add,
+            LCA_parent_mutation_count_change_out, parsimony_score_change);
+    } else {
+        process_LCA<process_LCA_more_than_two_src_not_terminal>()(
+            LCA,  from_src_remove, from_dst_add,
+            LCA_parent_mutation_count_change_out, parsimony_score_change);
+    }
+
 }
