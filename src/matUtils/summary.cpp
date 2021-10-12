@@ -535,10 +535,14 @@ void summary_main(po::parsed_options parsed) {
         int samplecount = 0;
         auto dfs = T.depth_first_expansion();
         size_t slevel = 0;
+        size_t mlevel = 0;
         for (auto s: dfs) {
             nodecount++;
             if (s->is_leaf()) {
                 slevel += s->level;
+                if (s->level > mlevel) {
+                    mlevel = s->level;
+                }
                 samplecount++;
             }
         }
@@ -548,7 +552,7 @@ void summary_main(po::parsed_options parsed) {
         fprintf(stdout, "Total Samples in Condensed Nodes: %ld\n", num_condensed_leaves);
         fprintf(stdout, "Total Tree Parsimony: %ld\n", T.get_parsimony_score());
         fprintf(stdout, "Number of Clade Annotations: %ld\n", T.get_num_annotations());
-        fprintf(stdout, "Max Tree Depth: %ld\n", T.get_max_level());
+        fprintf(stdout, "Max Tree Depth: %ld\n", mlevel);
         fprintf(stdout, "Mean Tree Depth: %f\n", static_cast<float>(slevel / samplecount));
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
