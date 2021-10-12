@@ -263,9 +263,9 @@ void forward_per_node(
     &output,
     std::vector<nuc_one_hot> &states, size_t node_idx,
     nuc_one_hot parent_state,MAT::Tree* try_similar) {
-        states[node_idx] =
-            set_state(this_range, boundary1_major_allele[node_idx], parent_state,
-                      base, output[node_idx],try_similar);
+    states[node_idx] =
+        set_state(this_range, boundary1_major_allele[node_idx], parent_state,
+                  base, output[node_idx],try_similar);
 }
 static void FS_forward_pass(
     const std::vector<forward_pass_range>& forward_pass_idx,

@@ -90,11 +90,11 @@ int check_move_profitable_dst_not_LCA(
     Mutation_Count_Change_Collection dst_added;
     //Going up from dst node to LCA node to adjust state assignment
     dst_branch(LCA, mutations, parsimony_score_change,
-                    dst, dst_added,src->parent==LCA?src->mutations.size():0
+               dst, dst_added,src->parent==LCA?src->mutations.size():0
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
-                   , debug_from_dst
+               , debug_from_dst
 #endif
-                  );
+              );
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
     std::vector<Mutation_Count_Change_Collection> debug_above_LCA;
 #endif

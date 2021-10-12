@@ -1001,6 +1001,62 @@ void Mutation_Annotated_Tree::Tree::remove_node (std::string nid, bool move_leve
     remove_node_helper (nid, move_level);
 }
 
+void Mutation_Annotated_Tree::Tree::remove_single_child_nodes() {
+    auto bfs = breadth_first_expansion();
+    for (auto n: bfs) {
+        if ((n == root) || (n->children.size() != 1)) {
+            continue;
+        }
+
+        auto curr_parent = n;
+        auto child = n->children[0];
+        if (curr_parent->parent != NULL) {
+            child->parent = curr_parent->parent;
+            child->level = curr_parent->parent->level + 1;
+            child->branch_length += curr_parent->branch_length;
+
+            std::vector<Mutation> tmp;
+            for (auto m: child->mutations) {
+                tmp.emplace_back(m);
+            }
+
+            //Clear and add back mutations in chrono order
+            child->clear_mutations();
+            for (auto m: curr_parent->mutations) {
+                child->add_mutation(m);
+            }
+            for (auto m: tmp) {
+                child->add_mutation(m);
+            }
+
+            curr_parent->parent->children.push_back(child);
+
+            auto iter = std::find(curr_parent->parent->children.begin(), curr_parent->parent->children.end(), curr_parent);
+            assert(iter != curr_parent->parent->children.end());
+            curr_parent->parent->children.erase(iter);
+
+            // Update levels of source descendants
+            std::queue<Node*> remaining_nodes;
+            remaining_nodes.push(child);
+            while (remaining_nodes.size() > 0) {
+                Node* curr_node = remaining_nodes.front();
+                remaining_nodes.pop();
+                curr_node->level = curr_node->parent->level + 1;
+                for (auto c: curr_node->children) {
+                    remaining_nodes.push(c);
+                }
+            }
+
+            auto par_it = all_nodes.find(curr_parent->identifier);
+            assert (par_it != all_nodes.end());
+            all_nodes.erase(par_it);
+            auto to_delete = curr_parent;
+            curr_parent = curr_parent->parent;
+            delete to_delete;
+        }
+    }
+}
+
 void Mutation_Annotated_Tree::Tree::move_node (std::string source_id, std::string dest_id, bool move_level) {
     Node* source = all_nodes[source_id];
     Node* destination = all_nodes[dest_id];

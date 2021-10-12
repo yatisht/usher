@@ -20,7 +20,7 @@
 #define WORK_RES_TAG 2
 extern int this_rank;
 extern int process_count;
-extern bool use_bound; 
+extern bool use_bound;
 extern uint32_t num_threads;
 namespace MAT = Mutation_Annotated_Tree;
 extern std::atomic_bool interrupted;
@@ -36,12 +36,12 @@ struct Profitable_Moves {
     int radius_left;
     std::unordered_set<MAT::Node*> involved_nodes;
     template<typename F>
-    void apply_nodes(F f){
+    void apply_nodes(F f) {
         for (const auto node : involved_nodes) {
             f(node);
         }
     }
-    void populate_involved_nodes(){
+    void populate_involved_nodes() {
         involved_nodes.reserve(2+2*LCA->level-src->level-dst->level);
         involved_nodes.insert(LCA);
         auto src_ancestor=src;
@@ -55,10 +55,10 @@ struct Profitable_Moves {
             dst_ancestor=dst_ancestor->parent;
         }
     }
-    MAT::Node* get_src() const{
+    MAT::Node* get_src() const {
         return src;
     }
-    MAT::Node* get_dst()const{
+    MAT::Node* get_dst()const {
         return dst;
     }
 };
@@ -89,12 +89,12 @@ void add_root(MAT::Tree *tree) ;
 void VCF_input(const char * name,MAT::Tree& tree);
 
 void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
-                                        MAT::Tree &t,int radius,FILE* log,bool allow_drift,int iteration,
-                                        std::vector<MAT::Node*>& deferred_nodes_out,bool MPI_involved,std::chrono::steady_clock::time_point end_time,bool do_continue
+                               MAT::Tree &t,int radius,FILE* log,bool allow_drift,int iteration,
+                               std::vector<MAT::Node*>& deferred_nodes_out,bool MPI_involved,std::chrono::steady_clock::time_point end_time,bool do_continue
 #ifndef NDEBUG
-                     , Original_State_t& origin_states
+                               , Original_State_t& origin_states
 #endif
-                                       );
+                              );
 
 void optimize_tree_worker_thread(MAT::Tree &t,int radius);
 void save_final_tree(MAT::Tree &t,const std::string &output_path);
@@ -112,9 +112,9 @@ extern thread_local TlRng rng;
 void adjust_all(MAT::Tree &tree) ;
 size_t get_memory();
 #ifdef CHECK_BOUND
-struct counters{
+struct counters {
     size_t saved;
     size_t total;
-    counters():saved(0),total(0){}
+    counters():saved(0),total(0) {}
 };
 #endif

@@ -7,7 +7,7 @@
 #include <array>
 #include "../stack_allocator.hpp"
 typedef std::vector<std::array<std::vector<unsigned int>, 4>> mutated_node_dfs_idx_t;
-extern mutated_node_dfs_idx_t mutated_node_dfs_idx; 
+extern mutated_node_dfs_idx_t mutated_node_dfs_idx;
 namespace MAT = Mutation_Annotated_Tree;
 //Class for recording change in major allele set
 class Mutation_Count_Change {
@@ -72,7 +72,7 @@ class Mutation_Count_Change {
     nuc_one_hot get_par_state() const {
         return par_state;
     }
-    uint8_t get_chromIdx()const{
+    uint8_t get_chromIdx()const {
         return chromIdx;
     }
     //parsimony score change (number of children able to follow major allele) if the parent node is not sensitive at this loci
@@ -145,18 +145,18 @@ template <typename value_type> class range {
 };
 void find_moves_bounded(MAT::Node* src,output_t& out,int search_radius
 #ifdef CHECK_BOUND
-,counters& count
+                        ,counters& count
 #endif
-);
-struct node_info{
+                       );
+struct node_info {
     size_t dfs_idx;
     size_t level;
-    bool operator<(const node_info& other)const{
+    bool operator<(const node_info& other)const {
         return dfs_idx<other.dfs_idx;
     }
     uint8_t base;
 };
-struct range_tree_node{
+struct range_tree_node {
     uint32_t dfs_start_idx;
     uint32_t dfs_end_idx;
     std::array<LEVEL_T, 4> min_level;
@@ -166,11 +166,11 @@ struct range_tree_node{
     //uint8_t child_size;
     //uint8_t dist_from_end;
 };
-struct range_tree{
+struct range_tree {
     std::vector<uint32_t> end_idxes;
     std::vector<range_tree_node> nodes;
     IDX_TREE_IDX_T find_idx(const MAT::Node* node,IDX_TREE_IDX_T& last_probe_idx,IDX_TREE_IDX_T probe_start_idx=0) const ;
-    IDX_TREE_IDX_T find_idx(const MAT::Node* node) const{
+    IDX_TREE_IDX_T find_idx(const MAT::Node* node) const {
         IDX_TREE_IDX_T ignored;
         return find_idx(node,ignored,0);
     }

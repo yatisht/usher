@@ -74,7 +74,7 @@ void get_intermediate_nodes_mutations(
             parent_node_mutation_count_change, parent_parsimony_score_change);
         merge_func<intermediate_mut_functor_one_children>()(
             this_node_mutation_count_change, node->mutations, functor);
-    }else {
+    } else {
         intermediate_mut_functor functor(parent_node_mutation_count_change,
                                          parent_parsimony_score_change);
         merge_func<intermediate_mut_functor>()(this_node_mutation_count_change,

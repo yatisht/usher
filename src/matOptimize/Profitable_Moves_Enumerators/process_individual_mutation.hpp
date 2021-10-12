@@ -49,8 +49,8 @@ static nuc_one_hot decrement_increment_mutation_count(
     Mutation_Count_Change_Collection &parent_node_mutation_count_change,
     int &score_change) {
     return decrement_increment_mutation_count(
-        parent_mutation, in.get_decremented(), in.get_incremented(),
-        parent_node_mutation_count_change, score_change);
+               parent_mutation, in.get_decremented(), in.get_incremented(),
+               parent_node_mutation_count_change, score_change);
 }
 
 nuc_one_hot dbl_inc_dec_mutations(

@@ -36,6 +36,15 @@ po::variables_map parse_merge_command(po::parsed_options parsed) {
     }
     return vm;
 }
+
+std::string get_first_leaf(MAT::Node* n) {
+    auto ret = n;
+    while (ret->children.size() > 0) {
+        ret = ret->children[0];
+    }
+    return ret->identifier;
+}
+
 /**
  * Checks for consistency between both MAT files to ensure that they are able to merge
  **/
@@ -64,24 +73,11 @@ bool consistent(MAT::Tree A, MAT::Tree B, concurMap& consistNodes) {
     std::set_difference(A_leaves.begin(), A_leaves.end(), common_leaves.begin(), common_leaves.end(), std::back_inserter(A_to_remove));
 
     for (auto l : A_to_remove) {
-        Asub.remove_node(l, true);
+        Asub.remove_node(l, false);
     }
+    Asub.remove_single_child_nodes();
 
-    auto Bsub = get_tree_copy(B);
-    std::set_difference(B_leaves.begin(), B_leaves.end(), common_leaves.begin(), common_leaves.end(), std::back_inserter(B_to_remove));
-
-    for (auto l : B_to_remove) {
-        Bsub.remove_node(l, true);
-    }
-
-
-    Asub.rotate_for_consistency();
-    Bsub.rotate_for_consistency();
     auto Adfs = Asub.depth_first_expansion();
-    auto Bdfs = Bsub.depth_first_expansion();
-    if (Adfs.size() != Bdfs.size()) {
-        return false;
-    }
 
     bool ret = true;
     static tbb::affinity_partitioner ap;
@@ -95,12 +91,24 @@ bool consistent(MAT::Tree A, MAT::Tree B, concurMap& consistNodes) {
     [&](tbb::blocked_range<size_t> r) {
         for (size_t k = r.begin(); k < r.end(); ++k) {
 
-            bool verify = chelper(Adfs[k], Bdfs[k], consistNodes);
+            auto n = Adfs[k];
+            if (n->children.size() > 1) {
+                auto c1 = n->children[0];
+                auto c2 = n->children[1];
+                auto l1 = get_first_leaf(c1);
+                auto l2 = get_first_leaf(c2);
+                auto lca1 = MAT::LCA(A, l1, l2);
+                auto lca2 = MAT::LCA(B, l1, l2);
 
-            if (verify == false) {
-                m.lock();
-                ret = false;
-                m.unlock();
+                if ((lca1 != NULL) && (lca2!= NULL)) {
+                    consistNodes.emplace(std::pair<std::string, std::string> (lca2->identifier, lca1->identifier));
+                } else {
+                    fprintf(stderr, "NULL found!\n");
+                }
+            }
+
+            if (n->children.size() == 0) {
+                consistNodes.emplace(std::pair<std::string, std::string> (n->identifier, n->identifier));
             }
         }
     },
@@ -111,53 +119,6 @@ bool consistent(MAT::Tree A, MAT::Tree B, concurMap& consistNodes) {
     }
     fprintf (stderr, "%zu of %zu nodes consistent.\n", consistNodes.size(), Adfs.size());
     return ret;
-}
-
-///**
-// * Creates subtrees by removing all uncommon nodes from a
-// * copy of the original tree
-// **/
-//MAT::Tree subtree(MAT::Tree tree, std::vector<std::string>& common) {
-//
-//    auto tree_copy = get_tree_copy(tree);
-//    auto all_leaves = tree_copy.get_leaves_ids();
-//    std::vector<std::string> to_remove;
-//    std::set_difference(all_leaves.begin(), all_leaves.end(), common.begin(), common.end(), std::back_inserter(to_remove));
-//
-//    for (auto k : to_remove) {
-//        tree_copy.remove_node(k, true);
-//    }
-//    return tree_copy;
-//}
-
-/**
- * Helper function for consistency that individually compares each node's mutation
- * to make sure that the mutation paths are identical
- * Maps all consistent nodes using the consistNodes hashmap
- **/
-
-bool chelper(MAT::Node *a, MAT::Node *b, concurMap& consistNodes) {
-    if (a->mutations.size() != b->mutations.size()) {
-        //fprintf(stderr, "WARNING: different mutation vector sizes for %s (%zu) and %s (%zu)\n", a->identifier.c_str(), a->mutations.size(), b->identifier.c_str(), b->mutations.size());
-        return false;
-    }
-    std::sort(a->mutations.begin(), a->mutations.end());
-    std::sort(b->mutations.begin(), b->mutations.end());
-    for (size_t x = 0; x < a->mutations.size(); x++) {
-        MAT::Mutation mut1 = a->mutations[x];
-        MAT::Mutation mut2 = b->mutations[x];
-        if (mut1.position != mut2.position) {
-            //fprintf(stderr, "WARNING: different mutation positions for %s (%zu) and %s (%zu)\n", a->identifier.c_str(), mut1.position, b->identifier.c_str(), mut1.position);
-            return false;
-        } else if (mut1.mut_nuc != mut2.mut_nuc) {
-            //fprintf(stderr, "WARNING: different mutation nuc for %s (%zu) and %s (%zu)\n", a->identifier.c_str(), mut1.mut_nuc, b->identifier.c_str(), mut1.mut_nuc);
-            return false;
-        }
-    }
-    //Maps all nodes that are consistent
-    consistNodes.emplace(std::pair<std::string, std::string> (b->identifier, a->identifier));
-
-    return true;
 }
 
 void merge_main(po::parsed_options parsed) {
@@ -212,10 +173,6 @@ void merge_main(po::parsed_options parsed) {
     }
 
     //Checks for consistency in mutation paths between the two trees
-    //if (consistent(baseMat, otherMat) == false) {
-    //fprintf(stderr, "WARNING: MAT files are not consistent!\n");
-    //exit(1);
-    //}
     consistent(baseMat, otherMat, consistNodes);
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 

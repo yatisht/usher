@@ -16,7 +16,7 @@ static void added_no_match(const Mutation_Count_Change &mutation_to_add,
         out.back().set_change(0, mutation_to_add.get_incremented());
     }
 }
-static nuc_one_hot get_new_state_from_change(const MAT::Mutation& ori_mut,const Mutation_Count_Change & child_mut_change){
+static nuc_one_hot get_new_state_from_change(const MAT::Mutation& ori_mut,const Mutation_Count_Change & child_mut_change) {
     return (ori_mut.get_all_major_allele()|child_mut_change.get_incremented())&(~child_mut_change.get_decremented());
 }
 /**

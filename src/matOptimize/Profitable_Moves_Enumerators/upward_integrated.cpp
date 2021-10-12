@@ -27,44 +27,44 @@ void output_LCA(
         actual_LCA, par_score_change, allele_count_change_from_splitting_LCA,
         parent_of_parent_added);
     std::vector<MAT::Node *> ignored;
-    #ifdef CHECK_PAR_MAIN
+#ifdef CHECK_PAR_MAIN
     output_t temp;
     auto ref_out=individual_move(src_side.src, actual_LCA, actual_LCA, temp);
     if (ref_out>=0) {
         if (par_score_change<0) {
             fprintf(stderr, "%s\n",src_side.src->identifier.c_str());
-            #ifdef STOP_ON_ERROR
+#ifdef STOP_ON_ERROR
             raise(SIGTRAP);
-            #endif
+#endif
         }
         //assert(par_score_change>=0);
-    }else {
+    } else {
         if (ref_out!=par_score_change) {
             fprintf(stderr, "%s\n",src_side.src->identifier.c_str());
-            #ifdef STOP_ON_ERROR
+#ifdef STOP_ON_ERROR
             raise(SIGTRAP);
-            #endif     
+#endif
         }
         //assert(ref_out==par_score_change);
     }
-    #endif
+#endif
     output_result(src_side.src, actual_LCA, actual_LCA, par_score_change,
                   src_side.out, radius_left);
 }
 template<typename T>
 static void search_subtree_first_level(MAT::Node *node, MAT::Node *to_exclude,
-                                const src_side_info &src_side, int radius_left,
-                                Bounded_Mut_Change_Collection &either, T& ignored_range) {
+                                       const src_side_info &src_side, int radius_left,
+                                       Bounded_Mut_Change_Collection &either, T& ignored_range) {
     for (auto child : node->children) {
         if (child == to_exclude) {
             continue;
         } else {
             search_subtree_bounded(child, src_side, radius_left - 1, either,
-                                   src_side.src_par_score_lower_bound,ignored_range                       
+                                   src_side.src_par_score_lower_bound,ignored_range
 #ifdef CHECK_BOUND
-,true
+                                   ,true
 #endif
-                                   );
+                                  );
         }
     }
 }
@@ -81,7 +81,7 @@ allele_count_reserve(Mutation_Count_Change_Collection &allele_change_out,
 }
 static nuc_one_hot allele_cnt_change_middle(
     Mutation_Count_Change_Collection::const_iterator
-        &src_allele_cnt_change_iter,
+    &src_allele_cnt_change_iter,
     Mutation_Count_Change_Collection::const_iterator &src_allele_cnt_change_end,
     const MAT::Mutation &mut,
     Mutation_Count_Change_Collection &allele_change_out,
@@ -95,8 +95,8 @@ static nuc_one_hot allele_cnt_change_middle(
     if (src_allele_cnt_change_iter->get_position() == mut.get_position()) {
         int score_change = 0;
         major_allele = decrement_increment_mutation_count(
-            mut, (Mutation_Count_Change)*src_allele_cnt_change_iter,
-            allele_change_out, score_change);
+                           mut, (Mutation_Count_Change)*src_allele_cnt_change_iter,
+                           allele_change_out, score_change);
         next_src_par_score += score_change;
         src_allele_cnt_change_iter++;
     }
@@ -104,7 +104,7 @@ static nuc_one_hot allele_cnt_change_middle(
 }
 static void allele_cnt_change_end(
     Mutation_Count_Change_Collection::const_iterator
-        &src_allele_cnt_change_iter,
+    &src_allele_cnt_change_iter,
     Mutation_Count_Change_Collection::const_iterator &src_allele_cnt_change_end,
     Mutation_Count_Change_Collection &allele_change_out,
     int &next_src_par_score, int &) {
@@ -130,23 +130,23 @@ static nuc_one_hot allele_cnt_change_middle(
         src_allele_cnt_change_iter++;
     }
     if (src_allele_cnt_change_iter!=src_allele_cnt_change_end&&src_allele_cnt_change_iter->get_position() == mut.get_position()) {
-    assert(src_allele_cnt_change_iter->get_all_major_allele()!=0xf);
+        assert(src_allele_cnt_change_iter->get_all_major_allele()!=0xf);
         int score_change = -1;
         major_allele = decrement_mutation_count(
-            allele_change_out, mut,
-            src_allele_cnt_change_iter->get_all_major_allele(), score_change);
+                           allele_change_out, mut,
+                           src_allele_cnt_change_iter->get_all_major_allele(), score_change);
         // this node incrementing some allele that can reduce parsimony
         // score among ancestors of  parent node
         next_src_par_score += score_change;
         if (!(src_allele_cnt_change_iter->get_all_major_allele() &
-              mut.get_sensitive_decrement())) {
+                mut.get_sensitive_decrement())) {
             src_side_lower_bound--;
         }
         src_allele_cnt_change_iter++;
     } else {
         int score_change = -1;
         major_allele = decrement_mutation_count(
-            allele_change_out, mut, mut.get_mut_one_hot(), score_change);
+                           allele_change_out, mut, mut.get_mut_one_hot(), score_change);
         // this node incrementing some allele that can reduce parsimony
         // score among ancestors of  parent node
         next_src_par_score += score_change;
@@ -184,15 +184,15 @@ parent
     /
     src
 */
-MAT::Mutation* find_mut(MAT::Mutations_Collection& muts, int pos){
+MAT::Mutation* find_mut(MAT::Mutations_Collection& muts, int pos) {
     auto iter=muts.find(pos);
     if (iter==muts.end()) {
         return nullptr;
-    }else {
+    } else {
         return &(*iter);
     }
 }
-Mutation_Count_Change* find_mut(Mutation_Count_Change_Collection& muts, int pos){
+Mutation_Count_Change* find_mut(Mutation_Count_Change_Collection& muts, int pos) {
     for (auto &m:muts ) {
         if (m.get_position()==pos) {
             return &m;
@@ -200,7 +200,7 @@ Mutation_Count_Change* find_mut(Mutation_Count_Change_Collection& muts, int pos)
     }
     return nullptr;
 }
-Mutation_Count_Change_W_Lower_Bound_Downward* find_mut(Bounded_Mut_Change_Collection& muts, int pos){
+Mutation_Count_Change_W_Lower_Bound_Downward* find_mut(Bounded_Mut_Change_Collection& muts, int pos) {
     for (auto &m:muts ) {
         if (m.get_position()==pos) {
             return &m;
@@ -221,7 +221,7 @@ static bool
 upward_integrated(src_side_info &src_side,
                   std::vector<Mutation_Count_Change_W_Lower_Bound_to_ancestor> &src_mut_in, int radius_left,
                   std::vector<Mutation_Count_Change_W_Lower_Bound_to_ancestor> &mut_out, const T &src_branch, S ignore_iter) {
-                      auto old_LCA=src_side.LCA;
+    auto old_LCA=src_side.LCA;
     MAT::Node *node = old_LCA->parent;
     if (!node) {
         return false;
@@ -275,9 +275,9 @@ upward_integrated(src_side_info &src_side,
         // Calculate allele count change for parent (and new major allele at
         // parent node for splitting between parent node and its parent )
         nuc_one_hot major_allele = allele_cnt_change_middle(
-            src_allele_cnt_change_iter, src_allele_cnt_change_end, mut,
-            allele_change_out, next_src_par_score,
-            src_side.src_par_score_lower_bound);
+                                       src_allele_cnt_change_iter, src_allele_cnt_change_end, mut,
+                                       allele_change_out, next_src_par_score,
+                                       src_side.src_par_score_lower_bound);
         // Get mutations if placed as children of parent node, and whether it is
         // profitable to place between parent node and parent of parent node
         while (src_mut_iter->get_position() < mut.get_position()) {
@@ -288,7 +288,7 @@ upward_integrated(src_side_info &src_side,
             // accumulate mutation for placement
             if ( mut.get_par_one_hot() != src_mut_iter->get_incremented()) {
                 mut_out.emplace_back(*src_mut_iter,node,mut,sibling_muts);
-            }else {
+            } else {
                 src_mut_iter->to_ancestor_adjust_range(node, sibling_muts,mut);
             }
             // split LCA
@@ -321,7 +321,7 @@ upward_integrated(src_side_info &src_side,
                                sibling_muts,ignore_iter);
 
 
-    
+
     src_side.par_score_change_from_src_remove = next_src_par_score;
     src_side.allele_count_change_from_src = std::move(allele_change_out);
 
@@ -331,9 +331,9 @@ upward_integrated(src_side_info &src_side,
 }
 template<typename T>
 void __find_moves_bounded(MAT::Node *&src, int &search_radius,
-               std::vector<Mutation_Count_Change_W_Lower_Bound_to_ancestor> &src_mut,
-               std::vector<Mutation_Count_Change_W_Lower_Bound_to_ancestor> &src_mut_next,
-               src_side_info &src_side, T ignored_pos) {
+                          std::vector<Mutation_Count_Change_W_Lower_Bound_to_ancestor> &src_mut,
+                          std::vector<Mutation_Count_Change_W_Lower_Bound_to_ancestor> &src_mut_next,
+                          src_side_info &src_side, T ignored_pos) {
     upward_integrated(src_side, src_mut, search_radius, src_mut_next,
                       src->mutations,ignored_pos);
     for (int radius_left = search_radius - 1; radius_left > 0; radius_left--) {
@@ -348,15 +348,15 @@ void find_moves_bounded(MAT::Node *src, output_t &out, int search_radius
                         ,
                         counters &count
 #endif
-) {
+                       ) {
     std::vector<Mutation_Count_Change_W_Lower_Bound_to_ancestor> src_mut;
     std::vector<Mutation_Count_Change_W_Lower_Bound_to_ancestor> src_mut_next;
     src_mut.reserve(src->mutations.size());
-    #ifdef CHECK_BOUND
-    src_side_info src_side{out,count,0,0,src,src};
-    #else
-    src_side_info src_side{out,0,0,src,src};
-    #endif
+#ifdef CHECK_BOUND
+    src_side_info src_side {out,count,0,0,src,src};
+#else
+    src_side_info src_side {out,0,0,src,src};
+#endif
     for (const auto& mut : src->mutations) {
         if (mut.get_all_major_allele()==0xf||mut.get_par_one_hot()==mut.get_all_major_allele()) {
             continue;
@@ -367,7 +367,7 @@ void find_moves_bounded(MAT::Node *src, output_t &out, int search_radius
     src_mut.emplace_back();
     if (src->ignore.empty()) {
         __find_moves_bounded(src, search_radius, src_mut, src_mut_next, src_side,ignore_ranger_nop{});
-    }else {
+    } else {
         __find_moves_bounded(src, search_radius, src_mut, src_mut_next, src_side,ignore_ranger{src->ignore});
     }
 }
