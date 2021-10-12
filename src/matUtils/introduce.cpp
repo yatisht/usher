@@ -435,6 +435,8 @@ std::pair<boost::gregorian::date,boost::gregorian::date> get_nearest_date(MAT::T
                         } else {
                             continue;
                         }
+                    } catch (boost::bad_lexical_cast &e) {
+                        continue;
                     } catch (const std::out_of_range& oor) {
                         continue;
                     }
