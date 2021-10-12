@@ -553,7 +553,7 @@ void summary_main(po::parsed_options parsed) {
         fprintf(stdout, "Total Tree Parsimony: %ld\n", T.get_parsimony_score());
         fprintf(stdout, "Number of Clade Annotations: %ld\n", T.get_num_annotations());
         fprintf(stdout, "Max Tree Depth: %ld\n", mlevel);
-        fprintf(stdout, "Mean Tree Depth: %f\n", static_cast<float>(slevel / samplecount));
+        fprintf(stdout, "Mean Tree Depth: %f\n", static_cast<float>(slevel) / samplecount);
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
 }
