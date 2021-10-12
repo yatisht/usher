@@ -53,7 +53,9 @@ void interrupt_handler(int) {
     interrupted=true;
     fflush(movalbe_src_log);
 }
-
+void log_flush(int) {
+    fflush(movalbe_src_log);
+}
 namespace po = boost::program_options;
 namespace MAT = Mutation_Annotated_Tree;
 MAT::Node* get_LCA(MAT::Node* src,MAT::Node* dst);
@@ -74,9 +76,13 @@ void print_file_info(std::string info_msg,std::string error_msg,const std::strin
 }
 int main(int argc, char **argv) {
     int ignored;
-    MPI_Init_thread(&argc, &argv,MPI_THREAD_MULTIPLE,&ignored);
+    auto init_result=MPI_Init_thread(&argc, &argv,MPI_THREAD_MULTIPLE,&ignored);
+    if (init_result!=MPI_SUCCESS) {
+        fprintf(stderr, "MPI init failed\n");
+    }
     MPI_Comm_rank(MPI_COMM_WORLD, &this_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &process_count);
+    fprintf(stderr, "Running with %d processes\n",process_count);
     std::string output_path;
     std::string input_pb_path;
     std::string input_complete_pb_path;
@@ -124,6 +130,7 @@ int main(int argc, char **argv) {
     po::options_description all_options;
     all_options.add(desc);
     signal(SIGUSR2,interrupt_handler);
+    signal(SIGUSR1,log_flush);
     po::variables_map vm;
     try {
         po::store(po::command_line_parser(argc, argv).options(all_options).run(), vm);
