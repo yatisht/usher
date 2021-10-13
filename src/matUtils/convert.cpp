@@ -692,8 +692,6 @@ void populate_generic_metadata(int attribute_column, std::vector<std::string> &a
         } else {
             attributes[attribute_column] = seen_map[attr_val];
         }
-    } else if (attribute_column >= (int) attributes.size()) { // deals with last column being empty
-        attributes.push_back("0");
     } else {
         attributes[attribute_column] = "0";
     }
@@ -748,6 +746,7 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
         }
         bool first = true;
         int strain_column = -1;
+        std::unordered_map<std::string, bool> seen_in_this_file; // ignore duplicates per file
         while (std::getline(infile, line)) {
             if (line.length() < 3) {
                 continue;
@@ -772,11 +771,19 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
                 continue;
             }            
             std::string key = words[strain_column];
+            if ( seen_in_this_file.find(key) != seen_in_this_file.end() ) {
+                continue; // ignore duplicates in each metadata file
+            }
+            seen_in_this_file[key] = true;
             if (metadata.find(key) == metadata.end()) {
+                // if we haven't seen this sample yet
                 metadata[key] = std::vector<std::string>();
             }
             for (auto word : words){
                 metadata[key].push_back(word);
+            }
+            if (metadata[key].size() == header.size() - 1) {
+                metadata[key].push_back(""); // the case where the last column is empty
             }
         }   
         infile.close();
@@ -844,18 +851,15 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
     }
     
 
-    for (auto const &v : metadata) { // for each metadata value
-        std::string key = v.first;
-        std::vector<std::string> words = v.second;
-
+    for (auto &v : metadata) { // for each metadata value
         // Build mappings for generic metadata types
         for (int i = 0; i < (int) generic_metadata.size(); i++) {
-            populate_generic_metadata(generic_metadata[i].column, words, generic_metadata[i].seen, generic_metadata[i].count, node_data->mutable_metadata_singles(i));
+            populate_generic_metadata(generic_metadata[i].column, v.second, generic_metadata[i].seen, generic_metadata[i].count, node_data->mutable_metadata_singles(i));
         }
 
         // Build mappings for fixed metadata types
         if (columns.date_column > -1) {
-            populate_fixed_metadata("date", columns.date_column, words, seen_dates_map, date_ct, all_data);
+            populate_fixed_metadata("date", columns.date_column, v.second, seen_dates_map, date_ct, all_data);
         }
 
     }

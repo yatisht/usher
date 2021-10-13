@@ -349,10 +349,6 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
 
             node_data->add_names(split(node->identifier, '|')[0]);
 
-            for (auto m : meta_fields) {
-                std::cout << m << " ";
-            }
-            std::cout << '\n';
             for (const auto &m : generic_metadata) {
                 m.protobuf_data_ptr->add_node_values(std::stoi(meta_fields[m.column])); // lookup the encoding for this value
             }
