@@ -64,8 +64,8 @@ void log_move_detail(const std::vector<Profitable_Moves_ptr_t> & moves, FILE* ou
     }
 }
 
-typedef tbb::flow::function_node<std::vector<Profitable_Moves_ptr_t>*> resolver_node_t;
-static void MPI_recieve_move(const std::vector<MAT::Node*>& dfs_ordered_nodes,tbb::flow::buffer_node<std::vector<Profitable_Moves_ptr_t>*>& resover_node ) {
+typedef tbb::flow::function_node<std::vector<Profitable_Moves_ptr_t>*,tbb::flow::continue_msg,tbb::flow::queueing> resolver_node_t;
+static void MPI_recieve_move(const std::vector<MAT::Node*>& dfs_ordered_nodes,resolver_node_t& resover_node ) {
     int* buffer=new int[MAX_MOVE_MSG_SIZE];
     while (true) {
         std::vector<Profitable_Moves_ptr_t>* out =new std::vector<Profitable_Moves_ptr_t>;
@@ -125,7 +125,7 @@ struct MPI_move_sender {
         delete[] buffer;
     }
 };
-typedef tbb::flow::multifunction_node<std::vector<size_t>*, tbb::flow::tuple<std::vector<Profitable_Moves_ptr_t>*>> searcher_node_t;
+typedef tbb::flow::multifunction_node<std::vector<size_t>*, tbb::flow::tuple<std::vector<Profitable_Moves_ptr_t>*>,tbb::flow::rejecting> searcher_node_t;
 struct move_searcher {
     const std::vector<MAT::Node*>& dfs_ordered_nodes;
     int radius;
@@ -265,12 +265,10 @@ void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
     Cross_t potential_crosses(dfs_ordered_nodes.size(),nullptr);
     tbb::flow::graph g;
     std::vector<std::string> defered_node_identifier;
-    resolver_node_t resover_node_nobuffer(g, 1,
+    resolver_node_t resover_node(g, 1,
                                           Conflict_Resolver(potential_crosses,
                                                   deferred_moves,
                                                   &defered_node_identifier));
-    tbb::flow::buffer_node<std::vector<Profitable_Moves_ptr_t>*> resover_node(g);
-    tbb::flow::make_edge(resover_node,resover_node_nobuffer);
     std::thread move_reciever(MPI_recieve_move,std::ref(dfs_ordered_nodes),std::ref(resover_node));
     //progress bar
     searcher_node_t searcher(g,num_threads+1,move_searcher{dfs_ordered_nodes,radius});
@@ -324,15 +322,14 @@ void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
     fputs("Start recycling conflicting moves\n",stderr);
     while (!deferred_moves.empty()&&(!allow_drift)) {
         {
+            fprintf(stderr, "\r %zu nodes left",deferred_moves.size());
             Deferred_Move_t deferred_moves_next;
             potential_crosses.clear();
             auto bfs_ordered_nodes=t.breadth_first_expansion();
             potential_crosses.resize(bfs_ordered_nodes.size(),nullptr);
             tbb::flow::graph resolver_g;
             std::vector<MAT::Node*> ignored;
-            resolver_node_t resover_node_nobuffer(resolver_g,1,Conflict_Resolver(potential_crosses,deferred_moves_next,nullptr));
-            tbb::flow::buffer_node<std::vector<Profitable_Moves_ptr_t>*> resover_node(g);
-            tbb::flow::make_edge(resover_node,resover_node_nobuffer);
+            resolver_node_t resover_node(resolver_g,1,Conflict_Resolver(potential_crosses,deferred_moves_next,nullptr));
             tbb::parallel_for(tbb::blocked_range<size_t>(0,deferred_moves.size()),[&deferred_moves,&resover_node,&t](const tbb::blocked_range<size_t>& r) {
                 for (size_t i=r.begin(); i<r.end(); i++) {
                     MAT::Node* src=t.get_node(deferred_moves[i].first);
@@ -398,9 +395,7 @@ void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
 void optimize_tree_worker_thread(MAT::Tree &t,int radius) {
     auto dfs_ordered_nodes=t.depth_first_expansion();
     tbb::flow::graph g;
-    resolver_node_t resover_node_nobuffer(g,1,MPI_move_sender());
-    tbb::flow::buffer_node<std::vector<Profitable_Moves_ptr_t>*> resolver_node(g);
-    tbb::flow::make_edge(resolver_node,resover_node_nobuffer);
+    resolver_node_t resolver_node(g,1,MPI_move_sender());
     searcher_node_t searcher(g,num_threads+1,move_searcher{dfs_ordered_nodes,radius});
     tbb::flow::make_edge(std::get<0>(searcher.output_ports()),resolver_node);
     std::vector<size_t> nodes_to_search;
