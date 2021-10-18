@@ -91,6 +91,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
      "Add exactly W samples at random to your selection. Affected by -Z and overridden by -z.")
     ("select-nearest,Y", po::value<size_t>()->default_value(0),
      "Set to add to the sample selection the y nearest samples to each of your samples, without duplicates.")
+    ("dump-metadata,Q", po::value<std::string>()->default_value(""),
+     "Set to write all final stored metadata to a tsv.")
     ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
     ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
@@ -169,6 +171,7 @@ void extract_main (po::parsed_options parsed) {
     std::string meta_filename = vm["metadata"].as<std::string>();
     std::string gtf_filename = dir_prefix + vm["input-gtf"].as<std::string>();
     std::string fasta_filename = dir_prefix + vm["input-fasta"].as<std::string>();
+    std::string dump_metadata = dir_prefix + vm["dump-metadata"].as<std::string>();
 
     std::vector<std::string> additional_meta_fields;
     MAT::string_split(raw_meta_fields, ',', additional_meta_fields);
@@ -742,5 +745,35 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         }
         save_taxodium_tree(subtree, output_tax_filename, metav, gtf_filename, fasta_filename, tax_title, tax_description, additional_meta_fields);
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+    }
+    if (dump_metadata != dir_prefix) {
+        fprintf(stderr, "Dumping final metadata.");
+        std::ofstream mout (dump_metadata);
+        mout << "sample";
+        //first, all column names (except for sample, which is always first).
+        //ordered map so iteration is consistent with column names.
+        std::map<std::string,size_t> column_order;
+        std::vector<std::string> row_order;
+        size_t i = 0;
+        for (auto& omap: catmeta) {
+            for (auto& cv: omap) {
+                column_order[cv.first] = i;
+                mout << "\t" << cv.first;
+            }
+            i++;
+        }
+        for (auto s: samples) {
+            mout << "\n" << s;
+            for (auto cv: column_order) {
+                auto sv = catmeta[cv.second][cv.first].find(s);
+                if (sv != catmeta[cv.second][cv.first].end()) {
+                    mout << "\t" << sv->second;
+                } else {
+                    mout << "\tmissing";
+                }
+            }
+        }
+        mout << "\n";
+        mout.close();
     }
 }
