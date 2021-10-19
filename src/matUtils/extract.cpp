@@ -747,7 +747,8 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
     if (dump_metadata != dir_prefix) {
-        fprintf(stderr, "Dumping final metadata.");
+        timer.Start();
+        fprintf(stderr, "Dumping final metadata.\n");
         std::ofstream mout (dump_metadata);
         mout << "sample";
         //first, all column names (except for sample, which is always first).
@@ -775,5 +776,6 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         }
         mout << "\n";
         mout.close();
+        fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
 }
