@@ -873,7 +873,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::unordered_map<std
                     continue;
                 }
                 std::stringstream clo;
-                clo << cid << "\t" << clusters[cid].size() << "\t" << date_tracker[cid] << "\t" << gv << "\t" << span << "\t" << clustermeta[cid] << "\t";
+                clo << ra.first << '_' << cid << "\t" << clusters[cid].size() << "\t" << date_tracker[cid] << "\t" << gv << "\t" << span << "\t" << clustermeta[cid] << "\t";
                 rankr++;
                 bool first = true;
                 for (auto ss: clusters[cid]) {
@@ -887,7 +887,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::unordered_map<std
                     //in order, first seven columns are
                     //sample id, cluster id, cluster rank, cluster growth score, earliest date, latest date, cluster size
                     //then the rest are the by-sample information (path, distance of this specific sample, yadda yadda)
-                    cout << ss.first << "\t" << cid << "\t" << rankr << "\t" << gv << "\t" << date_tracker[cid] << "\t" << clusters[cid].size() << "\t" << span << ss.second;
+                    cout << ss.first << "\t" << ra.first << '_' << cid << "\t" << rankr << "\t" << gv << "\t" << date_tracker[cid] << "\t" << clusters[cid].size() << "\t" << span << ss.second;
                     outstrs.push_back(cout.str());
                 }
                 clo << "\n";
