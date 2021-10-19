@@ -750,7 +750,7 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         timer.Start();
         fprintf(stderr, "Dumping final metadata.\n");
         std::ofstream mout (dump_metadata);
-        mout << "sample";
+        mout << "strain";
         //first, all column names (except for sample, which is always first).
         //ordered map so iteration is consistent with column names.
         std::map<std::string,size_t> column_order;
