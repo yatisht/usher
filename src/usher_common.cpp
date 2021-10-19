@@ -303,6 +303,9 @@ int usher_common(std::string dout_filename, std::string outdir, uint32_t max_tre
             fprintf(stderr, "Adding missing samples to the tree.\n");
         }
 
+        std::string placement_stats_filename = outdir + "/placement_stats.tsv";
+        FILE *placement_stats_file = fopen(placement_stats_filename.c_str(), "w");
+
         // Traverse in sorted sample order
         for (size_t idx=0; idx<indexes.size(); idx++) {
 
@@ -447,6 +450,7 @@ int usher_common(std::string dout_filename, std::string outdir, uint32_t max_tre
 
                     fprintf(stderr, "Current tree size (#nodes): %zu\tSample name: %s\tParsimony score: %d\tNumber of parsimony-optimal placements: %zu\n", total_nodes, sample.c_str(), \
                             best_set_difference, num_best);
+                    fprintf(placement_stats_file, "%s\t%d\t%zu\t", sample.c_str(), best_set_difference, num_best);
                     // Prints a warning message if 2 or more
                     // parsimony-optimal placements found
                     if (num_best > 1) {
@@ -758,19 +762,22 @@ int usher_common(std::string dout_filename, std::string outdir, uint32_t max_tre
                                     node->add_mutation(m);
                                 }
                             }
+                        }
 
-                            if (node_imputed_mutations[best_j].size() > 0) {
-                                fprintf (stderr, "Imputed mutations:\t");
-                                size_t tot = node_imputed_mutations[best_j].size();
-                                for (size_t curr = 0; curr < tot; curr++) {
-                                    if (curr < tot-1) {
-                                        fprintf (stderr, "%i:%c;", node_imputed_mutations[best_j][curr].position, MAT::get_nuc(node_imputed_mutations[best_j][curr].mut_nuc));
-                                    } else {
-                                        fprintf (stderr, "%i:%c", node_imputed_mutations[best_j][curr].position, MAT::get_nuc(node_imputed_mutations[best_j][curr].mut_nuc));
-                                    }
+                        if (node_imputed_mutations[best_j].size() > 0) {
+                            fprintf (stderr, "Imputed mutations:\t");
+                            size_t tot = node_imputed_mutations[best_j].size();
+                            for (size_t curr = 0; curr < tot; curr++) {
+                                MAT::Mutation& mut = node_imputed_mutations[best_j][curr];
+                                if (curr < tot-1) {
+                                    fprintf (stderr, "%i:%c;", mut.position, MAT::get_nuc(mut.mut_nuc));
+                                    fprintf (placement_stats_file, "%i:%c;", mut.position, MAT::get_nuc(mut.mut_nuc));
+                                } else {
+                                    fprintf (stderr, "%i:%c", mut.position, MAT::get_nuc(mut.mut_nuc));
+                                    fprintf (placement_stats_file, "%i:%c", mut.position, MAT::get_nuc(mut.mut_nuc));
                                 }
-                                fprintf(stderr, "\n");
                             }
+                            fprintf(stderr, "\n");
                         }
 
                         if (max_trees == 1) {
@@ -778,11 +785,12 @@ int usher_common(std::string dout_filename, std::string outdir, uint32_t max_tre
                         }
                     }
                 }
+                fputc('\n', placement_stats_file);
 
                 fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
             }
         }
-
+        fclose(placement_stats_file);
     }
 
     num_trees = optimal_trees.size();
