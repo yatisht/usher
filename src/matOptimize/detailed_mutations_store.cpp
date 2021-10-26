@@ -262,7 +262,7 @@ struct file_writer_t {
     file_writer_t(int fd) : fd(fd) {}
     void operator()(compressor_out to_write) {
         auto size_written=write(fd, to_write.content, to_write.size);
-        if (size_written!=to_write.size) {
+        if (size_written!=(long) to_write.size) {
             puts("Failed to write intermediate protobuf");
         }
         free(to_write.content);

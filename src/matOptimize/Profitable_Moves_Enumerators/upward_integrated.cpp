@@ -226,9 +226,6 @@ upward_integrated(src_side_info &src_side,
     if (!node) {
         return false;
     }
-    /*if (node->dfs_index==78891) {
-        fputc('a', stderr);
-    }*/
     // IN: alelle cnt change from this node (that will change the major allele
     // at parent node)
     auto src_allele_cnt_change_iter = src_branch.begin();
@@ -258,19 +255,10 @@ upward_integrated(src_side_info &src_side,
     // calculated in the same loop
     int par_score_change_split_LCA = 0;
     Mutation_Count_Change_Collection split_allele_count_change_out;
-    if (node->dfs_index==33739) {
-        //fputc('a', stderr);
-    }
     for (const auto &mut : node->mutations) {
         if (ignore_iter(mut.get_position())) {
             //in ignored range
             continue;
-        }
-        if (mut.get_position()==28233) {
-            //putc('a', stderr);
-        }
-        if (mut.get_position()==11083) {
-            //putc('a', stderr);
         }
         // Calculate allele count change for parent (and new major allele at
         // parent node for splitting between parent node and its parent )
@@ -343,19 +331,20 @@ void __find_moves_bounded(MAT::Node *&src, int &search_radius,
                           src_side.allele_count_change_from_src,ignored_pos);
     }
 }
-void find_moves_bounded(MAT::Node *src, output_t &out, int search_radius
+void find_moves_bounded(MAT::Node *src, output_t &out, int search_radius,bool do_drift
 #ifdef CHECK_BOUND
                         ,
                         counters &count
 #endif
                        ) {
+    int par_score_change_base=do_drift?-1:0;
     std::vector<Mutation_Count_Change_W_Lower_Bound_to_ancestor> src_mut;
     std::vector<Mutation_Count_Change_W_Lower_Bound_to_ancestor> src_mut_next;
     src_mut.reserve(src->mutations.size());
 #ifdef CHECK_BOUND
     src_side_info src_side {out,count,0,0,src,src};
 #else
-    src_side_info src_side {out,0,0,src,src};
+    src_side_info src_side {out,par_score_change_base,par_score_change_base,src,src};
 #endif
     for (const auto& mut : src->mutations) {
         if (mut.get_all_major_allele()==0xf||mut.get_par_one_hot()==mut.get_all_major_allele()) {
