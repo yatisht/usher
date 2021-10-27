@@ -1,7 +1,7 @@
 '''
 This is a simple snakemake workflow for running usher, matUtils, and ripples
 
-Include in the current working direcotry:
+Include in the current working directory:
     1. a fasta file with SARS-CoV-2 genome sequences: [user_fa] (below)
     2. the Snakefile
     3. the environment file, usher.yaml
@@ -38,98 +38,98 @@ rule all:
 
 rule download_reference:
     output:
-        "wuhCor1.fa"
+        ref = "wuhCor1.fa"
     conda:
         "usher.yaml"
     shell:
         "wget https://hgdownload.soe.ucsc.edu/goldenPath/wuhCor1/bigZips/wuhCor1.fa.gz && gunzip wuhCor1.fa.gz"
 
-rule align_seqs :
+rule align_seqs:
     input:
-        "wuhCor1.fa",
+        rules.download_reference.output.ref,
         config["FASTA"]
     output:
-        "aligned_seqs.fa"
+        aln = "aligned_seqs.fa"
     conda:
         "usher.yaml"
     threads:
         64
     shell:
-        "mafft --thread {threads} --auto --keeplength --addfragments {input[1]} wuhCor1.fa > aligned_seqs.fa"
+        "mafft --thread {threads} --auto --keeplength --addfragments {input[1]} {input[0]} > aligned_seqs.fa"
 
-rule download_masking :
+rule download_masking:
     output:
-        "problematic_sites_sarsCov2.vcf"
+        probvcf = "problematic_sites_sarsCov2.vcf"
     conda:
         "usher.yaml"
     shell:
         "wget https://raw.githubusercontent.com/W-L/ProblematicSites_SARS-CoV2/master/problematic_sites_sarsCov2.vcf"
 
-rule create_vcf :
+rule create_vcf:
     input:
-         "aligned_seqs.fa",
-         "problematic_sites_sarsCov2.vcf"
+        rules.download_masking.output.probvcf,
+        rules.align_seqs.output.aln
     output:
-         "aligned_seqs.vcf"
+        alnvcf = "aligned_seqs.vcf",
     conda:
-         "usher.yaml"
+        "usher.yaml"
     shell:
-         "faToVcf -maskSites=problematic_sites_sarsCov2.vcf aligned_seqs.fa aligned_seqs.vcf"
+        "faToVcf -maskSites={input[0]} {input[1]} aligned_seqs.vcf"
 
-rule download_protobuf :
+rule download_protobuf:
     output:
-        "public-latest.all.masked.pb.gz"
+        dataset = "public-latest.all.masked.pb.gz" 
     conda:
         "usher.yaml"
     shell:
         "wget http://hgdownload.soe.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/public-latest.all.masked.pb.gz"
 
-rule usher :
+rule usher:
     input:
-        "public-latest.all.masked.pb.gz",
-        "aligned_seqs.vcf"
+        rules.download_protobuf.output.dataset,
+        rules.create_vcf.output.alnvcf
     conda:
         "usher.yaml"
     output:
-        "user_seqs.pb",
-        temp("usher"),
-        "final-tree.nh",
-        "mutation-paths.txt"
+        updateddataset = "user_seqs.pb",
+        temp = temp("usher"),
+        treenh = "final-tree.nh",
+        mutpath = "mutation-paths.txt"
     threads:
-        64
+        threads = 64
     shell:
-        "usher -T {threads} -i public-latest.all.masked.pb.gz -v aligned_seqs.vcf -o user_seqs.pb > usher"
+        "usher --threads {threads} --load-mutation-annotated-tree {input[0]} --vcf {input[1]} --save-mutation-annotated-tree user_seqs.pb > usher"
 
-rule introduce :
-    input:
-        "user_seqs.pb",
-        "user_samples.txt"
-    conda:
-        "usher.yaml"
-    output:
-        temp("introduce"),
-        "user_seqs.introductions.txt",
-        "user_seqs.clusters.txt"
-    threads:
-        64
-    shell:
-        "matUtils introduce -T {threads} -i user_seqs.pb -s user_samples.txt -u user_seqs.clusters.txt -o user_seqs.introductions.txt > introduce"
-        
-rule get_sample_ids :
+rule get_sample_ids:
     input:
         config["FASTA"]
     conda:
         "usher.yaml"
     output:
-        "user_samples.txt"
+        usersamples = "user_samples.txt"
     shell:
         "grep -e '>' {input[0]} | perl -pi -e 's/>//' > user_samples.txt"
 
+rule introduce:
+    input:
+        rules.usher.output.updateddataset,
+        rules.get_sample_ids.output.usersamples
+    conda:
+        "usher.yaml"
+    output:
+        temp = temp("introduce"),
+        inferredintros = "user_seqs.introductions.txt",
+        clusters = "user_seqs.clusters.txt"
+    threads:
+        64
+    shell:
+        "matUtils introduce -T {threads} -i {input[0]} --population-samples {input[1]} --cluster-output user_seqs.clusters.txt --full-output user_seqs.introductions.txt > introduce"
+        
 rule download_metadata :
     conda:
         "usher.yaml"
     output:
-        "public-latest.metadata.tsv"
+        metadata = "public-latest.metadata.tsv"
     shell:
         "wget http://hgdownload.soe.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/public-latest.metadata.tsv.gz && gunzip public-latest.metadata.tsv.gz"
 
@@ -137,47 +137,47 @@ rule download_gtf :
     conda:
         "usher.yaml"
     output:
-        "ncbiGenes.gtf"
+        gtffile = "ncbiGenes.gtf"
     shell:
         "wget http://hgdownload.soe.ucsc.edu/goldenPath/wuhCor1/bigZips/genes/ncbiGenes.gtf.gz && gunzip ncbiGenes.gtf.gz"
 
 rule translate :
     input:
-        "ncbiGenes.gtf",
-        "user_seqs.pb",
-        "wuhCor1.fa"
+        rules.usher.output.updateddataset,        
+        rules.download_gtf.output.gtffile,
+        rules.download_reference.output.ref
     conda:
         "usher.yaml"
     threads:
         64
     output:
-        "user_seqs.translation.tsv",
-        temp("translate")
+        translation = "user_seqs.translation.tsv",
+        temp = temp("translate")
     shell:
-        "matUtils summary -t {output[0]} -i {input[1]} -g {input[0]} -f {input[2]} > translate"
+        "matUtils summary -t user_seqs.translation.tsv -i {input[0]} -g {input[1]} -f {input[2]} > translate"
 
 rule extract_subtrees :
     input :
-        "public-latest.metadata.tsv",
-        "user_seqs.pb",
-        "user_samples.txt",
-        "user_seqs.translation.tsv"
+        rules.usher.output.updateddataset,
+        rules.get_sample_ids.output.usersamples,
+        rules.download_metadata.output.metadata,
+        rules.translate.output.translation
     conda:
         "usher.yaml"
     output :
-        temp("matUtils"),
-        "subtree-assignments.tsv"
+        temp = temp("matUtils"),
+        output = "subtree-assignments.tsv"
     threads:
         64
     shell :
-        "matUtils extract -T {threads} -i user_seqs.pb -s user_samples.txt -M public-latest.metadata.tsv,user_seqs.translation.tsv -N 500 -j user > matUtils"
+        "matUtils extract -T {threads} -i {input[0]} -s {input[1]} -M {input[2]},{input[3]} -N 500 -j user > matUtils"
 
 rule taxodium :
     input :
-        "user_seqs.pb",
-        "ncbiGenes.gtf",
-        "wuhCor1.fa",
-        "public-latest.metadata.tsv"
+        rules.usher.output.updateddataset,
+        rules.download_gtf.output.gtffile,
+        rules.download_reference.output.ref,
+        rules.download_metadata.output.metadata
     output:
         "user_seqs.taxodium.pb",
         temp("taxodium")
@@ -190,8 +190,8 @@ rule taxodium :
 
 rule ripples :
     input :
-        "user_seqs.pb",
-        "user_samples.txt"
+        rules.usher.output.updateddataset,
+        rules.get_sample_ids.output.usersamples
     output:
         temp("ripples")
     conda:
@@ -199,4 +199,4 @@ rule ripples :
     threads:
         64
     shell:
-        "ripples -i user_seqs.pb -s user_samples.txt -T {threads} > ripples"
+        "ripples -i {input[0]} -s {input[1]} -T {threads} > ripples"
