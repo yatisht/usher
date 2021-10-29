@@ -205,8 +205,7 @@ void assignLineages (MAT::Tree& T, const std::string& clade_to_nid_filename, boo
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 }
 
-MAT::Mutation* mutation_from_string(const std::string& mut_string)
-{
+MAT::Mutation* mutation_from_string(const std::string& mut_string) {
     // Parse string like /[A-Z][0-9]+[A-Z]/ e.g. A23403G; create & return (pointer to) MAT::Mutation
     // with par_nuc set to ref_nuc (same as VCF parsing code in usher.cpp).
     // If mut_string is not in expected format, print error message and return NULL.
@@ -231,8 +230,7 @@ MAT::Mutation* mutation_from_string(const std::string& mut_string)
 }
 
 void parse_clade_mutations(const std::string& clade_mutations_filename,
-                           std::map<std::string, std::vector<MAT::Mutation>>& clade_mutations)
-{
+                           std::map<std::string, std::vector<MAT::Mutation>>& clade_mutations) {
     std::ifstream infile(clade_mutations_filename);
     if (!infile) {
         fprintf(stderr, "ERROR: Could not open the clade mutations file: %s!\n", clade_mutations_filename.c_str());
@@ -296,8 +294,7 @@ void parse_clade_mutations(const std::string& clade_mutations_filename,
 void parse_clade_names(const std::string& clade_filename,
                        std::map<std::string, std::vector<MAT::Mutation>>& clade_mutations,
                        std::map<std::string, std::vector<MAT::Node*>>& clade_map,
-                       MAT::Tree& uncondensed_T, float min_freq, float mask_freq)
-{
+                       MAT::Tree& uncondensed_T, float min_freq, float mask_freq) {
     std::ifstream infile(clade_filename);
     if (!infile) {
         fprintf(stderr, "ERROR: Could not open the clade assignment file: %s!\n", clade_filename.c_str());
@@ -305,7 +302,7 @@ void parse_clade_names(const std::string& clade_filename,
     }
     std::string line;
 
-     //Read the clade assignment file line by line and fill up map values
+    //Read the clade assignment file line by line and fill up map values
     fprintf(stderr, "Reading clade assignment file %s.\n", clade_filename.c_str());
     timer.Start();
     while (std::getline(infile, line)) {
@@ -514,7 +511,7 @@ void assignLineages (MAT::Tree& T, const std::string& clade_filename,
     if (clade_filename != "") {
         parse_clade_names(clade_filename, clade_mutations_map, clade_map, uncondensed_T,
                           min_freq, mask_freq);
-                        
+
     }
 
     struct Node_freq {
@@ -552,8 +549,7 @@ void assignLineages (MAT::Tree& T, const std::string& clade_filename,
                 return true;
             } else if (this->clade_size > 0 && c.clade_size == 0) {
                 return false;
-            }
-            else {
+            } else {
                 return ((this->best_node_frequencies.size() < c.best_node_frequencies.size()) ||
                         ((this->best_node_frequencies.size() == c.best_node_frequencies.size()) && (this->clade_size > c.clade_size)));
             }

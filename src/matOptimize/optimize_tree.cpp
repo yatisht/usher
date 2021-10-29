@@ -267,9 +267,9 @@ void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
     tbb::flow::graph g;
     std::vector<std::string> defered_node_identifier;
     resolver_node_t resover_node(g, 1,
-                                          Conflict_Resolver(potential_crosses,
-                                                  deferred_moves,
-                                                  &defered_node_identifier));
+                                 Conflict_Resolver(potential_crosses,
+                                         deferred_moves,
+                                         &defered_node_identifier));
     std::thread move_reciever(MPI_recieve_move,std::ref(dfs_ordered_nodes),std::ref(resover_node));
     //progress bar
     searcher_node_t searcher(g,num_threads+1,move_searcher{dfs_ordered_nodes,radius,allow_drift});

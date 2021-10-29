@@ -313,8 +313,8 @@ int main(int argc, char **argv) {
             }
             if (allow_drift) {
                 nodes_to_search=bfs_ordered_nodes;
-            }else {
-                find_nodes_to_move(bfs_ordered_nodes, nodes_to_search,isfirst,radius,t);                
+            } else {
+                find_nodes_to_move(bfs_ordered_nodes, nodes_to_search,isfirst,radius,t);
             }
             if (search_proportion<1) {
                 std::vector<MAT::Node *> nodes_to_search_temp;
