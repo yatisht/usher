@@ -6,8 +6,8 @@ channels:
   - anaconda
 dependencies:
   - cxx-compiler
-  - protobuf
-  - cmake
+  - protobuf=3.17.2
+  - cmake=3.19.6
   - make
   - boost-cpp
   - mafft
