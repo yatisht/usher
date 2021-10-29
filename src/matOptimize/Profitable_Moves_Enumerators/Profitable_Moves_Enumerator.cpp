@@ -106,7 +106,7 @@ struct Profitable_Move_Comparator {
         return lhs->radius_left>rhs->radius_left;
     }
 };
-int individual_move(MAT::Node* src,MAT::Node* dst,MAT::Node* LCA,output_t& out
+int individual_move(MAT::Node* src,MAT::Node* dst,MAT::Node* LCA,output_t& out,bool do_drift
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
                     ,MAT::Tree* tree
 #endif
@@ -116,7 +116,7 @@ int individual_move(MAT::Node* src,MAT::Node* dst,MAT::Node* LCA,output_t& out
     init_mutation_change(src, mutations);
     Mutation_Count_Change_Collection root_mutations_altered;
     Mutation_Count_Change_Collection new_alter_mutations;
-    int parsimony_score_change = 0;
+    int parsimony_score_change = do_drift?-1:0;
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
     std::vector<Mutation_Count_Change_Collection> debug;
 #endif

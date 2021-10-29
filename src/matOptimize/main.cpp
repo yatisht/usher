@@ -95,6 +95,7 @@ int main(int argc, char **argv) {
     int rand_sel_seed=0;
     unsigned int max_optimize_hours;
     int radius;
+    int drift_iterations=0;
     unsigned int minutes_between_save;
     int max_round;
     float min_improvement;
@@ -117,6 +118,7 @@ int main(int argc, char **argv) {
      "Continue from intermediate protobuf")
     ("minutes-between-save,s",po::value<unsigned int>(&minutes_between_save)->default_value(0),"Minutes between saving intermediate protobuf")
     ("min-improvement,m",po::value<float>(&min_improvement)->default_value(0.0005),"Minimum improvement in the parsimony score as a fraction of the previous score in ordder to perform another iteration.")
+    ("drift_iteration,d",po::value<int>(&drift_iterations)->default_value(0),"Iterations permiting equally parsimonious moves after parsimony score no longer improves")
     ("do-not-write-intermediate-files,n","Do not write intermediate files.")
     ("max-iterations,N", po::value<int>(&max_round)->default_value(1000), \
      "Maximum number of optimization iterations to perform.")
@@ -231,6 +233,7 @@ int main(int argc, char **argv) {
         fprintf(stderr,"Using %d threads. \n",num_threads);
         auto start_time=std::chrono::steady_clock::now();
         auto save_period=std::chrono::minutes(minutes_between_save);
+        fprintf(stderr, "Will drift for %d iterations \n",drift_iterations);
 
         //Loading tree
         Original_State_t origin_states;
@@ -283,7 +286,7 @@ int main(int argc, char **argv) {
         auto last_save_time=std::chrono::steady_clock::now();
         size_t new_score;
         size_t score_before;
-        int stalled = 0;
+        int stalled = -1;
         score_before = t.get_parsimony_score();
         new_score = score_before;
         fprintf(stderr, "after state reassignment:%zu\n", score_before);
@@ -302,13 +305,17 @@ int main(int argc, char **argv) {
         bool allow_drift=false;
         int iteration=1;
         tbb::task_scheduler_init init(num_threads);
-        while(stalled<1) {
+        while(stalled<drift_iterations) {
             bfs_ordered_nodes = t.breadth_first_expansion();
             fputs("Start Finding nodes to move \n",stderr);
             if (radius<0) {
                 radius*=2;
             }
-            find_nodes_to_move(bfs_ordered_nodes, nodes_to_search,isfirst,radius,t);
+            if (allow_drift) {
+                nodes_to_search=bfs_ordered_nodes;
+            }else {
+                find_nodes_to_move(bfs_ordered_nodes, nodes_to_search,isfirst,radius,t);                
+            }
             if (search_proportion<1) {
                 std::vector<MAT::Node *> nodes_to_search_temp;
                 nodes_to_search_temp.reserve(nodes_to_search.size()*search_proportion);
@@ -330,6 +337,9 @@ int main(int argc, char **argv) {
                 if (distribute) {
                     MPI_Request req;
                     int radius_to_boardcast=abs(radius);
+                    if (allow_drift) {
+                        radius_to_boardcast=-radius_to_boardcast;
+                    }
                     MPI_Ibcast(&radius_to_boardcast, 1, MPI_INT, 0, MPI_COMM_WORLD, &req);
                     fprintf(stderr, "Sent radius\n");
                     MPI_Wait(&req, MPI_STATUS_IGNORE);
@@ -375,6 +385,9 @@ int main(int argc, char **argv) {
                 if (interrupted) {
                     break;
                 }
+                if (allow_drift) {
+                    nodes_to_search.clear();
+                }
             }
             if (interrupted) {
                 break;
@@ -382,9 +395,9 @@ int main(int argc, char **argv) {
             float improvement=1-((float)new_score/(float)score_before);
             fprintf(stderr, "Last round improvement %f\n",improvement);
             if (improvement <min_improvement) {
-                fprintf(stderr, "Less than minimium improvement\n");
+                fprintf(stderr, "Less than minimium improvement,stalled for %d iterations\n",stalled);
+                fprintf(stderr, "Will drift for %d iterations \n",drift_iterations);
                 stalled++;
-                break;
                 allow_drift=true;
             } else {
                 score_before = new_score;
@@ -412,6 +425,11 @@ int main(int argc, char **argv) {
             MPI_Request request;
             fprintf(stderr, "Wait radius\n");
             MPI_Ibcast(&radius, 1, MPI_INT, 0, MPI_COMM_WORLD,&request);
+            bool do_drift=false;
+            if (radius<0) {
+                do_drift=true;
+                radius=-radius;
+            }
             int done=0;
             while (done==0) {
                 MPI_Test(&request, &done, MPI_STATUS_IGNORE);
@@ -424,7 +442,7 @@ int main(int argc, char **argv) {
             t.MPI_receive_tree();
             adjust_all(t);
             use_bound=true;
-            optimize_tree_worker_thread(t, radius);
+            optimize_tree_worker_thread(t, radius,do_drift);
             t.delete_nodes();
         }
     }
