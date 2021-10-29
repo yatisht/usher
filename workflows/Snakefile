@@ -20,6 +20,8 @@ taxodium: output taxodium format protobuf for visualization of the big tree
     snakemake --use-conda --cores [num threads] --config FASTA="[user_fa]" RUNTYPE="taxodium"
 introduce: run introduce on the user provided samples to identify clusters
     snakemake --use-conda --cores [num threads] --config FASTA="[user_fa]" RUNTYPE="introduce"
+systematic: search for possible systematic errors in your added samples by outputing a list of sites whose parsimony score increased
+    snakemake --use-conda --cores [num threads] --config FASTA="[user_fa]" RUNTYPE="systematic"
 
 For each run type, the usher.yaml environment file must be present in the working directory.
 
@@ -200,3 +202,25 @@ rule ripples :
         64
     shell:
         "ripples -i {input[0]} -s {input[1]} -T {threads} > ripples"
+        
+rule extract_parsimony_difference :
+    input :
+        rules.usher.output.updateddataset,
+	rules.download_protobuf.output.dataset
+    output :
+        temp("parsimony_user_data.txt"),
+        temp("parsimony_public.txt"),
+        temp("systematic"),
+        "parsimony_diffs.txt" 
+    params :
+        "variant parsimony_public parsimony_user difference"
+    conda :
+        "usher.yaml"
+    shell :
+        """
+        matUtils summary -i {input[0]} -m {output[0]} 
+        matUtils summary -i {input[1]} -m {output[1]}
+        echo {params} > {output[3]}
+        join {output[1]} {output[0]} | awk '$2 != $3' | awk '{{ print $1, $2, $3, $3-$2 }}' | sort -nrk4,4 >> {output[3]}
+        touch systematic
+        """
