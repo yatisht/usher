@@ -327,6 +327,9 @@ void __find_moves_bounded(MAT::Node *&src, int &search_radius,
     for (int radius_left = search_radius - 1; radius_left > 0; radius_left--) {
         src_mut.swap(src_mut_next);
         src_mut_next.clear();
+        if(!src_side.LCA->get_ancestor_changed()){
+            break;
+        }
         upward_integrated(src_side, src_mut, radius_left, src_mut_next,
                           src_side.allele_count_change_from_src,ignored_pos);
     }

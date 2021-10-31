@@ -1,6 +1,7 @@
 #ifndef MUTATION_ANNOTATED_TREE
 #define MUTATION_ANNOTATED_TREE
 #include <algorithm>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <mutex>
@@ -25,7 +26,7 @@ static uint8_t one_hot_to_two_bit(uint8_t arg) {
 static uint8_t two_bit_to_one_hot(uint8_t arg) {
     return 1<<(arg);
 }
-
+extern bool search_all_dir;
 class nuc_one_hot;
 class nuc_2bit {
     uint8_t nuc;
@@ -370,6 +371,13 @@ class Mutations_Collection {
 };
 typedef std::vector<std::pair<int,int>> ignored_t;
 class Node {
+#ifdef LOAD
+  public:
+#endif
+    std::atomic<uint8_t> changed;
+    static const uint8_t SELF_CHANGED_MASK=1;
+    static const uint8_t ANCESTOR_CHANGED_MASK=2;
+    static const uint8_t DESCENDENT_CHANGED_MASK=4;
   public:
     float branch_length;
     std::string identifier;
@@ -383,9 +391,7 @@ class Node {
     size_t dfs_end_index; //index in dfs pre-order
     size_t bfs_index; //index in bfs
     size_t level;
-    bool changed;
     //size_t last_searched_arcs;
-    bool to_search;
     bool have_masked;
     bool is_leaf() const;
     bool is_root();
@@ -396,6 +402,30 @@ class Node {
     Node(const Node& other, Node* parent,Tree* tree,bool copy_mutation=true);
     bool add_mutation(Mutation& mut) {
         return mutations.insert(mut,Mutations_Collection::KEEP_OTHER);
+    }
+    void set_self_changed(){
+        changed|=SELF_CHANGED_MASK;
+    }
+    void set_ancestor_changed(){
+        changed|=ANCESTOR_CHANGED_MASK;
+    }
+    void set_descendent_changed(){
+        changed|=DESCENDENT_CHANGED_MASK;
+    }
+    void clear_changed(){
+        changed=0;
+    }
+    bool get_self_changed() const{
+        return search_all_dir||(changed&SELF_CHANGED_MASK);
+    }
+    bool get_ancestor_changed() const{
+        return search_all_dir||(changed&ANCESTOR_CHANGED_MASK);
+    }
+    bool get_descendent_changed()const {
+        return search_all_dir||(changed&DESCENDENT_CHANGED_MASK);
+    }
+    bool have_change_in_neighbor()const{
+        return changed;
     }
     void clear_mutations() {
         mutations.clear();

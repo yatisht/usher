@@ -199,6 +199,7 @@ struct Load_Subtree_pararllel : public tbb::task {
         Mutation_Detailed::node node;
         node.ParseFromCodedStream(&inputi);
         out->identifier = node.identifier();
+        out->changed=node.changed();
         // deserialize ignored range
         size_t ignore_range_size = node.ignored_range_end_size();
         int ignored_size = 0;

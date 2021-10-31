@@ -74,6 +74,9 @@ void print_file_info(std::string info_msg,std::string error_msg,const std::strin
         exit(EXIT_FAILURE);
     }
 }
+#define DRIFT_MASK 0x80000000
+#define ALL_DIR_MASK 0x40000000
+#define RADIUS_MASK 0x3fffffff
 int main(int argc, char **argv) {
     int ignored;
     auto init_result=MPI_Init_thread(&argc, &argv,MPI_THREAD_MULTIPLE,&ignored);
@@ -308,14 +311,17 @@ int main(int argc, char **argv) {
         while(stalled<drift_iterations) {
             bfs_ordered_nodes = t.breadth_first_expansion();
             fputs("Start Finding nodes to move \n",stderr);
-            if (radius<0) {
+            bool search_all_nodes=false;
+            search_all_dir=false;
+            if (isfirst||allow_drift) {
+                search_all_nodes=true;
+                search_all_dir=true;
+            }else if (changed_nodes.empty()&&radius<0) {
                 radius*=2;
+                search_all_nodes=true;
+                search_all_dir=true;            
             }
-            if (allow_drift) {
-                nodes_to_search=bfs_ordered_nodes;
-            }else {
-                find_nodes_to_move(bfs_ordered_nodes, nodes_to_search,isfirst,radius,t);                
-            }
+            find_nodes_to_move(bfs_ordered_nodes, nodes_to_search,search_all_nodes,radius,t);
             if (search_proportion<1) {
                 std::vector<MAT::Node *> nodes_to_search_temp;
                 nodes_to_search_temp.reserve(nodes_to_search.size()*search_proportion);
@@ -338,7 +344,10 @@ int main(int argc, char **argv) {
                     MPI_Request req;
                     int radius_to_boardcast=abs(radius);
                     if (allow_drift) {
-                        radius_to_boardcast=-radius_to_boardcast;
+                        radius_to_boardcast|=DRIFT_MASK;
+                    }
+                    if(search_all_dir){
+                        radius_to_boardcast|=ALL_DIR_MASK;
                     }
                     MPI_Ibcast(&radius_to_boardcast, 1, MPI_INT, 0, MPI_COMM_WORLD, &req);
                     fprintf(stderr, "Sent radius\n");
@@ -426,10 +435,13 @@ int main(int argc, char **argv) {
             fprintf(stderr, "Wait radius\n");
             MPI_Ibcast(&radius, 1, MPI_INT, 0, MPI_COMM_WORLD,&request);
             bool do_drift=false;
-            if (radius<0) {
+            if (radius&DRIFT_MASK) {
                 do_drift=true;
-                radius=-radius;
             }
+            if (radius&ALL_DIR_MASK) {
+                search_all_dir=true;
+            }
+            radius&=RADIUS_MASK;
             int done=0;
             while (done==0) {
                 MPI_Test(&request, &done, MPI_STATUS_IGNORE);

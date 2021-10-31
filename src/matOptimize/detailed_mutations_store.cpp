@@ -123,10 +123,8 @@ struct no_serialize_condensed_node {
 };
 static void serialize_node(Mutation_Detailed::node &this_node,
                            const MAT::Node *root, const MAT::Tree &tree) {
-    if (root->identifier=="s476s") {
-        fputc('a',stderr);
-    }
     this_node.set_identifier(root->identifier);
+    this_node.set_changed(root->changed);
     this_node.mutable_mutation_positions()->Reserve(root->mutations.size());
     this_node.mutable_mutation_other_fields()->Reserve(root->mutations.size());
     for (const auto &mut : root->mutations) {
