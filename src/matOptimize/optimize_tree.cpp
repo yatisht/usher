@@ -129,6 +129,7 @@ typedef tbb::flow::multifunction_node<std::vector<size_t>*, tbb::flow::tuple<std
 struct move_searcher {
     const std::vector<MAT::Node*>& dfs_ordered_nodes;
     int radius;
+    bool do_drift;
     void operator()(std::vector<size_t>* to_search,searcher_node_t::output_ports_type& output)const {
         int r=radius;
         auto start_time=std::chrono::steady_clock::now();
@@ -136,7 +137,7 @@ struct move_searcher {
             auto node_to_search=dfs_ordered_nodes[idx];
             output_t out;
             out.moves=new std::vector<Profitable_Moves_ptr_t>;
-            find_moves_bounded(node_to_search, out,r
+            find_moves_bounded(node_to_search, out,r,do_drift
 #ifdef CHECK_BOUND
                                ,count
 #endif
@@ -227,7 +228,7 @@ struct fetcher {
             }else {
                 update_rate=std::min(0.5,update_rate+0.01);
             }*/
-            fprintf(stderr, "requesting %zu nodes from %d after %zu seconds, got %d nodes \n",req_size,this_rank,request_period,recieve_count);
+            fprintf(stderr, "requesting %zu nodes from %d after %lld seconds, got %d nodes \n",req_size,this_rank,request_period,recieve_count);
             release_rate=1+recieve_count/num_threads;
             last_request_time=this_request_time;
             if (recieve_count==0) {
@@ -266,12 +267,12 @@ void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
     tbb::flow::graph g;
     std::vector<std::string> defered_node_identifier;
     resolver_node_t resover_node(g, 1,
-                                          Conflict_Resolver(potential_crosses,
-                                                  deferred_moves,
-                                                  &defered_node_identifier));
+                                 Conflict_Resolver(potential_crosses,
+                                         deferred_moves,
+                                         &defered_node_identifier));
     std::thread move_reciever(MPI_recieve_move,std::ref(dfs_ordered_nodes),std::ref(resover_node));
     //progress bar
-    searcher_node_t searcher(g,num_threads+1,move_searcher{dfs_ordered_nodes,radius});
+    searcher_node_t searcher(g,num_threads+1,move_searcher{dfs_ordered_nodes,radius,allow_drift});
     tbb::flow::make_edge(std::get<0>(searcher.output_ports()),resover_node);
     std::vector<size_t> local_nodes_to_search;
     auto last_request_time=std::chrono::steady_clock::now();
@@ -315,7 +316,7 @@ void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
                );
     auto apply_end=std::chrono::steady_clock::now();
     auto elpased_time =std::chrono::duration_cast<std::chrono::seconds>(apply_end-apply_start);
-    fprintf(stderr, "apply moves took %ld seconds\n",elpased_time.count());
+    fprintf(stderr, "apply moves took %lld seconds\n",elpased_time.count());
     //recycle conflicting moves
     int init_deferred=deferred_moves.size();
     int recycled=0;
@@ -330,7 +331,7 @@ void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
             tbb::flow::graph resolver_g;
             std::vector<MAT::Node*> ignored;
             resolver_node_t resover_node(resolver_g,1,Conflict_Resolver(potential_crosses,deferred_moves_next,nullptr));
-            tbb::parallel_for(tbb::blocked_range<size_t>(0,deferred_moves.size()),[&deferred_moves,&resover_node,&t](const tbb::blocked_range<size_t>& r) {
+            tbb::parallel_for(tbb::blocked_range<size_t>(0,deferred_moves.size()),[&deferred_moves,&resover_node,&t,allow_drift](const tbb::blocked_range<size_t>& r) {
                 for (size_t i=r.begin(); i<r.end(); i++) {
                     MAT::Node* src=t.get_node(deferred_moves[i].first);
                     MAT::Node* dst=t.get_node(deferred_moves[i].second);
@@ -338,7 +339,7 @@ void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
                         output_t out;
                         out.moves=new std::vector<Profitable_Moves_ptr_t>;
                         if (check_not_ancestor(dst, src)) {
-                            individual_move(src,dst,get_LCA(src, dst),out
+                            individual_move(src,dst,get_LCA(src, dst),out,allow_drift
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
                                             ,&t
 #endif
@@ -389,14 +390,14 @@ void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
         }
     }
     fprintf(stderr, "recycled %f of conflicting moves \n",(double)recycled/(double)init_deferred);
-    fprintf(stderr, "recycling moves took %ld seconds\n",elpased_time.count());
+    fprintf(stderr, "recycling moves took %lld seconds\n",elpased_time.count());
     t.populate_ignored_range();
 }
-void optimize_tree_worker_thread(MAT::Tree &t,int radius) {
+void optimize_tree_worker_thread(MAT::Tree &t,int radius,bool do_drift) {
     auto dfs_ordered_nodes=t.depth_first_expansion();
     tbb::flow::graph g;
     resolver_node_t resolver_node(g,1,MPI_move_sender());
-    searcher_node_t searcher(g,num_threads+1,move_searcher{dfs_ordered_nodes,radius});
+    searcher_node_t searcher(g,num_threads+1,move_searcher{dfs_ordered_nodes,radius,do_drift});
     tbb::flow::make_edge(std::get<0>(searcher.output_ports()),resolver_node);
     std::vector<size_t> nodes_to_search;
     auto last_request_time=std::chrono::steady_clock::now();

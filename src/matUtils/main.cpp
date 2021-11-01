@@ -19,7 +19,7 @@ int main (int argc, char** argv) {
     po::variables_map vm;
     po::parsed_options parsed = po::command_line_parser(argc, argv).options(global).positional(pos).allow_unregistered().run();
     //this help string shows up over and over, lets just define it once
-    std::string cnames[] = {"COMMAND","summary","extract","annotate","uncertainty","introduce", "merge", "version"};
+    std::string cnames[] = {"COMMAND","summary","extract","annotate","uncertainty","introduce", "merge", "mask", "version"};
     std::string chelp[] = {
         "DESCRIPTION\n\n",
         "calculates basic statistics and counts samples, mutations, and clades in the input MAT\n\n",
@@ -28,6 +28,7 @@ int main (int argc, char** argv) {
         "calculates sample placement uncertainty metrics and writes the results to tsv\n\n",
         "given sample region information, heuristically identifies points of geographic introduction along the phylogeny\n\n",
         "merge all samples of two input MAT files into a single output MAT \n\n",
+        "masks the input samples\n\n",
         "display version number\n\n"
     };
     try {
@@ -53,6 +54,8 @@ int main (int argc, char** argv) {
         summary_main(parsed);
     } else if (cmd == "introduce") {
         introduce_main(parsed);
+    } else if (cmd == "mask") {
+        mask_main(parsed);
     } else if (cmd == "version") {
         std::cerr << "matUtils (v" << PROJECT_VERSION << ")" << std::endl;
     } else if (cmd == "help") {

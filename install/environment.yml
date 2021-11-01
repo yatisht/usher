@@ -6,8 +6,8 @@ channels:
   - anaconda
 dependencies:
   - cxx-compiler
-  - protobuf=3.12
-  - cmake=3.10
+  - protobuf=3.17.2
+  - cmake=3.19.6
   - make
   - boost-cpp
   - mafft
@@ -15,4 +15,4 @@ dependencies:
   - git
   - wget
   - rsync
-  - openmpi
+  - intel::impi-devel=2021.4.0
