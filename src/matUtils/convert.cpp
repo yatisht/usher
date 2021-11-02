@@ -769,7 +769,7 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
                     exit(1);
                 }
                 continue;
-            }            
+            }
             std::string key = words[strain_column];
             if ( seen_in_this_file.find(key) != seen_in_this_file.end() ) {
                 continue; // ignore duplicates in each metadata file
@@ -779,13 +779,13 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
                 // if we haven't seen this sample yet
                 metadata[key] = std::vector<std::string>();
             }
-            for (auto word : words){
+            for (auto word : words) {
                 metadata[key].push_back(word);
             }
             if (metadata[key].size() == header.size() - 1) {
                 metadata[key].push_back(""); // the case where the last column is empty
             }
-        }   
+        }
         infile.close();
     }
     // Then use map to make taxodium encodings and check for defined/generic fields
@@ -849,7 +849,7 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
             fprintf(stderr, "-- %s\n", name.c_str());
         }
     }
-    
+
 
     for (auto &v : metadata) { // for each metadata value
         // Build mappings for generic metadata types
@@ -864,7 +864,7 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
 
     }
 
-    
+
 
     fprintf(stderr, "\nPerforming conversion.\n");
 

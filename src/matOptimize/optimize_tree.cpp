@@ -229,7 +229,7 @@ struct fetcher {
             }else {
                 update_rate=std::min(0.5,update_rate+0.01);
             }*/
-            fprintf(stderr, "requesting %zu nodes from %d after %zu seconds, got %d nodes \n",req_size,this_rank,request_period,recieve_count);
+            fprintf(stderr, "requesting %zu nodes from %d after %lld seconds, got %d nodes \n",req_size,this_rank,request_period,recieve_count);
             release_rate=1+recieve_count/num_threads;
             last_request_time=this_request_time;
             if (recieve_count==0) {
@@ -276,9 +276,9 @@ void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
     tbb::flow::graph g;
     std::vector<std::string> defered_node_identifier;
     resolver_node_t resover_node(g, 1,
-                                          Conflict_Resolver(potential_crosses,
-                                                  deferred_moves,
-                                                  &defered_node_identifier));
+                                 Conflict_Resolver(potential_crosses,
+                                         deferred_moves,
+                                         &defered_node_identifier));
     std::thread move_reciever(MPI_recieve_move,std::ref(dfs_ordered_nodes),std::ref(resover_node));
     //progress bar
     searcher_node_t searcher(g,num_threads+1,move_searcher{dfs_ordered_nodes,radius,allow_drift,set_reachable(radius, t,search_all_dir)});
@@ -330,7 +330,7 @@ void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
                );
     auto apply_end=std::chrono::steady_clock::now();
     auto elpased_time =std::chrono::duration_cast<std::chrono::seconds>(apply_end-apply_start);
-    fprintf(stderr, "apply moves took %ld seconds\n",elpased_time.count());
+    fprintf(stderr, "apply moves took %lld seconds\n",elpased_time.count());
     //recycle conflicting moves
     int init_deferred=deferred_moves.size();
     int recycled=0;
@@ -404,7 +404,7 @@ void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
         }
     }
     fprintf(stderr, "recycled %f of conflicting moves \n",(double)recycled/(double)init_deferred);
-    fprintf(stderr, "recycling moves took %ld seconds\n",elpased_time.count());
+    fprintf(stderr, "recycling moves took %lld seconds\n",elpased_time.count());
     t.populate_ignored_range();
 }
 void optimize_tree_worker_thread(MAT::Tree &t,int radius,bool do_drift,bool search_all_dir) {

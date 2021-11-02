@@ -1,11 +1,11 @@
-FROM ubuntu:18.04
+FROM ubuntu:20.04
 ENV APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=DontWarn
 ENV DEBIAN_FRONTEND=noninteractive
 USER root
 RUN apt-get update && apt-get install -yq --no-install-recommends \
     git wget \
     ca-certificates \
-    sudo 
+    sudo python3
 WORKDIR /HOME/kentsource
 RUN wget http://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64/faSomeRecords
 RUN wget http://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64/faSize

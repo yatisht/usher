@@ -32,6 +32,10 @@ introduce: search for unique introductions within the user-supplied samples
 
     snakemake --use-conda --cores [num threads] --config FASTA="[user_fa]" RUNTYPE="introduce"
 
+systematic: search for possible systematic errors in your added samples by outputing a list of sites whose parsimony score increased
+
+    snakemake --use-conda --cores [num threads] --config FASTA="[user_fa]" RUNTYPE="systematic"
+
 Note that adding "-d [run_dir]" to the command line above will generate all output files in the specified directory. To do this, you must provide the full path to the fasta file or place the fasta file into the specified run directory. 
 
 ## Further Reading:
