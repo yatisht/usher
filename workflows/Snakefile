@@ -206,21 +206,55 @@ rule ripples :
 rule extract_parsimony_difference :
     input :
         rules.usher.output.updateddataset,
-	rules.download_protobuf.output.dataset
+        rules.download_protobuf.output.dataset
     output :
         temp("parsimony_user_data.txt"),
         temp("parsimony_public.txt"),
-        temp("systematic"),
-        "parsimony_diffs.txt" 
-    params :
-        "variant parsimony_public parsimony_user difference"
+        temp("samples_public.txt"),
+        temp("samples_total.txt"),
+        temp("parsimony_diffs.txt")
     conda :
         "usher.yaml"
     shell :
         """
-        matUtils summary -i {input[0]} -m {output[0]} 
-        matUtils summary -i {input[1]} -m {output[1]}
-        echo {params} > {output[3]}
-        join {output[1]} {output[0]} | awk '$2 != $3' | awk '{{ print $1, $2, $3, $3-$2 }}' | sort -nrk4,4 >> {output[3]}
-        touch systematic
+        matUtils summary -i {input[0]} -s {output[3]} -m {output[0]}
+        matUtils summary -i {input[1]} -s {output[2]} -m {output[1]}
+        join {output[1]} {output[0]} | awk '$2 != $3' | awk '{{ print $1, $2, $3, $3-$2 }}' | sort -nrk4,4 >> {output[4]}
         """
+	
+rule create_report :
+    input :
+        "samples_public.txt",
+        "samples_total.txt",
+        "parsimony_diffs.txt"
+    output :
+        "parsimony_report.txt",
+        temp(touch("systematic"))
+    run :
+        ### get total samples in the tree after addition
+        out = subprocess.Popen(["wc", "-l","samples_total.txt"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        stdout,stderr = out.communicate()
+        total_samples = float( stdout.split()[0] )
+
+        ### get total samples in the tree before addition
+        out = subprocess.Popen(["wc", "-l","samples_public.txt"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        stdout,stderr = out.communicate()
+        public_samples = float( stdout.split()[0] )
+
+        ## user samples is the difference
+        user_samples = total_samples - public_samples
+
+        ## write to file
+        with open("parsimony_report.txt", "w") as pars_out:
+
+            ## now capture the relevant positions
+            with open("parsimony_diffs.txt", "r") as file:
+
+                ### print the header
+                print ("variant\tparsimony_public\tparsimony_total\tparsimony_user\tparsimony_public/sample\tparsimony_user/sample", file=pars_out )
+
+                ### each line
+                for line in file:
+                    line = line.strip()
+                    fields = line.split(" ")
+                    print ( fields[0], fields[1], fields[2], fields[3], float(fields[1])/total_samples, float(fields[3])/user_samples, sep = "\t", file=pars_out )
