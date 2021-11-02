@@ -393,7 +393,7 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
             tv = add_random + samples.size();
         }
         samples = fill_random_samples(&T, samples, tv, limit_lca);
-    } 
+    }
     //the final step of selection is to invert the set if prune is set
     //this is done by getting all sample names which are not in the samples vector.
     if (prune_samples) {
