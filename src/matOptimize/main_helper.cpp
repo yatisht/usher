@@ -13,8 +13,8 @@
 #include <unordered_set>
 #include <random>
 #include <utility>
+#include <vector>
 namespace MAT=Mutation_Annotated_Tree;
-bool search_all_dir=true;
 //add a root above current root, so nodes can move above the current node
 void add_root(MAT::Tree *tree) {
     MAT::Node *old_root = tree->root;
@@ -44,73 +44,101 @@ void fix_condensed_nodes(MAT::Tree *tree) {
     }
 }
 
-static void mark_changed_neighbor_descendent(int radius_left,MAT::Node* root){
+static void mark_changed_neighbor_descendent(int radius_left,MAT::Node* root,bool all_node_reachable){
     for (auto child : root->children) {
         child->set_ancestor_changed();
-        if (radius_left>0&&(!child->get_self_changed())) {
-            mark_changed_neighbor_descendent(radius_left-1, child);        
+        if (radius_left>0
+            &&(!child->get_self_changed())
+            /*&&(!(all_node_reachable&&child->get_ancestor_changed()))*/
+            ) {
+            mark_changed_neighbor_descendent(radius_left-1, child,all_node_reachable);        
         }
     }
 }
 
 //see whether within radius of root have nodes that have same mutation as root and have changed in previous iteration (or this is the first iteration)
-static void mark_changed_neighbor_self(int radius, MAT::Node* root) {
+static void mark_changed_neighbor_self(int radius, MAT::Node* root,bool all_node_reachable) {
     root->set_self_changed();
+    root->set_ancestor_changed();
+    root->set_descendent_changed();
+    mark_changed_neighbor_descendent(radius, root,all_node_reachable);
     for (int radius_left=radius;radius_left>0;radius_left--){
         root=root->parent;
-        if (!root||root->get_self_changed()) {
-            break;
+        if (!root) {
+            return;
         }
+        if (root->get_self_changed()) {
+            return;
+        }
+        /*if (all_node_reachable&&root->get_descendent_changed()) {
+            return;
+        }*/
         root->set_descendent_changed();
-        mark_changed_neighbor_descendent(radius_left, root);
+        mark_changed_neighbor_descendent(radius_left, root,all_node_reachable);
     }
 }
 
 //find src node to search
 void find_nodes_to_move(const std::vector<MAT::Node *> &bfs_ordered_nodes,
                         std::vector<MAT::Node *> &output,
-                        bool search_all_node, int radius_in,MAT::Tree &tree) {
+                        bool search_all_node, bool search_all_dir,int radius_in,MAT::Tree &tree) {
     auto start=std::chrono::steady_clock::now();
     unsigned int radius=abs(radius_in);
     output.clear();
+    fprintf(stderr, "find max_level\n");
+    auto max_level=tree.get_max_level();
+    fprintf(stderr, "Max level %zu\n",max_level);
+    bool all_node_reachable=(radius>=(2*max_level));
     if (!search_all_dir) {
-        for(auto node:bfs_ordered_nodes) {
-            node->clear_changed();
-        }
         //mark surrounding of changed nodes
-        tbb::parallel_sort(changed_nodes.begin(),changed_nodes.end());
-        auto end_iter=std::unique(changed_nodes.begin(),changed_nodes.end());
-        changed_nodes.erase(end_iter,changed_nodes.end());
-        fprintf(stderr, "%zu changed nodes \n",changed_nodes.size());
-        tbb::parallel_for(tbb::blocked_range<size_t>(0,changed_nodes.size()),[radius,&tree](const tbb::blocked_range<size_t>& r) {
+        FILE* fh=fopen("changed_nodes","w");
+        std::vector<MAT::Node*> changed_nodes_ptr;
+        changed_nodes_ptr.reserve(bfs_ordered_nodes.size());
+        for (const auto node : bfs_ordered_nodes) {
+            if (node->get_self_changed()) {
+                changed_nodes_ptr.push_back(node);
+                fprintf(fh, "%s\n", node->identifier.c_str());
+            }
+        }
+        fclose(fh);
+        fprintf(stderr, "%zu changed nodes \n",changed_nodes_ptr.size());
+        tbb::parallel_for(tbb::blocked_range<size_t>(0,changed_nodes_ptr.size()),[radius,&changed_nodes_ptr,all_node_reachable](const tbb::blocked_range<size_t>& r) {
             for (size_t idx=r.begin(); idx<r.end(); idx++) {
-                auto node=tree.get_node(changed_nodes[idx]);
-                if (!node) {
-                    continue;
-                }
-                mark_changed_neighbor_self(radius, node);
+                mark_changed_neighbor_self(radius, changed_nodes_ptr[idx],all_node_reachable);
             }
         });
     }
+    int both_count=0;
+    int upward_only_count=0;
+    int downward_only_count=0;
+    for(auto node:bfs_ordered_nodes) {
+        auto upward=node->get_ancestor_changed();
+        auto downward=node->get_descendent_changed();
+        if (upward&&downward) {
+            both_count++;
+        }else if (upward) {
+            upward_only_count++;
+        }else if (downward) {
+            downward_only_count++;
+        }
+    }
+    fprintf(stderr, "Upward: %d,downward %d, both %d \n",upward_only_count,downward_only_count,both_count);
     if (search_all_node) {
         output=bfs_ordered_nodes;
         fprintf(stderr, "Search all nodes\n");
     } else {
-        fprintf(stderr, "find max_level\n");
-        auto max_level=tree.get_max_level();
-        fprintf(stderr, "Max level %zu\n",max_level);
-        if (radius>2*max_level) {
+        if (all_node_reachable) {
             output=bfs_ordered_nodes;
             fprintf(stderr, "Search all nodes\n");
-        }
-        output.reserve(bfs_ordered_nodes.size());
-        for(auto node:bfs_ordered_nodes) {
-            if (node->have_change_in_neighbor()) {
-                output.push_back(node);
+        }else {
+            output.reserve(bfs_ordered_nodes.size());
+            for(auto node:bfs_ordered_nodes) {
+                if (node->have_change_in_neighbor()) {
+                    output.push_back(node);
+                }
             }
         }
     }
-    changed_nodes.clear();
     fprintf(stderr, "Will search %f of nodes\n",(double)output.size()/(double)bfs_ordered_nodes.size());
     std::chrono::duration<double> elapsed_seconds = std::chrono::steady_clock::now()-start;
     fprintf(stderr, "Took %f s to find nodes to move\n",elapsed_seconds.count());

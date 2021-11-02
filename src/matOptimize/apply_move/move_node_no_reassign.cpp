@@ -157,6 +157,7 @@ clean_up_after_remove(MAT::Node *node, std::unordered_set<size_t> &deleted,
                         MAT::Mutations_Collection::KEEP_SELF);
         }*/
         tree.all_nodes.erase(node->identifier);
+        child->set_self_changed();
         //delete node;
         return parent_node;
     }
@@ -349,6 +350,7 @@ static MAT::Node *place_node_LCA(MAT::Node *&src, MAT::Node *parent,
     update_src_mutation(src, this_unique);
     MAT::Node *new_node = add_as_sibling(src, sibling, other_unique, common,
                                          tree, flags, nodes_to_clean);
+    new_node->set_self_changed();
     return new_node->parent;
 }
 
@@ -419,25 +421,25 @@ void move_node(MAT::Node *src, MAT::Node *dst,
     src_parent_children.erase(iter);
 
     nodes_to_clean.push_back(src);
-    changed_nodes.push_back(src->identifier);
+    src->set_self_changed();
     nodes_to_clean.push_back(dst);
-    changed_nodes.push_back(dst->identifier);
-
+    dst->set_self_changed();
+    dst->set_self_moved();
     MAT::Node *dst_altered = dst;
     //actually placing the node
     if (dst_to_root_path.empty()) {
         dst_altered = place_node_LCA(src, dst, tree, mutations,
                                      src_to_root_path.back(), nodes_to_clean);
-        changed_nodes.push_back(src_to_root_path.back()->identifier);
+        src_to_root_path.back()->set_self_changed();
     } else {
         dst_altered = place_node(src, dst, tree, mutations, nodes_to_clean);
     }
     //push nodes with altered children for backward pass
     altered_node.push_back(
         clean_up_after_remove(src_parent, deleted, nodes_to_clean,tree));
-    changed_nodes.push_back(altered_node.back()->identifier);
+    altered_node.back()->set_self_changed();
     altered_node.push_back(dst_altered);
-    changed_nodes.push_back(altered_node.back()->identifier);
+    altered_node.back()->set_self_changed();
 #ifdef CHECK_PRIMARY_MOVE
     MAT::Mutations_Collection after_move;
     get_mutation_set_from_root(src, after_move);

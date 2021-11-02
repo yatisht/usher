@@ -26,7 +26,6 @@ static uint8_t one_hot_to_two_bit(uint8_t arg) {
 static uint8_t two_bit_to_one_hot(uint8_t arg) {
     return 1<<(arg);
 }
-extern bool search_all_dir;
 class nuc_one_hot;
 class nuc_2bit {
     uint8_t nuc;
@@ -374,10 +373,11 @@ class Node {
 #ifdef LOAD
   public:
 #endif
-    std::atomic<uint8_t> changed;
+    std::atomic_uint8_t changed;
     static const uint8_t SELF_CHANGED_MASK=1;
     static const uint8_t ANCESTOR_CHANGED_MASK=2;
     static const uint8_t DESCENDENT_CHANGED_MASK=4;
+    static const uint8_t SELF_MOVED_MASK=8;
   public:
     float branch_length;
     std::string identifier;
@@ -412,17 +412,23 @@ class Node {
     void set_descendent_changed(){
         changed|=DESCENDENT_CHANGED_MASK;
     }
+    void set_self_moved(){
+        changed|=SELF_MOVED_MASK;
+    }
     void clear_changed(){
         changed=0;
     }
     bool get_self_changed() const{
-        return search_all_dir||(changed&SELF_CHANGED_MASK);
+        return (changed&SELF_CHANGED_MASK);
     }
     bool get_ancestor_changed() const{
-        return search_all_dir||(changed&ANCESTOR_CHANGED_MASK);
+        return (changed&ANCESTOR_CHANGED_MASK);
     }
     bool get_descendent_changed()const {
-        return search_all_dir||(changed&DESCENDENT_CHANGED_MASK);
+        return (changed&DESCENDENT_CHANGED_MASK);
+    }
+    bool get_self_moved()const{
+        return changed&SELF_MOVED_MASK;
     }
     bool have_change_in_neighbor()const{
         return changed;

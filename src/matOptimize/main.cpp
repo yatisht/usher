@@ -312,16 +312,16 @@ int main(int argc, char **argv) {
             bfs_ordered_nodes = t.breadth_first_expansion();
             fputs("Start Finding nodes to move \n",stderr);
             bool search_all_nodes=false;
-            search_all_dir=false;
+            bool search_all_dir=false;
             if (isfirst||allow_drift) {
                 search_all_nodes=true;
                 search_all_dir=true;
-            }else if (changed_nodes.empty()&&radius<0) {
+            }else if (radius<0&&radius>=-2*t.max_level) {
                 radius*=2;
                 search_all_nodes=true;
                 search_all_dir=true;            
             }
-            find_nodes_to_move(bfs_ordered_nodes, nodes_to_search,search_all_nodes,radius,t);
+            find_nodes_to_move(bfs_ordered_nodes, nodes_to_search,search_all_nodes,search_all_dir,radius,t);
             if (search_proportion<1) {
                 std::vector<MAT::Node *> nodes_to_search_temp;
                 nodes_to_search_temp.reserve(nodes_to_search.size()*search_proportion);
@@ -334,6 +334,7 @@ int main(int argc, char **argv) {
             if (nodes_to_search.empty()) {
                 break;
             }
+            bool isfirst_this_iter=true;
             //Actual optimization loop
             while (!nodes_to_search.empty()) {
                 auto dfs_ordered_nodes=t.depth_first_expansion();
@@ -348,6 +349,7 @@ int main(int argc, char **argv) {
                     }
                     if(search_all_dir){
                         radius_to_boardcast|=ALL_DIR_MASK;
+                        fprintf(stderr, "Search all directions\n");
                     }
                     MPI_Ibcast(&radius_to_boardcast, 1, MPI_INT, 0, MPI_COMM_WORLD, &req);
                     fprintf(stderr, "Sent radius\n");
@@ -369,11 +371,12 @@ int main(int argc, char **argv) {
                 if (no_write_intermediate||search_end_time<next_save_time) {
                     search_stop_time=search_end_time;
                 }
-                optimize_tree_main_thread(nodes_to_search_idx, t,std::abs(radius),movalbe_src_log,allow_drift,log_moves?iteration:-1,defered_nodes,distribute,search_stop_time,do_continue
+                optimize_tree_main_thread(nodes_to_search_idx, t,std::abs(radius),movalbe_src_log,allow_drift,log_moves?iteration:-1,defered_nodes,distribute,search_stop_time,do_continue,search_all_dir,isfirst_this_iter
 #ifndef NDEBUG
                                           , origin_states
 #endif
                                          );
+                isfirst_this_iter=false;
                 fprintf(stderr, "Defered %zu nodes\n",defered_nodes.size());
                 nodes_to_search=std::move(defered_nodes);
                 new_score=t.get_parsimony_score();
@@ -397,6 +400,7 @@ int main(int argc, char **argv) {
                 if (allow_drift) {
                     nodes_to_search.clear();
                 }
+                search_all_dir=true;
             }
             if (interrupted) {
                 break;
@@ -410,7 +414,7 @@ int main(int argc, char **argv) {
                 allow_drift=true;
             } else {
                 score_before = new_score;
-                stalled = 0;
+                stalled = -1;
             }
             iteration++;
             if(iteration>=max_round) {
@@ -418,6 +422,7 @@ int main(int argc, char **argv) {
                 break;
             }
             if (std::chrono::steady_clock::now()>=search_end_time) {
+                fprintf(stderr, "Exceeded search time \n");
                 break;
             }
         }
@@ -434,27 +439,29 @@ int main(int argc, char **argv) {
             MPI_Request request;
             fprintf(stderr, "Wait radius\n");
             MPI_Ibcast(&radius, 1, MPI_INT, 0, MPI_COMM_WORLD,&request);
-            bool do_drift=false;
-            if (radius&DRIFT_MASK) {
-                do_drift=true;
-            }
-            if (radius&ALL_DIR_MASK) {
-                search_all_dir=true;
-            }
-            radius&=RADIUS_MASK;
             int done=0;
             while (done==0) {
                 MPI_Test(&request, &done, MPI_STATUS_IGNORE);
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
             }
-            fprintf(stderr, "Received radius\n");
+            bool do_drift=false;
+            bool search_all_dir=false;
+            if (radius&DRIFT_MASK) {
+                do_drift=true;
+            }
+            if (radius&ALL_DIR_MASK) {
+                search_all_dir=true;
+                fprintf(stderr, "Search all directions\n");
+            }
+            radius&=RADIUS_MASK;
+            fprintf(stderr, "recieved radius %d \n",radius);
             if(radius==0) {
                 break;
             }
             t.MPI_receive_tree();
             adjust_all(t);
             use_bound=true;
-            optimize_tree_worker_thread(t, radius,do_drift);
+            optimize_tree_worker_thread(t, radius,do_drift,search_all_dir);
             t.delete_nodes();
         }
     }
