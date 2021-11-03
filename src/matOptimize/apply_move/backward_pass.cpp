@@ -354,7 +354,7 @@ void reassign_backward_pass(
 #endif
                              );
         if (changed) {
-            changed_nodes.push_back(heap->altered_node->identifier);
+            heap->altered_node->set_self_changed();
         }
     } while (heap.next(changed));
 }

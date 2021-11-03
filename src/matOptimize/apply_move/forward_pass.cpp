@@ -186,7 +186,7 @@ void set_state_from_parent(MAT::Node *node,
                            MAT::Tree &new_tree
 #endif
                           ) {
-    changed_nodes.push_back(node->identifier);
+    node->set_self_changed();
     MAT::Mutations_Collection new_mut;
     auto iter = parent_altered.begin();
     auto end = parent_altered.end();

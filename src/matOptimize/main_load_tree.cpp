@@ -39,7 +39,7 @@ static void clean_up_internal_nodes(MAT::Node* this_node,MAT::Tree& tree,std::un
     std::vector<MAT::Node *> this_node_ori_children = this_node->children;
     if (this_node->parent&&(((!this_node->is_leaf())&&no_valid_mut(this_node)))) {
         //Remove this node
-        changed_nodes.push_back(this_node->parent->identifier);
+        this_node->parent->set_self_changed();
         auto iter = std::find(parent_children.begin(), parent_children.end(),
                               this_node);
         assert(iter != parent_children.end());
@@ -51,7 +51,7 @@ static void clean_up_internal_nodes(MAT::Node* this_node,MAT::Tree& tree,std::un
         tree.all_nodes.erase(this_node->identifier);
         //promote all its children, no need to change their mutation vector, as this_node assumed to have no valid mutations
         for (MAT::Node *child : this_node_ori_children) {
-            changed_nodes.push_back(child->identifier);
+            child->set_self_changed();
             child->have_masked|=this_node->have_masked;
             child->parent = this_node->parent;
             parent_children.push_back(child);

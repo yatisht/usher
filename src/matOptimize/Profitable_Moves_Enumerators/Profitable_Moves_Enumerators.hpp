@@ -143,7 +143,11 @@ template <typename value_type> class range {
         return end-curr;
     }
 };
-void find_moves_bounded(MAT::Node* src,output_t& out,int search_radius,bool do_drift
+struct Reachable{
+    bool reachable_change;
+    bool always_search;
+};
+void find_moves_bounded(MAT::Node* src,output_t& out,int search_radius,bool do_drift,Reachable
 #ifdef CHECK_BOUND
                         ,counters& count
 #endif

@@ -54,18 +54,26 @@ void output_LCA(
 template<typename T>
 static void search_subtree_first_level(MAT::Node *node, MAT::Node *to_exclude,
                                        const src_side_info &src_side, int radius_left,
-                                       Bounded_Mut_Change_Collection &either, T& ignored_range) {
+                                       Bounded_Mut_Change_Collection &either, T& ignored_range,Reachable reachable) {
     for (auto child : node->children) {
         if (child == to_exclude) {
             continue;
-        } else {
-            search_subtree_bounded(child, src_side, radius_left - 1, either,
-                                   src_side.src_par_score_lower_bound,ignored_range
+        }
+        auto reachable_child=reachable;
+        if (!reachable.always_search) {
+            if (!child->get_descendent_changed()) {
+                continue;
+            }
+            if (reachable.reachable_change&&child->get_self_changed()) {
+                reachable_child.always_search=true;
+            }
+        }
+        search_subtree_bounded(child, src_side, radius_left - 1, either,
+                                   src_side.src_par_score_lower_bound,ignored_range,reachable_child
 #ifdef CHECK_BOUND
                                    ,true
 #endif
-                                  );
-        }
+                                  ); 
     }
 }
 static void allele_count_reserve(
@@ -220,7 +228,7 @@ template <typename T,typename S>
 static bool
 upward_integrated(src_side_info &src_side,
                   std::vector<Mutation_Count_Change_W_Lower_Bound_to_ancestor> &src_mut_in, int radius_left,
-                  std::vector<Mutation_Count_Change_W_Lower_Bound_to_ancestor> &mut_out, const T &src_branch, S ignore_iter) {
+                  std::vector<Mutation_Count_Change_W_Lower_Bound_to_ancestor> &mut_out, const T &src_branch, S ignore_iter,Reachable reachable) {
     auto old_LCA=src_side.LCA;
     MAT::Node *node = old_LCA->parent;
     if (!node) {
@@ -306,7 +314,7 @@ upward_integrated(src_side_info &src_side,
     src_side.LCA = node;
     sibling_muts.emplace_back();
     search_subtree_first_level(node, old_LCA, src_side, radius_left,
-                               sibling_muts,ignore_iter);
+                               sibling_muts,ignore_iter,reachable);
 
 
 
@@ -321,17 +329,28 @@ template<typename T>
 void __find_moves_bounded(MAT::Node *&src, int &search_radius,
                           std::vector<Mutation_Count_Change_W_Lower_Bound_to_ancestor> &src_mut,
                           std::vector<Mutation_Count_Change_W_Lower_Bound_to_ancestor> &src_mut_next,
-                          src_side_info &src_side, T ignored_pos) {
+                          src_side_info &src_side, T ignored_pos,Reachable reachable) {
     upward_integrated(src_side, src_mut, search_radius, src_mut_next,
-                      src->mutations,ignored_pos);
+                      src->mutations,ignored_pos,reachable);
     for (int radius_left = search_radius - 1; radius_left > 0; radius_left--) {
         src_mut.swap(src_mut_next);
         src_mut_next.clear();
+        if (!src_side.LCA) {
+            break;
+        }
+        if (!reachable.always_search) {
+            if (src_side.LCA->get_self_changed()&&reachable.reachable_change) {
+                reachable.always_search=true;
+            }
+            if(!src_side.LCA->get_ancestor_changed()){
+                break;
+            }
+        }
         upward_integrated(src_side, src_mut, radius_left, src_mut_next,
-                          src_side.allele_count_change_from_src,ignored_pos);
+                          src_side.allele_count_change_from_src,ignored_pos,reachable);
     }
 }
-void find_moves_bounded(MAT::Node *src, output_t &out, int search_radius,bool do_drift
+void find_moves_bounded(MAT::Node *src, output_t &out, int search_radius,bool do_drift,Reachable reachable
 #ifdef CHECK_BOUND
                         ,
                         counters &count
@@ -346,6 +365,9 @@ void find_moves_bounded(MAT::Node *src, output_t &out, int search_radius,bool do
 #else
     src_side_info src_side {out,par_score_change_base,par_score_change_base,src,src};
 #endif
+    if (reachable.reachable_change&&src->get_self_moved()) {
+        reachable.always_search=true;
+    }
     for (const auto& mut : src->mutations) {
         if (mut.get_all_major_allele()==0xf||mut.get_par_one_hot()==mut.get_all_major_allele()) {
             continue;
@@ -355,8 +377,8 @@ void find_moves_bounded(MAT::Node *src, output_t &out, int search_radius,bool do
     //sentinel
     src_mut.emplace_back();
     if (src->ignore.empty()) {
-        __find_moves_bounded(src, search_radius, src_mut, src_mut_next, src_side,ignore_ranger_nop{});
+        __find_moves_bounded(src, search_radius, src_mut, src_mut_next, src_side,ignore_ranger_nop{},reachable);
     } else {
-        __find_moves_bounded(src, search_radius, src_mut, src_mut_next, src_side,ignore_ranger{src->ignore});
+        __find_moves_bounded(src, search_radius, src_mut, src_mut_next, src_side,ignore_ranger{src->ignore},reachable);
     }
 }
