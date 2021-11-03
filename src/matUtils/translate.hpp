@@ -62,7 +62,7 @@ struct Codon {
         // The nt to mutate is the difference between the
         // genomic coordinate of the mutated nt and the
         // starting coordinate of the codon
-        nucleotides[nuc_pos-start_position] = mutated_nuc;
+        nucleotides[abs(nuc_pos-start_position)] = mutated_nuc;
         protein = translate_codon(nucleotides);
     }
 

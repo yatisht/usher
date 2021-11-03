@@ -681,7 +681,7 @@ void get_minimum_subtrees(MAT::Tree* T, std::vector<std::string> samples, size_t
 
 // Helper function to format one attribute into taxodium encoding for a SingleValuePerNode metadata type
 void populate_generic_metadata(int attribute_column, std::vector<std::string> &attributes, std::unordered_map<std::string, std::string> &seen_map, int &encoding_counter, Taxodium::MetadataSingleValuePerNode *single) {
-    if (attribute_column < (int) attributes.size() && attributes[attribute_column] != "") {
+    if (attributes[attribute_column] != "") {
         std::string attr_val = attributes[attribute_column];
         if (seen_map.find(attr_val) == seen_map.end()) {
             encoding_counter++;
@@ -699,16 +699,20 @@ void populate_generic_metadata(int attribute_column, std::vector<std::string> &a
 
 // Helper function to populate non-generic metadata types that have mapping encodings.
 void populate_fixed_metadata(std::string name, int attribute_column, std::vector<std::string> &attributes, std::unordered_map<std::string, std::string> &seen_map, int &encoding_counter, Taxodium::AllData &all_data) {
-    if (seen_map.find(attributes[attribute_column]) == seen_map.end()) {
-        encoding_counter++;
-        std::string encoding_str = std::to_string(encoding_counter);
-        seen_map[attributes[attribute_column]] = encoding_str;
-        if (name == "date") { // only date for now
-            all_data.add_date_mapping(attributes[attribute_column]);
+    if (attributes[attribute_column] != "") {
+        if (seen_map.find(attributes[attribute_column]) == seen_map.end()) {
+            encoding_counter++;
+            std::string encoding_str = std::to_string(encoding_counter);
+            seen_map[attributes[attribute_column]] = encoding_str;
+            if (name == "date") { // only date for now
+                all_data.add_date_mapping(attributes[attribute_column]);
+            }
+            attributes[attribute_column] = encoding_str;
+        } else {
+            attributes[attribute_column] = seen_map[attributes[attribute_column]];
         }
-        attributes[attribute_column] = encoding_str;
     } else {
-        attributes[attribute_column] = seen_map[attributes[attribute_column]];
+        attributes[attribute_column] = "0";
     }
 }
 
@@ -720,6 +724,7 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
      * strain is the sample ID and is required. The rest may be missing.
      * Additional fields to look for are specified with -F
      */
+
 
     int32_t date_ct = 0;
     all_data.add_date_mapping("");
@@ -733,7 +738,9 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
 
     // First parse all files into metadata map
     std::vector<std::string> header;
+    int additional_fields = 0; // Number of new fields in each metadata file
     for (std::string f : filenames) {
+        std::cout << "Reading metadata from " << f << std::endl;
         std::ifstream infile(f);
         if (!infile) {
             fprintf(stderr, "ERROR: Could not open the file: %s!\n", f.c_str());
@@ -757,12 +764,16 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
             }
             MAT::string_split(line, delim, words);
             if (first) { // header line
+                int field_count = 0;
                 for (int i = 0; i < (int) words.size(); i++) { // for each column name
+                    std::cout << "adding header field " << words[i] << std::endl;
                     header.push_back(words[i]);
+                    field_count++;
                     if (words[i] == "strain") {
                         strain_column = i;
                     }
                 }
+                additional_fields = field_count;
                 first = false;
                 if (strain_column == -1) {
                     fprintf(stderr, "The column \"strain\" (sample ID) is missing from at least one metadata file.\n");
@@ -775,23 +786,112 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
                 continue; // ignore duplicates in each metadata file
             }
             seen_in_this_file[key] = true;
+
+            int prev_header_size = header.size() - additional_fields;
+
+            if (key == "Malawi_ERR245754_2000") {
+                    std::cout << "\nDAWORD\n";
+                    std::cout << "new fields size: " << additional_fields << "\n";
+                    for (auto w : words) {
+                        std::cout << w << ", ";
+                    }
+                    //std::cout << "\nmetasofar\n";
+                    // for (auto m : metadata[key]) {
+                    //     std::cout << m << ", ";
+                    // }
+                   // std::cout << "\nexisting meta size: " << metadata[key].size() << "\n";
+                    std::cout << "prevheadersize: " << additional_fields << "\n";
+            }
             if (metadata.find(key) == metadata.end()) {
                 // if we haven't seen this sample yet
                 metadata[key] = std::vector<std::string>();
+                while (metadata[key].size() < prev_header_size) {
+                    if (key == "Malawi_ERR245754_2000") {
+                        std::cout << "adding a blank for  " << header[metadata[key].size()] << '\n';
+                    }
+                    metadata[key].push_back("");
+                }
             }
-            for (auto word : words) {
+
+            for (int i = 0; i < words.size(); i++) {
+                std::string word = words[i];
+                if (key == "Malawi_ERR245754_2000") {
+                    std::cout << "word: " << word  << " for " << header[prev_header_size + metadata[key].size()] << "\n";
+                }
                 metadata[key].push_back(word);
+
+                // Check all metadata fields up to this one
+                // If the same field exists earlier, copy non-empty
+                // values into the first column of the field
+                // std::cout << "-----------\n";
+                // for (auto h : header) {
+                //     std::cout << h << ", ";
+                // }
+                // std::cout << "\nHeader\n";
+                // for (int i = 0; i < header.size(); i++) {
+                //     std::cout << header[i] << ", ";
+                // }
+                // std::cout << "\nValues\n";
+                // for (int i = 0; i < prev_header_size; i++) {
+                //     std::cout << metadata[key][i] << ", ";
+                // }
+                // std::cout << " ... ";
+                // for (int i = 0; i < words.size(); i++) {
+                //     std::cout << words[i] << ", ";
+                // }
+                // std::cout << "-----------\n";
+                
+                if (key == "Malawi_ERR245754_2000") {
+                    std::cout << "curr column: " << prev_header_size + i << " val: " << word << '\n';
+                }
+                for (int j = 0; j < prev_header_size; j++) {
+                    if (header[j] == header[prev_header_size + i]) {
+                        if (key == "Malawi_ERR245754_2000") {
+                            std::cout << "already exists at: " << j << " val: " << metadata[key][j]  << " field: " << header[j] << '\n';
+                        }
+                        if (words[i] != "") {
+                            if (key == "Malawi_ERR245754_2000") {
+                                std::cout << "setting to " << words[i] << '\n';
+                            }
+                            metadata[key][j] = words[i];
+                        }
+                    }
+                }
             }
-            if (metadata[key].size() == header.size() - 1) {
-                metadata[key].push_back(""); // the case where the last column is empty
+            
+            // fills out empty columns
+            while(metadata[key].size() < header.size()) {
+                metadata[key].push_back("");
             }
+
         }
         infile.close();
     }
+
+    // for (auto h : header) {
+    //     std::cout << h << "\t";
+    // }
+    // std::cout << "\n";
+    for(auto &v : metadata) {
+        // fill out empty columns
+        while(metadata[v.first].size() < header.size()) {
+            metadata[v.first].push_back(""); // handles empty metadata in the last columns
+        }
+        // for (auto &value : v.second) {
+        //     std::cout << value << "\t";
+        // }
+        // std::cout << '\n';
+    }
     // Then use map to make taxodium encodings and check for defined/generic fields
-    // if multiple columns define the same field, the last occurrence is picked
+    // If the same column is present in multiple metadata files (or multiple times in a file),
+    // the non-empty values are condensed into the first column of that name.
+    std::unordered_map<std::string, bool> done_fields;
     for (int i = 0; i < (int) header.size(); i++) {
         std::string field = header[i];
+        if (done_fields.find(field) != done_fields.end()) {
+            continue; // already included this field
+        }
+        done_fields[field] = true;
         if (field == "strain") {
             columns.strain_column = i;
         } else if (field == "genbank_accession") {
@@ -863,7 +963,6 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
         }
 
     }
-
 
 
     fprintf(stderr, "\nPerforming conversion.\n");
