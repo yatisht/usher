@@ -1,0 +1,14 @@
+name: nextstrain
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - augur=13.0.0
+  - epiweeks=2.1.2
+  - iqtree=2.1.2
+  - mafft=7.475
+  - nextalign=0.2.0
+  - pangolin=2.3.8
+  - pangolearn=2021.04.01
+  - python>=3.7*
