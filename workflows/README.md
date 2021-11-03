@@ -54,7 +54,7 @@ To run a file through any of the workflows, with the exception of _introduce_, r
 
 The _augur_ workflow produces a json file with published sequences provided by the user that belong to a certain outbreak. The user should alter the _config.json_ file within the config folder to describe their dataset, as the current file is set as an example of the workflow.
 
-For further help with the _Augur_ workflow please contact [Adriano Schneider](adeberna@ucsc.edu).
+For further help with the _Augur_ workflow please contact [Adriano Schneider](mailto:adeberna@ucsc.edu).
 
 ## Further Reading:
 
