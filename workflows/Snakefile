@@ -22,6 +22,12 @@ introduce: run introduce on the user provided samples to identify clusters
     snakemake --use-conda --cores [num threads] --config FASTA="[user_fa]" RUNTYPE="introduce"
 systematic: search for possible systematic errors in your added samples by outputing a list of sites whose parsimony score increased
     snakemake --use-conda --cores [num threads] --config FASTA="[user_fa]" RUNTYPE="systematic"
+outbreak: run extract on the dataset that includes user provided samples to identify close related sequences
+    snakemake --use-conda --cores [num threads] --config FASTA="[user_fa]" RUNTYPE="outbreak"
+augur: runs the augur pipeline to build a clocked tree that includes the user samples for visualization
+    snakemake --use-conda --cores [num threads] --config FASTA="[user_fa]" RUNTYPE="augur"
+
+
 
 For each run type, the usher.yaml environment file must be present in the working directory.
 
@@ -40,132 +46,150 @@ rule all:
 
 rule download_reference:
     output:
-        ref = "wuhCor1.fa"
+        ref = "data/wuhCor1.fa"
     conda:
-        "usher.yaml"
+        "envs/usher.yaml"
     shell:
-        "wget https://hgdownload.soe.ucsc.edu/goldenPath/wuhCor1/bigZips/wuhCor1.fa.gz && gunzip wuhCor1.fa.gz"
+        '''
+        cd data
+        wget https://hgdownload.soe.ucsc.edu/goldenPath/wuhCor1/bigZips/wuhCor1.fa.gz && gunzip wuhCor1.fa.gz
+        cd ..
+        '''
 
 rule align_seqs:
     input:
         rules.download_reference.output.ref,
         config["FASTA"]
     output:
-        aln = "aligned_seqs.fa"
+        aln = "output/aligned_seqs.fa"
     conda:
-        "usher.yaml"
+        "envs/usher.yaml"
     threads:
         64
     shell:
-        "mafft --thread {threads} --auto --keeplength --addfragments {input[1]} {input[0]} > aligned_seqs.fa"
+        "mafft --thread {threads} --auto --keeplength --addfragments {input[1]} {input[0]} > {output[0]}"
 
 rule download_masking:
     output:
-        probvcf = "problematic_sites_sarsCov2.vcf"
+        probvcf = "data/problematic_sites_sarsCov2.vcf"
     conda:
-        "usher.yaml"
+        "envs/usher.yaml"
     shell:
-        "wget https://raw.githubusercontent.com/W-L/ProblematicSites_SARS-CoV2/master/problematic_sites_sarsCov2.vcf"
+        '''
+        cd data
+        wget https://raw.githubusercontent.com/W-L/ProblematicSites_SARS-CoV2/master/problematic_sites_sarsCov2.vcf
+        cd ..
+        '''
 
 rule create_vcf:
     input:
         rules.download_masking.output.probvcf,
         rules.align_seqs.output.aln
     output:
-        alnvcf = "aligned_seqs.vcf",
+        alnvcf = "output/aligned_seqs.vcf",
     conda:
-        "usher.yaml"
+        "envs/usher.yaml"
     shell:
-        "faToVcf -maskSites={input[0]} {input[1]} aligned_seqs.vcf"
+        "faToVcf -maskSites={input[0]} {input[1]} {output[0]}"
 
 rule download_protobuf:
     output:
-        dataset = "public-latest.all.masked.pb.gz" 
+        dataset = "data/public-latest.all.masked.pb.gz" 
     conda:
-        "usher.yaml"
+        "envs/usher.yaml"
     shell:
-        "wget http://hgdownload.soe.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/public-latest.all.masked.pb.gz"
+        '''
+        cd data
+        wget http://hgdownload.soe.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/public-latest.all.masked.pb.gz
+        cd ..
+        '''
 
 rule usher:
     input:
         rules.download_protobuf.output.dataset,
         rules.create_vcf.output.alnvcf
     conda:
-        "usher.yaml"
+        "envs/usher.yaml"
     output:
-        updateddataset = "user_seqs.pb",
+        updateddataset = "output/user_seqs.pb",
         temp = temp("usher"),
         treenh = "final-tree.nh",
         mutpath = "mutation-paths.txt"
     threads:
         threads = 64
     shell:
-        "usher --threads {threads} --load-mutation-annotated-tree {input[0]} --vcf {input[1]} --save-mutation-annotated-tree user_seqs.pb > usher"
+        "usher --threads {threads} --load-mutation-annotated-tree {input[0]} --vcf {input[1]} --save-mutation-annotated-tree {output[0]} > usher"
 
 rule get_sample_ids:
     input:
         config["FASTA"]
     conda:
-        "usher.yaml"
+        "envs/usher.yaml"
     output:
-        usersamples = "user_samples.txt"
+        usersamples = "output/user_samples.txt"
     shell:
-        "grep -e '>' {input[0]} | perl -pi -e 's/>//' > user_samples.txt"
+        "grep -e '>' {input[0]} | perl -pi -e 's/>//' > {output[0]}"
 
 rule introduce:
     input:
         rules.usher.output.updateddataset,
         rules.get_sample_ids.output.usersamples
     conda:
-        "usher.yaml"
+        "envs/usher.yaml"
     output:
         temp = temp("introduce"),
-        inferredintros = "user_seqs.introductions.txt",
-        clusters = "user_seqs.clusters.txt"
+        inferredintros = "output/user_seqs.introductions.txt",
+        clusters = "output/user_seqs.clusters.txt"
     threads:
         64
     shell:
-        "matUtils introduce -T {threads} -i {input[0]} --population-samples {input[1]} --cluster-output user_seqs.clusters.txt --full-output user_seqs.introductions.txt > introduce"
+        "matUtils introduce -T {threads} -i {input[0]} --population-samples {input[1]} --cluster-output {output[2]} --full-output {output[1]} > introduce"
         
-rule download_metadata :
+rule download_metadata:
     conda:
-        "usher.yaml"
+        "envs/usher.yaml"
     output:
-        metadata = "public-latest.metadata.tsv"
+        metadata = "data/public-latest.metadata.tsv"
     shell:
-        "wget http://hgdownload.soe.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/public-latest.metadata.tsv.gz && gunzip public-latest.metadata.tsv.gz"
-
-rule download_gtf :
+        '''
+        cd data
+        wget http://hgdownload.soe.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/public-latest.metadata.tsv.gz && gunzip public-latest.metadata.tsv.gz
+        cd ..
+        '''
+rule download_gtf:
     conda:
-        "usher.yaml"
+        "envs/usher.yaml"
     output:
-        gtffile = "ncbiGenes.gtf"
+        gtffile = "data/ncbiGenes.gtf"
     shell:
-        "wget http://hgdownload.soe.ucsc.edu/goldenPath/wuhCor1/bigZips/genes/ncbiGenes.gtf.gz && gunzip ncbiGenes.gtf.gz"
-
-rule translate :
+        '''
+        cd data
+        wget http://hgdownload.soe.ucsc.edu/goldenPath/wuhCor1/bigZips/genes/ncbiGenes.gtf.gz && gunzip ncbiGenes.gtf.gz
+        cd ..
+        '''
+rule translate:
     input:
         rules.usher.output.updateddataset,        
         rules.download_gtf.output.gtffile,
         rules.download_reference.output.ref
     conda:
-        "usher.yaml"
+        "envs/usher.yaml"
     threads:
         64
     output:
-        translation = "user_seqs.translation.tsv",
+        translation = "output/user_seqs.translation.tsv",
         temp = temp("translate")
     shell:
-        "matUtils summary -t user_seqs.translation.tsv -i {input[0]} -g {input[1]} -f {input[2]} > translate"
+        "matUtils summary -t {output[0]} -i {input[0]} -g {input[1]} -f {input[2]} > translate"
 
-rule extract_subtrees :
+rule extract_subtrees:
     input :
         rules.usher.output.updateddataset,
         rules.get_sample_ids.output.usersamples,
         rules.download_metadata.output.metadata,
         rules.translate.output.translation
     conda:
-        "usher.yaml"
+        "envs/usher.yaml"
     output :
         temp = temp("matUtils"),
         output = "subtree-assignments.tsv"
@@ -174,35 +198,35 @@ rule extract_subtrees :
     shell :
         "matUtils extract -T {threads} -i {input[0]} -s {input[1]} -M {input[2]},{input[3]} -N 500 -j user > matUtils"
 
-rule taxodium :
+rule taxodium:
     input :
         rules.usher.output.updateddataset,
         rules.download_gtf.output.gtffile,
         rules.download_reference.output.ref,
         rules.download_metadata.output.metadata
     output:
-        "user_seqs.taxodium.pb",
+        "output/user_seqs.taxodium.pb",
         temp("taxodium")
     conda:
-        "usher.yaml"
+        "envs/usher.yaml"
     threads:
         64
     shell:
         "matUtils extract -i {input[0]} -T {threads} -l {output[0]} -g {input[1]} -f {input[2]} -M {input[3]} > taxodium"
 
-rule ripples :
+rule ripples:
     input :
         rules.usher.output.updateddataset,
         rules.get_sample_ids.output.usersamples
     output:
         temp("ripples")
     conda:
-        "usher.yaml"
+        "envs/usher.yaml"
     threads:
         64
     shell:
         "ripples -i {input[0]} -s {input[1]} -T {threads} > ripples"
-        
+
 rule extract_parsimony_difference :
     input :
         rules.usher.output.updateddataset,
@@ -214,14 +238,14 @@ rule extract_parsimony_difference :
         temp("samples_total.txt"),
         temp("parsimony_diffs.txt")
     conda :
-        "usher.yaml"
+        "envs/usher.yaml"
     shell :
         """
         matUtils summary -i {input[0]} -s {output[3]} -m {output[0]}
         matUtils summary -i {input[1]} -s {output[2]} -m {output[1]}
         join {output[1]} {output[0]} | awk '$2 != $3' | awk '{{ print $1, $2, $3, $3-$2 }}' | sort -nrk4,4 >> {output[4]}
         """
-	
+    
 rule create_report :
     input :
         "samples_public.txt",
@@ -258,3 +282,139 @@ rule create_report :
                     line = line.strip()
                     fields = line.split(" ")
                     print ( fields[0], fields[1], fields[2], fields[3], float(fields[1])/total_samples, float(fields[3])/user_samples, sep = "\t", file=pars_out )
+
+rule outbreak_samples:
+    input :
+        config["FASTA"]
+    output:
+        sampleids = "output/outbreak.samples.txt"
+    shell:
+        "grep -e '>' {input[0]} | perl -pi -e 's/>//' > {output[0]}"
+
+rule outbreak:
+    input :
+        rules.usher.output.updateddataset,
+        rules.outbreak_samples.output.sampleids
+    output:
+        mat = "output/user_seqs.outbreak.pb",
+        json = "output/user_seqs.outbreak.json",
+        nwk = "output/user_seqs.outbreak.nwk",
+        vcf = "output/user_seqs.outbreak.vcf",
+        txt = "output/user_seqs.outbreak.txt",
+        temp = temp("outbreak")
+    conda:
+        "envs/usher.yaml"
+    threads:
+        threads = 64
+    shell:
+        "matUtils extract -i {input[0]} -T {threads} -s {input[1]} -o {output[0]} -j {output[1]} -t {output[2]} -v {output[3]} -u {output[4]} > outbreak"
+
+rule subset_metadata:
+    input:
+        rules.outbreak_samples.output.sampleids,
+        rules.download_metadata.output.metadata
+    conda:
+        "envs/usher.yaml"
+    output:
+        metadata = "output/user_subset.metadata.tsv"
+    shell:
+        """
+        head -1 {input[1]} > {output[0]}
+        sed -i -e 's/strain/strain1/g' {output[0]}
+        grep -f {input[0]} {input[1]} >> {output[0]}
+        sed -i -e 's/genbank_accession/strain/g' {output[0]}
+        rm output/user_subset.metadata.tsv-e
+        """
+#### AUGUR WORKFLOW ####
+
+rule refine:
+    input:
+        rules.outbreak.output.nwk,
+        rules.outbreak.output.vcf,
+        rules.download_reference.output.ref,
+        rules.subset_metadata.output.metadata
+    output:
+        tree = "output/augur.tree.nwk",
+        node_data = "output/augur.branch_lengths.json",
+    conda:
+        "envs/nextstrain.yaml"
+    params:
+        root = 'min_dev',
+        coal = 'opt'
+    shell:
+        """
+        augur refine --tree {input[0]} \
+            --alignment {input[1]} \
+            --vcf-reference {input[2]} \
+            --metadata {input[3]} \
+            --timetree \
+            --root {params.root} \
+            --coalescent {params.coal} \
+            --output-tree {output.tree} \
+            --output-node-data {output.node_data} \
+        """
+rule ancestral:
+    input:
+        tree = rules.refine.output.tree,
+        alignment = rules.outbreak.output.vcf,
+        ref = rules.download_reference.output.ref
+    output:
+        nt_data = "output/nt_muts.json",
+        vcf_out = "output/nt_muts.vcf",
+    conda:
+        "envs/nextstrain.yaml"
+    params:
+        inference = "joint"
+    shell:
+        """
+        augur ancestral --tree {input.tree} \
+            --alignment {input.alignment} \
+            --vcf-reference {input.ref} \
+            --inference {params.inference} \
+            --output-node-data {output.nt_data} \
+            --output-vcf {output.vcf_out}
+        """
+rule traits:
+    input:
+        tree = rules.refine.output.tree,
+        meta = rules.subset_metadata.output.metadata
+    output:
+        traits = "output/traits.json"
+    conda:
+        "envs/nextstrain.yaml"
+    params:
+        traits = 'country'
+    shell:
+        """
+        augur traits --tree {input.tree} \
+            --metadata {input.meta} \
+            --columns {params.traits} \
+            --output-node-data {output}
+        """
+rule export:
+    input:
+        tree = rules.refine.output.tree,
+        metadata = rules.subset_metadata.output.metadata,
+        branch_lengths = rules.refine.output.node_data,
+        traits = rules.traits.output.traits,
+        nt_muts = rules.ancestral.output.nt_data,
+#        aa_muts = rules.translate.output.aa_data,
+#        drms = rules.seqtraits.output.drm_data,
+#        color_defs = "config/colors.tsv",
+        config = "config/config.json",
+#        geo_info = "config/lat_longs.tsv",
+#        clades = rules.clades.output.clade_data
+    output:
+        auspice_json = "auspice/auspice.json",
+        temp = temp("augur")
+    conda:
+        "envs/nextstrain.yaml"
+    shell:
+        """
+        augur export v2 \
+            --tree {input.tree} \
+            --metadata {input.metadata} \
+            --node-data {input.branch_lengths} {input.nt_muts} {input.traits} \
+            --auspice-config {input.config} \
+            --output {output.auspice_json} > augur \
+        """
