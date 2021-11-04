@@ -789,7 +789,7 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
 
             int prev_header_size = header.size() - additional_fields;
 
-            if (key == "Malawi_ERR245754_2000") {
+            if (key == "G00080") {
                     std::cout << "\nDAWORD\n";
                     std::cout << "new fields size: " << additional_fields << "\n";
                     for (auto w : words) {
@@ -800,13 +800,12 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
                     //     std::cout << m << ", ";
                     // }
                    // std::cout << "\nexisting meta size: " << metadata[key].size() << "\n";
-                    std::cout << "prevheadersize: " << additional_fields << "\n";
             }
             if (metadata.find(key) == metadata.end()) {
                 // if we haven't seen this sample yet
                 metadata[key] = std::vector<std::string>();
                 while (metadata[key].size() < prev_header_size) {
-                    if (key == "Malawi_ERR245754_2000") {
+                    if (key == "G00080") {
                         std::cout << "adding a blank for  " << header[metadata[key].size()] << '\n';
                     }
                     metadata[key].push_back("");
@@ -815,9 +814,9 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
 
             for (int i = 0; i < words.size(); i++) {
                 std::string word = words[i];
-                if (key == "Malawi_ERR245754_2000") {
-                    std::cout << "word: " << word  << " for " << header[prev_header_size + metadata[key].size()] << "\n";
-                }
+                // if (key == "Malawi_ERR245754_2000") {
+                //     std::cout << "word: " << word  << " for " << header[prev_header_size + metadata[key].size()] << "\n";
+                // }
                 metadata[key].push_back(word);
 
                 // Check all metadata fields up to this one
@@ -841,20 +840,21 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
                 // }
                 // std::cout << "-----------\n";
                 
-                if (key == "Malawi_ERR245754_2000") {
+                if (key == "G00080") {
                     std::cout << "curr column: " << prev_header_size + i << " val: " << word << '\n';
                 }
                 for (int j = 0; j < prev_header_size; j++) {
                     if (header[j] == header[prev_header_size + i]) {
-                        if (key == "Malawi_ERR245754_2000") {
+                        if (key == "G00080") {
                             std::cout << "already exists at: " << j << " val: " << metadata[key][j]  << " field: " << header[j] << '\n';
                         }
                         if (words[i] != "") {
-                            if (key == "Malawi_ERR245754_2000") {
+                            if (key == "G00080") {
                                 std::cout << "setting to " << words[i] << '\n';
                             }
                             metadata[key][j] = words[i];
                         }
+                        break;
                     }
                 }
             }
