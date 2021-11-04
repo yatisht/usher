@@ -1,10 +1,10 @@
-# This directory contains simple snakemake workflows for running UShER, RIPPLES, and matUtils
+# This directory contains simple snakemake workflows for running UShER, RIPPLES, matUtils and Augur
 
 ## To use these workflows, include in the current working directory:
 
 1. a fasta file with SARS-CoV-2 genome sequences: [user_fa]
 2. the Snakefile
-3. the conda environment file, usher.yaml
+3. the conda environment files, usher.yaml and nextstrain.yaml
 
 ## Users can run each workflow as:
 
@@ -40,7 +40,7 @@ outbreak: run extract on the dataset that includes user provided samples to iden
 
     snakemake --use-conda --cores [num threads] --config FASTA="[user_fa]" RUNTYPE="outbreak"
 
-augur: runs the augur pipeline to build a clocked tree that includes the user samples for visualization
+augur: runs the augur pipeline to build a clocked tree that includes the user samples for visualization in auspice
 
     snakemake --use-conda --cores [num threads] --config FASTA="[user_fa]" RUNTYPE="augur"
     
