@@ -3,6 +3,7 @@
 #include "zlib.h"
 #include "tbb/concurrent_queue.h"
 #include "tbb/flow_graph.h"
+#include <algorithm>
 #include <atomic>
 #include <cctype>
 #include <chrono>
@@ -123,7 +124,7 @@ struct line_parser {
                     //output prototype of mutation, and a map from sample to non-ref allele
                     if (allele_idx>=(allele_translated.size()+1)) {
                         non_ref_muts_out.emplace_back(header[field_idx],0xf);
-                    } else if (allele_idx) {
+                    } else if (allele_idx&&header[field_idx]>=0) {
                         non_ref_muts_out.emplace_back(header[field_idx],allele_translated[allele_idx-1]);
                     }
                 }
@@ -211,7 +212,8 @@ static char* try_get_first_line(gzFile f,size_t& size ) {
     strcpy(buf, temp.data());
     return buf;
 }
-#define CHUNK_SIZ 100
+#define CHUNK_SIZ 100ul
+#define ONE_GB 0x4ffffffful
 void VCF_input(const char * name,MAT::Tree& tree) {
     assigned_count=0;
     std::vector<std::string> fields;
@@ -234,8 +236,9 @@ void VCF_input(const char * name,MAT::Tree& tree) {
     for (size_t idx=9; idx<fields.size(); idx++) {
         auto iter=tree.all_nodes.find(fields[idx]);
         if (iter==tree.all_nodes.end()) {
-            fprintf(stderr, "sample %s cannot be found\n",fields[idx].c_str());
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "sample %s cannot be found in tree\n",fields[idx].c_str());
+            idx_map.push_back(-1);
+            //exit(EXIT_FAILURE);
         } else {
             auto res=inserted_samples.insert(fields[idx]);
             if (res.second) {
@@ -256,7 +259,8 @@ void VCF_input(const char * name,MAT::Tree& tree) {
     tbb::flow::function_node<Parsed_VCF_Line*> assign_state(input_graph,tbb::flow::unlimited,Assign_State{child_idx_range,parent_idx,output});
     tbb::flow::make_edge(tbb::flow::output_port<0>(parser),assign_state);
     parser.try_put(try_get_first_line(fd, header_size));
-    decompressor_node_t decompressor(input_graph,Decompressor{fd,CHUNK_SIZ*header_size,2*header_size});
+    size_t first_approx_size=std::min(CHUNK_SIZ,ONE_GB/header_size)-2;
+    decompressor_node_t decompressor(input_graph,Decompressor{fd,first_approx_size*header_size,2*header_size});
     tbb::flow::make_edge(decompressor,parser);
     input_graph.wait_for_all();
     gzclose(fd);
