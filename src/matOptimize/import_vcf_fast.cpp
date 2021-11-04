@@ -124,7 +124,7 @@ struct line_parser {
                     //output prototype of mutation, and a map from sample to non-ref allele
                     if (allele_idx>=(allele_translated.size()+1)) {
                         non_ref_muts_out.emplace_back(header[field_idx],0xf);
-                    } else if (allele_idx) {
+                    } else if (allele_idx&&header[field_idx]>=0) {
                         non_ref_muts_out.emplace_back(header[field_idx],allele_translated[allele_idx-1]);
                     }
                 }
@@ -236,8 +236,9 @@ void VCF_input(const char * name,MAT::Tree& tree) {
     for (size_t idx=9; idx<fields.size(); idx++) {
         auto iter=tree.all_nodes.find(fields[idx]);
         if (iter==tree.all_nodes.end()) {
-            fprintf(stderr, "sample %s cannot be found\n",fields[idx].c_str());
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "sample %s cannot be found in tree\n",fields[idx].c_str());
+            idx_map.push_back(-1);
+            //exit(EXIT_FAILURE);
         } else {
             auto res=inserted_samples.insert(fields[idx]);
             if (res.second) {
