@@ -231,7 +231,7 @@ void restrictMutationsLocally (std::string mutations_filename, MAT::Tree* T, boo
             fprintf(stderr, "ERROR: Internal node %s requested for masking does not exist in the tree. Exiting\n", ml.second.c_str());
             exit(1);
         }
-        fprintf(stderr, "Masking mutation %s below node %s\n", ml.first.c_str(), ml.second.c_str());
+        // fprintf(stderr, "Masking mutation %s below node %s\n", ml.first.c_str(), ml.second.c_str());
         for (auto n: T->depth_first_expansion(rn)) {
             std::vector<MAT::Mutation> nmuts;
             for (auto& mut: n->mutations) {
@@ -243,7 +243,7 @@ void restrictMutationsLocally (std::string mutations_filename, MAT::Tree* T, boo
             }
             n->mutations = nmuts;
         }
-        std::cerr << instances_masked << " mutations masked.\n";
+        // std::cerr << instances_masked << " mutations masked.\n";
     }
     T->collapse_tree();
 }
