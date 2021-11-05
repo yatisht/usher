@@ -10,6 +10,7 @@ message node {
     repeated int64 children_offsets =6;
     repeated int32 children_lengths =7;
     repeated string condensed_nodes =8;
+    int32 changed =9;
 }
 
 message meta {

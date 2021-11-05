@@ -24,7 +24,6 @@ extern bool use_bound;
 extern uint32_t num_threads;
 namespace MAT = Mutation_Annotated_Tree;
 extern std::atomic_bool interrupted;
-extern std::vector<std::string> changed_nodes;
 extern tbb::concurrent_unordered_map<MAT::Mutation, tbb::concurrent_unordered_map<std::string, nuc_one_hot>*,Mutation_Pos_Only_Hash,
        Mutation_Pos_Only_Comparator>
        mutated_positions;
@@ -84,19 +83,19 @@ void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t
                 );
 void fix_condensed_nodes(MAT::Tree *tree) ;
 void find_nodes_to_move(const std::vector<MAT::Node *> &bfs_ordered_nodes,
-                        std::vector<MAT::Node*> &output,bool is_first,int radius,MAT::Tree &tree) ;
+                        std::vector<MAT::Node*> &output,bool search_all_nodes,bool search_all_dir,int radius,MAT::Tree &tree) ;
 void add_root(MAT::Tree *tree) ;
 void VCF_input(const char * name,MAT::Tree& tree);
 
 void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
                                MAT::Tree &t,int radius,FILE* log,bool allow_drift,int iteration,
-                               std::vector<MAT::Node*>& deferred_nodes_out,bool MPI_involved,std::chrono::steady_clock::time_point end_time,bool do_continue
+                               std::vector<MAT::Node*>& deferred_nodes_out,bool MPI_involved,std::chrono::steady_clock::time_point end_time,bool do_continue,bool search_all_dir,bool isfirst_this_iter
 #ifndef NDEBUG
                                , Original_State_t& origin_states
 #endif
                               );
 
-void optimize_tree_worker_thread(MAT::Tree &t,int radius,bool do_drift);
+void optimize_tree_worker_thread(MAT::Tree &t,int radius,bool do_drift,bool search_all_dir);
 void save_final_tree(MAT::Tree &t,const std::string &output_path);
 //For removing nodes with no valid mutations between rounds
 void clean_tree(MAT::Tree& t);

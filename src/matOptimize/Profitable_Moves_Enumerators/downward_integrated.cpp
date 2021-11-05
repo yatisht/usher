@@ -328,7 +328,7 @@ template<typename T>
 static void search_subtree_bounded_internal(MAT::Node *node, const src_side_info &src_side,
         int radius_left,
         Bounded_Mut_Change_Collection &par_muts,
-        int lower_bound,T tag
+        int lower_bound,T tag,Reachable reachable
 #ifdef CHECK_BOUND
         ,bool do_continue
 #endif
@@ -380,7 +380,17 @@ static void search_subtree_bounded_internal(MAT::Node *node, const src_side_info
 #endif
             }
         }
-        search_subtree_bounded(child, src_side, radius_left-1, muts, child_specific_lower_bound,tag
+        auto child_reachable=reachable;
+        if (!reachable.always_search) {
+            if (!child->get_descendent_changed()) {
+                continue;
+            }
+            if (reachable.reachable_change&& child->get_self_changed()) {
+                child_reachable.always_search=true;
+            }
+        }
+        
+        search_subtree_bounded(child, src_side, radius_left-1, muts, child_specific_lower_bound,tag,child_reachable
 #ifdef CHECK_BOUND
                                ,do_continue
 #endif
@@ -390,12 +400,12 @@ static void search_subtree_bounded_internal(MAT::Node *node, const src_side_info
 void search_subtree_bounded(MAT::Node *node, const src_side_info &src_side,
                             int radius_left,
                             Bounded_Mut_Change_Collection &par_muts,
-                            int lower_bound,ignore_ranger_nop tag
+                            int lower_bound,ignore_ranger_nop tag,Reachable reachable
 #ifdef CHECK_BOUND
                             ,bool do_continue
 #endif
                            ) {
-    search_subtree_bounded_internal(node, src_side,radius_left,par_muts,lower_bound,tag
+    search_subtree_bounded_internal(node, src_side,radius_left,par_muts,lower_bound,tag,reachable
 #ifdef CHECK_BOUND
                                     ,do_continue
 #endif
@@ -404,12 +414,12 @@ void search_subtree_bounded(MAT::Node *node, const src_side_info &src_side,
 void search_subtree_bounded(MAT::Node *node, const src_side_info &src_side,
                             int radius_left,
                             Bounded_Mut_Change_Collection &par_muts,
-                            int lower_bound,ignore_ranger tag
+                            int lower_bound,ignore_ranger tag,Reachable reachable
 #ifdef CHECK_BOUND
                             ,bool do_continue
 #endif
                            ) {
-    search_subtree_bounded_internal(node, src_side,radius_left,par_muts,lower_bound,tag
+    search_subtree_bounded_internal(node, src_side,radius_left,par_muts,lower_bound,tag,reachable
 #ifdef CHECK_BOUND
                                     ,do_continue
 #endif
