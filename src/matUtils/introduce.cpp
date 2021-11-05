@@ -924,7 +924,6 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::unordered_map<std
             cof << "\tmonophyletic_cladesize\tassociation_index";
         }
         if (region_assignments.size() == 1) {
-            //cof << "annotation_1\tannotation_2\tmutation_path\tsamples\n";
             for (size_t i = 1; i <= nann; i++) {
                 cof << "\tannotation_" + std::to_string(i);
             }
