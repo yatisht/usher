@@ -740,7 +740,6 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
     std::vector<std::string> header;
     int additional_fields = 0; // Number of new fields in each metadata file
     for (std::string f : filenames) {
-        std::cout << "Reading metadata from " << f << std::endl;
         std::ifstream infile(f);
         if (!infile) {
             fprintf(stderr, "ERROR: Could not open the file: %s!\n", f.c_str());
@@ -766,7 +765,6 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
             if (first) { // header line
                 int field_count = 0;
                 for (int i = 0; i < (int) words.size(); i++) { // for each column name
-                    std::cout << "adding header field " << words[i] << std::endl;
                     header.push_back(words[i]);
                     field_count++;
                     if (words[i] == "strain") {
@@ -789,69 +787,23 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
 
             int prev_header_size = header.size() - additional_fields;
 
-            if (key == "G00080") {
-                    std::cout << "\nDAWORD\n";
-                    std::cout << "new fields size: " << additional_fields << "\n";
-                    for (auto w : words) {
-                        std::cout << w << ", ";
-                    }
-                    //std::cout << "\nmetasofar\n";
-                    // for (auto m : metadata[key]) {
-                    //     std::cout << m << ", ";
-                    // }
-                   // std::cout << "\nexisting meta size: " << metadata[key].size() << "\n";
-            }
             if (metadata.find(key) == metadata.end()) {
                 // if we haven't seen this sample yet
                 metadata[key] = std::vector<std::string>();
                 while (metadata[key].size() < prev_header_size) {
-                    if (key == "G00080") {
-                        std::cout << "adding a blank for  " << header[metadata[key].size()] << '\n';
-                    }
                     metadata[key].push_back("");
                 }
             }
 
             for (int i = 0; i < words.size(); i++) {
-                std::string word = words[i];
-                // if (key == "Malawi_ERR245754_2000") {
-                //     std::cout << "word: " << word  << " for " << header[prev_header_size + metadata[key].size()] << "\n";
-                // }
-                metadata[key].push_back(word);
-
                 // Check all metadata fields up to this one
                 // If the same field exists earlier, copy non-empty
                 // values into the first column of the field
-                // std::cout << "-----------\n";
-                // for (auto h : header) {
-                //     std::cout << h << ", ";
-                // }
-                // std::cout << "\nHeader\n";
-                // for (int i = 0; i < header.size(); i++) {
-                //     std::cout << header[i] << ", ";
-                // }
-                // std::cout << "\nValues\n";
-                // for (int i = 0; i < prev_header_size; i++) {
-                //     std::cout << metadata[key][i] << ", ";
-                // }
-                // std::cout << " ... ";
-                // for (int i = 0; i < words.size(); i++) {
-                //     std::cout << words[i] << ", ";
-                // }
-                // std::cout << "-----------\n";
-                
-                if (key == "G00080") {
-                    std::cout << "curr column: " << prev_header_size + i << " val: " << word << '\n';
-                }
+                std::string word = words[i];
+                metadata[key].push_back(word);
                 for (int j = 0; j < prev_header_size; j++) {
                     if (header[j] == header[prev_header_size + i]) {
-                        if (key == "G00080") {
-                            std::cout << "already exists at: " << j << " val: " << metadata[key][j]  << " field: " << header[j] << '\n';
-                        }
                         if (words[i] != "") {
-                            if (key == "G00080") {
-                                std::cout << "setting to " << words[i] << '\n';
-                            }
                             metadata[key][j] = words[i];
                         }
                         break;
@@ -867,20 +819,11 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
         }
         infile.close();
     }
-
-    // for (auto h : header) {
-    //     std::cout << h << "\t";
-    // }
-    // std::cout << "\n";
     for(auto &v : metadata) {
         // fill out empty columns
         while(metadata[v.first].size() < header.size()) {
             metadata[v.first].push_back(""); // handles empty metadata in the last columns
         }
-        // for (auto &value : v.second) {
-        //     std::cout << value << "\t";
-        // }
-        // std::cout << '\n';
     }
     // Then use map to make taxodium encodings and check for defined/generic fields
     // If the same column is present in multiple metadata files (or multiple times in a file),
@@ -969,7 +912,7 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
 
     return metadata;
 }
-void save_taxodium_tree (MAT::Tree &tree, std::string out_filename, std::vector<std::string> meta_filenames, std::string gtf_filename, std::string fasta_filename, std::string title, std::string description, std::vector<std::string> additional_meta_fields) {
+void save_taxodium_tree (MAT::Tree &tree, std::string out_filename, std::vector<std::string> meta_filenames, std::string gtf_filename, std::string fasta_filename, std::string title, std::string description, std::vector<std::string> additional_meta_fields, float x_scale) {
 
     // These are the taxodium pb objects
     Taxodium::AllNodeData *node_data = new Taxodium::AllNodeData();
@@ -991,7 +934,7 @@ void save_taxodium_tree (MAT::Tree &tree, std::string out_filename, std::vector<
     TIMEIT();
 
     // Fill in the taxodium data while doing aa translations
-    translate_and_populate_node_data(&tree, gtf_filename, fasta_filename, node_data, &all_data, metadata, columns, generic_metadata);
+    translate_and_populate_node_data(&tree, gtf_filename, fasta_filename, node_data, &all_data, metadata, columns, generic_metadata, x_scale);
     all_data.set_allocated_node_data(node_data);
 
     // Boost library used to stream the contents to the output protobuf file in

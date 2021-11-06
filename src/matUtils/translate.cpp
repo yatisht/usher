@@ -283,7 +283,7 @@ void translate_main(MAT::Tree *T, std::string output_filename, std::string gtf_f
 }
 
 // This is used for taxodium output. It translates each node and saves metadata to node_data along the way
-void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, std::string fasta_filename, Taxodium::AllNodeData *node_data, Taxodium::AllData *all_data, std::unordered_map<std::string, std::vector<std::string>> &metadata, MetaColumns fixed_columns, std::vector<GenericMetadata> &generic_metadata) {
+void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, std::string fasta_filename, Taxodium::AllNodeData *node_data, Taxodium::AllData *all_data, std::unordered_map<std::string, std::vector<std::string>> &metadata, MetaColumns fixed_columns, std::vector<GenericMetadata> &generic_metadata, float x_scale) {
     std::ifstream fasta_file(fasta_filename);
     if (!fasta_file) {
         fprintf(stderr, "ERROR: Could not open the fasta file: %s!\n", fasta_filename.c_str());
@@ -385,7 +385,7 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
             }
         }
 
-        node_data->add_x(branch_length_map[node->identifier] * 0.2  / 35);
+        node_data->add_x(branch_length_map[node->identifier] * x_scale);
         node_data->add_y(0); // temp value, set later
         node_data->add_epi_isl_numbers(0); // not currently set
         node_data->add_num_tips(T->get_leaves(node->identifier).size());
