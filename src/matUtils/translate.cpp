@@ -29,6 +29,15 @@ std::string build_reference(std::ifstream &fasta_file) {
     return reference_output;
 }
 
+char complement(char nt) {
+    auto it = complement_map.find(nt);
+    if (it == complement_map.end()) {
+        return 'N'; // ambiguous, couldn't resolve nt
+    } else {
+        return it->second;
+    }
+}
+
 // Maps a genomic coordinate to a list of codons it is part of
 std::unordered_map<int, std::vector<std::shared_ptr<Codon>>> build_codon_map(std::ifstream &gtf_file, std::string reference) {
     std::unordered_map<int, std::vector<std::shared_ptr<Codon>>> codon_map;
@@ -106,12 +115,12 @@ std::unordered_map<int, std::vector<std::shared_ptr<Codon>>> build_codon_map(std
                     }
                 }
             } else {
-                for (int pos = first_cds_stop; pos > first_cds_start - 1; pos -= 3) {
+                for (int pos = first_cds_stop - 1; pos > first_cds_start; pos -= 3) {
 
                     char nt[3] = {
-                        reference[pos],
-                        reference[pos-1],
-                        reference[pos-2]
+                        complement(reference[pos]),
+                        complement(reference[pos-1]),
+                        complement(reference[pos-2])
                     };
 
                     // Coordinates are 0-based at this point
@@ -189,11 +198,11 @@ std::unordered_map<int, std::vector<std::shared_ptr<Codon>>> build_codon_map(std
                         }
                     } else {
                         if (inner_cds_start != first_cds_start || strand_outer != strand_inner) {
-                            for (int pos = inner_cds_stop; pos > inner_cds_start - 1; pos -= 3) {
+                            for (int pos = inner_cds_stop - 1; pos > inner_cds_start; pos -= 3) {
                                 char nt[3] = {
-                                    reference[pos],
-                                    reference[pos-1],
-                                    reference[pos-2]
+                                    complement(reference[pos]),
+                                    complement(reference[pos-1]),
+                                    complement(reference[pos-2])
                                 };
                                 std::shared_ptr<Codon> c(new Codon(gene_outer, codon_counter, pos, nt));
                                 codon_counter += 1;
