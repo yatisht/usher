@@ -354,6 +354,30 @@ std::string Mutation_Annotated_Tree::get_newick_string (const Tree& T, bool prin
     return get_newick_string(T, T.root, print_internal, print_branch_len, retain_original_branch_len, uncondense_leaves);
 }
 
+Mutation_Annotated_Tree::Mutation* Mutation_Annotated_Tree::mutation_from_string(const std::string& mut_string) {
+    // Parse string like /[A-Z][0-9]+[A-Z]/ e.g. A23403G; create & return (pointer to) Mutation_Annotated_Tree::Mutation
+    // with par_nuc set to ref_nuc (same as VCF parsing code in usher.cpp).
+    // If mut_string is not in expected format, print error message and return NULL.
+    char ref, alt;
+    int position;
+    int ret = sscanf(mut_string.c_str(), "%c%d%c", &ref, &position, &alt);
+    if (ret != 3 || ref < 'A' || ref > 'Z' || alt < 'A' || alt > 'Z') {
+        fprintf(stderr, "mutation_from_string: expected /[A-Z][0-9]+[A-Z/, got '%s'\n", mut_string.c_str());
+        return NULL;
+    }
+    Mutation_Annotated_Tree::Mutation* mut = new Mutation_Annotated_Tree::Mutation();
+    mut->ref_nuc = Mutation_Annotated_Tree::get_nuc_id(ref);
+    mut->position = position;
+    mut->mut_nuc = Mutation_Annotated_Tree::get_nuc_id(alt);
+    mut->par_nuc = mut->ref_nuc;
+    // Double-check to make sure there aren't additional characters past /[A-Z][0-9]+[A-Z]/:
+    if (mut->get_string() != mut_string) {
+        fprintf(stderr, "mutation_from_string: unexpected characters at the end of '%s'\n", mut_string.c_str());
+        mut = NULL;
+    }
+    return mut;
+}
+
 // Split string into words for a specific delimiter delim
 void Mutation_Annotated_Tree::string_split (std::string const& s, char delim, std::vector<std::string>& words) {
     TIMEIT();
