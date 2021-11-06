@@ -152,6 +152,7 @@ Tree create_tree_from_newick (std::string filename);
 Tree create_tree_from_newick_string (std::string newick_string);
 void string_split(std::string const& s, char delim, std::vector<std::string>& words);
 void string_split(std::string s, std::vector<std::string>& words);
+Mutation* mutation_from_string(const std::string& mut_string);
 
 Tree load_mutation_annotated_tree (std::string filename);
 void save_mutation_annotated_tree (Tree tree, std::string filename);

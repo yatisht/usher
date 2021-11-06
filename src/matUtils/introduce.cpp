@@ -540,7 +540,12 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::unordered_map<std
     if (region_assignments.size() > 1) {
         header += "\tregion\torigins\torigins_confidence";
     }
-    header += "\tannotation_1\tannotation_2\tmutation_path";
+    size_t nann = T->get_num_annotations();
+    for (size_t i = 1; i <= nann; i++) {
+        header += "\tannotation_" + std::to_string(i);
+    }
+    header += "\tmutation_path";
+    //header += "\tannotation_1\tannotation_2\tmutation_path";
     if (eval_uncertainty) {
         header += "\tmeta_uncertainty";
     }
@@ -714,9 +719,7 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::unordered_map<std
                         }
                     }
                     for (size_t i = 0; i < clid_count; i++) {
-                        if (i > 0) {
-                            intro_clades += "\t";
-                        }
+                        intro_clades += "\t";
                         auto kann = clade_indeces_recorded.find(i);
                         if (kann == clade_indeces_recorded.end()) {
                             intro_clades += "none";
@@ -759,8 +762,8 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::unordered_map<std
                         traversed -= muts_of_last_encountered;
                     }
                     if (region_assignments.size() == 1) {
-                        ostr << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed << "\t" << mgap << "\t" << intro_clades << "\t" << intro_mut_path;
-                        mcl << last_anc_state << "\t" << anc_state << "\t" << mgap << "\t" << intro_clades << "\t" << intro_mut_path;
+                        ostr << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed << "\t" << mgap << intro_clades << "\t" << intro_mut_path;
+                        mcl << last_anc_state << "\t" << anc_state << "\t" << mgap << intro_clades << "\t" << intro_mut_path;
                         if (eval_uncertainty) {
                             ostr << "\t" << assignments.find(s)->second;
                         }
@@ -771,8 +774,8 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::unordered_map<std
                             ostr << "\n";
                         }
                     } else {
-                        ostr << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed << "\t" << mgap << "\t" << region << "\t" << origins << "\t" << origins_cons.str() << "\t" << intro_clades << "\t" << intro_mut_path;
-                        mcl << last_anc_state << "\t" << anc_state << "\t" << mgap << "\t" << region << "\t" << origins << "\t" << origins_cons.str() << "\t" << intro_clades << "\t" << intro_mut_path;
+                        ostr << "\t" << last_anc_state << "\t" << anc_state << "\t" << traversed << "\t" << mgap << "\t" << region << "\t" << origins << "\t" << origins_cons.str() << intro_clades << "\t" << intro_mut_path;
+                        mcl << last_anc_state << "\t" << anc_state << "\t" << mgap << "\t" << region << "\t" << origins << "\t" << origins_cons.str() << intro_clades << "\t" << intro_mut_path;
                         if (eval_uncertainty) {
                             ostr << "\t" << assignments.find(s)->second;
                         }
@@ -916,14 +919,21 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::unordered_map<std
     }
     if (bycluster != "") {
         std::ofstream cof(bycluster);
-        cof << "cluster_id\tsample_count\tearliest_date\tlatest_date\tgrowth_score\tspan\tintro_confidence\tparent_confidence\torigin_gap\t";
+        cof << "cluster_id\tsample_count\tearliest_date\tlatest_date\tgrowth_score\tspan\tintro_confidence\tparent_confidence\torigin_gap";
         if (add_info) {
-            cof << "monophyletic_cladesize\tassociation_index\t";
+            cof << "\tmonophyletic_cladesize\tassociation_index";
         }
         if (region_assignments.size() == 1) {
-            cof << "annotation_1\tannotation_2\tmutation_path\tsamples\n";
+            for (size_t i = 1; i <= nann; i++) {
+                cof << "\tannotation_" + std::to_string(i);
+            }
+            cof << "\tmutation_path\tsamples\n";
         } else {
-            cof << "region\tinferred_origin\tinferred_origin_confidence\tannotation_1\tannotation_2\tmutation_path\tsamples\n";
+            cof << "\tregion\tinferred_origin\tinferred_origin_confidence";
+            for (size_t i = 1; i <= nann; i++) {
+                cof << "\tannotation_" + std::to_string(i);
+            }
+            cof << "\tmutation_path\tsamples\n";
         }
         for (auto os: bycluster_output) {
             cof << os;
