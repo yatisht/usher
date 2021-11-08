@@ -12,12 +12,12 @@ mkdir -p ../build
 cd ../build
 wget https://github.com/intel/isa-l/archive/refs/tags/v2.30.0.tar.gz
 tar -xvf v2.30.0.tar.gz
-pushd isa-l-2.30.0
+cd isa-l-2.30.0
 ./autogen.sh
 ./configure
 make -j$(nproc)
 sudo -E make install
-popd
+cd ..
 #download and install TBB
 wget https://github.com/oneapi-src/oneTBB/archive/2019_U9.tar.gz 
 tar -xvzf 2019_U9.tar.gz
