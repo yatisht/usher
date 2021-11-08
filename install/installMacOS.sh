@@ -3,7 +3,7 @@ wget https://github.com/intel/isa-l/archive/refs/tags/v2.30.0.tar.gz
 tar -xvf v2.30.0.tar.gz
 pushd isa-l-2.30.0
 ./autogen.sh
-./configure
+./configure --prefix=$(brew --prefix) --libdir=$(brew --prefix)/lib
 make -j2
 make install
 popd
