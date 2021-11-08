@@ -16,3 +16,4 @@ dependencies:
   - wget
   - rsync
   - intel::impi-devel=2021.4.0
+  - isa-l
