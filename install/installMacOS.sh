@@ -1,4 +1,12 @@
-brew install cmake boost protobuf wget rsync openmpi
+brew install cmake boost protobuf wget rsync openmpi libtool automake autoconf nasm
+wget https://github.com/intel/isa-l/archive/refs/tags/v2.30.0.tar.gz
+tar -xvf v2.30.0.tar.gz
+pushd isa-l-2.30.0
+./autogen.sh
+./configure
+make -j2
+make install
+popd
 
 # create build directory
 startDir=$pwd
