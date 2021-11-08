@@ -316,7 +316,7 @@ int main(int argc, char **argv) {
             if (isfirst||allow_drift) {
                 search_all_nodes=true;
                 search_all_dir=true;
-            }else if (radius<0&&radius>=-2*t.max_level) {
+            }else if (radius<0&&radius>=-2*(int)t.max_level) {
                 radius*=2;
                 search_all_nodes=true;
                 search_all_dir=true;            
@@ -380,7 +380,7 @@ int main(int argc, char **argv) {
                 fprintf(stderr, "Defered %zu nodes\n",defered_nodes.size());
                 nodes_to_search=std::move(defered_nodes);
                 new_score=t.get_parsimony_score();
-                fprintf(stderr, "parsimony score after optimizing: %zu,with radius %d, second from start %lld \n\n",
+                fprintf(stderr, "parsimony score after optimizing: %zu,with radius %d, second from start %ld \n\n",
                         new_score,std::abs(radius),std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now()-start_time).count());
                 if(!no_write_intermediate) {
                     intermediate_writing=intermediate_template;
@@ -389,7 +389,7 @@ int main(int argc, char **argv) {
                     t.save_detailed_mutations(intermediate_writing);
                     rename(intermediate_writing.c_str(), intermediate_pb_base_name.c_str());
                     last_save_time=std::chrono::steady_clock::now();
-                    fprintf(stderr, "Took %lldsecond to save intermediate protobuf\n",std::chrono::duration_cast<std::chrono::seconds>(last_save_time-save_start).count());
+                    fprintf(stderr, "Took %ldsecond to save intermediate protobuf\n",std::chrono::duration_cast<std::chrono::seconds>(last_save_time-save_start).count());
                 }
                 if (std::chrono::steady_clock::now()>=search_end_time) {
                     break;

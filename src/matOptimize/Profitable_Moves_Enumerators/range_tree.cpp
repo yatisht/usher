@@ -91,7 +91,7 @@ struct range_tree_temp {
                     children.insert(children.end(),(*iter)->children.begin(),(*iter)->children.end());
                 }
             }
-            assert(children.size()<=node_size);
+            assert((int)children.size()<=node_size);
         } else if (new_children.size()<=MAX_DIST) {
             children.reserve(MAX_DIST);
             struct size_cmp {
@@ -115,7 +115,7 @@ struct range_tree_temp {
                 }
             }
             std::sort(children.begin(),children.end(),idx_cmp());
-            assert(children.size()<=node_size);
+            assert((int)children.size()<=node_size);
         } else {
             std::sort(new_children.begin(),new_children.end(),idx_cmp());
             while (true) {
