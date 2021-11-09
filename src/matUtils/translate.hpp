@@ -17,7 +17,7 @@ typedef struct {
     Taxodium::MetadataSingleValuePerNode *protobuf_data_ptr;
 } GenericMetadata;
 
-static std::unordered_map<std::string, char> translation_map= {
+static std::unordered_map<std::string, char> translation_map = {
     {"GCT", 'A'}, {"GCC", 'A'}, {"GCA", 'A'}, {"GCG", 'A'}, {"GCN", 'A'},
     {"TGT", 'C'}, {"TGC", 'C'}, {"TGY", 'C'},
     {"GAT", 'D'}, {"GAC", 'D'}, {"GAY", 'D'},
@@ -41,6 +41,13 @@ static std::unordered_map<std::string, char> translation_map= {
     {"TAG", '*'}, {"TAA", '*'}, {"TGA", '*'}
 };
 
+static std::unordered_map<char, char> complement_map = {
+    {'A', 'T'}, {'C', 'G'}, {'G', 'C'}, {'T', 'A'},
+    {'M', 'K'}, {'R', 'Y'}, {'W', 'W'}, {'S', 'S'},
+    {'Y', 'R'}, {'K', 'M'}, {'V', 'B'}, {'H', 'D'},
+    {'D', 'H'}, {'B', 'V'}, {'N', 'N'}
+};
+
 struct Codon {
     std::string orf_name;
     std::string nucleotides;
@@ -62,7 +69,7 @@ struct Codon {
         // The nt to mutate is the difference between the
         // genomic coordinate of the mutated nt and the
         // starting coordinate of the codon
-        nucleotides[nuc_pos-start_position] = mutated_nuc;
+        nucleotides[abs(nuc_pos-start_position)] = mutated_nuc;
         protein = translate_codon(nucleotides);
     }
 
@@ -88,6 +95,7 @@ struct Codon {
 
 std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::unordered_map<int, std::vector<std::shared_ptr<Codon>>> &codon_map, bool taxodium_format);
 void translate_main(MAT::Tree *T, std::string output_filename, std::string gff_filename, std::string fasta_filename);
-void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, std::string fasta_filename, Taxodium::AllNodeData *node_data, Taxodium::AllData *all_data, std::unordered_map<std::string, std::vector<std::string>> &metadata, MetaColumns fixed_columns, std::vector<GenericMetadata> &generic_metadata);
+void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, std::string fasta_filename, Taxodium::AllNodeData *node_data, Taxodium::AllData *all_data, std::unordered_map<std::string, std::vector<std::string>> &metadata, MetaColumns fixed_columns, std::vector<GenericMetadata> &generic_metadata, float x_scale);
 void cleanup_codon_map(std::unordered_map<int, std::vector<std::shared_ptr<Codon>>> &codon_map);
 void undo_mutations(std::vector<MAT::Mutation> &mutations, std::unordered_map<int, std::vector<std::shared_ptr<Codon>>> &codon_map);
+char complement(char nt);

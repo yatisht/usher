@@ -1,6 +1,5 @@
 #include "src/matOptimize/mutation_annotated_tree.hpp"
 #include "src/matOptimize/tree_rearrangement_internal.hpp"
-#include "zlib.h"
 #include "tbb/concurrent_queue.h"
 #include "tbb/flow_graph.h"
 #include <algorithm>
@@ -8,53 +7,199 @@
 #include <cctype>
 #include <chrono>
 #include <condition_variable>
+#include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <fcntl.h>
 #include <mutex>
 #include <string>
+#include <sys/mman.h>
+#include <sys/stat.h>
 #include <thread>
 #include <unordered_map>
-
+#include "isa-l/igzip_lib.h"
+#include <signal.h>
 #include <unordered_set>
 #include <vector>
 #include "import_vcf.hpp"
 #include "tbb/parallel_for.h"
 #define ZLIB_BUFSIZ 0x10000
+size_t read_size;
+size_t alloc_size;
 //Decouple parsing (slow) and decompression, segment file into blocks for parallelized parsing
 typedef tbb::flow::source_node<char*> decompressor_node_t;
-typedef tbb::flow::multifunction_node<char*,tbb::flow::tuple<Parsed_VCF_Line*>> line_parser_t;
 std::condition_variable progress_bar_cv;
-struct Decompressor {
-    gzFile fd;
-    size_t init_read_size;
-    size_t cont_read_size;
-    bool operator()(char*& buf) const {
-        if (gzeof(fd)) {
-            return false;
+struct raw_input_source{
+    FILE* fh;
+    raw_input_source(const char* fname){
+        fh=fopen(fname, "r");
+    }
+    int getc(){
+        return fgetc(fh);
+    }
+    void operator()(tbb::concurrent_bounded_queue<std::pair<char*,uint8_t*>>& out) const{
+        while(!feof(fh)){
+            auto line_out=new char[alloc_size];
+            auto bytes_read=fread(line_out, 1, read_size, fh);
+            if (bytes_read==0) {
+                delete[] line_out;
+                break;
+            }
+            out.emplace(line_out,(uint8_t*)line_out+bytes_read);
         }
-        buf=new char[init_read_size+cont_read_size];
-        int read_size=gzread(fd, buf, init_read_size);
-        if (read_size<0) {
-            int z_errnum = 0;
-            fputs( gzerror(fd,&z_errnum),stderr);
+        out.emplace(nullptr,nullptr);
+        out.emplace(nullptr,nullptr);
+    }
+    void unalloc(){
+        fclose(fh);
+    }
+};
+struct line_start_later{
+    char* start;
+    char* alloc_start;
+};
+struct line_align{
+    mutable line_start_later prev;
+    mutable uint8_t* prev_end;
+    tbb::concurrent_bounded_queue<std::pair<char*,uint8_t*>>& in;
+    line_align(tbb::concurrent_bounded_queue<std::pair<char*,uint8_t*>>& out):in(out){
+        prev.start=nullptr;
+    }
+    bool operator()(line_start_later& out) const {
+        std::pair<char*, unsigned char*> line;
+        in.pop(line);
+        if (line.first==nullptr) {
+            if (prev.start!=nullptr) {
+                out=prev;
+                prev.start=nullptr;
+                prev_end[0]=0;
+                return true;
+            }else {
+                return false;
+            }
         }
-        if (!read_size) {
-            delete [] (buf);
-            return false;
+        if (!prev.start) {
+            prev.start=line.first;
+            prev.alloc_start=line.first;
+            prev_end=line.second;    
+            in.pop(line);
         }
-        //Make sure the last line is complete in the block.
-        if(!gzgets(fd, buf+read_size, cont_read_size)) {
-            *(buf+read_size)=0;
+        auto start_ptr=strchr(line.first, '\n');
+        if (*start_ptr!='\n') {
+            raise(SIGTRAP);
         }
+        start_ptr++;
+            auto cpy_siz=start_ptr-line.first;
+            memcpy(prev_end, line.first, cpy_siz);
+            prev_end[cpy_siz]=0;
+            out=prev;
+        prev.start=start_ptr;
+        prev.alloc_start=line.first;
+        prev_end=line.second;
         return true;
     }
 };
+struct gzip_input_source{
+    unsigned char* map_start;
+    //char* read_curr;
+    size_t mapped_size;
+    struct isal_gzip_header gz_hdr;
+    mutable unsigned char* getc_buf;
+    mutable unsigned char* get_c_ptr;
+    struct inflate_state* state;
+    gzip_input_source(const char* fname){
+        struct stat stat_buf;
+        stat(fname, &stat_buf);
+        mapped_size=stat_buf.st_size;
+        auto fh=open(fname, O_RDONLY);
+        map_start=(unsigned char*)mmap(nullptr, mapped_size, PROT_READ, MAP_SHARED, fh, 0);
+        //madvise(map_start, mapped_size, MADV_SEQUENTIAL|MADV_WILLNEED);
+        close(fh);
+        state=new struct inflate_state;
+        getc_buf=new unsigned char[BUFSIZ];
+        get_c_ptr=0;
+
+	    isal_inflate_init(state);
+        state->next_in=map_start;
+        state->avail_in=mapped_size;
+        state->crc_flag=IGZIP_GZIP;
+        isal_gzip_header_init(&gz_hdr);
+        auto ret = isal_read_gzip_header(state, &gz_hdr);
+        fprintf(stderr, "Header ret: %d\n",ret);
+        decompress_to_buffer(getc_buf, BUFSIZ);
+        get_c_ptr=getc_buf;
+    }
+    void unalloc(){
+        munmap(map_start, alloc_size);
+    }
+    bool decompress_to_buffer(unsigned char* buffer, size_t buffer_size) const{
+        if (!state->avail_in) {
+            return false;
+        }
+        state->next_out=buffer;
+        state->avail_out=buffer_size;
+        auto out=ISAL_DECOMP_OK;
+        //while (out==ISAL_DECOMP_OK&&state->avail_out>0&&state->avail_in>0&&state->block_state!=ISAL_BLOCK_FINISH) {
+            out=isal_inflate(state);
+        //}
+        if (out!=ISAL_DECOMP_OK) {
+            fprintf(stderr, "decompress error %d\n",out);
+        }
+        //copied from https://github.com/intel/isa-l/blob/78f5c31e66fedab78328e592c49eefe4c2a733df/programs/igzip_cli.c#L952
+        while (state->avail_out>0&&state->avail_in>0&&state->next_in[0] == 31) {
+            //fprintf(stderr,"continuing\n");
+            if (state->avail_in > 1 && state->next_in[1] != 139)
+			    break;
+            isal_inflate_reset(state);
+            //while (out==ISAL_DECOMP_OK&&state->avail_out>0&&state->avail_in>0&&state->block_state!=ISAL_BLOCK_FINISH) {
+                out=isal_inflate(state);
+            //}
+        if (out!=ISAL_DECOMP_OK) {
+            fprintf(stderr, "restart error %d\n",out);
+        }
+        }
+        return state->avail_out<buffer_size;
+    }
+    int getc(){
+        if (get_c_ptr==state->next_out) {
+            get_c_ptr=getc_buf;
+            if(!decompress_to_buffer(getc_buf, BUFSIZ)){
+                return -1;
+            }
+        }
+        return *(get_c_ptr++);    
+    }
+
+    void operator()(tbb::concurrent_bounded_queue<std::pair<char*,uint8_t*>>& out) const{
+        char* line_out=new char[alloc_size];
+        //if (getc_buf) {
+            auto load_size=getc_buf+BUFSIZ-get_c_ptr;
+            memcpy(line_out, get_c_ptr, load_size);
+            decompress_to_buffer((unsigned char*)line_out+load_size, read_size-load_size);
+            delete[](getc_buf);
+            getc_buf=nullptr;
+            fprintf(stderr,"getc_buff_deallocated\n");
+            out.emplace(line_out,state->next_out);
+        //}
+        line_out=new char[alloc_size];
+        while (decompress_to_buffer((unsigned char*)line_out, read_size)) {
+            out.emplace(line_out,state->next_out);
+            line_out=new char[alloc_size];
+        }
+        out.emplace(nullptr,nullptr);
+        out.emplace(nullptr,nullptr);
+        delete [] line_out;
+    }
+};
 //Parse a block of lines, assuming there is a complete line in the line_in buffer
+typedef tbb::flow::multifunction_node<line_start_later,tbb::flow::tuple<Parsed_VCF_Line*>> line_parser_t;
 struct line_parser {
     const std::vector<long>& header;
-    void operator()(char* line_in, line_parser_t::output_ports_type& out)const {
-        char* const start=line_in;
+    void operator()(line_start_later line_in_struct, line_parser_t::output_ports_type& out)const {
+        char*  line_in=line_in_struct.start;
+        char*  to_free=line_in_struct.alloc_start;
         Parsed_VCF_Line* parsed_line;
         while (*line_in!=0) {
             std::vector<nuc_one_hot> allele_translated;
@@ -71,7 +216,9 @@ struct line_parser {
                 pos=pos*10+(*line_in-'0');
                 line_in++;
             }
-            assert(pos>0);
+            if(pos<=0){
+                raise(SIGTRAP);
+            }
             line_in++;
             //ID don't care
             while (*line_in!='\t') {
@@ -136,22 +283,22 @@ struct line_parser {
             non_ref_muts_out.emplace_back(0,0);
             std::get<0>(out).try_put(parsed_line);
         }
-        delete[] (start);
+        delete[] (to_free);
     }
 };
 //tokenize header, get sample name
-static int read_header(gzFile fd,std::vector<std::string>& out) {
-    int header_len=0;
-    char in=gzgetc(fd);
-    in=gzgetc(fd);
+template<typename infile_t>
+static void read_header(infile_t& fd,std::vector<std::string>& out) {
+    char in=fd.getc();
+    in=fd.getc();
     bool second_char_pong=(in=='#');
 
     while (second_char_pong) {
         while (in!='\n') {
-            in=gzgetc(fd);
+            in=fd.getc();
         }
-        in=gzgetc(fd);
-        in=gzgetc(fd);
+        in=fd.getc();
+        in=fd.getc();
         second_char_pong=(in=='#');
     }
 
@@ -164,15 +311,13 @@ static int read_header(gzFile fd,std::vector<std::string>& out) {
                 break;
             }
             field.push_back(in);
-            in=gzgetc(fd);
-            header_len++;
+            in=fd.getc();
         }
         if(!eol) {
-            in=gzgetc(fd);
+            in=fd.getc();
         }
         out.push_back(field);
     }
-    return header_len;
 }
 std::atomic<size_t> assigned_count;
 struct Assign_State {
@@ -200,39 +345,28 @@ void print_progress(std::atomic<bool>* done,std::mutex* done_mutex) {
         fprintf(stderr,"\rAssigned %zu locus",assigned_count.load(std::memory_order_relaxed));
     }
 }
-static char* try_get_first_line(gzFile f,size_t& size ) {
+template<typename infile_t>
+static line_start_later try_get_first_line(infile_t& f,size_t& size ) {
     std::string temp;
     char c;
-    while ((c=gzgetc(f))!='\n') {
+    while ((c=f.getc())!='\n') {
         temp.push_back(c);
     }
     temp.push_back('\n');
     size=temp.size()+1;
     char* buf=new char[size];
     strcpy(buf, temp.data());
-    return buf;
+    return line_start_later{buf,buf};
 }
-#define CHUNK_SIZ 100ul
+#define CHUNK_SIZ 200ul
 #define ONE_GB 0x4ffffffful
-void VCF_input(const char * name,MAT::Tree& tree) {
-    assigned_count=0;
+template<typename infile_t>
+static void process(MAT::Tree& tree,infile_t& fd){
     std::vector<std::string> fields;
-    //open file set increase buffer size
-    gzFile fd=gzopen(name, "r");
-    if (!fd) {
-        fprintf(stderr, "cannnot open vcf file : %s, exiting.\n",name);
-        exit(EXIT_FAILURE);
-    }
-    gzbuffer(fd,ZLIB_BUFSIZ);
-
-    size_t header_size=read_header(fd, fields);
-    tbb::flow::graph input_graph;
-    std::atomic<bool> done(false);
-    std::mutex done_mutex;
-    std::thread progress_meter(print_progress,&done,&done_mutex);
-    std::vector<long> idx_map(9);
-    std::vector<MAT::Node*> bfs_ordered_nodes=tree.breadth_first_expansion();
+    read_header(fd, fields);
     std::unordered_set<std::string> inserted_samples;
+    std::vector<MAT::Node*> bfs_ordered_nodes=tree.breadth_first_expansion();
+    std::vector<long> idx_map(9);
     for (size_t idx=9; idx<fields.size(); idx++) {
         auto iter=tree.all_nodes.find(fields[idx]);
         if (iter==tree.all_nodes.end()) {
@@ -249,6 +383,7 @@ void VCF_input(const char * name,MAT::Tree& tree) {
 
         }
     }
+    tbb::flow::graph input_graph;
     line_parser_t parser(input_graph,tbb::flow::unlimited,line_parser{idx_map});
     //feed used buffer back to decompressor
 
@@ -258,14 +393,16 @@ void VCF_input(const char * name,MAT::Tree& tree) {
     Fitch_Sankoff_prep(bfs_ordered_nodes,child_idx_range, parent_idx);
     tbb::flow::function_node<Parsed_VCF_Line*> assign_state(input_graph,tbb::flow::unlimited,Assign_State{child_idx_range,parent_idx,output});
     tbb::flow::make_edge(tbb::flow::output_port<0>(parser),assign_state);
-    parser.try_put(try_get_first_line(fd, header_size));
-    size_t first_approx_size=std::min(CHUNK_SIZ,ONE_GB/header_size)-2;
-    decompressor_node_t decompressor(input_graph,Decompressor{fd,first_approx_size*header_size,2*header_size});
-    tbb::flow::make_edge(decompressor,parser);
+    size_t single_line_size;
+    parser.try_put(try_get_first_line(fd, single_line_size));
+    size_t first_approx_size=std::min(CHUNK_SIZ,ONE_GB/single_line_size)-2;
+    read_size=first_approx_size*single_line_size;
+    alloc_size=(first_approx_size+2)*single_line_size;
+    tbb::concurrent_bounded_queue<std::pair<char*,uint8_t*>> queue;
+    tbb::flow::source_node<line_start_later> line(input_graph,line_align(queue));
+    tbb::flow::make_edge(line,parser);
+    fd(queue);
     input_graph.wait_for_all();
-    gzclose(fd);
-    done=true;
-    progress_bar_cv.notify_all();
     deallocate_FS_cache(output);
     fill_muts(output, bfs_ordered_nodes);
     size_t total_mutation_size=0;
@@ -273,5 +410,23 @@ void VCF_input(const char * name,MAT::Tree& tree) {
         total_mutation_size+=node->mutations.size();
     }
     fprintf(stderr,"Total mutation size %zu \n", total_mutation_size);
+    fd.unalloc();
+}
+void VCF_input(const char * name,MAT::Tree& tree) {
+    assigned_count=0;
+    std::atomic<bool> done(false);
+    std::mutex done_mutex;
+    std::thread progress_meter(print_progress,&done,&done_mutex);
+    //open file set increase buffer size
+    std::string vcf_filename(name);
+    if (vcf_filename.find(".gz\0") != std::string::npos) {
+        gzip_input_source fd(name);
+        process(tree, fd);
+    }else {
+        raw_input_source fd(name);
+        process(tree, fd);
+    }
+    done=true;
+    progress_bar_cv.notify_all();
     progress_meter.join();
 }
