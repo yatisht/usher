@@ -65,13 +65,17 @@ std::vector<std::string> get_mutation_samples (MAT::Tree* T, std::string mutatio
     //fetch the set of sample names which contain a given mutation.
     //this is a naive implementation parallel to describe::mutation_paths
     std::vector<std::string> good_samples;
-
+    MAT::Mutation* mutobj = MAT::mutation_from_string(mutation_id);
     for (auto node: T->get_leaves()) {
         bool assigned = false;
         //first, check if this specific sample has the mutation
-        for (auto m: node->mutations) {
-            if (m.get_string() == mutation_id) {
-                good_samples.push_back(node->identifier);
+        //"having the mutation" specifically means that it mutated to this base at this location
+        //at the most recent time this location mutated
+        for (auto m: node->mutations) {        
+            if (mutobj->position == m.position) {
+                if (mutobj->mut_nuc == m.mut_nuc) {
+                    good_samples.push_back(node->identifier);
+                }
                 assigned = true;
                 break;
             }
@@ -83,8 +87,12 @@ std::vector<std::string> get_mutation_samples (MAT::Tree* T, std::string mutatio
             for (auto anc_node: path) {
                 if (!assigned) {
                     for (auto m: anc_node->mutations) {
-                        if (m.get_string() == mutation_id) {
-                            good_samples.push_back(node->identifier);
+                        if (mutobj->position == m.position) {
+                            //if there's a mutation at this position, break out of the loop regardless
+                            //but only store it if its the correct base
+                            if (mutobj->mut_nuc == m.mut_nuc) {
+                                good_samples.push_back(node->identifier);
+                            }
                             assigned = true;
                             break;
                         }
