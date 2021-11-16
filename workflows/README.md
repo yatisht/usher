@@ -1,10 +1,10 @@
-# This directory contains simple snakemake workflows for running UShER, RIPPLES, and matUtils
+# This directory contains simple snakemake workflows for running UShER, RIPPLES, matUtils and Augur
 
 ## To use these workflows, include in the current working directory:
 
 1. a fasta file with SARS-CoV-2 genome sequences: [user_fa]
 2. the Snakefile
-3. the conda environment file, usher.yaml
+3. the conda environment files, usher.yaml and nextstrain.yaml
 
 ## Users can run each workflow as:
 
@@ -36,7 +36,25 @@ systematic: search for possible systematic errors in your added samples by outpu
 
     snakemake --use-conda --cores [num threads] --config FASTA="[user_fa]" RUNTYPE="systematic"
 
+outbreak: run extract on the dataset that includes user provided samples to identify close related sequences
+
+    snakemake --use-conda --cores [num threads] --config FASTA="[user_fa]" RUNTYPE="outbreak"
+
+augur: runs the augur pipeline to build a clocked tree that includes the user samples for visualization in auspice
+
+    snakemake --use-conda --cores [num threads] --config FASTA="[user_fa]" RUNTYPE="augur"
+    
 Note that adding "-d [run_dir]" to the command line above will generate all output files in the specified directory. To do this, you must provide the full path to the fasta file or place the fasta file into the specified run directory. 
+
+## Quick Tutorial:
+
+To run a file through any of the workflows, with the exception of _introduce_, replace _user_fa_ in the command line with "_data/example.fasta_". To run a file through the _introduce_ workflow, use "_data/introduce_example.fasta_".
+
+### Augur workflow
+
+The _augur_ workflow produces a json file with sequences provided by the user that are currently published on NCBI and labeled with their NCBI ID. The user should alter the _config.json_ file within the config folder to describe their dataset, as the current file is set as an example of the workflow.
+
+For further help with the _Augur_ workflow please contact [Adriano Schneider](mailto:adeberna@ucsc.edu).
 
 ## Further Reading:
 
