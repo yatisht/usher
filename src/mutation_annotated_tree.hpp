@@ -173,9 +173,6 @@ void get_random_sample_subtrees (Mutation_Annotated_Tree::Tree* T, std::vector<s
 void get_sample_mutation_paths (Mutation_Annotated_Tree::Tree* T, std::vector<std::string> samples, std::string mutation_paths_filename);
 void clear_tree(Tree& tree);
 
-// Not used
-bool read_vcf (Mutation_Annotated_Tree::Tree* T, boost::iostreams::filtering_istream &instream, mapper_input &inp, std::vector<Node*> &bfs, std::unordered_map<std::string, size_t>& bfs_idx, std::vector<Missing_Sample>& missing_samples, bool &header_found, std::vector<std::string> &variant_ids);
-
 void read_vcf_with_existing_mat (Mutation_Annotated_Tree::Tree* T, std::string &vcf_filename, std::vector<Missing_Sample>& missing_samples);
 void read_vcf_and_create_mat (Mutation_Annotated_Tree::Tree* T, std::string &vcf_filename, std::vector<Missing_Sample>& missing_samples);
 }

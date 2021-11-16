@@ -121,13 +121,6 @@ int main(int argc, char** argv) {
     // Variables below used to store the different fields of the input VCF file
     std::vector<Missing_Sample> missing_samples;
 
-    /*
-    // Vector used to store all tree nodes in breadth-first search (BFS) order
-    std::vector<MAT::Node*> bfs;
-    // Map the node identifier string to index in the BFS traversal
-    std::unordered_map<std::string, size_t> bfs_idx;
-    */
-
     // Vectore to store the names of samples which have a high number of
     // parsimony-optimal placements
     std::vector<std::string> low_confidence_samples;
@@ -150,60 +143,6 @@ int main(int argc, char** argv) {
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 
         MAT::read_vcf_and_create_mat(T, vcf_filename, missing_samples);
-        /*
-        // Breadth-first expansion to populate bfs and bfs_idx
-        bfs = T->breadth_first_expansion();
-        for (size_t idx = 0; idx < bfs.size(); idx++) {
-            bfs_idx[bfs[idx]->identifier] = idx;
-        }
-
-        
-        // Boost library used to stream the contents of the input VCF file in
-        // uncompressed or compressed .gz format
-        std::ifstream infile(vcf_filename, std::ios_base::in | std::ios_base::binary);
-        if (!infile) {
-            fprintf(stderr, "ERROR: Could not open the VCF file: %s!\n", vcf_filename.c_str());
-            exit(1);
-        }
-        boost::iostreams::filtering_istream instream;
-        try {
-            if (vcf_filename.find(".gz\0") != std::string::npos) {
-                instream.push(boost::iostreams::gzip_decompressor());
-            }
-            instream.push(infile);
-        } catch(const boost::iostreams::gzip_error& e) {
-            std::cout << e.what() << '\n';
-        }
-        
-
-        fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
-
-        fprintf(stderr, "Computing parsimonious assignments for input variants.\n");
-        timer.Start();
-
-        // A TBB flow graph containing a single source_node (reader) connected
-        // to several mappers. The source_node sequentially reads in the different
-        // lines of the input VCF file and constructs a mapper task for each
-        // VCF line. Each mapper task takes a mapper_input as input, which stores
-        // the alternate alleles, ambiguous bases and missing data (Ns) for
-        // different tree samples at the corresponding VCF line/position. The
-        // mappers use Fitch-Sankoff algorithm to assign mutations at different
-        // branches of the tree and update the mutation-annotated tree (T)
-        // accordingly.
-        tbb::flow::graph mapper_graph;
-
-        // Variables below used to store the different fields of the input VCF file
-        bool header_found = false;
-        std::vector<std::string> variant_ids;
-
-        tbb::flow::function_node<mapper_input, int> mapper(mapper_graph, tbb::flow::unlimited, mapper_body());
-        tbb::flow::source_node <mapper_input> reader (mapper_graph,
-        [&] (mapper_input &inp) -> bool {
-            return MAT::read_vcf(T, instream, inp, bfs, bfs_idx, missing_samples, header_found, variant_ids);
-        }, true );
-        tbb::flow::make_edge(reader, mapper);
-        mapper_graph.wait_for_all();
-        */
 
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
