@@ -28,7 +28,9 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
     ("max-parsimony,a", po::value<int>()->default_value(-1),
      "Select samples by whether they have less than the maximum indicated parsimony score (terminal branch length)")
     ("max-branch-length,b", po::value<int>()->default_value(-1),
-     "Remove samples which have branches of greater than the indicated length in their ancestry.")
+     "Remove samples which have at least one branch of greater than the indicated length in their ancestry.")
+    ("max-path-length,P", po::value<int>()->default_value(-1),
+     "Remove samples which have a total path length (number of mutations different from reference) greater than P.")
     ("nearest-k,k", po::value<std::string>()->default_value(""),
      "Select a sample ID and the nearest k samples to it, formatted as sample:k. E.g. -k sample_1:50 gets sample 1 and the nearest 50 samples to it as a subtree.")
     ("nearest-k-batch,K", po::value<std::string>()->default_value(""),
@@ -135,6 +137,7 @@ void extract_main (po::parsed_options parsed) {
     std::string reroot_node = vm["reroot"].as<std::string>();
     int max_parsimony = vm["max-parsimony"].as<int>();
     int max_branch = vm["max-branch-length"].as<int>();
+    int max_path = vm["max-path-length"].as<int>();
     size_t max_epps = vm["max-epps"].as<size_t>();
     bool prune_samples = vm["prune"].as<bool>();
     size_t get_representative = vm["get-representative"].as<size_t>();
@@ -356,6 +359,13 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
     if (max_branch >= 0) {
         //intersection is built into this one because its a significant runtime gain to not rsearch samples I won't use anyways
         samples = get_short_steppers(&T, samples, max_branch);
+        if (samples.size() == 0) {
+            fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
+            exit(1);
+        }
+    }
+    if (max_path >= 0) {
+        samples = get_short_paths(&T, samples, max_path);
         if (samples.size() == 0) {
             fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
             exit(1);
