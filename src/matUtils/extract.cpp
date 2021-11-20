@@ -218,14 +218,10 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
     //if any sample selection arguments are set.
     //each of the sample selection arguments is run sequentially
     //so that you can choose, for example, "from among this clade, take samples with EPPs = 1..."
-    //explicit setting goes first, then clade, then mutation, then epps- in order of increasing runtime for checking sample membership
-    //to maximize efficiency (no need to calculate epps for a sample you're going to throw out in the next statement)
+    //explicit setting goes first, then they are calculated in rough order of time to compute, with EPPs at the end, so that 
+    //expensive computation isn't performed on samples that are going to be removed anyways.
     timer.Start();
     fprintf(stderr, "Checking for and applying sample selection arguments\n");
-    //TODO: sample select code could take a previous list of samples to check in some cases like what EPPs does
-    //which could save on runtime compared to getting instances across the whole tree and intersecting
-    //though the current setup would enable more complex things, like saying this OR this in arguments, it's less efficient
-    //and arguably efficiency should be prioritized over flexibility for features that are not implemented
     std::vector<std::string> samples;
     if (input_samples_file != "") {
         samples = read_sample_names(input_samples_file);
@@ -332,28 +328,17 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         }
     }
     if (match_choice != "") {
-        if (samples.size() == 0) {
-            samples = get_sample_match(&T, match_choice);
-        } else {
-            auto rsamples = get_sample_match(&T, match_choice);
-            samples = sample_intersect(samples, rsamples);
-        }
+        samples = get_sample_match(&T, samples, match_choice);
         if (samples.size() == 0) {
             fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
             exit(1);
         }
     }
     if (max_parsimony >= 0) {
+        samples = get_parsimony_samples(&T, samples, max_parsimony);
         if (samples.size() == 0) {
-            samples = get_parsimony_samples(&T, max_parsimony);
-        } else {
-            auto psamples =  get_parsimony_samples(&T, max_parsimony);
-            samples = sample_intersect(samples, psamples);
-            //check to make sure we haven't emptied our sample set; if we have, throw an error
-            if (samples.size() == 0) {
-                fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
-                exit(1);
-            }
+            fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
+            exit(1);
         }
     }
     if (max_branch >= 0) {
