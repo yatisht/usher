@@ -342,7 +342,6 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         }
     }
     if (max_branch >= 0) {
-        //intersection is built into this one because its a significant runtime gain to not rsearch samples I won't use anyways
         samples = get_short_steppers(&T, samples, max_branch);
         if (samples.size() == 0) {
             fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
