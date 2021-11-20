@@ -309,14 +309,14 @@ std::vector<std::string> get_short_paths (MAT::Tree* T, std::vector<std::string>
     for (auto n: T->depth_first_expansion()) {
         if (!n->is_leaf()) {
             //if its an internal node, add it to the tracker. Path length is the length to its parent plus its mutations.
+            //path length to the root is 0.
             if (n->is_root()) {
                 path_lengths[n->identifier] = 0;
-            } else if (path_lengths.find(n->parent->identifier) != path_lengths.end()) {
-                path_lengths[n->identifier] = path_lengths[n->parent->identifier] + n->mutations.size();
             } else {
-                path_lengths[n->identifier] = n->mutations.size();
+                path_lengths[n->identifier] = path_lengths[n->parent->identifier] + n->mutations.size();
             }
         } else {
+            //if its not an internal node, check to see if the length to its parent plus the length to the leaf is under the maximum.
             if (path_lengths[n->parent->identifier] + n->mutations.size() <= max_path) {
                 good_samples.push_back(n->identifier);
             }

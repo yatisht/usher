@@ -28,9 +28,9 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
     ("max-parsimony,a", po::value<int>()->default_value(-1),
      "Select samples by whether they have less than the maximum indicated parsimony score (terminal branch length)")
     ("max-branch-length,b", po::value<int>()->default_value(-1),
-     "Remove samples which have at least one branch of greater than the indicated length in their ancestry.")
+     "Select samples which don't have any branches with than the indicated length in their ancestry.")
     ("max-path-length,P", po::value<int>()->default_value(-1),
-     "Remove samples which have a total path length (number of mutations different from reference) greater than P.")
+     "Select samples which have a total path length (number of mutations different from reference) less than or equal to P.")
     ("nearest-k,k", po::value<std::string>()->default_value(""),
      "Select a sample ID and the nearest k samples to it, formatted as sample:k. E.g. -k sample_1:50 gets sample 1 and the nearest 50 samples to it as a subtree.")
     ("nearest-k-batch,K", po::value<std::string>()->default_value(""),
