@@ -39,8 +39,6 @@ We thank Jim Kent and the UCSC Genome Browser team for allowing us to download t
 **RIPPLES:**
 * Yatish Turakhia*, Bryan Thornlow*, Angie S. Hinrichs, Jakob McBroome, Nicolas Ayala, Cheng Ye, Nicola De Maio, David Haussler, Russell Corbett-Detig, "Pandemic-Scale Phylogenomics Reveals Elevated Recombination Rates in the SARS-CoV-2 Spike Region", bioRxiv (2021), [preprint](https://www.biorxiv.org/content/10.1101/2021.08.04.455157v1).
 
-**matOptimize**
-* Coming soon.
 
 **For masking recomendations, please also cite:**
 * Yatish Turakhia*, Nicola De Maio*, Bryan Thornlow*, Landen Gozashti, Robert Lanfear, Conor R. Walker, Angie S. Hinrichs, Jason D. Fernandes, Rui Borges, Greg Slodkowicz, Lukas Weilguny, David Haussler, Nick Goldman and Russell Corbett-Detig, "Stability of SARS-CoV-2 Phylogenies", **PLOS Genetics** (2020), [paper](https://doi.org/10.1371/journal.pgen.1009175).

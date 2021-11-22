@@ -205,6 +205,30 @@ void assignLineages (MAT::Tree& T, const std::string& clade_to_nid_filename, boo
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 }
 
+MAT::Mutation* mutation_from_string(const std::string& mut_string) {
+    // Parse string like /[A-Z][0-9]+[A-Z]/ e.g. A23403G; create & return (pointer to) MAT::Mutation
+    // with par_nuc set to ref_nuc (same as VCF parsing code in usher.cpp).
+    // If mut_string is not in expected format, print error message and return NULL.
+    char ref, alt;
+    int position;
+    int ret = sscanf(mut_string.c_str(), "%c%d%c", &ref, &position, &alt);
+    if (ret != 3 || ref < 'A' || ref > 'Z' || alt < 'A' || alt > 'Z') {
+        fprintf(stderr, "mutation_from_string: expected /[A-Z][0-9]+[A-Z/, got '%s'\n", mut_string.c_str());
+        return NULL;
+    }
+    MAT::Mutation* mut = new MAT::Mutation();
+    mut->ref_nuc = MAT::get_nuc_id(ref);
+    mut->position = position;
+    mut->mut_nuc = MAT::get_nuc_id(alt);
+    mut->par_nuc = mut->ref_nuc;
+    // Double-check to make sure there aren't additional characters past /[A-Z][0-9]+[A-Z]/:
+    if (mut->get_string() != mut_string) {
+        fprintf(stderr, "mutation_from_string: unexpected characters at the end of '%s'\n", mut_string.c_str());
+        mut = NULL;
+    }
+    return mut;
+}
+
 void parse_clade_mutations(const std::string& clade_mutations_filename,
                            std::map<std::string, std::vector<MAT::Mutation>>& clade_mutations) {
     std::ifstream infile(clade_mutations_filename);
@@ -243,7 +267,7 @@ void parse_clade_mutations(const std::string& clade_mutations_filename,
             std::vector<std::string> mut_strings;
             MAT::string_split(path_el, ',', mut_strings);
             for (auto mut_string: mut_strings) {
-                MAT::Mutation *mut = MAT::mutation_from_string(mut_string);
+                MAT::Mutation *mut = mutation_from_string(mut_string);
                 if (mut == NULL) {
                     got_error = true;
                 } else {

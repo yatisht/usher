@@ -15,5 +15,4 @@ dependencies:
   - git
   - wget
   - rsync
-  - openmpi
-  - isa-l
+  - intel::impi-devel=2021.4.0

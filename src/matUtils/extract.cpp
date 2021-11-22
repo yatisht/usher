@@ -71,8 +71,6 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
      "Use to write a newick tree to the indicated file.")
     ("write-taxodium,l", po::value<std::string>()->default_value(""),
      "Write protobuf in alternate format consumed by Taxodium.")
-    ("x-scale,G", po::value<float>()->default_value(0.2),
-     "Specifies custom X-axis scaling value for Taxodium output. Not necessary for UShER SARS-CoV-2 trees.")
     ("title,B", po::value<std::string>()->default_value("mutation_annotated_tree"),
      "Title of MAT to display in Taxodium or Auspice (used with --write-taxodium or -j).")
     ("description,D", po::value<std::string>()->default_value(""),
@@ -152,7 +150,6 @@ void extract_main (po::parsed_options parsed) {
     bool limit_lca = vm["limit-to-lca"].as<bool>();
     size_t add_random = vm["add-random"].as<size_t>();
     size_t select_nearest = vm["select-nearest"].as<size_t>();
-    float x_scale = vm["x-scale"].as<float>();
 
     boost::filesystem::path path(dir_prefix);
     if (!boost::filesystem::exists(path)) {
@@ -740,7 +737,7 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         if (!resolve_polytomies) {
             subtree.condense_leaves();
         }
-        save_taxodium_tree(subtree, output_tax_filename, metav, gtf_filename, fasta_filename, tax_title, tax_description, additional_meta_fields, x_scale);
+        save_taxodium_tree(subtree, output_tax_filename, metav, gtf_filename, fasta_filename, tax_title, tax_description, additional_meta_fields);
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
     if (dump_metadata != dir_prefix) {

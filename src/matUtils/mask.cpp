@@ -173,26 +173,6 @@ void renameSamples (std::string rename_filename, MAT::Tree& T) {
     }
 }
 
-bool match_mutations(MAT::Mutation* target, MAT::Mutation* query) {
-    /*
-    This function is used to compare two mutations. An N in the target is treated as a match to any other IUPAC base.
-    */
-    if (target->position != query->position) {
-        return false;
-    }
-    if (target->ref_nuc != 0b1111) {
-        if (target->ref_nuc != query->ref_nuc) {
-            return false;
-        }
-    }
-    if (target->mut_nuc != 0b1111) {
-        if (target->mut_nuc != query->mut_nuc) {
-            return false;
-        }
-    }
-    return true;
-}
-
 void restrictMutationsLocally (std::string mutations_filename, MAT::Tree* T, bool global) {
     std::ifstream infile(mutations_filename);
     if (!infile) {
@@ -224,18 +204,17 @@ void restrictMutationsLocally (std::string mutations_filename, MAT::Tree* T, boo
     //very simple loop. For each mutation-location pair, depth first from that point and mask all instances of that mutation.
     //then return the tree.
     for (auto ml: mutlmap) {
-        MAT::Mutation* mutobj = MAT::mutation_from_string(ml.first);
         size_t instances_masked = 0;
         MAT::Node* rn = T->get_node(ml.second);
         if (rn == NULL) {
             fprintf(stderr, "ERROR: Internal node %s requested for masking does not exist in the tree. Exiting\n", ml.second.c_str());
             exit(1);
         }
-        // fprintf(stderr, "Masking mutation %s below node %s\n", ml.first.c_str(), ml.second.c_str());
+        //fprintf(stderr, "Masking mutation %s below node %s\n", ml.first.c_str(), ml.second.c_str());
         for (auto n: T->depth_first_expansion(rn)) {
             std::vector<MAT::Mutation> nmuts;
             for (auto& mut: n->mutations) {
-                if (match_mutations(mutobj, &mut)) {
+                if (mut.get_string() == ml.first) {
                     instances_masked++;
                 } else {
                     nmuts.push_back(mut);
@@ -243,7 +222,7 @@ void restrictMutationsLocally (std::string mutations_filename, MAT::Tree* T, boo
             }
             n->mutations = nmuts;
         }
-        // std::cerr << instances_masked << " mutations masked.\n";
+        //std::cerr << instances_masked << " mutations masked.\n";
     }
     T->collapse_tree();
 }

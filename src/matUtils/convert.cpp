@@ -681,7 +681,7 @@ void get_minimum_subtrees(MAT::Tree* T, std::vector<std::string> samples, size_t
 
 // Helper function to format one attribute into taxodium encoding for a SingleValuePerNode metadata type
 void populate_generic_metadata(int attribute_column, std::vector<std::string> &attributes, std::unordered_map<std::string, std::string> &seen_map, int &encoding_counter, Taxodium::MetadataSingleValuePerNode *single) {
-    if (attributes[attribute_column] != "") {
+    if (attribute_column < (int) attributes.size() && attributes[attribute_column] != "") {
         std::string attr_val = attributes[attribute_column];
         if (seen_map.find(attr_val) == seen_map.end()) {
             encoding_counter++;
@@ -699,20 +699,16 @@ void populate_generic_metadata(int attribute_column, std::vector<std::string> &a
 
 // Helper function to populate non-generic metadata types that have mapping encodings.
 void populate_fixed_metadata(std::string name, int attribute_column, std::vector<std::string> &attributes, std::unordered_map<std::string, std::string> &seen_map, int &encoding_counter, Taxodium::AllData &all_data) {
-    if (attributes[attribute_column] != "") {
-        if (seen_map.find(attributes[attribute_column]) == seen_map.end()) {
-            encoding_counter++;
-            std::string encoding_str = std::to_string(encoding_counter);
-            seen_map[attributes[attribute_column]] = encoding_str;
-            if (name == "date") { // only date for now
-                all_data.add_date_mapping(attributes[attribute_column]);
-            }
-            attributes[attribute_column] = encoding_str;
-        } else {
-            attributes[attribute_column] = seen_map[attributes[attribute_column]];
+    if (seen_map.find(attributes[attribute_column]) == seen_map.end()) {
+        encoding_counter++;
+        std::string encoding_str = std::to_string(encoding_counter);
+        seen_map[attributes[attribute_column]] = encoding_str;
+        if (name == "date") { // only date for now
+            all_data.add_date_mapping(attributes[attribute_column]);
         }
+        attributes[attribute_column] = encoding_str;
     } else {
-        attributes[attribute_column] = "0";
+        attributes[attribute_column] = seen_map[attributes[attribute_column]];
     }
 }
 
@@ -724,7 +720,6 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
      * strain is the sample ID and is required. The rest may be missing.
      * Additional fields to look for are specified with -F
      */
-
 
     int32_t date_ct = 0;
     all_data.add_date_mapping("");
@@ -738,7 +733,6 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
 
     // First parse all files into metadata map
     std::vector<std::string> header;
-    int additional_fields = 0; // Number of new fields in each metadata file
     for (std::string f : filenames) {
         std::ifstream infile(f);
         if (!infile) {
@@ -763,15 +757,12 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
             }
             MAT::string_split(line, delim, words);
             if (first) { // header line
-                int field_count = 0;
                 for (int i = 0; i < (int) words.size(); i++) { // for each column name
                     header.push_back(words[i]);
-                    field_count++;
                     if (words[i] == "strain") {
                         strain_column = i;
                     }
                 }
-                additional_fields = field_count;
                 first = false;
                 if (strain_column == -1) {
                     fprintf(stderr, "The column \"strain\" (sample ID) is missing from at least one metadata file.\n");
@@ -784,57 +775,23 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
                 continue; // ignore duplicates in each metadata file
             }
             seen_in_this_file[key] = true;
-
-            int prev_header_size = header.size() - additional_fields;
-
             if (metadata.find(key) == metadata.end()) {
                 // if we haven't seen this sample yet
                 metadata[key] = std::vector<std::string>();
-                while (metadata[key].size() < prev_header_size) {
-                    metadata[key].push_back("");
-                }
             }
-
-            for (int i = 0; i < words.size(); i++) {
-                // Check all metadata fields up to this one
-                // If the same field exists earlier, copy non-empty
-                // values into the first column of the field
-                std::string word = words[i];
+            for (auto word : words) {
                 metadata[key].push_back(word);
-                for (int j = 0; j < prev_header_size; j++) {
-                    if (header[j] == header[prev_header_size + i]) {
-                        if (words[i] != "") {
-                            metadata[key][j] = words[i];
-                        }
-                        break;
-                    }
-                }
             }
-            
-            // fills out empty columns
-            while(metadata[key].size() < header.size()) {
-                metadata[key].push_back("");
+            if (metadata[key].size() == header.size() - 1) {
+                metadata[key].push_back(""); // the case where the last column is empty
             }
-
         }
         infile.close();
     }
-    for(auto &v : metadata) {
-        // fill out empty columns
-        while(metadata[v.first].size() < header.size()) {
-            metadata[v.first].push_back(""); // handles empty metadata in the last columns
-        }
-    }
     // Then use map to make taxodium encodings and check for defined/generic fields
-    // If the same column is present in multiple metadata files (or multiple times in a file),
-    // the non-empty values are condensed into the first column of that name.
-    std::unordered_map<std::string, bool> done_fields;
+    // if multiple columns define the same field, the last occurrence is picked
     for (int i = 0; i < (int) header.size(); i++) {
         std::string field = header[i];
-        if (done_fields.find(field) != done_fields.end()) {
-            continue; // already included this field
-        }
-        done_fields[field] = true;
         if (field == "strain") {
             columns.strain_column = i;
         } else if (field == "genbank_accession") {
@@ -908,11 +865,12 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
     }
 
 
+
     fprintf(stderr, "\nPerforming conversion.\n");
 
     return metadata;
 }
-void save_taxodium_tree (MAT::Tree &tree, std::string out_filename, std::vector<std::string> meta_filenames, std::string gtf_filename, std::string fasta_filename, std::string title, std::string description, std::vector<std::string> additional_meta_fields, float x_scale) {
+void save_taxodium_tree (MAT::Tree &tree, std::string out_filename, std::vector<std::string> meta_filenames, std::string gtf_filename, std::string fasta_filename, std::string title, std::string description, std::vector<std::string> additional_meta_fields) {
 
     // These are the taxodium pb objects
     Taxodium::AllNodeData *node_data = new Taxodium::AllNodeData();
@@ -934,7 +892,7 @@ void save_taxodium_tree (MAT::Tree &tree, std::string out_filename, std::vector<
     TIMEIT();
 
     // Fill in the taxodium data while doing aa translations
-    translate_and_populate_node_data(&tree, gtf_filename, fasta_filename, node_data, &all_data, metadata, columns, generic_metadata, x_scale);
+    translate_and_populate_node_data(&tree, gtf_filename, fasta_filename, node_data, &all_data, metadata, columns, generic_metadata);
     all_data.set_allocated_node_data(node_data);
 
     // Boost library used to stream the contents to the output protobuf file in
