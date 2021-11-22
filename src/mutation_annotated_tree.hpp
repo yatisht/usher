@@ -20,11 +20,19 @@
 #include "parsimony.pb.h"
 #include "Instrumentor.h"
 
+// Forward declaration of structs from usher_graph
+//struct mapper_input;
+//struct mapper_body;
+struct Missing_Sample;
+
+
 #if SAVE_PROFILE == 1
 #  define TIMEIT() InstrumentationTimer timer##__LINE__(__PRETTY_FUNCTION__);
 #else
 #  define TIMEIT()
 #endif
+
+#pragma once
 
 namespace Mutation_Annotated_Tree {
 int8_t get_nuc_id (char nuc);
@@ -165,5 +173,8 @@ void get_random_single_subtree (Mutation_Annotated_Tree::Tree* T, std::vector<st
 void get_random_sample_subtrees (Mutation_Annotated_Tree::Tree* T, std::vector<std::string> samples, std::string outdir, size_t subtree_size, size_t tree_idx = 0, bool use_tree_idx = false, bool retain_original_branch_len = false);
 void get_sample_mutation_paths (Mutation_Annotated_Tree::Tree* T, std::vector<std::string> samples, std::string mutation_paths_filename);
 void clear_tree(Tree& tree);
+
+void read_vcf_with_existing_mat (Mutation_Annotated_Tree::Tree* T, std::string &vcf_filename, std::vector<Missing_Sample>& missing_samples);
+void read_vcf_and_create_mat (Mutation_Annotated_Tree::Tree* T, std::string &vcf_filename, std::vector<Missing_Sample>& missing_samples);
 }
 
