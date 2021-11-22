@@ -325,8 +325,6 @@ std::unordered_map<std::string, float> get_assignments(MAT::Tree* T, std::unorde
                         if ((sample_set.find(d->identifier) != sample_set.end()) & (min_to_in == 0)) {
                             //found the nearest IN.
                             //rsearch back from it so that we're getting the direct path to the original node
-                            //maybe there's a better way to do this, but I want to make sure I'm not including side branches
-                            //on my iteration
                             size_t total_traveled = 0;
                             for (auto a: T->rsearch(d->identifier, true)) {
                                 total_traveled += a->mutations.size();
@@ -355,7 +353,6 @@ std::unordered_map<std::string, float> get_assignments(MAT::Tree* T, std::unorde
                 //we calculate the balance by computing C=1/(1+((OUT_MD/OUT_LEAVES)/(IN_MD/IN_LEAVES)))
                 //C is near 0 when OUT is large, C is near 1 when IN is large, C is 0.5 when they are the same
                 //now we complete rule 4 by checking the balance.
-                //I am getting lazier about tiebreaking with the new method but... oh well.
                 if (min_to_in == 0) {
                     //this calculation is unnecessary in these cases.
                     //tiebreaker for both being 0 is IN with this ordering.
@@ -366,8 +363,6 @@ std::unordered_map<std::string, float> get_assignments(MAT::Tree* T, std::unorde
                 } else {
                     // fprintf(stderr, "DEBUG: min %ld, mout %ld, ols %ld, ils %ld\n", min_to_in, min_to_out, out_leaves.size(), in_leaves.size());
                     //unnecessary variable declarations because I was hitting floating point exceptions.
-                    //float vor = (min_to_out/out_leaves.size());
-                    //float vir = (min_to_in/in_leaves.size());
                     float vor = (static_cast<float>(min_to_out) / static_cast<float>(out_leaves.size()));
                     float vir = (static_cast<float>(min_to_in) / static_cast<float>(in_leaves.size()));
                     float r = (vir/vor);
@@ -477,7 +472,6 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::unordered_map<std
         fprintf(stderr, "ERROR: Minimum earliest date argument (-L) could not be parsed. Check that it is formatted year-month-day and try again.\n");
         exit(1);
     }
-    //TODO: This could be parallel for a significant speedup when dozens or hundreds of regions are being passed in
     //I also suspect I could use pointers for the assignment maps to make this more memory efficient
     std::vector<std::string> regions ;
     for ( auto r : sample_regions ) regions.push_back( r.first ) ;
@@ -485,12 +479,8 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::unordered_map<std
     tbb::parallel_for(tbb::blocked_range<size_t>( 0, regions.size() ),
     [&](const tbb::blocked_range<size_t> r) {
         for ( size_t l = r.begin() ; l < r.end() ; l ++ ) {
-            //if ( sample_regions[regions[l]].size() < region_minimum ) continue ;
             std::string region = regions[l] ;
             std::vector<std::string> samples = sample_regions[regions[l]] ;
-            //for (auto ms: sample_regions) {
-            //    std::string region = ms.first;
-            //    std::vector<std::string> samples = ms.second;
             fprintf(stderr, "Processing region %s with %ld total samples\n", region.c_str(), samples.size());
             std::unordered_set<std::string> sample_set(samples.begin(), samples.end());
             auto assignments = get_assignments(T, sample_set, eval_uncertainty);
@@ -545,7 +535,6 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::unordered_map<std
         header += "\tannotation_" + std::to_string(i);
     }
     header += "\tmutation_path";
-    //header += "\tannotation_1\tannotation_2\tmutation_path";
     if (eval_uncertainty) {
         header += "\tmeta_uncertainty";
     }

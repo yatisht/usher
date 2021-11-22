@@ -525,8 +525,6 @@ void check_for_droppers(MAT::Tree* T, std::string outf) {
 }
 
 void uncertainty_main(po::parsed_options parsed) {
-    //the uncertainty command, for now, produces Nextstrain Auspice-compatible TSV files for visualization
-    //TODO: Add option to produce a metadata-annotated JSON directly from the MAT
     po::variables_map vm = parse_uncertainty_command(parsed);
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string sample_file = vm["samples"].as<std::string>();
