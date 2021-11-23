@@ -282,8 +282,10 @@ std::unordered_map<std::string, float> get_assignments(MAT::Tree* T, std::unorde
     */
 
     std::unordered_map<std::string, float> assignments;
-    auto dfs = T->depth_first_expansion();
-    for (auto n: dfs) {
+    std::unordered_map<std::string, size_t[4]> stored_params;
+    auto bfs = T->breadth_first_expansion();
+    std::reverse(bfs.begin(), bfs.end());
+    for (auto n: bfs) {
         if (n->is_leaf()) {
             //rule 1
             if (sample_set.find(n->identifier) != sample_set.end()) {
@@ -292,84 +294,75 @@ std::unordered_map<std::string, float> get_assignments(MAT::Tree* T, std::unorde
                 assignments[n->identifier] = 0;
             }
         } else {
-            auto leaves = T->get_leaves_ids(n->identifier);
-            //to apply rules 2-3, we need to check the state of each leaf
-            std::unordered_set<std::string> in_leaves;
-            std::unordered_set<std::string> out_leaves;
-            for (auto l: leaves) {
-                if (sample_set.find(l) != sample_set.end()) {
-                    in_leaves.insert(l);
-                } else {
-                    out_leaves.insert(l);
-                }
-            }
-            if (out_leaves.size() == 0) {
-                //rule 2
-                assignments[n->identifier] = 1;
-            } else if (in_leaves.size() == 0) {
-                //rule 3
-                assignments[n->identifier] = 0;
-            } else {
-                //rule 4...
-                //the best way to do this is to keep in mind that the nearest descendent leaf
-                //is going to be the next leaf encountered in DFS order
-                //so we're going to iterate over DFS until we encounter a leaf of each type and record those distances
-                size_t min_to_in = 0;
-                size_t min_to_out = 0;
-                for (auto d: T->depth_first_expansion(n)) {
-                    if ((min_to_in > 0) & (min_to_out > 0)) {
-                        //if both of these are assigned, we're done. break out of this loop and move on
-                        break;
+            size_t in_leaves = 0;
+            size_t out_leaves = 0;
+            //initialize these at large numbers.
+            size_t min_to_in = 10000000;
+            size_t min_to_out = 10000000;
+            for (auto c: n->children) {
+                if (!c->is_leaf()) {
+                    //this should be present in the stored_params map, if traversal is working correctly
+                    auto search = stored_params.find(c->identifier);
+                    if (search != stored_params.end()) {
+                        in_leaves += search->second[0];
+                        out_leaves += search->second[1];
+                        if (search->second[2] + c->mutations.size() < min_to_in) {
+                            min_to_in = search->second[2] + c->mutations.size();
+                        }
+                        if (search->second[3] + c->mutations.size() < min_to_out) {
+                            min_to_out = search->second[3] + c->mutations.size();
+                        }
+                    } else {
+                        fprintf(stderr, "ERROR: traversal order failure, stored data unavailable\n");
+                        exit(1);
                     }
-                    if (d->is_leaf()) {
-                        if ((sample_set.find(d->identifier) != sample_set.end()) & (min_to_in == 0)) {
-                            //found the nearest IN.
-                            //rsearch back from it so that we're getting the direct path to the original node
-                            size_t total_traveled = 0;
-                            for (auto a: T->rsearch(d->identifier, true)) {
-                                total_traveled += a->mutations.size();
-                                if (a->identifier == n->identifier) {
-                                    //back to the original query, break here
-                                    min_to_in = total_traveled;
-                                    break;
-                                }
-                            }
-                        } else if ((sample_set.find(d->identifier) == sample_set.end()) & (min_to_out == 0)) {
-                            //found the nearest out
-                            //same routine as above
-                            size_t total_traveled = 0;
-                            for (auto a: T->rsearch(d->identifier, true)) {
-                                total_traveled += a->mutations.size();
-                                if (a->identifier == n->identifier) {
-                                    //back to the original query, break here
-                                    min_to_out = total_traveled;
-                                    break;
-                                }
-                            }
+                } else {
+                    if (sample_set.find(c->identifier) != sample_set.end()) {
+                        in_leaves++;
+                        if (c->mutations.size() < min_to_in) {
+                            min_to_in = c->mutations.size();
+                        }
+                    } else {
+                        out_leaves++;
+                        if (c->mutations.size() < min_to_out) {
+                            min_to_out = c->mutations.size();
                         }
                     }
                 }
-                //update to rule 4- 1 is IN, 0 is OUT, but we want to have in-between numbers to represent relative confidence.
+            }
+            assert (min_to_in != 10000000);
+            assert (min_to_out != 10000000);
+            stored_params[n->identifier][0] = in_leaves;
+            stored_params[n->identifier][1] = out_leaves;
+            stored_params[n->identifier][2] = min_to_in;
+            stored_params[n->identifier][3] = min_to_out;
+            if (out_leaves == 0) {
+                //rule 2
+                assignments[n->identifier] = 1;
+            } else if (in_leaves == 0) {
+                //rule 3
+                assignments[n->identifier] = 0;
+            } else {
+                //rule 4- 1 is IN, 0 is OUT, but we want to have in-between numbers to represent relative confidence.
                 //we calculate the balance by computing C=1/(1+((OUT_MD/OUT_LEAVES)/(IN_MD/IN_LEAVES)))
                 //C is near 0 when OUT is large, C is near 1 when IN is large, C is 0.5 when they are the same
                 //now we complete rule 4 by checking the balance.
                 if (min_to_in == 0) {
                     //this calculation is unnecessary in these cases.
                     //tiebreaker for both being 0 is IN with this ordering.
-                    //identical IN sample, its IN.
+                    //identical IN sample, its IN, because logically this ancestor did exist there at that time (just maybe elsewhere also)
                     assignments[n->identifier] = 1;
                 } else if (min_to_out == 0) {
                     assignments[n->identifier] = 0;
                 } else {
-                    // fprintf(stderr, "DEBUG: min %ld, mout %ld, ols %ld, ils %ld\n", min_to_in, min_to_out, out_leaves.size(), in_leaves.size());
-                    //unnecessary variable declarations because I was hitting floating point exceptions.
-                    float vor = (static_cast<float>(min_to_out) / static_cast<float>(out_leaves.size()));
-                    float vir = (static_cast<float>(min_to_in) / static_cast<float>(in_leaves.size()));
+                    //not strictly necessary variable declarations, but makes debugging a bit easier
+                    float vor = (static_cast<float>(min_to_out) / static_cast<float>(out_leaves));
+                    float vir = (static_cast<float>(min_to_in) / static_cast<float>(in_leaves));
                     float r = (vir/vor);
                     float c = (1/(1+r));
                     if (isnan(c)) {
                         fprintf(stderr, "ERROR: Invalid introduction assignment calculation. Debug information follows.\n");
-                        fprintf(stderr, "min %ld, mout %ld, ols %ld, ils %ld,", min_to_in, min_to_out, out_leaves.size(), in_leaves.size());
+                        fprintf(stderr, "min %ld, mout %ld, ols %ld, ils %ld,", min_to_in, min_to_out, out_leaves, in_leaves);
                         fprintf(stderr, " vor %f, vir %f, r %f\n", vor, vir, r);
                         exit(1);
                     }
