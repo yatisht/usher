@@ -330,12 +330,11 @@ std::unordered_map<std::string, float> get_assignments(MAT::Tree* T, std::unorde
                     }
                 }
             }
-            assert (min_to_in != 10000000);
-            assert (min_to_out != 10000000);
             stored_params[n->identifier][0] = in_leaves;
             stored_params[n->identifier][1] = out_leaves;
             stored_params[n->identifier][2] = min_to_in;
             stored_params[n->identifier][3] = min_to_out;
+            // fprintf(stderr, "DEBUG: min %ld, mout %ld, ols %ld, ils %ld\n", min_to_in, min_to_out, out_leaves, in_leaves);
             if (out_leaves == 0) {
                 //rule 2
                 assignments[n->identifier] = 1;
@@ -809,7 +808,6 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::unordered_map<std
                     continue;
                 }
                 ldatestr = boost::gregorian::to_simple_string(ldates.first) + "\t" + boost::gregorian::to_simple_string(ldates.second);
-                //diff = (ldates.second - ldates.first);
                 diff = (boost::gregorian::day_clock::universal_day() - ldates.first); //try weighting growth by current date to change top cluster display.
             }
             date_tracker[cs.first] = ldatestr;
