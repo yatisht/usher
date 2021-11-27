@@ -97,6 +97,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
      "Set to add to the sample selection the y nearest samples to each of your samples, without duplicates.")
     ("dump-metadata,Q", po::value<std::string>()->default_value(""),
      "Set to write all final stored metadata to a tsv.")
+    ("whitelist,L", po::value<std::string>()->default_value(""),
+     "Pass a list of samples, one per line, to always retain regardless of any other parameters.")
     ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
     ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
@@ -128,6 +130,7 @@ void extract_main (po::parsed_options parsed) {
     po::variables_map vm = parse_extract_command(parsed);
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string input_samples_file = vm["samples"].as<std::string>();
+    std::string whitelist_samples_file = vm["whitelist"].as<std::string>();
     std::string nearest_k = vm["nearest-k"].as<std::string>();
     std::string nearest_k_batch_file = vm["nearest-k-batch"].as<std::string>();
     std::string clade_choice = vm["clade"].as<std::string>();
@@ -409,6 +412,16 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         if (samples.size() == 0) {
             fprintf(stderr, "ERROR: No samples fulfill selected criteria (tree is left empty). Change arguments and try again\n");
             exit(1);
+        }
+    }
+    //make sure all whitelisted samples are included in the output after all other selection is performed.
+    if (whitelist_samples_file != "") {
+        fprintf(stderr, "Whitelisting samples...\n");
+        auto wsamples = read_sample_names(whitelist_samples_file);
+        for (auto w: wsamples) {
+            if (std::find(samples.begin(),samples.end(),w) == samples.end()) {
+                samples.push_back(w);
+            }
         }
     }
     //before performing any other action, reroot the tree if requested.
