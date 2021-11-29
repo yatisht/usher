@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <google/protobuf/io/coded_stream.h>
 #include <google/protobuf/io/zero_copy_stream_impl.h>
+
 #include "usher_graph.hpp"
 
 // Uses one-hot encoding if base is unambiguous

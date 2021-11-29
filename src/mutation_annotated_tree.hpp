@@ -1,3 +1,4 @@
+#pragma once
 #include <fstream>
 #include <unordered_map>
 #include <string>
@@ -20,9 +21,14 @@
 #include "parsimony.pb.h"
 #include "Instrumentor.h"
 
+
+//#include "usher_graph.hpp"
+
+
 // Forward declaration of structs from usher_graph
-//struct mapper_input;
-//struct mapper_body;
+// class Timer;
+// struct mapper_input;
+// struct mapper_body;
 struct Missing_Sample;
 
 
@@ -32,7 +38,7 @@ struct Missing_Sample;
 #  define TIMEIT()
 #endif
 
-#pragma once
+//#pragma once
 
 namespace Mutation_Annotated_Tree {
 int8_t get_nuc_id (char nuc);
