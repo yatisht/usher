@@ -108,7 +108,7 @@ if(DEFINED Protobuf_PATH)
     add_executable(compareVCF
         src/mutation_annotated_tree.cpp
         src/compareVCF.cpp
-        ${USHER_SRCS}
+        src/usher_mapper.cpp
         )
 
 
@@ -220,7 +220,7 @@ else()
     add_executable(compareVCF
         src/mutation_annotated_tree.cpp
         src/compareVCF.cpp
-        ${USHER_SRCS}
+        src/usher_mapper.cpp
         ${PROTO_SRCS}
         ${PROTO_HDRS}
         )
