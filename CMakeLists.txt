@@ -52,6 +52,9 @@ AUX_SOURCE_DIRECTORY(src/matOptimize/Profitable_Moves_Enumerators New_Profitable
 AUX_SOURCE_DIRECTORY(src/matOptimize/apply_move patch_tree) 
 file(GLOB MATUTIL_SRCS "src/matUtils/*.cpp" "src/matUtils/*.hpp")
 file(GLOB RIPPLES_SRCS "src/ripples/*.cpp" "src/ripples/*.hpp")
+
+file(GLOB USHER_SRCS "src/*.cpp" "src/*.hpp")
+
 #set_source_files_properties(src/matOptimize/Profitable_Moves_Enumerators/upward_integrated.cpp PROPERTIES COMPILE_FLAGS -O0)
 #set_source_files_properties(src/matOptimize/Profitable_Moves_Enumerators/downward_integrated.cpp PROPERTIES COMPILE_FLAGS -O0)
 #set_source_files_properties(src/matOptimize/Profitable_Moves_Enumerators/range_tree.cpp PROPERTIES COMPILE_FLAGS -O0)
@@ -103,10 +106,10 @@ if(DEFINED Protobuf_PATH)
         ${New_Profitable_Moves_Enumerators}
         )
     add_executable(compareVCF
-        src/usher_mapper.cpp
-        src/usher_common.cpp
         src/mutation_annotated_tree.cpp
-        src/compareVCF.cpp)
+        src/compareVCF.cpp
+        ${USHER_SRCS}
+        )
 
 
     add_executable(transpose_vcf
