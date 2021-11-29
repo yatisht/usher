@@ -104,6 +104,7 @@ if(DEFINED Protobuf_PATH)
         )
     add_executable(compareVCF
         src/mutation_annotated_tree.cpp
+        src/usher_mapper.cpp
         src/compareVCF.cpp)
 
 
