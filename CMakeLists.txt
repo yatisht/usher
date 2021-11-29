@@ -103,8 +103,9 @@ if(DEFINED Protobuf_PATH)
         ${New_Profitable_Moves_Enumerators}
         )
     add_executable(compareVCF
-        src/mutation_annotated_tree.cpp
         src/usher_mapper.cpp
+        src/usher_common.cpp
+        src/mutation_annotated_tree.cpp
         src/compareVCF.cpp)
 
 
