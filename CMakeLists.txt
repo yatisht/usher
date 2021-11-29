@@ -220,6 +220,7 @@ else()
     add_executable(compareVCF
         src/mutation_annotated_tree.cpp
         src/compareVCF.cpp
+        ${USHER_SRCS}
         ${PROTO_SRCS}
         ${PROTO_HDRS}
         )
@@ -330,7 +331,6 @@ else(SAVE_PROFILE)
 endif(SAVE_PROFILE)
 #set_property(TARGET matOptimize PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 TARGET_LINK_LIBRARIES(compareVCF PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
-target_include_directories(compareVCF PUBLIC "${PROJECT_BINARY_DIR}")
 
 
 TARGET_LINK_LIBRARIES(matOptimize PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB  ${MPI_CXX_LIBRARIES} ${MPI_CXX_LINK_FLAGS} ${ISAL_LIB} ) # OpenMP::OpenMP_CXX)
