@@ -21,24 +21,14 @@
 #include "parsimony.pb.h"
 #include "Instrumentor.h"
 
-
-//#include "usher_graph.hpp"
-
-
 // Forward declaration of structs from usher_graph
-// class Timer;
-// struct mapper_input;
-// struct mapper_body;
 struct Missing_Sample;
-
 
 #if SAVE_PROFILE == 1
 #  define TIMEIT() InstrumentationTimer timer##__LINE__(__PRETTY_FUNCTION__);
 #else
 #  define TIMEIT()
 #endif
-
-//#pragma once
 
 namespace Mutation_Annotated_Tree {
 int8_t get_nuc_id (char nuc);
