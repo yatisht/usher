@@ -1902,7 +1902,7 @@ void Mutation_Annotated_Tree::get_sample_mutation_paths (Mutation_Annotated_Tree
 }
 
 // Read vcf with existing mat
-void Mutation_Annotated_Tree::read_vcf_with_existing_mat (Mutation_Annotated_Tree::Tree* T, std::string &vcf_filename, std::vector<Missing_Sample>& missing_samples) {
+void Mutation_Annotated_Tree::read_vcf (Mutation_Annotated_Tree::Tree* T, std::string &vcf_filename, std::vector<Missing_Sample>& missing_samples) {
     fprintf(stderr, "Loading VCF file\n");
     // Boost library used to stream the contents of the input VCF file in
     // uncompressed or compressed .gz format
@@ -2002,7 +2002,7 @@ void Mutation_Annotated_Tree::read_vcf_with_existing_mat (Mutation_Annotated_Tre
 
 
 // If called with a tree file that needs to create a MAT
-void Mutation_Annotated_Tree::read_vcf_and_create_mat(Mutation_Annotated_Tree::Tree* T, std::string &vcf_filename, std::vector<Missing_Sample>& missing_samples) {
+void Mutation_Annotated_Tree::read_vcf(Mutation_Annotated_Tree::Tree* T, std::string &vcf_filename, std::vector<Missing_Sample>& missing_samples, bool create_new_mat) {
     // Vector used to store all tree nodes in breadth-first search (BFS) order
     std::vector<Node*> bfs;
     // Map the node identifier string to index in the BFS traversal

@@ -142,7 +142,7 @@ int main(int argc, char** argv) {
         
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 
-        MAT::read_vcf_and_create_mat(T, vcf_filename, missing_samples);
+        MAT::read_vcf(T, vcf_filename, missing_samples, true);
 
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
@@ -164,7 +164,7 @@ int main(int argc, char** argv) {
 
         timer.Start();
         
-        MAT::read_vcf_with_existing_mat(T, vcf_filename, missing_samples);
+        MAT::read_vcf(T, vcf_filename, missing_samples);
         
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     } else {
