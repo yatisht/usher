@@ -170,7 +170,6 @@ void get_random_sample_subtrees (Mutation_Annotated_Tree::Tree* T, std::vector<s
 void get_sample_mutation_paths (Mutation_Annotated_Tree::Tree* T, std::vector<std::string> samples, std::string mutation_paths_filename);
 void clear_tree(Tree& tree);
 
-void read_vcf (Mutation_Annotated_Tree::Tree* T, std::string &vcf_filename, std::vector<Missing_Sample>& missing_samples);
 void read_vcf (Mutation_Annotated_Tree::Tree* T, std::string &vcf_filename, std::vector<Missing_Sample>& missing_samples, bool create_new_mat);
 }
 

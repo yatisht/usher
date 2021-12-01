@@ -164,7 +164,7 @@ int main(int argc, char** argv) {
 
         timer.Start();
         
-        MAT::read_vcf(T, vcf_filename, missing_samples);
+        MAT::read_vcf(T, vcf_filename, missing_samples, false);
         
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     } else {
