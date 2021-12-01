@@ -52,6 +52,7 @@ AUX_SOURCE_DIRECTORY(src/matOptimize/Profitable_Moves_Enumerators New_Profitable
 AUX_SOURCE_DIRECTORY(src/matOptimize/apply_move patch_tree) 
 file(GLOB MATUTIL_SRCS "src/matUtils/*.cpp" "src/matUtils/*.hpp")
 file(GLOB RIPPLES_SRCS "src/ripples/*.cpp" "src/ripples/*.hpp")
+
 #set_source_files_properties(src/matOptimize/Profitable_Moves_Enumerators/upward_integrated.cpp PROPERTIES COMPILE_FLAGS -O0)
 #set_source_files_properties(src/matOptimize/Profitable_Moves_Enumerators/downward_integrated.cpp PROPERTIES COMPILE_FLAGS -O0)
 #set_source_files_properties(src/matOptimize/Profitable_Moves_Enumerators/range_tree.cpp PROPERTIES COMPILE_FLAGS -O0)
@@ -104,7 +105,9 @@ if(DEFINED Protobuf_PATH)
         )
     add_executable(compareVCF
         src/mutation_annotated_tree.cpp
-        src/compareVCF.cpp)
+        src/compareVCF.cpp
+        src/usher_mapper.cpp
+        )
 
 
     add_executable(transpose_vcf
@@ -215,6 +218,7 @@ else()
     add_executable(compareVCF
         src/mutation_annotated_tree.cpp
         src/compareVCF.cpp
+        src/usher_mapper.cpp
         ${PROTO_SRCS}
         ${PROTO_HDRS}
         )
@@ -325,6 +329,8 @@ else(SAVE_PROFILE)
 endif(SAVE_PROFILE)
 #set_property(TARGET matOptimize PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 TARGET_LINK_LIBRARIES(compareVCF PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
+
+
 TARGET_LINK_LIBRARIES(matOptimize PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB  ${MPI_CXX_LIBRARIES} ${MPI_CXX_LINK_FLAGS} ${ISAL_LIB} ) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(output_final_protobuf PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB  ${MPI_CXX_LIBRARIES} ${MPI_CXX_LINK_FLAGS} ) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(transpose_vcf PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)

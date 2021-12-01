@@ -119,14 +119,7 @@ int main(int argc, char** argv) {
     MAT::Tree tmp_T;
     MAT::Tree* T = NULL;
     // Variables below used to store the different fields of the input VCF file
-    bool header_found = false;
-    std::vector<std::string> variant_ids;
     std::vector<Missing_Sample> missing_samples;
-
-    // Vector used to store all tree nodes in breadth-first search (BFS) order
-    std::vector<MAT::Node*> bfs;
-    // Map the node identifier string to index in the BFS traversal
-    std::unordered_map<std::string, size_t> bfs_idx;
 
     // Vectore to store the names of samples which have a high number of
     // parsimony-optimal placements
@@ -137,7 +130,7 @@ int main(int argc, char** argv) {
     // using the sample variants in the input VCF file. If the VCF contains
     // samples missing in the input tree, they get added to missing_samples
     if (tree_filename != "") {
-        fprintf(stderr, "Loading input tree and vcf file.\n");
+        fprintf(stderr, "Loading input tree.\n");
         timer.Start();
         // Create a new tree from the input newick file
         tmp_T = MAT::create_tree_from_newick(tree_filename);
@@ -146,111 +139,10 @@ int main(int argc, char** argv) {
             exit(1);
         }
         T = &tmp_T;
-        // Breadth-first expansion to populate bfs and bfs_idx
-        bfs = T->breadth_first_expansion();
-        for (size_t idx = 0; idx < bfs.size(); idx++) {
-            bfs_idx[bfs[idx]->identifier] = idx;
-        }
-
-        // Boost library used to stream the contents of the input VCF file in
-        // uncompressed or compressed .gz format
-        std::ifstream infile(vcf_filename, std::ios_base::in | std::ios_base::binary);
-        if (!infile) {
-            fprintf(stderr, "ERROR: Could not open the VCF file: %s!\n", vcf_filename.c_str());
-            exit(1);
-        }
-        boost::iostreams::filtering_istream instream;
-        try {
-            if (vcf_filename.find(".gz\0") != std::string::npos) {
-                instream.push(boost::iostreams::gzip_decompressor());
-            }
-            instream.push(infile);
-        } catch(const boost::iostreams::gzip_error& e) {
-            std::cout << e.what() << '\n';
-        }
-
+        
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 
-        fprintf(stderr, "Computing parsimonious assignments for input variants.\n");
-        timer.Start();
-
-        // A TBB flow graph containing a single source_node (reader) connected
-        // to several mappers. The source_node sequentially reads in the different
-        // lines of the input VCF file and constructs a mapper task for each
-        // VCF line. Each mapper task takes a mapper_input as input, which stores
-        // the alternate alleles, ambiguous bases and missing data (Ns) for
-        // different tree samples at the corresponding VCF line/position. The
-        // mappers use Fitch-Sankoff algorithm to assign mutations at different
-        // branches of the tree and update the mutation-annotated tree (T)
-        // accordingly.
-        tbb::flow::graph mapper_graph;
-
-        tbb::flow::function_node<mapper_input, int> mapper(mapper_graph, tbb::flow::unlimited, mapper_body());
-        tbb::flow::source_node <mapper_input> reader (mapper_graph,
-        [&] (mapper_input &inp) -> bool {
-
-            //check if reached end-of-file
-            int curr_char = instream.peek();
-            if(curr_char == EOF)
-                return false;
-
-            std::string s;
-            std::getline(instream, s);
-            std::vector<std::string> words;
-            MAT::string_split(s, words);
-            inp.variant_pos = -1;
-
-            // Header is found when "POS" is the second word in the line
-            if ((not header_found) && (words.size() > 1)) {
-                if (words[1] == "POS") {
-                    // Sample names start from the 10th word in the header
-                    for (size_t j=9; j < words.size(); j++) {
-                        variant_ids.emplace_back(words[j]);
-                        // If sample name not in tree, add it to missing_samples
-                        if (bfs_idx.find(words[j]) == bfs_idx.end()) {
-                            missing_samples.emplace_back(Missing_Sample(words[j]));
-                        }
-                    }
-                    header_found = true;
-                }
-            } else if (header_found) {
-                if (words.size() != 9+variant_ids.size()) {
-                    fprintf(stderr, "ERROR! Incorrect VCF format.\n");
-                    exit(1);
-                }
-                std::vector<std::string> alleles;
-                alleles.clear();
-                inp.variant_pos = std::stoi(words[1]);
-                MAT::string_split(words[4], ',', alleles);
-                // T will be modified by the mapper with mutation
-                // annotations
-                inp.T = T;
-                inp.chrom = words[0];
-                inp.bfs = &bfs;
-                inp.bfs_idx = &bfs_idx;
-                inp.variant_ids = &variant_ids;
-                inp.missing_samples = &missing_samples;
-                // Ref nuc id uses one-hot encoding (A:0b1, C:0b10, G:0b100,
-                // T:0b1000)
-                inp.ref_nuc = MAT::get_nuc_id(words[3][0]);
-                assert((inp.ref_nuc & (inp.ref_nuc-1)) == 0); //check if it is power of 2
-                inp.variants.clear();
-                for (size_t j=9; j < words.size(); j++) {
-                    if (isdigit(words[j][0])) {
-                        int allele_id = std::stoi(words[j]);
-                        if (allele_id > 0) {
-                            std::string allele = alleles[allele_id-1];
-                            inp.variants.emplace_back(std::make_tuple(j-9, MAT::get_nuc_id(allele[0])));
-                        }
-                    } else {
-                        inp.variants.emplace_back(std::make_tuple(j-9, MAT::get_nuc_id('N')));
-                    }
-                }
-            }
-            return true;
-        }, true );
-        tbb::flow::make_edge(reader, mapper);
-        mapper_graph.wait_for_all();
+        MAT::read_vcf(T, vcf_filename, missing_samples, true);
 
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
@@ -270,101 +162,10 @@ int main(int argc, char** argv) {
         T = &tmp_T;
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 
-        fprintf(stderr, "Loading VCF file\n");
         timer.Start();
-
-        // Boost library used to stream the contents of the input VCF file in
-        // uncompressed or compressed .gz format
-        std::ifstream infile(vcf_filename, std::ios_base::in | std::ios_base::binary);
-        if (!infile) {
-            fprintf(stderr, "ERROR: Could not open the VCF file: %s!\n", vcf_filename.c_str());
-            exit(1);
-        }
-        boost::iostreams::filtering_istream instream;
-        try {
-            if (vcf_filename.find(".gz\0") != std::string::npos) {
-                instream.push(boost::iostreams::gzip_decompressor());
-            }
-            instream.push(infile);
-        } catch(const boost::iostreams::gzip_error& e) {
-            std::cout << e.what() << '\n';
-        }
-
-        std::vector<size_t> missing_idx;
-        std::string s;
-        // This while loop reads the VCF file line by line and populates
-        // missing_samples and missing_sample_mutations based on the names and
-        // variants of missing samples. If a sample name in the VCF is already
-        // found in the tree, it gets ignored with a warning message
-        while (instream.peek() != EOF) {
-            std::getline(instream, s);
-            std::vector<std::string> words;
-            MAT::string_split(s, words);
-            if ((not header_found) && (words.size() > 1)) {
-                if (words[1] == "POS") {
-                    for (size_t j=9; j < words.size(); j++) {
-                        variant_ids.emplace_back(words[j]);
-                        if ((T->get_node(words[j]) == NULL) && (T->condensed_leaves.find(words[j]) == T->condensed_leaves.end())) {
-                            missing_samples.emplace_back(Missing_Sample(words[j]));
-                            missing_idx.emplace_back(j);
-                        } else {
-                            fprintf(stderr, "WARNING: Ignoring sample %s as it is already in the tree.\n", words[j].c_str());
-                        }
-                    }
-                    header_found = true;
-                }
-            } else if (header_found) {
-                if (words.size() != 9+variant_ids.size()) {
-                    fprintf(stderr, "ERROR! Incorrect VCF format. Expected %zu columns but got %zu.\n", 9+variant_ids.size(), words.size());
-                    exit(1);
-                }
-                std::vector<std::string> alleles;
-                alleles.clear();
-                MAT::string_split(words[4], ',', alleles);
-                for (size_t k = 0; k < missing_idx.size(); k++) {
-                    size_t j = missing_idx[k];
-                    auto iter = missing_samples.begin();
-                    std::advance(iter, k);
-                    if (iter != missing_samples.end()) {
-                        MAT::Mutation m;
-                        m.chrom = words[0];
-                        m.position = std::stoi(words[1]);
-                        m.ref_nuc = MAT::get_nuc_id(words[3][0]);
-                        assert((m.ref_nuc & (m.ref_nuc-1)) == 0); //check if it is power of 2
-                        m.par_nuc = m.ref_nuc;
-                        // Alleles such as '.' should be treated as missing
-                        // data. if the word is numeric, it is an index to one
-                        // of the alleles
-                        if (isdigit(words[j][0])) {
-                            int allele_id = std::stoi(words[j]);
-                            if (allele_id > 0) {
-                                std::string allele = alleles[allele_id-1];
-                                if (allele[0] == 'N') {
-                                    m.is_missing = true;
-                                    m.mut_nuc = MAT::get_nuc_id('N');
-                                } else {
-                                    auto nuc = MAT::get_nuc_id(allele[0]);
-                                    if (nuc == MAT::get_nuc_id('N')) {
-                                        m.is_missing = true;
-                                    } else {
-                                        m.is_missing = false;
-                                    }
-                                    m.mut_nuc = nuc;
-                                }
-                                (*iter).mutations.emplace_back(m);
-                            }
-                        } else {
-                            m.is_missing = true;
-                            m.mut_nuc = MAT::get_nuc_id('N');
-                            (*iter).mutations.emplace_back(m);
-                        }
-                        if ((m.mut_nuc & (m.mut_nuc-1)) !=0) {
-                            (*iter).num_ambiguous++;
-                        }
-                    }
-                }
-            }
-        }
+        
+        MAT::read_vcf(T, vcf_filename, missing_samples, false);
+        
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     } else {
         fprintf(stderr, "Error! No input tree or assignment file provided!\n");
