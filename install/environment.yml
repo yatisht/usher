@@ -5,6 +5,7 @@ channels:
   - bioconda
   - anaconda
 dependencies:
+  - cxx-compiler
   - cmake=3.19.6
   - protobuf=3.12.3                                                                                                                                                                                               
   - make
