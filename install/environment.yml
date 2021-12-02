@@ -5,10 +5,10 @@ channels:
   - bioconda
   - anaconda
 dependencies:
-  - cxx-compiler
-  - protobuf=3.17.2
   - cmake=3.19.6
+  - protobuf=3.12.3                                                                                                                                                                                               
   - make
+  - autoconf
   - boost-cpp
   - mafft
   - python
@@ -16,4 +16,5 @@ dependencies:
   - wget
   - rsync
   - openmpi
+  - openssh
   - isa-l
