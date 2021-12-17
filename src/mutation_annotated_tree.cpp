@@ -1141,10 +1141,12 @@ std::vector<Mutation_Annotated_Tree::Node*> Mutation_Annotated_Tree::Tree::bread
 }
 
 void Mutation_Annotated_Tree::Tree::depth_first_expansion_helper(Mutation_Annotated_Tree::Node* node, std::vector<Mutation_Annotated_Tree::Node*>& vec) const {
+    node->dfs_idx=vec.size();
     vec.push_back(node);
     for (auto c: node->children) {
         depth_first_expansion_helper(c, vec);
     }
+    node->dfs_end_idx=vec.size();
 }
 
 std::vector<Mutation_Annotated_Tree::Node*> Mutation_Annotated_Tree::Tree::depth_first_expansion(Mutation_Annotated_Tree::Node* node) const {
