@@ -1,4 +1,5 @@
 #include "ripples.hpp"
+#include <stdio.h>
 struct acceptor {
     int operator()(const Mut_Count_Out_t &counts, size_t i, size_t j,
                    size_t curr_node_idx, size_t node_size,
@@ -34,6 +35,11 @@ static int filter(const Ripples_Mapper_Output_Interface &out_ifc, size_t i,
     const auto& counts = out_ifc.mut_count_out;
     for (; nodes_to_search_start < nodes_to_search_end;
          nodes_to_search_start++) {
+        if (*nodes_to_search_start==173559)
+        {
+            //fputc('a',stderr);
+        }
+        
         auto node_idx = *nodes_to_search_start;
         auto this_par =
             donor_or_acceptor(counts, i, j, node_idx, node_size, num_mutations);
@@ -196,7 +202,7 @@ struct check_breakpoint {
     tbb::concurrent_vector<Recomb_Interval> &valid_pairs;
     void operator()(std::pair<int,int> in) const {
         int i=in.first; int j=in.second;
-        if (i==10&&j==22)
+        if (i==2&&j==14)
         {
             //raise(SIGTRAP);
         }
@@ -302,7 +308,7 @@ void ripplrs_merger(const Pruned_Sample &pruned_sample,
     assert(*nodes_to_search_end1 >= pruned_sample.sample_name->dfs_idx);
     std::vector<size_t>::const_iterator nodes_to_search_start2 =
         std::upper_bound(nodes_to_search_end1, nodes_to_search_end2,
-                         pruned_node->dfs_end_idx);
+                         pruned_node->dfs_end_idx-1);
 
     const auto &sample_mutations = pruned_sample.sample_mutations;
     int i = -1;
