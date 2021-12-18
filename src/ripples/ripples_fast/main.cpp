@@ -26,7 +26,7 @@ struct idx_eq{
 }
 struct interval_sorter{
     bool operator()(Recomb_Interval& a,Recomb_Interval& b){
-        if (a.end_range_high<b.start_range_high)
+        if (a.start_range_high<b.start_range_high)
         {
             return true;
         }else if(a.start_range_high==b.start_range_high&&a.end_range_low<b.end_range_low){
