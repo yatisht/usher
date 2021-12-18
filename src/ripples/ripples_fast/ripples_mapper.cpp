@@ -70,7 +70,6 @@ struct Mapper_Op : public tbb::task {
         auto this_idx = node->dfs_idx;
         auto &this_mut_out = cfg.get_mut(this_idx);
         bool has_unique=false;
-        bool have_not_shared=false;
         bool is_sibling=false;
         if (node->identifier=="node_7194")
         {
