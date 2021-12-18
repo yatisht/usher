@@ -174,6 +174,7 @@ int main(int argc, char **argv) {
             e - s);
 
     size_t num_done = 0;
+    FILE* before_joining_fh=fopen("before_join_test","w");
     auto node_size = dfs.size();
     for (size_t idx = s; idx < e; idx++) {
         auto node_to_consider = nodes_to_consider_vec[idx];
@@ -202,6 +203,16 @@ int main(int argc, char **argv) {
                        valid_pairs_con, mapper_out, num_threads, branch_len,
                        min_range, max_range);
         std::vector<Recomb_Interval> temp(std::vector<Recomb_Interval>(valid_pairs_con.begin(),valid_pairs_con.end()));
+        for(auto p: temp) {
+            std::string end_range_high_str = (p.end_range_high == 1e9) ? "GENOME_SIZE" : std::to_string(p.end_range_high);
+                        fprintf(
+                before_joining_fh,
+                "%s\t(%i,%i)\t(%i,%s)\t%s\t%s\n",
+                node_to_consider->identifier.c_str(), p.start_range_low,
+                p.start_range_high, p.end_range_low, end_range_high_str.c_str(),
+                p.d.node->identifier.c_str(), p.a.node->identifier.c_str());
+            fflush(before_joining_fh);
+        }
         std::vector<Recomb_Interval> valid_pairs = combine_intervals(temp);
         // print combined pairs
         for (auto p : valid_pairs) {
