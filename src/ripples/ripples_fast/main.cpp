@@ -21,6 +21,20 @@ struct idx_eq{
         return a->dfs_idx==b->dfs_idx;
     }
 };
+ MAT::Node* get_node_cstr (MAT::Tree& tree,char* name){
+    return tree.get_node(std::string(name));
+}
+struct interval_sorter{
+    bool operator()(Recomb_Interval& a,Recomb_Interval& b){
+        if (a.end_range_high<b.start_range_high)
+        {
+            return true;
+        }else if(a.start_range_high==b.start_range_high&&a.end_range_low<b.end_range_low){
+            return true;
+        }
+        return false;
+    }
+};
 int main(int argc, char **argv) {
     po::variables_map vm = check_options(argc, argv);
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
@@ -47,7 +61,7 @@ int main(int argc, char **argv) {
     MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
     T.uncondense_leaves();
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
-
+    get_node_cstr(T,"");
     timer.Start();
 
     fprintf(stderr,
@@ -202,6 +216,7 @@ int main(int argc, char **argv) {
                        valid_pairs_con, mapper_out, num_threads, branch_len,
                        min_range, max_range);
         std::vector<Recomb_Interval> temp(std::vector<Recomb_Interval>(valid_pairs_con.begin(),valid_pairs_con.end()));
+        std::sort(temp.begin(),temp.end(),interval_sorter());
         std::vector<Recomb_Interval> valid_pairs = combine_intervals(temp);
         // print combined pairs
         for (auto p : valid_pairs) {
