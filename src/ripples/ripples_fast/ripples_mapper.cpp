@@ -72,7 +72,7 @@ struct Mapper_Op : public tbb::task {
         bool has_unique=false;
         bool have_not_shared=false;
         bool is_sibling=false;
-        if (node->identifier=="node_100005")
+        if (node->identifier=="node_7194")
         {
             //raise(SIGTRAP);
         }
@@ -97,7 +97,7 @@ struct Mapper_Op : public tbb::task {
                     if(!mut_for_descendant.valid()){
                         has_common=true;
                     }
-                    if((!iter->valid())&&mut_for_descendant.valid()){
+                    if(mut_for_descendant.valid()){
                         has_unique=true;
                     }
                     if (have_to_be_valid) {
@@ -108,6 +108,8 @@ struct Mapper_Op : public tbb::task {
                     if (this_mut.mut_nuc != iter->dest_mut) {
                         this_mut_out.emplace_back(*iter, this_mut.mut_nuc);
                         mut_accumulated++;
+                    }else{
+                        has_common=true;
                     }
                 }
                 iter++;
@@ -116,6 +118,8 @@ struct Mapper_Op : public tbb::task {
                 if (this_mut.mut_nuc != this_mut.ref_nuc) {
                     this_mut_out.emplace_back(this_mut);
                     has_unique=true;
+                }else{
+                    has_common=true;
                 }
             }
         }
@@ -125,10 +129,10 @@ struct Mapper_Op : public tbb::task {
         }
         //Artifically increase mutation by one for spliting?
         is_sibling=((has_unique && !node->children.empty() && (has_common)) || \
-                                  (node->children.empty() && (has_common)) || (!has_unique && node->children.empty() ));
+                                  (node->children.empty() && (has_common)) || (!has_unique && !node->children.empty() ));
         cfg.get_final_mut_count_ref(this_idx).set(mut_accumulated,false);
         }
-        cfg.set_sibling(this_idx,has_unique);
+        cfg.set_sibling(this_idx,is_sibling);
         auto cont=new (allocate_continuation()) tbb::empty_task;
         cont->set_ref_count(node->children.size());
         for(const auto child:node->children){

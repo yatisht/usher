@@ -99,10 +99,10 @@ int main(int argc, char **argv) {
                         words[0].c_str());
                 exit(1);
             } else {
-                /*for (auto anc : T.rsearch(n->identifier, true)) {
-                    nodes_to_consider.insert(anc->identifier);
-                }*/
-                nodes_to_consider.insert(n);
+                for (auto anc : T.rsearch(n->identifier, true)) {
+                    nodes_to_consider.insert(anc);
+                }
+                //nodes_to_consider.insert(n);
             }
         }
         infile.close();
@@ -234,16 +234,18 @@ int main(int argc, char **argv) {
             std::string end_range_high_str =
                 (p.end_range_high == 1e9) ? "GENOME_SIZE"
                                           : std::to_string(p.end_range_high);
+            auto donor_adj_parsimony=p.d.node_parsimony+!p.d.is_sibling;
+            auto acceptor_adj_parsimony=p.a.node_parsimony+!p.a.is_sibling;
             fprintf(
                 recomb_file,
                 "%s\t(%i,%i)\t(%i,%s)\t%s\t%c\t%i\t%s\t%c\t%i\t%i\t%i\t%i\n",
                 node_to_consider->identifier.c_str(), p.start_range_low,
                 p.start_range_high, p.end_range_low, end_range_high_str.c_str(),
-                p.d.node->identifier.c_str(), p.d.is_sibling,
-                p.d.node_parsimony, p.a.node->identifier.c_str(),
-                p.a.is_sibling, p.a.node_parsimony, orig_parsimony,
+                p.d.node->identifier.c_str(), p.d.is_sibling?'y':'n',
+                donor_adj_parsimony, p.a.node->identifier.c_str(),
+                p.a.is_sibling?'y':'n', acceptor_adj_parsimony, orig_parsimony,
                 std::min(
-                    {orig_parsimony, p.d.node_parsimony, p.a.node_parsimony}),
+                    {orig_parsimony, donor_adj_parsimony, acceptor_adj_parsimony}),
                 p.d.parsimony + p.a.parsimony);
             fflush(recomb_file);
         }
