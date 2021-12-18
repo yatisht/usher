@@ -1,6 +1,7 @@
 #include <boost/program_options.hpp>
 #include <src/mutation_annotated_tree.hpp>
 #include <signal.h>
+#include <iostream>
 
 namespace po = boost::program_options;
 

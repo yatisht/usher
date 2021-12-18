@@ -4,7 +4,6 @@
 #include <array>
 #include <boost/filesystem.hpp>
 #include <fstream>
-#include <iostream>
 #include <memory>
 #include <random>
 #include <time.h>
