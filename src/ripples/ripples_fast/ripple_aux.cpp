@@ -12,7 +12,7 @@ void Pruned_Sample::add_mutation(MAT::Mutation mut) {
     }
     positions.insert(mut.position);
 }
-Pruned_Sample::Pruned_Sample(std::string name) {
+Pruned_Sample::Pruned_Sample(MAT::Node* name) {
     sample_name = name;
     sample_mutations.clear();
     positions.clear();
@@ -28,8 +28,8 @@ combine_intervals(std::vector<Recomb_Interval> pair_list) {
         for (size_t j = i + 1; j < pairs.size(); j++) {
             // check everything except first interval is same and first interval
             // of pairs[i] ends where it starts for pairs[j]
-            if ((pairs[i].d.name == pairs[j].d.name) &&
-                (pairs[i].a.name == pairs[j].a.name) &&
+            if ((pairs[i].d.node->identifier == pairs[j].d.node->identifier) &&
+                (pairs[i].a.node->identifier == pairs[j].a.node->identifier) &&
                 (pairs[i].start_range_low == pairs[j].start_range_low) &&
                 (pairs[i].start_range_high == pairs[j].start_range_high) &&
                 (pairs[i].end_range_high == pairs[j].end_range_low) &&
@@ -47,8 +47,8 @@ combine_intervals(std::vector<Recomb_Interval> pair_list) {
         for (size_t j = i + 1; j < pairs.size(); j++) {
             // check everything except second interval is same and second
             // interval of pairs[i] ends where it starts for pairs[j]
-            if ((pairs[i].d.name == pairs[j].d.name) &&
-                (pairs[i].a.name == pairs[j].a.name) &&
+            if ((pairs[i].d.node->identifier == pairs[j].d.node->identifier) &&
+                (pairs[i].a.node->identifier == pairs[j].a.node->identifier) &&
                 (pairs[i].end_range_low == pairs[j].end_range_low) &&
                 (pairs[i].end_range_high == pairs[j].end_range_high) &&
                 (pairs[i].start_range_high == pairs[j].start_range_low) &&

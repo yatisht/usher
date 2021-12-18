@@ -51,33 +51,33 @@ struct Ripples_Mapper_Output_Interface {
 };
 
 struct Pruned_Sample {
-    std::string sample_name;
+    MAT::Node* sample_name;
     std::vector<MAT::Mutation> sample_mutations;
     std::unordered_set<uint32_t> positions;
 
     // Assumes mutations are added in reverse chrono order
     void add_mutation(MAT::Mutation mut);
+    Pruned_Sample(){}
 
-    Pruned_Sample(std::string name);
+    Pruned_Sample(MAT::Node* name);
 };
 
 struct Recomb_Node {
-    std::string name;
+    const MAT::Node* node;
     int node_parsimony;
     int parsimony;
-    char is_sibling;
+    bool is_sibling;
     Recomb_Node() {
-        name = "";
         node_parsimony = -1;
         parsimony = -1;
         is_sibling = false;
     }
-    Recomb_Node(std::string n, int np, int p, char s)
-        : name(n), node_parsimony(np), parsimony(p), is_sibling(s) {}
+    Recomb_Node(const MAT::Node* node, int np, int p, char s)
+        : node(node), node_parsimony(np), parsimony(p), is_sibling(s) {}
     inline bool operator<(const Recomb_Node &n) const {
         return (
             ((*this).parsimony < n.parsimony) ||
-            (((*this).name < n.name) && ((*this).parsimony == n.parsimony)));
+            ((this->node->identifier < n.node->identifier) && ((*this).parsimony == n.parsimony)));
     }
 };
 
@@ -111,3 +111,12 @@ void ripples_mapper(const Pruned_Sample &sample,
                     Ripples_Mapper_Output_Interface &out,
                     const std::vector<MAT::Node *> &dfs_ordered_nodes,
                     const MAT::Node *root);
+void ripplrs_merger(const Pruned_Sample &pruned_sample,
+                    const std::vector<size_t> &nodes_to_search,
+                    std::vector<MAT::Node *> &dfs_ordered_nodes,
+                    size_t node_size, int pasimony_threshold,
+                    const MAT::Tree &T,
+                    tbb::concurrent_vector<Recomb_Interval> &valid_pairs,
+                    const Ripples_Mapper_Output_Interface &out_ifc,
+                    int nthreads, int branch_len, int min_range,
+                    int max_range) ;

@@ -13,7 +13,7 @@
 #include <google/protobuf/io/coded_stream.h>
 #include <google/protobuf/io/zero_copy_stream_impl.h>
 #include "usher_graph.hpp"
-
+#include <signal.h>
 // Uses one-hot encoding if base is unambiguous
 // A:1,C:2,G:4,T:8
 int8_t Mutation_Annotated_Tree::get_nuc_id (char nuc) {

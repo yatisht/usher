@@ -220,9 +220,10 @@ int main(int argc, char** argv) {
                 fprintf(stderr, "ERROR: Node id %s not found!\n", words[0].c_str());
                 exit(1);
             } else {
-                for (auto anc: T.rsearch(n->identifier, true)) {
+                /*for (auto anc: T.rsearch(n->identifier, true)) {
                     nodes_to_consider.insert(anc->identifier);
-                }
+                }*/
+                nodes_to_consider.insert(n->identifier);
             }
         }
         infile.close();

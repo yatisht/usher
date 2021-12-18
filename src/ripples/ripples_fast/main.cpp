@@ -11,6 +11,16 @@
 #include <vector>
 #define CHECK_MAPPER
 Timer timer;
+struct idx_hash{
+    size_t operator()(const MAT::Node* in) const{
+        return in->dfs_idx;
+    }
+};
+struct idx_eq{
+    bool operator()(const MAT::Node* a,const MAT::Node* b) const{
+        return a->dfs_idx==b->dfs_idx;
+    }
+};
 int main(int argc, char **argv) {
     po::variables_map vm = check_options(argc, argv);
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
@@ -44,9 +54,9 @@ int main(int argc, char **argv) {
             "Finding the branches with number of mutations equal to or "
             "exceeding %u.\n",
             branch_len);
-    auto bfs = T.breadth_first_expansion();
 
-    tbb::concurrent_unordered_set<std::string> nodes_to_consider;
+    tbb::concurrent_unordered_set<MAT::Node *,idx_hash,idx_eq> nodes_to_consider;
+    auto dfs = T.depth_first_expansion();
 
     if (samples_filename != "") {
         std::ifstream infile(samples_filename);
@@ -78,22 +88,22 @@ int main(int argc, char **argv) {
                 /*for (auto anc : T.rsearch(n->identifier, true)) {
                     nodes_to_consider.insert(anc->identifier);
                 }*/
-                nodes_to_consider.insert(n->identifier);
+                nodes_to_consider.insert(n);
             }
         }
         infile.close();
     } else {
         tbb::parallel_for(
-            tbb::blocked_range<size_t>(0, bfs.size()),
+            tbb::blocked_range<size_t>(0, dfs.size()),
             [&](const tbb::blocked_range<size_t> r) {
                 for (size_t i = r.begin(); i < r.end(); ++i) {
-                    auto n = bfs[i];
+                    auto n = dfs[i];
                     if (n == T.root) {
                         continue;
                     }
                     if (n->mutations.size() >= branch_len) {
                         if (T.get_num_leaves(n) >= num_descendants) {
-                            nodes_to_consider.insert(n->identifier);
+                            nodes_to_consider.insert(n);
                         }
                     }
                 }
@@ -101,7 +111,7 @@ int main(int argc, char **argv) {
             ap);
     }
 
-    std::vector<std::string> nodes_to_consider_vec;
+    std::vector<MAT::Node *> nodes_to_consider_vec;
     for (auto elem : nodes_to_consider) {
         nodes_to_consider_vec.emplace_back(elem);
     }
@@ -141,22 +151,14 @@ int main(int argc, char **argv) {
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 
     timer.Start();
-
-    std::unordered_map<MAT::Node *, size_t> tree_num_leaves;
-    auto dfs=T.depth_first_expansion();
-    for (int i = int(bfs.size()) - 1; i >= 0; i--) {
-        auto n = bfs[i];
-        size_t desc = 1;
-        for (auto child : n->children) {
-            desc += tree_num_leaves[child];
-        }
-        tree_num_leaves[n] = desc;
-        if(desc!=n->dfs_end_idx-n->dfs_idx){
-            fprintf(stderr, "Expected Descendant Size: %ld, go %ld",desc,n->dfs_end_idx-n->dfs_idx);
-            raise(SIGTRAP);
+    std::vector<size_t> nodes_to_seach;
+    nodes_to_seach.reserve(dfs.size());
+    for (auto &node : dfs) {
+        if ((node->dfs_end_idx - node->dfs_idx) >= num_descendants) {
+            nodes_to_seach.push_back(node->dfs_idx);
         }
     }
-
+    fprintf(stderr, "%zu out of %zu nodes have enough descendant to be donor/acceptor",nodes_to_seach.size(),dfs.size());
     size_t s = 0, e = nodes_to_consider.size();
 
     if ((start_idx >= 0) && (end_idx >= 0)) {
@@ -172,16 +174,17 @@ int main(int argc, char **argv) {
             e - s);
 
     size_t num_done = 0;
-    auto node_size=dfs.size();
+    auto node_size = dfs.size();
     for (size_t idx = s; idx < e; idx++) {
-        auto nid_to_consider = nodes_to_consider_vec[idx];
-        fprintf(stderr, "At node id: %s\n", nid_to_consider.c_str());
+        auto node_to_consider = nodes_to_consider_vec[idx];
+        fprintf(stderr, "At node id: %s\n",
+                node_to_consider->identifier.c_str());
 
-        int orig_parsimony = (int)T.get_node(nid_to_consider)->mutations.size();
+        int orig_parsimony = (int)node_to_consider->mutations.size();
 
-        Pruned_Sample pruned_sample(nid_to_consider);
+        Pruned_Sample pruned_sample(node_to_consider);
         // Find mutations on the node to prune
-        auto node_to_root = T.rsearch(nid_to_consider, true);
+        auto node_to_root = T.rsearch(node_to_consider->identifier, true);
         for (auto curr : node_to_root) {
             for (auto m : curr->mutations) {
                 pruned_sample.add_mutation(m);
@@ -189,517 +192,17 @@ int main(int argc, char **argv) {
         }
         size_t num_mutations = pruned_sample.sample_mutations.size();
 
-        size_t total_nodes = bfs.size();
-
-        /*std::vector<std::vector<MAT::Mutation>> node_excess_mutations(
-            total_nodes);
-        std::vector<std::vector<MAT::Mutation>> imputed_mutations(total_nodes);
-
-        std::vector<int> node_set_difference(total_nodes);
-
-        size_t best_node_num_leaves = 0;
-        int best_set_difference = 1e9;
-
-        std::vector<bool> node_has_unique(total_nodes);
-        size_t best_j = 0;
-        bool best_node_has_unique = false;
-
-        size_t best_distance = 1e9;
-
-        std::vector<size_t> best_j_vec;
-
-        size_t num_best = 1;
-        MAT::Node *best_node = T.root;
-        best_j_vec.emplace_back(0);
-
-        std::vector<size_t> node_distance(total_nodes, 0);
-
-
-        tbb::parallel_for(
-            tbb::blocked_range<size_t>(0, total_nodes),
-            [&](tbb::blocked_range<size_t> r) {
-                for (size_t k = r.begin(); k < r.end(); ++k) {
-                    if (tree_num_leaves[bfs[k]] < num_descendants) {
-                        continue;
-                    }
-
-                    node_has_unique[k] = false;
-
-                    mapper2_input inp;
-                    inp.T = &T;
-                    inp.node = bfs[k];
-                    inp.missing_sample_mutations =
-                        &pruned_sample.sample_mutations;
-                    inp.excess_mutations = &node_excess_mutations[k];
-                    inp.imputed_mutations = &imputed_mutations[k];
-                    inp.best_node_num_leaves = &best_node_num_leaves;
-                    inp.best_set_difference = &best_set_difference;
-                    inp.best_node = &best_node;
-                    inp.best_j = &best_j;
-                    inp.num_best = &num_best;
-                    inp.j = k;
-                    inp.has_unique = &best_node_has_unique;
-
-                    inp.set_difference = &node_set_difference[k];
-
-                    inp.distance = node_distance[k];
-                    inp.best_distance = &best_distance;
-
-                    inp.best_j_vec = &best_j_vec;
-                    inp.node_has_unique = &(node_has_unique);
-
-                    mapper2_body(inp, true);
-                }
-            },
-            ap);*/
         //==== new mapper
         Ripples_Mapper_Output_Interface mapper_out;
-        ripples_mapper(pruned_sample,mapper_out,dfs,T.root);
+        ripples_mapper(pruned_sample, mapper_out, dfs, T.root);
         //==== END new mapper
-        std::vector<Recomb_Interval> valid_pairs;
-        bool has_recomb = false;
-
-        size_t at = 0;
-        for (size_t i = 0; i < num_mutations; i++) {
-            for (size_t j = i; j < num_mutations; j++) {
-                fprintf(stderr, "\rTrying %zu of %zu breakpoint pairs.", ++at,
-                        num_mutations * (1 + num_mutations) / 2);
-                Pruned_Sample donor("donor");
-                Pruned_Sample acceptor("acceptor");
-
-                donor.sample_mutations.clear();
-                acceptor.sample_mutations.clear();
-
-                for (size_t k = 0; k < num_mutations; k++) {
-                    if ((k >= i) && (k < j)) {
-                        donor.add_mutation(pruned_sample.sample_mutations[k]);
-                    } else {
-                        acceptor.add_mutation(
-                            pruned_sample.sample_mutations[k]);
-                    }
-                }
-
-                int start_range_high =
-                    pruned_sample.sample_mutations[i].position;
-                int start_range_low =
-                    (i >= 1) ? pruned_sample.sample_mutations[i - 1].position
-                             : 0;
-
-                // int end_range_high =
-                // pruned_sample.sample_mutations[j].position;
-                int end_range_high = 1e9;
-                int end_range_low =
-                    (j >= 1) ? pruned_sample.sample_mutations[j - 1].position
-                             : 0;
-
-                // int end_range_low =
-                // pruned_sample.sample_mutations[j].position; int end_range_high
-                // = (j+1<num_mutations) ?
-                // pruned_sample.sample_mutations[j+1].position : 1e9;
-
-                if ((donor.sample_mutations.size() < branch_len) ||
-                    (acceptor.sample_mutations.size() < branch_len) ||
-                    (end_range_low - start_range_high < min_range) ||
-                    (end_range_low - start_range_high > max_range)) {
-                    continue;
-                }
-
-                tbb::concurrent_vector<Recomb_Node> donor_nodes;
-                tbb::concurrent_vector<Recomb_Node> acceptor_nodes;
-
-                donor_nodes.clear();
-                acceptor_nodes.clear();
-                const auto node_to_consider=T.get_node(nid_to_consider);
-                const auto ignore_range_start=node_to_consider->dfs_idx;
-                const auto ignore_range_end=node_to_consider->dfs_end_idx-1;
-                // find acceptor(s)
-                {
-                    tbb::parallel_for(
-                        tbb::blocked_range<size_t>(0, total_nodes),
-                        [&](tbb::blocked_range<size_t> r) {
-                            for (size_t k = r.begin(); k < r.end(); ++k) {
-                                //=====Mapper_check
-                                auto curr_node_idx=bfs[k]->dfs_idx;
-                                if ((tree_num_leaves[bfs[k]] <
-                                     num_descendants) ||(curr_node_idx>=ignore_range_start&&curr_node_idx<=ignore_range_end)) {
-                                    continue;
-                                }
-                                auto first_half_mut=mapper_out.mut_count_out[i*node_size+curr_node_idx].count_before_exclusive();
-                                auto second_half_mut=mapper_out.mut_count_out[num_mutations*node_size+curr_node_idx].count_before_exclusive()-mapper_out.mut_count_out[(j-1)*node_size+curr_node_idx].count_before_inclusive();
-                                auto total=first_half_mut+second_half_mut;
-                                /*// Is placement as sibling
-                                size_t num_mut = 0;
-                                if (bfs[k]->is_leaf() || node_has_unique[k]) {
-                                    std::vector<MAT::Mutation> l2_mut;
-
-                                    // Compute l2_mut
-                                    for (auto m1 : node_excess_mutations[k]) {
-                                        bool found = false;
-                                        for (auto m2 : bfs[k]->mutations) {
-                                            if (m1.is_masked()) {
-                                                break;
-                                            }
-                                            if (m1.position == m2.position) {
-                                                if (m1.mut_nuc == m2.mut_nuc) {
-                                                    found = true;
-                                                    break;
-                                                }
-                                            }
-                                        }
-                                        if (!found) {
-                                            if ((m1.position <
-                                                 start_range_high) ||
-                                                (m1.position > end_range_low)) {
-                                                num_mut++;
-                                            }
-                                        }
-                                        if (num_mut + parsimony_improvement >
-                                            (size_t)orig_parsimony) {
-                                            //== mapper check
-                                            if(total<num_mut){
-                                                fprintf(stderr,"mut count mismatch got %ld, expect %ld ot more\n",total,num_mut);
-                                                raise(SIGTRAP);
-                                            }
-                                            break;
-                                        }
-                                    }
-
-                                    if (num_mut + parsimony_improvement <=
-                                        (size_t)orig_parsimony) {
-                                        if(total!=num_mut){
-                                            fprintf(stderr,"mut count mismatch got %ld, expect %ld\n",total,num_mut);
-                                            raise(SIGTRAP);
-                                        }
-                                        acceptor_nodes.emplace_back(
-                                            Recomb_Node(bfs[k]->identifier,
-                                                        node_set_difference[k],
-                                                        num_mut, 'y'));
-                                    }
-                                    /*if(!mapper_out.is_sibling[curr_node_idx]){
-                                        fprintf(stderr,"should be sibling\n");
-                                        raise(SIGTRAP);
-                                    }*-/
-                                }
-                                // Else placement as child
-                                else {
-                                    for (auto m1 : node_excess_mutations[k]) {
-                                        bool found = false;
-                                        for (auto m2 : bfs[k]->mutations) {
-                                            if (m1.is_masked()) {
-                                                break;
-                                            }
-                                            if (m1.position == m2.position) {
-                                                if (m1.mut_nuc == m2.mut_nuc) {
-                                                    found = true;
-                                                    break;
-                                                }
-                                            }
-                                        }
-                                        if (!found) {
-                                            if ((m1.position <
-                                                 start_range_high) ||
-                                                (m1.position > end_range_low)) {
-                                                num_mut++;
-                                            }
-                                        }
-                                        if (num_mut + parsimony_improvement >
-                                            (size_t)orig_parsimony) {
-                                                   if(total<num_mut){
-                                                fprintf(stderr,"mut count mismatch got %ld, expect %ld ot more\n",total,num_mut);
-                                                raise(SIGTRAP);
-                                            }
-                                            break;
-                                        }
-                                    }
-
-                                    if (num_mut + parsimony_improvement <=
-                                        (size_t)orig_parsimony) {
-                                        if(total!=num_mut){
-                                            fprintf(stderr,"mut count mismatch got %ld, expect %ld\n",total,num_mut);
-                                            raise(SIGTRAP);
-                                        }
-                                        acceptor_nodes.emplace_back(
-                                            Recomb_Node(bfs[k]->identifier,
-                                                        node_set_difference[k],
-                                                        num_mut, 'n'));
-                                    }
-                                    /*if(mapper_out.is_sibling[curr_node_idx]){
-                                        fprintf(stderr,"should not be sibling\n");
-                                        raise(SIGTRAP);
-                                    }*-/
-                                }*/
-                                 if (total + parsimony_improvement <=
-                                        (size_t)orig_parsimony) {
-                                        if(bfs[k]->identifier=="node_100005"){
-                                            //fprintf(stderr,"%d\n",mapper_out.mut_count_out[node_size*num_mutations+curr_node_idx].count_before_exclusive());
-                                        }
-                                        acceptor_nodes.emplace_back(
-                                            Recomb_Node(bfs[k]->identifier,
-                                                        mapper_out.mut_count_out[node_size*num_mutations+curr_node_idx].count_before_exclusive()+mapper_out.is_sibling[idx],
-                                                        total, 'n'));
-                                }
-                            }
-                        },
-                        ap);
-                }
-
-                if (acceptor_nodes.size() == 0) {
-                    continue;
-                }
-
-                // find donor(s)
-                {
-                    tbb::parallel_for(
-                        tbb::blocked_range<size_t>(0, total_nodes),
-                        [&](tbb::blocked_range<size_t> r) {
-                            for (size_t k = r.begin(); k < r.end(); ++k) {
-                                //=====Mapper_check
-                                auto curr_node_idx=bfs[k]->dfs_idx;
-                                
-                                if ((tree_num_leaves[bfs[k]] <
-                                     num_descendants) ||
-                                    (curr_node_idx>=ignore_range_start&&curr_node_idx<=ignore_range_end)) {
-                                    continue;
-                                }
-                                auto total=mapper_out.mut_count_out[(j-1)*node_size+curr_node_idx].count_before_inclusive()-(mapper_out.mut_count_out[i*node_size+curr_node_idx].count_before_exclusive());
-                                /*
-                                size_t num_mut = 0;
-
-                                // Is placement as sibling
-                                if (bfs[k]->is_leaf() || node_has_unique[k]) {
-                                    std::vector<MAT::Mutation> l2_mut;
-
-                                    // Compute l2_mut
-                                    for (auto m1 : node_excess_mutations[k]) {
-                                        bool found = false;
-                                        for (auto m2 : bfs[k]->mutations) {
-                                            if (m1.is_masked()) {
-                                                break;
-                                            }
-                                            if (m1.position == m2.position) {
-                                                if (m1.mut_nuc == m2.mut_nuc) {
-                                                    found = true;
-                                                    break;
-                                                }
-                                            }
-                                        }
-                                        if (!found) {
-                                            if ((m1.position >=
-                                                 start_range_high) &&
-                                                (m1.position <=
-                                                 end_range_low)) {
-                                                num_mut++;
-                                            }
-                                        }
-
-                                        if (num_mut + parsimony_improvement >
-                                            (size_t)orig_parsimony) {
-                                                //== mapper check
-                                            if(total<num_mut){
-                                                fprintf(stderr,"mut count mismatch got %d, expect %d ot more\n",total,num_mut);
-                                                raise(SIGTRAP);
-                                            }
-                                            break;
-                                        }
-                                    }
-
-                                    if (num_mut + parsimony_improvement <=
-                                        (size_t)orig_parsimony) {
-                                        if(total!=num_mut){
-                                            fprintf(stderr,"mut count mismatch got %d, expect %d\n",total,num_mut);
-                                            raise(SIGTRAP);
-                                        }
-                                        donor_nodes.emplace_back(
-                                            Recomb_Node(bfs[k]->identifier,
-                                                        node_set_difference[k],
-                                                        num_mut, 'y'));
-                                    }
-                                    /*if(!mapper_out.is_sibling[curr_node_idx]){
-                                        fprintf(stderr,"should be sibling\n");
-                                        raise(SIGTRAP);
-                                    }*-/
-                                }
-                                // Else placement as child
-                                else {
-                                    for (auto m1 : node_excess_mutations[k]) {
-                                        bool found = false;
-                                        for (auto m2 : bfs[k]->mutations) {
-                                            if (m1.is_masked()) {
-                                                break;
-                                            }
-                                            if (m1.position == m2.position) {
-                                                if (m1.mut_nuc == m2.mut_nuc) {
-                                                    found = true;
-                                                    break;
-                                                }
-                                            }
-                                        }
-                                        if (!found) {
-                                            if ((m1.position >=
-                                                 start_range_high) &&
-                                                (m1.position <=
-                                                 end_range_low)) {
-                                                num_mut++;
-                                            }
-                                        }
-                                        if (num_mut + parsimony_improvement >
-                                            (size_t)orig_parsimony) {
-                                                //== mapper check
-                                            if(total<num_mut){
-                                                fprintf(stderr,"mut count mismatch got %d, expect %d ot more\n",total,num_mut);
-                                                raise(SIGTRAP);
-                                            }
-                                            break;
-                                        }
-                                    }
-
-                                    if (num_mut + parsimony_improvement <=
-                                        (size_t)orig_parsimony) {
-                                                                                    if(total!=num_mut){
-                                            fprintf(stderr,"mut count mismatch got %d, expect %d\n",total,num_mut);
-                                            raise(SIGTRAP);
-                                        }
-                                        donor_nodes.emplace_back(
-                                            Recomb_Node(bfs[k]->identifier,
-                                                        node_set_difference[k],
-                                                        num_mut, 'n'));
-                                    }
-                                    /*if(mapper_out.is_sibling[curr_node_idx]){
-                                        fprintf(stderr,"should not be sibling\n");
-                                        raise(SIGTRAP);
-                                    }*-/
-                                }*/
-                                if (total + parsimony_improvement <=
-                                        (size_t)orig_parsimony) {
-                                        donor_nodes.emplace_back(
-                                            Recomb_Node(bfs[k]->identifier,
-                                                        mapper_out.mut_count_out[node_size*num_mutations+curr_node_idx].count_before_exclusive()+mapper_out.is_sibling[idx],
-                                                        total, 'n'));
-                                }
-                            }
-                        },
-                        ap);
-                }
-
-                tbb::parallel_sort(donor_nodes.begin(), donor_nodes.end());
-                tbb::parallel_sort(acceptor_nodes.begin(),
-                                   acceptor_nodes.end());
-
-                if (donor_nodes.size() > 1000) {
-                    donor_nodes.resize(1000);
-                }
-
-                if (acceptor_nodes.size() > 1000) {
-                    acceptor_nodes.resize(1000);
-                }
-
-                // to print any pair of breakpoint interval exactly once for
-                // multiple donor-acceptor pairs
-                bool has_printed = false;
-
-                for (auto d : donor_nodes) {
-                    if (T.is_ancestor(nid_to_consider, d.name)) {
-                        continue;
-                    }
-                    for (auto a : acceptor_nodes) {
-                        if (T.is_ancestor(nid_to_consider, a.name)) {
-                            continue;
-                        }
-                        // Ensure donor and acceptor are not the same and
-                        // neither of them is a descendant of the recombinant
-                        // node total parsimony is less than the maximum allowed
-                        if ((d.name != a.name) && (d.name != nid_to_consider) &&
-                            (a.name != nid_to_consider) &&
-                            //(!T.is_ancestor(nid_to_consider,d.name)) &&
-                            //(!T.is_ancestor(nid_to_consider,a.name)) &&
-                            (orig_parsimony >= d.parsimony + a.parsimony +
-                                                   parsimony_improvement)) {
-                            Pruned_Sample donor("curr-donor");
-                            donor.sample_mutations.clear();
-                            acceptor.sample_mutations.clear();
-
-                            for (auto anc : T.rsearch(d.name, true)) {
-                                for (auto mut : anc->mutations) {
-                                    donor.add_mutation(mut);
-                                }
-                            }
-
-                            for (auto mut : donor.sample_mutations) {
-                                if ((mut.position > start_range_low) &&
-                                    (mut.position <= start_range_high)) {
-                                    bool in_pruned_sample = false;
-                                    for (auto mut2 :
-                                         pruned_sample.sample_mutations) {
-                                        if (mut.position == mut2.position) {
-                                            in_pruned_sample = true;
-                                        }
-                                    }
-                                    if (!in_pruned_sample) {
-                                        start_range_low = mut.position;
-                                    }
-                                }
-                                if ((mut.position > end_range_low) &&
-                                    (mut.position <= end_range_high)) {
-                                    bool in_pruned_sample = false;
-                                    for (auto mut2 :
-                                         pruned_sample.sample_mutations) {
-                                        if (mut.position == mut2.position) {
-                                            in_pruned_sample = true;
-                                        }
-                                    }
-                                    if (!in_pruned_sample) {
-                                        end_range_high = mut.position;
-                                    }
-                                }
-                            }
-
-                            for (auto mut : pruned_sample.sample_mutations) {
-                                if ((mut.position > start_range_low) &&
-                                    (mut.position <= start_range_high)) {
-                                    bool in_pruned_sample = false;
-                                    for (auto mut2 : donor.sample_mutations) {
-                                        if (mut.position == mut2.position) {
-                                            in_pruned_sample = true;
-                                        }
-                                    }
-                                    if (!in_pruned_sample) {
-                                        start_range_low = mut.position;
-                                    }
-                                }
-                                if ((mut.position > end_range_low) &&
-                                    (mut.position <= end_range_high)) {
-                                    bool in_pruned_sample = false;
-                                    for (auto mut2 : donor.sample_mutations) {
-                                        if (mut.position == mut2.position) {
-                                            in_pruned_sample = true;
-                                        }
-                                    }
-                                    if (!in_pruned_sample) {
-                                        end_range_high = mut.position;
-                                    }
-                                }
-                            }
-
-                            // tbb_lock.lock();
-                            valid_pairs.push_back(Recomb_Interval(
-                                d, a, start_range_low, start_range_high,
-                                end_range_low, end_range_high));
-                            // tbb_lock.unlock();
-
-                            has_recomb = true;
-                            has_printed = true;
-                            break;
-                        }
-                    }
-                    if (has_printed) {
-                        break;
-                    }
-                }
-            }
-        }
-        fprintf(stderr, "\n");
-
-        valid_pairs = combine_intervals(valid_pairs);
+        tbb::concurrent_vector<Recomb_Interval> valid_pairs_con;
+        ripplrs_merger(pruned_sample, nodes_to_seach, dfs, node_size,
+                       orig_parsimony - parsimony_improvement, T,
+                       valid_pairs_con, mapper_out, num_threads, branch_len,
+                       min_range, max_range);
+        std::vector<Recomb_Interval> temp(std::vector<Recomb_Interval>(valid_pairs_con.begin(),valid_pairs_con.end()));
+        std::vector<Recomb_Interval> valid_pairs = combine_intervals(temp);
         // print combined pairs
         for (auto p : valid_pairs) {
             std::string end_range_high_str =
@@ -708,9 +211,10 @@ int main(int argc, char **argv) {
             fprintf(
                 recomb_file,
                 "%s\t(%i,%i)\t(%i,%s)\t%s\t%c\t%i\t%s\t%c\t%i\t%i\t%i\t%i\n",
-                nid_to_consider.c_str(), p.start_range_low, p.start_range_high,
-                p.end_range_low, end_range_high_str.c_str(), p.d.name.c_str(),
-                p.d.is_sibling, p.d.node_parsimony, p.a.name.c_str(),
+                node_to_consider->identifier.c_str(), p.start_range_low,
+                p.start_range_high, p.end_range_low, end_range_high_str.c_str(),
+                p.d.node->identifier.c_str(), p.d.is_sibling,
+                p.d.node_parsimony, p.a.node->identifier.c_str(),
                 p.a.is_sibling, p.a.node_parsimony, orig_parsimony,
                 std::min(
                     {orig_parsimony, p.d.node_parsimony, p.a.node_parsimony}),
@@ -718,9 +222,9 @@ int main(int argc, char **argv) {
             fflush(recomb_file);
         }
 
-        if (has_recomb) {
-            fprintf(desc_file, "%s\t", nid_to_consider.c_str());
-            for (auto l : T.get_leaves(nid_to_consider)) {
+        if (!valid_pairs.empty()) {
+            fprintf(desc_file, "%s\t", node_to_consider->identifier.c_str());
+            for (auto l : T.get_leaves(node_to_consider->identifier)) {
                 fprintf(desc_file, "%s,", l->identifier.c_str());
             }
             fprintf(desc_file, "\n");

@@ -69,8 +69,9 @@ struct Mapper_Op : public tbb::task {
         unsigned short mut_accumulated = 0;
         auto this_idx = node->dfs_idx;
         auto &this_mut_out = cfg.get_mut(this_idx);
-        bool is_sibling=false;
+        bool has_unique=false;
         bool have_not_shared=false;
+        bool is_sibling=false;
         if (node->identifier=="node_100005")
         {
             //raise(SIGTRAP);
@@ -97,7 +98,7 @@ struct Mapper_Op : public tbb::task {
                         has_common=true;
                     }
                     if((!iter->valid())&&mut_for_descendant.valid()){
-                        is_sibling=true;
+                        has_unique=true;
                     }
                     if (have_to_be_valid) {
                         mut_accumulated++;
@@ -114,7 +115,7 @@ struct Mapper_Op : public tbb::task {
                 //Only at this node, back mutations for descendant, but maybe split
                 if (this_mut.mut_nuc != this_mut.ref_nuc) {
                     this_mut_out.emplace_back(this_mut);
-                    is_sibling=true;
+                    has_unique=true;
                 }
             }
         }
@@ -123,12 +124,11 @@ struct Mapper_Op : public tbb::task {
                 iter++;
         }
         //Artifically increase mutation by one for spliting?
-        if(node->children.empty()||!has_common){
-            is_sibling=true;
-        }
+        is_sibling=((has_unique && !node->children.empty() && (has_common)) || \
+                                  (node->children.empty() && (has_common)) || (!has_unique && node->children.empty() ));
         cfg.get_final_mut_count_ref(this_idx).set(mut_accumulated,false);
         }
-        cfg.set_sibling(this_idx,is_sibling);
+        cfg.set_sibling(this_idx,has_unique);
         auto cont=new (allocate_continuation()) tbb::empty_task;
         cont->set_ref_count(node->children.size());
         for(const auto child:node->children){
