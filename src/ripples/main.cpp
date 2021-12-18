@@ -220,10 +220,9 @@ int main(int argc, char** argv) {
                 fprintf(stderr, "ERROR: Node id %s not found!\n", words[0].c_str());
                 exit(1);
             } else {
-                /*for (auto anc: T.rsearch(n->identifier, true)) {
+                for (auto anc: T.rsearch(n->identifier, true)) {
                     nodes_to_consider.insert(anc->identifier);
-                }*/
-                nodes_to_consider.insert(n->identifier);
+                }
             }
         }
         infile.close();
@@ -299,7 +298,7 @@ int main(int argc, char** argv) {
     }
 
     fprintf(stderr, "Running placement individually for %zu branches to identify potential recombination events.\n", e-s);
-    FILE* before_joining_fh=fopen("before_join_ref","w");
+
     size_t num_done = 0;
     for (size_t idx = s; idx < e; idx++) {
         auto nid_to_consider = nodes_to_consider_vec[idx];
@@ -682,12 +681,7 @@ int main(int argc, char** argv) {
             }
         }
         fprintf(stderr, "\n");
-        for(auto p: valid_pairs) {
-            std::string end_range_high_str = (p.end_range_high == 1e9) ? "GENOME_SIZE" : std::to_string(p.end_range_high);
-            fprintf(before_joining_fh, "%s\t(%i,%i)\t(%i,%s)\t%s\t%s\n", nid_to_consider.c_str(), p.start_range_low,
-                    p.start_range_high, p.end_range_low, end_range_high_str.c_str(), p.d.name.c_str(),p.a.name.c_str());
-            fflush(before_joining_fh);
-        }
+
         valid_pairs = combine_intervals(valid_pairs);
         //print combined pairs
         for(auto p: valid_pairs) {
