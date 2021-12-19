@@ -1,7 +1,6 @@
 #include "ripples.hpp"
 #include <stdio.h>
-struct acceptor {
-    int operator()(const Mut_Count_Out_t &counts, size_t i, size_t j,
+static int acceptor (const Mut_Count_Out_t &counts, size_t i, size_t j,
                    size_t curr_node_idx, size_t node_size,
                    size_t num_mutations) {
         auto first_half_mut =
@@ -12,46 +11,47 @@ struct acceptor {
                                    .count_before_inclusive();
         return first_half_mut + second_half_mut;
     }
-};
-struct donor {
-    int operator()(const Mut_Count_Out_t &counts, size_t i, size_t j,
+static int donor(const Mut_Count_Out_t &counts, size_t i, size_t j,
                    size_t curr_node_idx, size_t node_size,
                    size_t num_mutations) {
         return counts[(j - 1) * node_size + curr_node_idx]
                    .count_before_inclusive() -
                (counts[i * node_size + curr_node_idx].count_before_exclusive());
     }
-};
 
-template <typename T>
-static int filter(const Ripples_Mapper_Output_Interface &out_ifc, size_t i,
+static std::pair<int,int> filter(const Ripples_Mapper_Output_Interface &out_ifc, size_t i,
                   size_t j, size_t node_size, size_t num_mutations,
-                  std::vector<size_t>::const_iterator nodes_to_search_start,
-                  std::vector<size_t>::const_iterator nodes_to_search_end,
-                  std::vector<Recomb_Node> &filtered, int pasimony_threshold,
-                  const std::vector<MAT::Node*> dfs,
-                  T donor_or_acceptor) {
-    int min_par = pasimony_threshold + 1;
+                  int idx_start,int idx_end,
+                  std::vector<Recomb_Node> &donor_filtered,
+                  std::vector<Recomb_Node> &acceptor_filtered,
+                  int pasimony_threshold,
+                  const std::vector<MAT::Node*> nodes_to_search) {
+    int donor_min_par = pasimony_threshold + 1;
+    int acceptor_min_par = pasimony_threshold + 1;
     const auto& counts = out_ifc.mut_count_out;
-    for (; nodes_to_search_start < nodes_to_search_end;
-         nodes_to_search_start++) {
-        if (*nodes_to_search_start==173559)
-        {
-            //fputc('a',stderr);
-        }
+    for (; idx_start < idx_end;
+         idx_start++) {
+        auto donor_par =
+            donor(counts, i, j, idx_start, node_size, num_mutations);
+        auto acceptor_par =
+            acceptor(counts, i, j, idx_start, node_size, num_mutations);
         
-        auto node_idx = *nodes_to_search_start;
-        auto this_par =
-            donor_or_acceptor(counts, i, j, node_idx, node_size, num_mutations);
-        if (this_par <= pasimony_threshold) {
-            min_par = std::min(min_par, this_par);
-            filtered.emplace_back(dfs[node_idx],
-                                  counts[node_size * num_mutations + node_idx]
+        if (donor_par <= pasimony_threshold) {
+            donor_min_par = std::min(donor_min_par, donor_par);
+            donor_filtered.emplace_back(nodes_to_search[idx_start],
+                                  counts[node_size * num_mutations + idx_start]
                                       .count_before_exclusive(),
-                                  this_par, out_ifc.is_sibling[node_idx]);
+                                  donor_par, out_ifc.is_sibling[idx_start]);
+        }
+        if (acceptor_par <= pasimony_threshold) {
+            acceptor_min_par = std::min(acceptor_min_par, acceptor_par);
+            acceptor_filtered.emplace_back(nodes_to_search[idx_start],
+                                  counts[node_size * num_mutations + idx_start]
+                                      .count_before_exclusive(),
+                                  acceptor_par, out_ifc.is_sibling[idx_start]);
         }
     }
-    return min_par;
+    return std::make_pair(donor_min_par,acceptor_min_par);
 }
 static void threshold_parsimony(std::vector<Recomb_Node> &donor_filtered,
                                 int pasimony_threshold) {
@@ -72,7 +72,7 @@ static void find_pairs(
     const std::vector<Recomb_Node> &donor_nodes,
     const std::vector<Recomb_Node> &acceptor_nodes,
     const std::vector<MAT::Mutation> &pruned_sample_mutations, int i, int j,
-    int parsimony_threshold, const std::vector<MAT::Node *> &dfs_ordered_nodes,
+    int parsimony_threshold,
     const MAT::Tree &T, tbb::concurrent_vector<Recomb_Interval> &valid_pairs) {
     bool has_printed = false;
 
@@ -191,13 +191,11 @@ static void find_pairs(
 struct check_breakpoint {
     const Ripples_Mapper_Output_Interface &out_ifc;
     const std::vector<MAT::Mutation> &pruned_sample_mutations;
-    std::vector<size_t>::const_iterator nodes_to_search_start1;
-    std::vector<size_t>::const_iterator nodes_to_search_end1;
-    std::vector<size_t>::const_iterator nodes_to_search_start2;
-    std::vector<size_t>::const_iterator nodes_to_search_end2;
+    int skip_start_idx;
+    int skip_end_idx;
     size_t node_size;
     int pasimony_threshold;
-    const std::vector<MAT::Node *> &dfs_ordered_nodes;
+    const std::vector<MAT::Node *> &nodes_to_search;
     const MAT::Tree &T;
     tbb::concurrent_vector<Recomb_Interval> &valid_pairs;
     void operator()(std::pair<int,int> in) const {
@@ -207,40 +205,22 @@ struct check_breakpoint {
             //raise(SIGTRAP);
         }
         
-        std::vector<Recomb_Node> donor_filtered;
         size_t num_mutations = pruned_sample_mutations.size();
-        int donor_min = filter(out_ifc, i, j, node_size, num_mutations,
-                               nodes_to_search_start1, nodes_to_search_end1,
-                               donor_filtered, pasimony_threshold,dfs_ordered_nodes, donor());
-        donor_min = std::min(
-            donor_min, filter(out_ifc, i, j, node_size, num_mutations,
-                              nodes_to_search_start2, nodes_to_search_end2,
-                              donor_filtered, pasimony_threshold,dfs_ordered_nodes, donor()));
-        if (donor_filtered.empty()) {
-            return;
-        }
-        int acceptor_threshold = pasimony_threshold - donor_min;
+        std::vector<Recomb_Node> donor_filtered;
         std::vector<Recomb_Node> acceptor_filtered;
-        int acceptor_min =
-            filter(out_ifc, i, j, node_size, num_mutations,
-                   nodes_to_search_start1, nodes_to_search_end1,
-                   acceptor_filtered, acceptor_threshold,dfs_ordered_nodes, acceptor());
-        acceptor_min =
-            std::min(acceptor_min,
-                     filter(out_ifc, i, j, node_size, num_mutations,
-                            nodes_to_search_start2, nodes_to_search_end2,
-                            acceptor_filtered, acceptor_threshold,dfs_ordered_nodes, acceptor()));
-        if (acceptor_filtered.empty()) {
+        auto min_first=filter(out_ifc,i,j,node_size,num_mutations,0,skip_start_idx,donor_filtered,acceptor_filtered,pasimony_threshold,nodes_to_search);
+        auto min_second=filter(out_ifc,i,j,node_size,num_mutations,skip_end_idx,nodes_to_search.size(),donor_filtered,acceptor_filtered,pasimony_threshold,nodes_to_search);
+        auto donor_min=std::min(min_first.first,min_second.first);
+        auto acceptor_min=std::min(min_first.second,min_second.second);
+        if (acceptor_min+donor_min>pasimony_threshold) {
             return;
         }
         threshold_parsimony(donor_filtered, pasimony_threshold - acceptor_min);
-        if (donor_filtered.empty()) {
-            return;
-        }
+        threshold_parsimony(acceptor_filtered, pasimony_threshold - donor_min);
         std::sort(acceptor_filtered.begin(), acceptor_filtered.end());
         std::sort(donor_filtered.begin(), donor_filtered.end());
         find_pairs(donor_filtered, acceptor_filtered, pruned_sample_mutations,
-                   i, j, pasimony_threshold, dfs_ordered_nodes, T, valid_pairs);
+                   i, j, pasimony_threshold, T, valid_pairs);
     }
 };
 
@@ -290,8 +270,8 @@ struct search_position {
 };
 
 void ripplrs_merger(const Pruned_Sample &pruned_sample,
-                    const std::vector<size_t> &nodes_to_search,
-                    std::vector<MAT::Node *> &dfs_ordered_nodes,
+                    const std::vector<int> & idx_map,
+                    const std::vector<MAT::Node *> &nodes_to_search,
                     size_t node_size, int pasimony_threshold,
                     const MAT::Tree &T,
                     tbb::concurrent_vector<Recomb_Interval> &valid_pairs,
@@ -299,16 +279,9 @@ void ripplrs_merger(const Pruned_Sample &pruned_sample,
                     int nthreads, int branch_len, int min_range,
                     int max_range) {
     auto pruned_node = pruned_sample.sample_name;
-    std::vector<size_t>::const_iterator nodes_to_search_start1 =
-        nodes_to_search.begin();
-    std::vector<size_t>::const_iterator nodes_to_search_end2 =
-        nodes_to_search.end();
-    std::vector<size_t>::const_iterator nodes_to_search_end1 = std::lower_bound(
-        nodes_to_search_start1, nodes_to_search_end2, pruned_node->dfs_idx);
-    assert(*nodes_to_search_end1 >= pruned_sample.sample_name->dfs_idx);
-    std::vector<size_t>::const_iterator nodes_to_search_start2 =
-        std::upper_bound(nodes_to_search_end1, nodes_to_search_end2,
-                         pruned_node->dfs_end_idx-1);
+    int skip_start_idx=std::abs(idx_map[pruned_node->dfs_idx]);
+    //The next index after the one corresponding to dfs_idx -1
+    int skip_end_idx=std::abs(idx_map[pruned_node->dfs_end_idx]);
 
     const auto &sample_mutations = pruned_sample.sample_mutations;
     int i = -1;
@@ -328,10 +301,9 @@ void ripplrs_merger(const Pruned_Sample &pruned_sample,
             tbb::make_filter<std::pair<int, int>, void>(
                 tbb::filter::parallel,
                 check_breakpoint{out_ifc, sample_mutations,
-                                 nodes_to_search_start1, nodes_to_search_end1,
-                                 nodes_to_search_start2, nodes_to_search_end2,
+                                 skip_start_idx,skip_end_idx,
                                  node_size, pasimony_threshold,
-                                 dfs_ordered_nodes, T, valid_pairs})
+                                 nodes_to_search, T, valid_pairs})
 
     );
 

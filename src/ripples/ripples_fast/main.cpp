@@ -164,13 +164,26 @@ int main(int argc, char **argv) {
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 
     timer.Start();
-    std::vector<size_t> nodes_to_seach;
+    std::vector<MAT::Node*> nodes_to_seach;
     nodes_to_seach.reserve(dfs.size());
     for (auto &node : dfs) {
         if ((node->dfs_end_idx - node->dfs_idx) >= num_descendants) {
-            nodes_to_seach.push_back(node->dfs_idx);
+            nodes_to_seach.push_back(node);
         }
     }
+    std::vector<int> index_map;
+    int node_to_search_idx=0;
+    index_map.reserve(dfs.size());
+    for (int dfs_idx = 0; dfs_idx <(int) dfs.size(); dfs_idx++)
+    {
+        if (node_to_search_idx!=nodes_to_seach.size()&&nodes_to_seach[node_to_search_idx]->dfs_idx==dfs_idx){
+            index_map.push_back(node_to_search_idx);
+            node_to_search_idx++;
+        }else{
+            index_map.push_back(-node_to_search_idx);
+        }
+    }
+    
     fprintf(stderr, "%zu out of %zu nodes have enough descendant to be donor/acceptor",nodes_to_seach.size(),dfs.size());
     size_t s = 0, e = nodes_to_consider.size();
 
@@ -208,10 +221,10 @@ int main(int argc, char **argv) {
 
         //==== new mapper
         Ripples_Mapper_Output_Interface mapper_out;
-        ripples_mapper(pruned_sample, mapper_out, dfs, T.root);
+        ripples_mapper(pruned_sample, mapper_out, nodes_to_seach.size(),index_map, T.root);
         //==== END new mapper
         tbb::concurrent_vector<Recomb_Interval> valid_pairs_con;
-        ripplrs_merger(pruned_sample, nodes_to_seach, dfs, node_size,
+        ripplrs_merger(pruned_sample, index_map,nodes_to_seach , nodes_to_seach.size(),
                        orig_parsimony - parsimony_improvement, T,
                        valid_pairs_con, mapper_out, num_threads, branch_len,
                        min_range, max_range);

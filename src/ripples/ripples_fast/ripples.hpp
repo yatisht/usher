@@ -47,7 +47,7 @@ typedef std::vector<std::vector<Ripples_Mapper_Mut>> Mut_Out_t;
 
 struct Ripples_Mapper_Output_Interface {
     Mut_Count_Out_t mut_count_out;
-    Mut_Out_t mut_out;
+    //Mut_Out_t mut_out;
     std::vector<char> is_sibling;
 };
 
@@ -110,11 +110,12 @@ combine_intervals(std::vector<Recomb_Interval> pair_list);
 po::variables_map check_options(int argc, char **argv);
 void ripples_mapper(const Pruned_Sample &sample,
                     Ripples_Mapper_Output_Interface &out,
-                    const std::vector<MAT::Node *> &dfs_ordered_nodes,
+                    size_t node_size,
+                    std::vector<int> idx_map,
                     const MAT::Node *root);
 void ripplrs_merger(const Pruned_Sample &pruned_sample,
-                    const std::vector<size_t> &nodes_to_search,
-                    std::vector<MAT::Node *> &dfs_ordered_nodes,
+                    const std::vector<int> & idx_map,
+                    const std::vector<MAT::Node *> &nodes_to_search,
                     size_t node_size, int pasimony_threshold,
                     const MAT::Tree &T,
                     tbb::concurrent_vector<Recomb_Interval> &valid_pairs,
