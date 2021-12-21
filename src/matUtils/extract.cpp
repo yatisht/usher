@@ -28,7 +28,9 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
     ("max-parsimony,a", po::value<int>()->default_value(-1),
      "Select samples by whether they have less than the maximum indicated parsimony score (terminal branch length)")
     ("max-branch-length,b", po::value<int>()->default_value(-1),
-     "Remove samples which have branches of greater than the indicated length in their ancestry.")
+     "Select samples which don't have any branches with than the indicated length in their ancestry.")
+    ("max-path-length,P", po::value<int>()->default_value(-1),
+     "Select samples which have a total path length (number of mutations different from reference) less than or equal to P.")
     ("nearest-k,k", po::value<std::string>()->default_value(""),
      "Select a sample ID and the nearest k samples to it, formatted as sample:k. E.g. -k sample_1:50 gets sample 1 and the nearest 50 samples to it as a subtree.")
     ("nearest-k-batch,K", po::value<std::string>()->default_value(""),
@@ -95,6 +97,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
      "Set to add to the sample selection the y nearest samples to each of your samples, without duplicates.")
     ("dump-metadata,Q", po::value<std::string>()->default_value(""),
      "Set to write all final stored metadata to a tsv.")
+    ("whitelist,L", po::value<std::string>()->default_value(""),
+     "Pass a list of samples, one per line, to always retain regardless of any other parameters.")
     ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
     ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
@@ -126,6 +130,7 @@ void extract_main (po::parsed_options parsed) {
     po::variables_map vm = parse_extract_command(parsed);
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
     std::string input_samples_file = vm["samples"].as<std::string>();
+    std::string whitelist_samples_file = vm["whitelist"].as<std::string>();
     std::string nearest_k = vm["nearest-k"].as<std::string>();
     std::string nearest_k_batch_file = vm["nearest-k-batch"].as<std::string>();
     std::string clade_choice = vm["clade"].as<std::string>();
@@ -135,6 +140,7 @@ void extract_main (po::parsed_options parsed) {
     std::string reroot_node = vm["reroot"].as<std::string>();
     int max_parsimony = vm["max-parsimony"].as<int>();
     int max_branch = vm["max-branch-length"].as<int>();
+    int max_path = vm["max-path-length"].as<int>();
     size_t max_epps = vm["max-epps"].as<size_t>();
     bool prune_samples = vm["prune"].as<bool>();
     size_t get_representative = vm["get-representative"].as<size_t>();
@@ -215,14 +221,10 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
     //if any sample selection arguments are set.
     //each of the sample selection arguments is run sequentially
     //so that you can choose, for example, "from among this clade, take samples with EPPs = 1..."
-    //explicit setting goes first, then clade, then mutation, then epps- in order of increasing runtime for checking sample membership
-    //to maximize efficiency (no need to calculate epps for a sample you're going to throw out in the next statement)
+    //explicit setting goes first, then they are calculated in rough order of time to compute, with EPPs at the end, so that 
+    //expensive computation isn't performed on samples that are going to be removed anyways.
     timer.Start();
     fprintf(stderr, "Checking for and applying sample selection arguments\n");
-    //TODO: sample select code could take a previous list of samples to check in some cases like what EPPs does
-    //which could save on runtime compared to getting instances across the whole tree and intersecting
-    //though the current setup would enable more complex things, like saying this OR this in arguments, it's less efficient
-    //and arguably efficiency should be prioritized over flexibility for features that are not implemented
     std::vector<std::string> samples;
     if (input_samples_file != "") {
         samples = read_sample_names(input_samples_file);
@@ -329,33 +331,28 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         }
     }
     if (match_choice != "") {
-        if (samples.size() == 0) {
-            samples = get_sample_match(&T, match_choice);
-        } else {
-            auto rsamples = get_sample_match(&T, match_choice);
-            samples = sample_intersect(samples, rsamples);
-        }
+        samples = get_sample_match(&T, samples, match_choice);
         if (samples.size() == 0) {
             fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
             exit(1);
         }
     }
     if (max_parsimony >= 0) {
+        samples = get_parsimony_samples(&T, samples, max_parsimony);
         if (samples.size() == 0) {
-            samples = get_parsimony_samples(&T, max_parsimony);
-        } else {
-            auto psamples =  get_parsimony_samples(&T, max_parsimony);
-            samples = sample_intersect(samples, psamples);
-            //check to make sure we haven't emptied our sample set; if we have, throw an error
-            if (samples.size() == 0) {
-                fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
-                exit(1);
-            }
+            fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
+            exit(1);
         }
     }
     if (max_branch >= 0) {
-        //intersection is built into this one because its a significant runtime gain to not rsearch samples I won't use anyways
         samples = get_short_steppers(&T, samples, max_branch);
+        if (samples.size() == 0) {
+            fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
+            exit(1);
+        }
+    }
+    if (max_path >= 0) {
+        samples = get_short_paths(&T, samples, max_path);
         if (samples.size() == 0) {
             fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
             exit(1);
@@ -415,6 +412,16 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         if (samples.size() == 0) {
             fprintf(stderr, "ERROR: No samples fulfill selected criteria (tree is left empty). Change arguments and try again\n");
             exit(1);
+        }
+    }
+    //make sure all whitelisted samples are included in the output after all other selection is performed.
+    if (whitelist_samples_file != "") {
+        fprintf(stderr, "Whitelisting samples...\n");
+        auto wsamples = read_sample_names(whitelist_samples_file);
+        for (auto w: wsamples) {
+            if (std::find(samples.begin(),samples.end(),w) == samples.end()) {
+                samples.push_back(w);
+            }
         }
     }
     //before performing any other action, reroot the tree if requested.

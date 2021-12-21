@@ -107,11 +107,15 @@ std::vector<std::string> get_mutation_samples (MAT::Tree* T, std::string mutatio
     return good_samples;
 }
 
-std::vector<std::string> get_parsimony_samples (MAT::Tree* T, int max_parsimony) {
+std::vector<std::string> get_parsimony_samples (MAT::Tree* T, std::vector<std::string> samples_to_check, int max_parsimony) {
     //simple selection- get samples which have less than X parsimony score (e.g. branch length)
+    if (samples_to_check.size() == 0) {
+        //if nothing is passed in, then check the whole tree.
+        samples_to_check = T->get_leaves_ids();
+    }
     std::vector<std::string> good_samples;
-    auto dfs = T->get_leaves();
-    for (auto n: dfs) {
+    for (auto sn: samples_to_check) {
+        auto n = T->get_node(sn);
         if (n->mutations.size() <= static_cast<size_t>(max_parsimony)) {
             good_samples.push_back(n->identifier);
         }
@@ -299,6 +303,32 @@ std::vector<std::string> get_short_steppers(MAT::Tree* T, std::vector<std::strin
     return good_samples;
 }
 
+std::vector<std::string> get_short_paths (MAT::Tree* T, std::vector<std::string> samples_to_check, int max_path) {
+    std::vector<std::string> good_samples;
+    if (samples_to_check.size() == 0) {
+        //if nothing is passed in, then check the whole tree.
+        samples_to_check = T->get_leaves_ids();
+    }
+    std::unordered_map<std::string, size_t> path_lengths;
+    for (auto n: T->depth_first_expansion()) {
+        if (!n->is_leaf()) {
+            //if its an internal node, add it to the tracker. Path length is the length to its parent plus its mutations.
+            //path length to the root is 0.
+            if (n->is_root()) {
+                path_lengths[n->identifier] = 0;
+            } else {
+                path_lengths[n->identifier] = path_lengths[n->parent->identifier] + n->mutations.size();
+            }
+        } else {
+            //if its not an internal node, check to see if the length to its parent plus the length to the leaf is under the maximum.
+            if (path_lengths[n->parent->identifier] + n->mutations.size() <= max_path) {
+                good_samples.push_back(n->identifier);
+            }
+        }
+    }
+    return good_samples;
+}
+
 std::unordered_map<std::string,std::unordered_map<std::string,std::string>> read_metafile(std::string metainf, std::set<std::string> samples_to_use) {
     std::ifstream infile(metainf);
     if (!infile) {
@@ -335,12 +365,15 @@ std::unordered_map<std::string,std::unordered_map<std::string,std::string>> read
     return metamap;
 }
 
-std::vector<std::string> get_sample_match(MAT::Tree* T, std::string substring) {
+std::vector<std::string> get_sample_match(MAT::Tree* T, std::vector<std::string> samples_to_check, std::string substring) {
     //get the set of samples which match the regular expression pattern and return them.
     //simple enough.
+    if (samples_to_check.size() == 0) {
+        samples_to_check = T->get_leaves_ids();
+    }
     std::regex pat (substring);
     std::vector<std::string> matchsamples;
-    for (auto l: T->get_leaves_ids()) {
+    for (auto l: samples_to_check) {
         if (std::regex_match(l, pat)) {
             matchsamples.emplace_back(l);
         }
