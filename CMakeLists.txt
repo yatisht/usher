@@ -222,7 +222,17 @@ else()
         ${PROTO_SRCS}
         ${PROTO_HDRS}
         )
-
+    add_executable(usher-sampled
+        src/usher-sampled/main.cpp
+        src/usher-sampled/mapper.cpp
+        src/usher-sampled/sampler.cpp
+        src/usher-sampled/range_tree.cpp
+        src/matOptimize/mutation_annotated_tree.cpp
+        src/matOptimize/mutation_annotated_tree_node.cpp
+        src/matOptimize/mutation_annotated_tree_load_store.cpp
+        src/matOptimize/mutation_annotated_tree_nuc_util.cpp
+        src/matOptimize/Mutation_Collection.cpp
+    )
     add_executable(compareVCF
         src/mutation_annotated_tree.cpp
         src/compareVCF.cpp
