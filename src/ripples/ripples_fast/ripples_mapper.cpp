@@ -23,6 +23,7 @@ struct Mapper_Op_Common{
     const size_t stride;
     const size_t mut_count;
     const std::vector<int>& idx_map;
+    const std::vector<bool>& do_parallel;
     Mut_Count_t& get_mut_count_ref(size_t node_idx,unsigned short mut_idx){
         return out.mut_count_out[mut_idx*stride+node_idx];
     }
@@ -153,6 +154,20 @@ static void only_from_parent(const Ripples_Mapper_Mut& mut,size_t this_idx,unsig
                 iter++;
         }
     }
+static void serial_mapper(const std::vector<Ripples_Mapper_Mut> &parent_muts,
+              Mapper_Op_Common& cfg,
+              const MAT::Node *node,
+              const MAT::Node *skip_node){
+    auto this_idx = cfg.idx_map[node->dfs_idx];
+        if(this_idx<0||node==skip_node){
+            return;
+        }
+    std::vector<Ripples_Mapper_Mut> this_mut_out;
+    set_mut_count(this_idx,this_mut_out,node,parent_muts,cfg);
+    for (const auto child : node->children) {
+        serial_mapper(this_mut_out,cfg,child,skip_node);
+    }
+}
 struct Mapper_Op : public tbb::task {
     const std::vector<Ripples_Mapper_Mut> &parent_muts;
     Mapper_Op_Common& cfg;
@@ -163,12 +178,17 @@ struct Mapper_Op : public tbb::task {
               const MAT::Node *node,
               const MAT::Node *skip_node)
         : parent_muts(parent_muts), cfg(cfg), node(node),skip_node(skip_node) {}
-    
     tbb::task *execute() override {
         auto this_idx = cfg.idx_map[node->dfs_idx];
         if(this_idx<0||node==skip_node){
             return nullptr;
         }
+        if (!cfg.do_parallel[node->dfs_idx])
+        {
+            serial_mapper(parent_muts,cfg,node,skip_node);
+            return nullptr;
+        }
+        
         auto cont=new (allocate_continuation()) Mapper_Cont;
         auto &this_mut_out = cont->muts;
 
@@ -202,14 +222,15 @@ struct Mapper_Op : public tbb::task {
 void ripples_mapper(const Pruned_Sample &sample,
                     Ripples_Mapper_Output_Interface &out,
                     size_t node_size,
-                    std::vector<int> idx_map,
+                    const std::vector<int>& idx_map,
+                    const std::vector<bool>& do_parallel,
                     const MAT::Node *root,
                     const MAT::Node *skip_node) {
     auto temp=get_parent_mut(root,0);
     auto mut_size = sample.sample_mutations.size();
     std::vector<Ripples_Mapper_Mut> root_muts;
     prep_output(sample, root_muts,out, node_size);
-    Mapper_Op_Common cfg{out,node_size,mut_size,idx_map};
+    Mapper_Op_Common cfg{out,node_size,mut_size,idx_map,do_parallel};
     tbb::task::spawn_root_and_wait(
         *new( tbb::task::allocate_root())Mapper_Op(root_muts,cfg,root,skip_node) );
 }

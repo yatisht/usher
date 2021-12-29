@@ -171,6 +171,8 @@ int main(int argc, char **argv) {
             nodes_to_seach.push_back(node);
         }
     }
+    std::vector<bool> do_parallel(dfs.size(),false);
+    check_parallelizable(T.root,do_parallel,31,num_descendants);
     std::vector<int> index_map;
     int node_to_search_idx=0;
     index_map.reserve(dfs.size());
@@ -221,7 +223,7 @@ int main(int argc, char **argv) {
 
         //==== new mapper
         Ripples_Mapper_Output_Interface mapper_out;
-        ripples_mapper(pruned_sample, mapper_out, nodes_to_seach.size(),index_map, T.root,node_to_consider);
+        ripples_mapper(pruned_sample, mapper_out, nodes_to_seach.size(),index_map,do_parallel, T.root,node_to_consider);
         //==== END new mapper
         tbb::concurrent_vector<Recomb_Interval> valid_pairs_con;
         ripplrs_merger(pruned_sample, index_map,nodes_to_seach , nodes_to_seach.size(),

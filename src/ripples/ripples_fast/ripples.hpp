@@ -111,7 +111,8 @@ po::variables_map check_options(int argc, char **argv);
 void ripples_mapper(const Pruned_Sample &sample,
                     Ripples_Mapper_Output_Interface &out,
                     size_t node_size,
-                    std::vector<int> idx_map,
+                    const std::vector<int>& idx_map,
+                    const std::vector<bool>& do_parallel,
                     const MAT::Node *root,
                     const MAT::Node *skip_node);
 void ripplrs_merger(const Pruned_Sample &pruned_sample,
@@ -123,3 +124,6 @@ void ripplrs_merger(const Pruned_Sample &pruned_sample,
                     const Ripples_Mapper_Output_Interface &out_ifc,
                     int nthreads, int branch_len, int min_range,
                     int max_range) ;
+size_t check_parallelizable(const MAT::Node *root,
+                            std::vector<bool> &do_parallel,
+                            size_t parallel_threshold, size_t check_threshold);
