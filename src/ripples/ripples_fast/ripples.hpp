@@ -112,7 +112,8 @@ void ripples_mapper(const Pruned_Sample &sample,
                     Ripples_Mapper_Output_Interface &out,
                     size_t node_size,
                     std::vector<int> idx_map,
-                    const MAT::Node *root);
+                    const MAT::Node *root,
+                    const MAT::Node *skip_node);
 void ripplrs_merger(const Pruned_Sample &pruned_sample,
                     const std::vector<int> & idx_map,
                     const std::vector<MAT::Node *> &nodes_to_search,

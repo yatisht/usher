@@ -221,7 +221,7 @@ int main(int argc, char **argv) {
 
         //==== new mapper
         Ripples_Mapper_Output_Interface mapper_out;
-        ripples_mapper(pruned_sample, mapper_out, nodes_to_seach.size(),index_map, T.root);
+        ripples_mapper(pruned_sample, mapper_out, nodes_to_seach.size(),index_map, T.root,node_to_consider);
         //==== END new mapper
         tbb::concurrent_vector<Recomb_Interval> valid_pairs_con;
         ripplrs_merger(pruned_sample, index_map,nodes_to_seach , nodes_to_seach.size(),

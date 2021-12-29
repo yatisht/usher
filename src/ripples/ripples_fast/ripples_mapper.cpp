@@ -46,15 +46,7 @@ std::pair<const MAT::Node*,MAT::Mutation> get_parent_mut(const MAT::Node* node,i
     }
     return std::make_pair(nullptr,MAT::Mutation());
 }
-struct Mapper_Op : public tbb::task {
-    const std::vector<Ripples_Mapper_Mut> &parent_muts;
-    Mapper_Op_Common& cfg;
-    const MAT::Node *node;
-    Mapper_Op(const std::vector<Ripples_Mapper_Mut> &parent_muts,
-              Mapper_Op_Common& cfg,
-              const MAT::Node *node)
-        : parent_muts(parent_muts), cfg(cfg), node(node) {}
-    void only_from_parent(const Ripples_Mapper_Mut& mut,size_t this_idx,unsigned short& mut_accumulated,std::vector<Ripples_Mapper_Mut>& this_mut_out){
+static void only_from_parent(const Ripples_Mapper_Mut& mut,size_t this_idx,unsigned short& mut_accumulated,std::vector<Ripples_Mapper_Mut>& this_mut_out,Mapper_Op_Common& cfg){
         auto is_valid = mut.valid();
                 if (mut.mut_idx != mut.NULL_MUT_IDX) {
                     cfg.get_mut_count_ref(this_idx,mut.mut_idx).set(
@@ -65,17 +57,18 @@ struct Mapper_Op : public tbb::task {
                 }
                 this_mut_out.push_back(mut);
     }
-    void set_mut_count(int this_idx,std::vector<Ripples_Mapper_Mut>& this_mut_out){
+    void set_mut_count(int this_idx,std::vector<Ripples_Mapper_Mut>& this_mut_out,const MAT::Node* node,const std::vector<Ripples_Mapper_Mut>& parent_muts,Mapper_Op_Common& cfg){
         auto iter = parent_muts.begin();
         auto end = parent_muts.end();
         unsigned short mut_accumulated = 0;
         bool has_unique=false;
         bool has_common=false;
         bool is_sibling=false;
+        this_mut_out.reserve(node->mutations.size()+parent_muts.size());
         if(this_idx!=0){
         for (const auto &this_mut : node->mutations) {
             while (iter->position < this_mut.position) {
-                only_from_parent(*iter,this_idx,mut_accumulated,this_mut_out);
+                only_from_parent(*iter,this_idx,mut_accumulated,this_mut_out,cfg);
                 iter++;
             }
             if (iter->position == this_mut.position) {
@@ -119,7 +112,7 @@ struct Mapper_Op : public tbb::task {
             }
         }
         while (iter < end) {
-                only_from_parent(*iter,this_idx,mut_accumulated,this_mut_out);
+                only_from_parent(*iter,this_idx,mut_accumulated,this_mut_out,cfg);
                 iter++;
         }
                 //Artifically increase mutation by one for spliting?
@@ -129,9 +122,10 @@ struct Mapper_Op : public tbb::task {
         }
         cfg.set_sibling(this_idx,is_sibling);
     }
-    void merge_mutation_only(std::vector<Ripples_Mapper_Mut>& this_mut_out){
+    void merge_mutation_only(std::vector<Ripples_Mapper_Mut>& this_mut_out,const MAT::Node* node,const std::vector<Ripples_Mapper_Mut>& parent_muts){
          auto iter = parent_muts.begin();
         auto end = parent_muts.end();
+        this_mut_out.reserve(node->mutations.size()+parent_muts.size());
         for (const auto &this_mut : node->mutations) {
             while (iter->position < this_mut.position) {
                 this_mut_out.push_back((*iter));
@@ -159,8 +153,22 @@ struct Mapper_Op : public tbb::task {
                 iter++;
         }
     }
+struct Mapper_Op : public tbb::task {
+    const std::vector<Ripples_Mapper_Mut> &parent_muts;
+    Mapper_Op_Common& cfg;
+    const MAT::Node *node;
+    const MAT::Node *skip_node;
+    Mapper_Op(const std::vector<Ripples_Mapper_Mut> &parent_muts,
+              Mapper_Op_Common& cfg,
+              const MAT::Node *node,
+              const MAT::Node *skip_node)
+        : parent_muts(parent_muts), cfg(cfg), node(node),skip_node(skip_node) {}
+    
     tbb::task *execute() override {
         auto this_idx = cfg.idx_map[node->dfs_idx];
+        if(this_idx<0||node==skip_node){
+            return nullptr;
+        }
         auto cont=new (allocate_continuation()) Mapper_Cont;
         auto &this_mut_out = cont->muts;
 
@@ -168,24 +176,24 @@ struct Mapper_Op : public tbb::task {
         {
             //raise(SIGTRAP);
         }
-        if (this_idx>=0)
-        {
-            set_mut_count(this_idx,this_mut_out);
-        }else{
-            merge_mutation_only(this_mut_out);
-        }
+        //if (this_idx>=0)
+        //{
+            set_mut_count(this_idx,this_mut_out,node,parent_muts,cfg);
+        //}else{
+            //merge_mutation_only(this_mut_out,node,parent_muts);
+        //}
 
         cont->set_ref_count(node->children.size());
         if (this_idx == 0) {
             for (const auto child : node->children) {
                 cont->spawn(*new (cont->allocate_child())
-                                Mapper_Op(parent_muts, cfg, child));
+                                Mapper_Op(parent_muts, cfg, child,skip_node));
             }
         } else {
 
             for (const auto child : node->children) {
                 cont->spawn(*new (cont->allocate_child())
-                                Mapper_Op(this_mut_out, cfg, child));
+                                Mapper_Op(this_mut_out, cfg, child,skip_node));
             }
         }
         return node->children.empty()?cont:nullptr;
@@ -195,12 +203,13 @@ void ripples_mapper(const Pruned_Sample &sample,
                     Ripples_Mapper_Output_Interface &out,
                     size_t node_size,
                     std::vector<int> idx_map,
-                    const MAT::Node *root) {
+                    const MAT::Node *root,
+                    const MAT::Node *skip_node) {
     auto temp=get_parent_mut(root,0);
     auto mut_size = sample.sample_mutations.size();
     std::vector<Ripples_Mapper_Mut> root_muts;
     prep_output(sample, root_muts,out, node_size);
     Mapper_Op_Common cfg{out,node_size,mut_size,idx_map};
     tbb::task::spawn_root_and_wait(
-        *new( tbb::task::allocate_root())Mapper_Op(root_muts,cfg,root) );
+        *new( tbb::task::allocate_root())Mapper_Op(root_muts,cfg,root,skip_node) );
 }
