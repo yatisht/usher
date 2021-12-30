@@ -4,7 +4,14 @@
 #include <iostream>
 
 namespace po = boost::program_options;
-
+namespace MAT = Mutation_Annotated_Tree;
+struct Mapper_Info{
+    const MAT::Mutation* begin;
+    const MAT::Mutation* end;
+    unsigned int sibling_start_idx;
+    unsigned short level;
+    bool is_leaf;
+};
 namespace MAT = Mutation_Annotated_Tree;
 struct Ripples_Mapper_Mut {
     static const unsigned short NULL_MUT_IDX = -1;
@@ -113,8 +120,10 @@ void ripples_mapper(const Pruned_Sample &sample,
                     size_t node_size,
                     const std::vector<int>& idx_map,
                     const std::vector<bool>& do_parallel,
+                    const std::vector<Mapper_Info> &traversal_track,
+                    const unsigned short tree_height,
                     const MAT::Node *root,
-                    const MAT::Node *skip_node);
+                    const MAT::Node *skip_node) ;
 void ripplrs_merger(const Pruned_Sample &pruned_sample,
                     const std::vector<int> & idx_map,
                     const std::vector<MAT::Node *> &nodes_to_search,
@@ -126,4 +135,7 @@ void ripplrs_merger(const Pruned_Sample &pruned_sample,
                     int max_range) ;
 size_t check_parallelizable(const MAT::Node *root,
                             std::vector<bool> &do_parallel,
-                            size_t parallel_threshold, size_t check_threshold);
+                            size_t parallel_threshold, 
+                            size_t check_threshold,
+                            unsigned short& tree_height,
+                            std::vector<Mapper_Info>& traversal_track,unsigned short level);

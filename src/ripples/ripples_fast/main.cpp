@@ -62,6 +62,8 @@ struct Ripple_Pipeline{
     uint32_t num_threads;
     int parsimony_improvement;
     MAT::Tree& T;
+    const std::vector<Mapper_Info> &traversal_track;
+    const unsigned short tree_height;
 Ripple_Result_Pack* operator()(MAT::Node* node_to_consider) const;
 };
 struct Ripple_Finalizer{
@@ -203,21 +205,23 @@ int main(int argc, char **argv) {
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 
     timer.Start();
-    std::vector<MAT::Node*> nodes_to_seach;
-    nodes_to_seach.reserve(dfs.size());
+    std::vector<MAT::Node*> nodes_to_search;
+    nodes_to_search.reserve(dfs.size());
     for (auto &node : dfs) {
         if ((node->dfs_end_idx - node->dfs_idx) >= num_descendants) {
-            nodes_to_seach.push_back(node);
+            nodes_to_search.push_back(node);
         }
     }
     std::vector<bool> do_parallel(dfs.size(),false);
-    check_parallelizable(T.root,do_parallel,nodes_to_seach.size()/num_threads,num_descendants);
+    std::vector<Mapper_Info> traversal_track;
+    unsigned short tree_height=0;
+    check_parallelizable(T.root,do_parallel,nodes_to_search.size()/num_threads,num_descendants,tree_height,traversal_track,0);
     std::vector<int> index_map;
     int node_to_search_idx=0;
     index_map.reserve(dfs.size());
     for (int dfs_idx = 0; dfs_idx <(int) dfs.size(); dfs_idx++)
     {
-        if (node_to_search_idx!=nodes_to_seach.size()&&nodes_to_seach[node_to_search_idx]->dfs_idx==dfs_idx){
+        if (node_to_search_idx!=nodes_to_search.size()&&nodes_to_search[node_to_search_idx]->dfs_idx==dfs_idx){
             index_map.push_back(node_to_search_idx);
             node_to_search_idx++;
         }else{
@@ -225,7 +229,7 @@ int main(int argc, char **argv) {
         }
     }
     
-    fprintf(stderr, "%zu out of %zu nodes have enough descendant to be donor/acceptor",nodes_to_seach.size(),dfs.size());
+    fprintf(stderr, "%zu out of %zu nodes have enough descendant to be donor/acceptor",nodes_to_search.size(),dfs.size());
     size_t s = 0, e = nodes_to_consider.size();
 
     if ((start_idx >= 0) && (end_idx >= 0)) {
@@ -241,8 +245,7 @@ int main(int argc, char **argv) {
             e - s);
 
     size_t num_done = 0;
-    FILE* before_joining_fh=fopen("before_join_test","w");
-    auto node_size = dfs.size();
+    //FILE* before_joining_fh=fopen("before_join_test","w");
     std::vector<MAT::Node*>::const_iterator cur_iter=nodes_to_consider_vec.begin();
     std::vector<MAT::Node*>::const_iterator end=nodes_to_consider_vec.end();
     tbb::parallel_pipeline(
@@ -250,9 +253,9 @@ int main(int argc, char **argv) {
                                                next_node{cur_iter, end}) &
                tbb::make_filter<MAT::Node *, Ripple_Result_Pack *>(
                    tbb::filter::parallel,
-                   Ripple_Pipeline{nodes_to_seach, do_parallel, index_map,
+                   Ripple_Pipeline{nodes_to_search, do_parallel, index_map,
                                    branch_len, min_range, max_range,
-                                   num_threads, parsimony_improvement, T}) &
+                                   num_threads, parsimony_improvement, T,traversal_track,tree_height}) &
                tbb::make_filter<Ripple_Result_Pack *, void>(
                    tbb::filter::serial_in_order,
                    Ripple_Finalizer{desc_file, recomb_file, num_done,
@@ -276,11 +279,9 @@ Ripple_Result_Pack* Ripple_Pipeline::operator()(MAT::Node* node_to_consider) con
                 pruned_sample.add_mutation(m);
             }
         }
-        size_t num_mutations = pruned_sample.sample_mutations.size();
-
         //==== new mapper
         Ripples_Mapper_Output_Interface mapper_out;
-        ripples_mapper(pruned_sample, mapper_out, nodes_to_seach.size(),index_map,do_parallel, T.root,node_to_consider);
+        ripples_mapper(pruned_sample, mapper_out, nodes_to_seach.size(),index_map,do_parallel, traversal_track,tree_height,T.root,node_to_consider);
         //==== END new mapper
         tbb::concurrent_vector<Recomb_Interval> valid_pairs_con;
         ripplrs_merger(pruned_sample, index_map,nodes_to_seach , nodes_to_seach.size(),
