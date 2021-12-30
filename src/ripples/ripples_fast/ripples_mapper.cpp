@@ -158,7 +158,8 @@ static void serial_mapper(const std::vector<Ripples_Mapper_Mut> &parent_muts,
               Mapper_Op_Common& cfg,
               const MAT::Node *node,
               const MAT::Node *skip_node){
-    auto this_idx = cfg.idx_map[node->dfs_idx];
+    auto dfs_idx=node->dfs_idx;
+    auto this_idx = cfg.idx_map[dfs_idx];
         if(this_idx<0||node==skip_node){
             return;
         }
@@ -179,11 +180,12 @@ struct Mapper_Op : public tbb::task {
               const MAT::Node *skip_node)
         : parent_muts(parent_muts), cfg(cfg), node(node),skip_node(skip_node) {}
     tbb::task *execute() override {
-        auto this_idx = cfg.idx_map[node->dfs_idx];
+        auto dfs_idx=node->dfs_idx;
+        auto this_idx = cfg.idx_map[dfs_idx];
         if(this_idx<0||node==skip_node){
             return nullptr;
         }
-        if (!cfg.do_parallel[node->dfs_idx])
+        if (!cfg.do_parallel[dfs_idx])
         {
             serial_mapper(parent_muts,cfg,node,skip_node);
             return nullptr;

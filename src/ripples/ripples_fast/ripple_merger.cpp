@@ -25,7 +25,7 @@ static std::pair<int,int> filter(const Ripples_Mapper_Output_Interface &out_ifc,
                   std::vector<Recomb_Node> &donor_filtered,
                   std::vector<Recomb_Node> &acceptor_filtered,
                   int pasimony_threshold,
-                  const std::vector<MAT::Node*> nodes_to_search) {
+                  const std::vector<MAT::Node*>& nodes_to_search) {
     int donor_min_par = pasimony_threshold + 1;
     int acceptor_min_par = pasimony_threshold + 1;
     const auto& counts = out_ifc.mut_count_out;
