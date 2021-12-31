@@ -13,7 +13,9 @@ struct Mapper_Cont:public tbb::task{
 void prep_output(const Pruned_Sample &sample,std::vector<Ripples_Mapper_Mut> &init ,
                  Ripples_Mapper_Output_Interface &out, size_t node_size) {
     const auto &init_mut = sample.sample_mutations;
-    out.mut_count_out.resize(node_size * (init_mut.size() + 1));
+    auto out_size=node_size * (init_mut.size() + 1);
+    out.mut_count_out.reserve(out_size+8);
+    out.mut_count_out.resize(out_size);
     out.is_sibling.resize(node_size);
     init.reserve(init_mut.size() + 1);
     for (size_t mut_idx = 0; mut_idx < init_mut.size(); mut_idx++) {
