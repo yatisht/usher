@@ -103,7 +103,7 @@ static std::pair<int,int> filter(const Ripples_Mapper_Output_Interface &out_ifc,
     const auto* base_all_mut_offset=counts.data()+num_mutations*node_size;
     __v8hu exlusive_count_extract_mask=0x7fff-(__v8hu){};
     //__m128i_u inclusive_extract_mask=_mm_set1_epi16(0x8000);
-    for (; idx_start < idx_end;
+    for (; idx_start < (idx_end-8);
          idx_start+=8) {
         __v8hu first_half_raw=*(__v8hu_u*)(base_i_offset+idx_start);
         __v8hu first_half_exclusive=exlusive_count_extract_mask&first_half_raw;
@@ -114,12 +114,6 @@ static std::pair<int,int> filter(const Ripples_Mapper_Output_Interface &out_ifc,
         __v8hu second_half_before_inclusive=(second_half_before_raw&exlusive_count_extract_mask)+ second_half_before_included_flag;
         __v8hu acceptor_par=all_muts-second_half_before_inclusive+first_half_exclusive;
         __v8hu donor_par=second_half_before_inclusive-first_half_exclusive;
-        __v8hu load_mask=load_cmp_mask>((unsigned short)(idx_end-idx_start))-(__v8hu){};
-        load_mask>>=1;
-        acceptor_par|=load_mask;
-        acceptor_par&=exlusive_count_extract_mask;
-        donor_par|=load_mask;
-        donor_par&=exlusive_count_extract_mask;
         int donor_pass=__builtin_ia32_pmovmskb128((__v16b)(donor_par<threshold_par_vec));
         int acceptor_pass=__builtin_ia32_pmovmskb128((__v16b)(acceptor_par<threshold_par_vec));
         #ifndef NDEBUG
@@ -157,6 +151,31 @@ static std::pair<int,int> filter(const Ripples_Mapper_Output_Interface &out_ifc,
         }
         assert(donor_idx_debug.size()==donor_filtered_idx.size());
         assert(acceptor_idx_debug.size()==acceptor_filtered_idx.size());
+    }
+    __v8hu first_half_raw=*(__v8hu_u*)(base_i_offset+idx_start);
+    __v8hu first_half_exclusive=exlusive_count_extract_mask&first_half_raw;
+    __v8hu all_muts_raw=*((__v8hu_u*)(base_all_mut_offset+idx_start));
+    __v8hu all_muts=exlusive_count_extract_mask& all_muts_raw;
+    __v8hu second_half_before_raw=*((__v8hu_u*)(base_j_offset+idx_start));
+    __v8hu second_half_before_included_flag=(second_half_before_raw>>15);
+    __v8hu second_half_before_inclusive=(second_half_before_raw&exlusive_count_extract_mask)+ second_half_before_included_flag;
+    __v8hu acceptor_par=all_muts-second_half_before_inclusive+first_half_exclusive;
+    __v8hu donor_par=second_half_before_inclusive-first_half_exclusive;
+    __v8hu load_mask=load_cmp_mask>((unsigned short)(idx_end-idx_start))-(__v8hu){};
+    load_mask>>=1;
+    acceptor_par|=load_mask;
+    acceptor_par&=exlusive_count_extract_mask;
+    donor_par|=load_mask;
+    donor_par&=exlusive_count_extract_mask;
+    int donor_pass=__builtin_ia32_pmovmskb128((__v16b)(donor_par<threshold_par_vec));
+    int acceptor_pass=__builtin_ia32_pmovmskb128((__v16b)(acceptor_par<threshold_par_vec));
+    if (donor_pass) {
+        push_val(donor_filtered_idx, donor_filtered_par_score, idx_start, donor_pass, donor_par);
+        donor_min_par_vec=__builtin_ia32_pminsw128(donor_min_par_vec,(__v8h)donor_par);
+    }
+    if (acceptor_pass) {
+        push_val(acceptor_filtered_idx, acceptor_filtered_par_score, idx_start, acceptor_pass, acceptor_par);
+        acceptor_min_par_vec=__builtin_ia32_pminsw128(acceptor_min_par_vec,(__v8h)acceptor_par);
     }
     auto donor_min_par=min_8(donor_min_par_vec);
     auto acceptor_min_par=min_8(acceptor_min_par_vec);
