@@ -397,7 +397,7 @@ struct search_position {
                    max_range;
     }
     std::pair<int, int> operator()(tbb::flow_control &fc) const {
-        int start_range_high;// = pruned_sample_mutations[i].position;
+        int start_range_high=0;// = pruned_sample_mutations[i].position;
         int total_size = pruned_sample_mutations.size();
         // i end
         if (i > last_i) {

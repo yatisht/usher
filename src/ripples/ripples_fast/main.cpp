@@ -101,7 +101,7 @@ int main(int argc, char **argv) {
     MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
     T.uncondense_leaves();
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
-    get_node_cstr(T,"");
+    //get_node_cstr(T,"");
     timer.Start();
 
     fprintf(stderr,
@@ -221,7 +221,7 @@ int main(int argc, char **argv) {
     index_map.reserve(dfs.size());
     for (int dfs_idx = 0; dfs_idx <(int) dfs.size(); dfs_idx++)
     {
-        if (node_to_search_idx!=nodes_to_search.size()&&nodes_to_search[node_to_search_idx]->dfs_idx==dfs_idx){
+        if (node_to_search_idx!=(int)nodes_to_search.size()&&(int)nodes_to_search[node_to_search_idx]->dfs_idx==dfs_idx){
             index_map.push_back(node_to_search_idx);
             node_to_search_idx++;
         }else{
@@ -246,8 +246,8 @@ int main(int argc, char **argv) {
 
     size_t num_done = 0;
     //FILE* before_joining_fh=fopen("before_join_test","w");
-    std::vector<MAT::Node*>::const_iterator cur_iter=nodes_to_consider_vec.begin();
-    std::vector<MAT::Node*>::const_iterator end=nodes_to_consider_vec.end();
+    std::vector<MAT::Node*>::const_iterator cur_iter=nodes_to_consider_vec.begin()+s;
+    std::vector<MAT::Node*>::const_iterator end=nodes_to_consider_vec.begin()+e;
     tbb::parallel_pipeline(
         4, tbb::make_filter<void, MAT::Node *>(tbb::filter::serial_in_order,
                                                next_node{cur_iter, end}) &

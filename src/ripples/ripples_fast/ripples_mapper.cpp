@@ -32,7 +32,7 @@ struct Mapper_Op_Common{
     const std::vector<int>& idx_map;
     const std::vector<bool>& do_parallel;
     const std::vector<Mapper_Info> &traversal_track;
-    const unsigned int skip_idx;
+    const int skip_idx;
     const unsigned short tree_height;
     Mut_Count_t& get_mut_count_ref(size_t node_idx,unsigned short mut_idx){
         return out.mut_count_out[mut_idx*stride+node_idx];
@@ -177,10 +177,10 @@ static void only_from_parent(const Ripples_Mapper_Mut& mut,size_t this_idx,unsig
     static void
     serial_mapper(const std::vector<Ripples_Mapper_Mut> &parent_muts,
                   Mapper_Op_Common &cfg,
-                  unsigned int start_idx) {
+                   int start_idx) {
         const std::vector<Mapper_Info> &traversal_track=cfg.traversal_track;
         std::vector<std::vector<Ripples_Mapper_Mut>> stack;
-        auto end_idx=traversal_track[start_idx].sibling_start_idx;
+        int end_idx=traversal_track[start_idx].sibling_start_idx;
         auto base_level = traversal_track[start_idx].level;
         stack.reserve(cfg.tree_height - base_level);
         if (cfg.tree_height<base_level) {
@@ -200,7 +200,9 @@ static void only_from_parent(const Ripples_Mapper_Mut& mut,size_t this_idx,unsig
                 break;
             }
             auto next_level=traversal_track[cur_idx].level;
+            #ifndef NDEBUG
             auto cur_level=base_level+stack.size();
+            #endif
             assert(next_level<=cur_level);
             if (next_level<=base_level) {
                 raise(SIGTRAP);
@@ -284,7 +286,7 @@ void ripples_mapper(const Pruned_Sample &sample,
                          idx_map,
                          do_parallel,
                          traversal_track,
-                         (unsigned int)idx_map[skip_node->dfs_idx],
+                         idx_map[skip_node->dfs_idx],
                          tree_height};
     tbb::task::spawn_root_and_wait(*new (tbb::task::allocate_root())
                                        Mapper_Op(root_muts, cfg, root));
