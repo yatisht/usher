@@ -409,7 +409,7 @@ int usher_common(std::string dout_filename, std::string outdir, uint32_t max_tre
                         inp.best_j_vec = &best_j_vec;
                         inp.node_has_unique = &(node_has_unique);
 
-                        mapper2_body(inp, print_parsimony_scores, false);
+                        mapper2_body(inp, print_parsimony_scores, print_parsimony_scores);
                     }
                 }, ap);
 
