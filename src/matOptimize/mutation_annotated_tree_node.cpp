@@ -100,7 +100,7 @@ Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Tree::create_node (std::
     return create_node(identifier, par, branch_len);
 }
 
-Node* Mutation_Annotated_Tree::Tree::get_node_c_str (char* identifier) const {
+Node* Mutation_Annotated_Tree::Tree::get_node_c_str (const char* identifier) const {
     return get_node(std::string(identifier));
 }
 

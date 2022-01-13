@@ -19,7 +19,7 @@ void ins_mut(Mutation_Set &parent_mutations,const Mutation_Annotated_Tree::Mutat
     }
     if (!temp.second) {
         //already present
-        //assert(temp.first->get_mut_one_hot()==m.get_par_one_hot());
+        assert(temp.first->get_mut_one_hot()==m.get_par_one_hot());
         //mutate back to ref, so no more mutation
         if ((m.get_mut_one_hot() == m.get_ref_one_hot()&&(!is_leaf))||(m.get_all_major_allele()==m.get_ref_one_hot())) {
             parent_mutations.erase(temp.first);

@@ -109,9 +109,9 @@ class Mutation {
     uint8_t boundary1_all_major_allele; //boundary 1 alleles are alleles with allele count one less than major allele count
     uint8_t decrement_increment_effect;//Decrement which allele will increase parsimony score, then increment which allele may decrease parsimony score
     //uint8_t child_muts;//left child state then right child state for binary nodes
-    static tbb::concurrent_unordered_map<std::string, uint8_t> chromosome_map;
     static std::mutex ref_lock;//reference nuc are stored in a separate vector, need to be locked when adding new mutations
   public:
+    static tbb::concurrent_unordered_map<std::string, uint8_t> chromosome_map;
     static std::vector<std::string> chromosomes;// chromosome index to name map
     static std::vector<nuc_one_hot> refs;
     void set_boundary_one_hot(nuc_one_hot boundary1) {
@@ -490,7 +490,7 @@ class Tree {
         }
         return NULL;
     }
-    Node* get_node_c_str (char* identifier) const;
+    Node* get_node_c_str (const char* identifier) const;
     std::vector<Node*> breadth_first_expansion(std::string nid="");
     std::vector<Node*> depth_first_expansion(Node* node=NULL) const;
 
