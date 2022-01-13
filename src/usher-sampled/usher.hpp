@@ -52,3 +52,5 @@ void
 set_parent_muts(std::vector<Sampled_Tree_Mutation> &mutations_to_set,
                 const MAT::Node *node);
 void fix_parent(Mutation_Annotated_Tree::Node *root);
+void
+check_sampled_main_correspondence(const Sampled_Tree_Node *sampled_tree_node);

@@ -16,7 +16,9 @@ static void clean_up_leaf(std::vector<MAT::Node*>& dfs){
             auto node=dfs[node_idx];
             if (node->is_leaf()) {
                 auto& muts=node->mutations.mutations;
-                muts;
+                muts.erase(std::remove_if(muts.begin(), muts.end(), [](const auto& mut){
+                    return mut.get_par_one_hot()&mut.get_mut_one_hot();
+                }),muts.end());
             }
         }
     });
@@ -86,10 +88,10 @@ int main(int argc, char **argv) {
     check_samples(tree.root, ori_state, &tree);
     fprintf(stderr, "\n------\n%zu samples\n",ori_state.size());
     #endif
+    Sampled_Tree_Node *sampled_tree_root=sample_tree(tree, sampling_radius);
     
     #ifndef NDEBUG
     std::vector<Sampled_Tree_Node *> output;
-    Sampled_Tree_Node *sampled_tree_root=sample_tree(tree, sampling_radius);
     sample_tree_dfs(sampled_tree_root, output);
     check_sampled_tree(tree,output,sampling_radius);
     #endif
@@ -106,6 +108,8 @@ int main(int argc, char **argv) {
 #endif
 );
     }
+    dfs=tree.depth_first_expansion();
+    clean_up_leaf(dfs);
     MAT::save_mutation_annotated_tree(tree, protobuf_out);
 
 }

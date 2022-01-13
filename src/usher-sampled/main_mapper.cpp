@@ -309,7 +309,7 @@ struct Main_Tree_Searcher : public tbb::task {
             target.parent_node = const_cast<MAT::Node *>(node);
             int child_radius_left = radius_left - child->mutations.size();
             int parsimony_score = 0;
-            if (child->is_leaf() || (child_radius_left <= 0)) {
+            if (child->is_leaf() || (radius_left <= 0)) {
                 generic_merge(child, this_muts,
                               Combine_Hook<Empty_Hook, Down_Sibling_Hook>{
                                   Empty_Hook(),
@@ -346,7 +346,7 @@ struct Main_Tree_Searcher : public tbb::task {
         if (parent && parent != exclude_node) {
             target.target_node = const_cast<MAT::Node *>(node);
             target.parent_node = parent;
-            if (radius_left_parent > 0) {
+            if (radius_left > 0) {
                 children_tasks.push_back(
                     new (cont->allocate_child()) Main_Tree_Searcher(
                         radius_left_parent, parent, node, output

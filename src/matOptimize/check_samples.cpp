@@ -1,6 +1,7 @@
 #include "check_samples.hpp"
 #include "mutation_annotated_tree.hpp"
 #include "src/matOptimize/tree_rearrangement_internal.hpp"
+#include <csignal>
 #include <cstdio>
 #include <string>
 #include <tbb/concurrent_unordered_set.h>
@@ -129,7 +130,10 @@ struct check_samples_worker:public tbb::task {
             return empty;
         }
         for (auto child : root->children) {
-            assert(child->parent==root);
+            if (child->parent!=root) {
+                fprintf(stderr, "%lx\n", (long)child);
+                std::raise(SIGTRAP);
+            }
             empty->spawn(*new (empty->allocate_child())check_samples_worker(child, parent_mutations, samples,visited_samples));
         }
         return nullptr;

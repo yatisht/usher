@@ -24,7 +24,7 @@ Mutation_Set get_mutations(const MAT::Node *main_tree_node) {
     }
     return out;
 }
-static void
+void
 check_sampled_main_correspondence(const Sampled_Tree_Node *sampled_tree_node) {
     auto main_tree_mutations =
         get_mutations(sampled_tree_node->corresponding_main_tree_node);
@@ -47,17 +47,14 @@ check_sampled_main_correspondence(const Sampled_Tree_Node *sampled_tree_node) {
 static void set_covered_main_tree(const MAT::Node *start,
                                   std::vector<char> &checked, int distance_left,
                                   const MAT::Node *exclude_node) {
-    if (distance_left<0) {
-        raise(SIGTRAP);
-    }
     checked[start->dfs_index] = true;
     int par_dist_left = distance_left - start->branch_length;
-    if (start->parent && (start->parent != exclude_node) && par_dist_left > 0) {
+    if (start->parent && (start->parent != exclude_node) && distance_left > 0) {
         set_covered_main_tree(start->parent, checked, par_dist_left, start);
     }
     for (auto child : start->children) {
         int child_dist_left = distance_left - child->branch_length;
-        if (child_dist_left > 0 && child != exclude_node) {
+        if (distance_left > 0 && child != exclude_node) {
             set_covered_main_tree(child, checked, child_dist_left, start);
         }
     }
