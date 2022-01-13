@@ -328,22 +328,20 @@ struct Main_Tree_Searcher : public tbb::task {
                     Combine_Hook<Down_Decendant_Hook, Down_Sibling_Hook>{
                         Down_Decendant_Hook(children_tasks.back()->this_muts),
                         Down_Sibling_Hook(target, parsimony_score)});
-#ifndef NDEBUG
+#ifdef DETAILED_MERGER_CHECK
                 check_continuation(children_tasks.back()->node,
                                    sample_mutations,
                                    children_tasks.back()->this_muts);
 #endif
             }
-#ifndef NDEBUG
+#ifdef DETAILED_MERGER_CHECK
             check_mutations(sample_mutations, target);
 #endif
+            target.distance_left=radius_left-target.shared_mutations.size()-parsimony_score;
             register_target(target, parsimony_score);
         }
         auto parent = node->parent;
         int parsimony_score = 0;
-        if (parent->dfs_index==54964) {
-            //std::raise(SIGTRAP);
-        }
         int radius_left_parent = radius_left - node->mutations.size();
         if (parent && parent != exclude_node) {
             target.target_node = const_cast<MAT::Node *>(node);
@@ -363,7 +361,7 @@ struct Main_Tree_Searcher : public tbb::task {
                         Upward_Descendant_Hook(
                             children_tasks.back()->this_muts),
                         Upward_Sibling_Hook(target, parsimony_score)});
-#ifndef NDEBUG
+#ifdef DETAILED_MERGER_CHECK
                 check_continuation(children_tasks.back()->node,
                                    sample_mutations,
                                    children_tasks.back()->this_muts);
@@ -374,6 +372,7 @@ struct Main_Tree_Searcher : public tbb::task {
                                   Empty_Hook(), Upward_Sibling_Hook(
                                                     target, parsimony_score)});
             }
+            target.distance_left=radius_left-parsimony_score-node->branch_length+target.shared_mutations.size();
             register_target(target, parsimony_score);
         }
         cont->set_ref_count(children_tasks.size());
@@ -464,10 +463,14 @@ place_main_tree(std::vector<Sampled_Place_Target> &sampled_output,
     int min_score = main_tree_out[0].best_par_score;
     const auto *selected_target = &main_tree_out[0].targets[0];
     int best_idx = 0;
-    for (size_t idx = 1; idx < sampled_output.size(); idx++) {
-        if (main_tree_out[idx].best_par_score < min_score) {
+    for (size_t idx = 0; idx < sampled_output.size(); idx++) {
+        if (main_tree_out[idx].best_par_score <= min_score) {
             min_score = main_tree_out[idx].best_par_score;
-            selected_target = &main_tree_out[idx].targets[0];
+            for (auto& target : main_tree_out[idx].targets) {
+                if (target.distance_left>selected_target->distance_left) {
+                    selected_target=&target;
+                }
+            }
             best_idx = idx;
         }
     }
@@ -552,7 +555,7 @@ void optimality_check(Mutation_Set &sample_mutations, int parsimony,
     ori_mutations.push_back(MAT::Mutation(0,INT_MAX,0x1,0xf));
     temp.best_par_score = INT_MAX;
     auto main_tree_task_root = new (tbb::task::allocate_root())
-        Main_Tree_Searcher(sampling_radius, main_tree_root, nullptr, temp,
+        Main_Tree_Searcher(INT_MAX, main_tree_root, nullptr, temp,
                            sample_mutations);
     main_tree_task_root->this_muts = std::move(ori_mutations);
     tbb::task::spawn_root_and_wait(*main_tree_task_root);

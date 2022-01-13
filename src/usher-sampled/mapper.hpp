@@ -19,6 +19,7 @@ struct Main_Tree_Target {
     MAT::Mutations_Collection splited_mutations;
     MAT::Mutations_Collection sample_mutations;
     MAT::Mutations_Collection shared_mutations;
+    int distance_left;
 };
 std::vector<Sampled_Place_Target>
 place_on_sampled_tree(Sampled_Tree_Node *sampled_tree_root,
@@ -44,5 +45,5 @@ void optimality_check(Mutation_Set &sample_mutations, int parsimony,
                       Sampled_Tree_Node *sample_tree_root,
                       const std::vector<Sampled_Place_Target> &sampled_out);
 void check_sampled_mutations(Mutation_Set ref,const Sampled_Place_Target& target_to_check);
-void check_continuation(const MAT::Node* parent_node,Mutation_Set &ref,const MAT::Mutations_Collection &decendent_mutations);
+void check_continuation(const MAT::Node* parent_node,Mutation_Set ref,const MAT::Mutations_Collection &decendent_mutations);
 #endif

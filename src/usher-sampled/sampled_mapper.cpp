@@ -1,6 +1,7 @@
 #include "mapper.hpp"
 #include "src/matOptimize/mutation_annotated_tree.hpp"
 #include <algorithm>
+#include <cassert>
 #include <climits>
 #include <csignal>
 #include <cstddef>
@@ -109,7 +110,10 @@ struct Sampled_Tree_Placer_Task : public tbb::task {
     }
     void register_sample(const Sampled_Place_Target& target,
                          int par_score) {
+#ifdef DETAILED_MERGER_CHECK
         check_sampled_mutations(sample_mutations, target);
+#endif
+        assert(target.muts.back().position==INT_MAX);
         if (par_score <= output.best_par_score) {
             std::lock_guard<std::mutex> lk(output.mutex);
             if (par_score < output.best_par_score) {
@@ -131,6 +135,7 @@ struct Sampled_Tree_Placer_Task : public tbb::task {
         std::vector<Sampled_Tree_Placer_Task *> children_tasks;
         children_tasks.reserve(node->children.size());
         auto cont = new (allocate_continuation()) tbb::empty_task();
+        assert(this_muts.back().position==INT_MAX);
         for (const auto child : node->children) {
             Sampled_Place_Target target;
             auto& child_mutations=target.muts;
@@ -157,6 +162,7 @@ struct Sampled_Tree_Placer_Task : public tbb::task {
                                                  sample_mutations
 #endif
                         );
+                    assert(child_task->this_muts.back().position==INT_MAX);
                     children_tasks.push_back(child_task);
                 }
             }

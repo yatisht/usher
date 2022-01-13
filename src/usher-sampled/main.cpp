@@ -1,12 +1,26 @@
 #include "src/matOptimize/check_samples.hpp"
+#include "src/matOptimize/mutation_annotated_tree.hpp"
 #include "usher.hpp"
 #include <algorithm>
 #include <boost/program_options.hpp>
 #include <cstdio>
+#include <random>
+#include <tbb/blocked_range.h>
+#include <tbb/parallel_for.h>
 #include <tbb/task_scheduler_init.h>
 #include <utility>
 namespace po = boost::program_options;
-
+static void clean_up_leaf(std::vector<MAT::Node*>& dfs){
+    tbb::parallel_for(tbb::blocked_range<size_t>(0,dfs.size()),[&dfs](tbb::blocked_range<size_t> range){
+        for (size_t node_idx=range.begin(); node_idx<range.end(); node_idx++) {
+            auto node=dfs[node_idx];
+            if (node->is_leaf()) {
+                auto& muts=node->mutations.mutations;
+                muts;
+            }
+        }
+    });
+}
 int main(int argc, char **argv) {
     std::string vcf_filename;
     std::string protobuf_in;
@@ -59,14 +73,28 @@ int main(int argc, char **argv) {
     check_samples(tree.root, ori_state, &tree);
     fprintf(stderr, "\n------\n%zu samples\n",ori_state.size());
     #endif
-
+    auto dfs=tree.depth_first_expansion();
+    tbb::parallel_for(tbb::blocked_range<size_t>(0,dfs.size()),[&dfs](tbb::blocked_range<size_t> r){
+        for (size_t idx=r.begin(); idx<r.end(); idx++) {
+            auto & mut=dfs[idx]->mutations.mutations;
+            mut.erase(std::remove_if(mut.begin(), mut.end(), [](const MAT::Mutation& mut){
+                return mut.get_mut_one_hot()==mut.get_par_one_hot();
+            }),mut.end());
+        }
+    });
+    #ifndef NDEBUG
+    check_samples(tree.root, ori_state, &tree);
+    fprintf(stderr, "\n------\n%zu samples\n",ori_state.size());
+    #endif
+    
     #ifndef NDEBUG
     std::vector<Sampled_Tree_Node *> output;
     Sampled_Tree_Node *sampled_tree_root=sample_tree(tree, sampling_radius);
     sample_tree_dfs(sampled_tree_root, output);
     check_sampled_tree(tree,output,sampling_radius);
     #endif
-    //std::random_shuffle(samples_to_place.begin(),samples_to_place.end());
+    std::minstd_rand rng(0);
+    std::shuffle(samples_to_place.begin(),samples_to_place.end(),rng);
     for (auto&& to_place : samples_to_place) {
         fprintf(stderr, "placing sample %s\n",to_place.sample_name.c_str());
         place_sample(std::move(to_place),sampled_tree_root

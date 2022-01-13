@@ -8,9 +8,6 @@
 namespace MAT = Mutation_Annotated_Tree;
 int check_split(const MAT::Node *root, std::vector<bool>& do_split,
                 int threshold) {
-    if(root->dfs_index==157803){
-        //raise(SIGTRAP);
-    }
     if (root->children.empty()) {
         return 0;
     }
@@ -19,24 +16,26 @@ int check_split(const MAT::Node *root, std::vector<bool>& do_split,
     int second_max_dist = 0;
     for (const MAT::Node *c : root->children) {
         auto child_dist =
-            check_split(c, do_split, threshold) + c->mutations.size();
+            check_split(c, do_split, threshold) + c->branch_length;
         if (child_dist>=threshold) {
             do_split[c->dfs_index]=true;
-            child_dist=c->mutations.size();
+            child_dist=c->branch_length;
         }
         if (child_dist >= max_dist) {
             second_max_dist = max_dist;
             max_dist = child_dist;
             max_dist_node = c;
+        }else if (child_dist>second_max_dist) {
+            second_max_dist=child_dist;
         }
     }
     if (max_dist + second_max_dist >= threshold) {
         do_split[max_dist_node->dfs_index] = true;
-        if (max_dist_node->mutations.size()+second_max_dist>=threshold) {
+        if (max_dist_node->branch_length+second_max_dist>=threshold) {
             do_split[root->dfs_index]=true;
             return 0;
         }
-        return std::max((int)max_dist_node->mutations.size(), second_max_dist);
+        return std::max((int)max_dist_node->branch_length, second_max_dist);
     }
     return max_dist;
 }
@@ -67,9 +66,11 @@ struct Sample_Mut_Op : public tbb::task {
                 iter++;
             }
             if (iter->position == mut.get_position()) {
-                cont->parent_muts.push_back(*iter);
-                cont->parent_muts.back().mut_nuc = mut.get_mut_one_hot();
-                cont->parent_muts.back().descendent_possible_nuc = mut.get_mut_one_hot();
+                if(iter->par_nuc!=mut.get_mut_one_hot()){
+                    cont->parent_muts.push_back(*iter);
+                    cont->parent_muts.back().mut_nuc = mut.get_mut_one_hot();
+                    cont->parent_muts.back().descendent_possible_nuc = mut.get_mut_one_hot();
+                }
                 iter++;
             } else {
                 Sampled_Tree_Mutation temp;
@@ -80,6 +81,7 @@ struct Sample_Mut_Op : public tbb::task {
                 temp.par_nuc=mut.get_par_one_hot();
                 cont->parent_muts.push_back(temp);
             }
+//            assert(cont->parent_muts.empty()||cont->parent_muts.back().par_nuc!=cont->parent_muts.back().mut_nuc);
         }
         cont->parent_muts.insert(cont->parent_muts.end(), iter,
                                  parent_mutations.end());
@@ -186,6 +188,9 @@ struct Assign_Descendant_Possible_Muts : public tbb::task {
 };
 Sampled_Tree_Node *sample_tree(MAT::Tree &in, int threshold) {
     auto dfs = in.depth_first_expansion();
+    for (auto node : dfs) {
+        node->branch_length=node->mutations.size();
+    }
     std::vector<bool> is_sampled(dfs.size(), false);
     check_split(in.root, is_sampled, threshold);
     Sampled_Tree_Node *sample_tree_root = new Sampled_Tree_Node;

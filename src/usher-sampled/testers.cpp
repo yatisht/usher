@@ -1,6 +1,7 @@
 #include "mapper.hpp"
 #include "src/matOptimize/mutation_annotated_tree.hpp"
 #include <climits>
+#include <cstdio>
 #include <signal.h>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
@@ -9,9 +10,17 @@ Mutation_Set get_mutations(const MAT::Node *main_tree_node) {
     Mutation_Set out;
     while (main_tree_node) {
         for (const auto &mut : main_tree_node->mutations) {
-            out.insert(mut);
+                out.insert(mut);        
         }
         main_tree_node = main_tree_node->parent;
+    }
+    auto iter=out.begin();
+    while (iter!=out.end()) {
+        auto last_iter=iter;
+        iter++;
+        if (last_iter->get_mut_one_hot()==last_iter->get_ref_one_hot()) {
+            out.erase(last_iter);
+        }
     }
     return out;
 }
@@ -38,13 +47,16 @@ check_sampled_main_correspondence(const Sampled_Tree_Node *sampled_tree_node) {
 static void set_covered_main_tree(const MAT::Node *start,
                                   std::vector<char> &checked, int distance_left,
                                   const MAT::Node *exclude_node) {
+    if (distance_left<0) {
+        raise(SIGTRAP);
+    }
     checked[start->dfs_index] = true;
-    auto par_dist_left = distance_left - start->mutations.size();
+    int par_dist_left = distance_left - start->branch_length;
     if (start->parent && (start->parent != exclude_node) && par_dist_left > 0) {
         set_covered_main_tree(start->parent, checked, par_dist_left, start);
     }
     for (auto child : start->children) {
-        auto child_dist_left = distance_left - child->mutations.size();
+        int child_dist_left = distance_left - child->branch_length;
         if (child_dist_left > 0 && child != exclude_node) {
             set_covered_main_tree(child, checked, child_dist_left, start);
         }
@@ -68,6 +80,7 @@ void check_sampled_tree(MAT::Tree &main_tree,
                       });
     for (size_t idx = 0; idx < checked.size(); idx++) {
         if (!checked[idx]) {
+            fprintf(stderr, "Node %s unreachable \n",node_list[idx]->identifier.c_str());
             raise(SIGTRAP);
         }
     }
@@ -91,7 +104,7 @@ check_mutation_helper(Mutation_Set &ref,
                 raise(SIGTRAP);
             }
             ref.erase(ref_iter);
-        }
+        }   
         auto ins_result = parent_allele_check.emplace(mut.get_position(),
                                                       mut.get_par_one_hot());
         if (!ins_result.second) {
@@ -103,33 +116,42 @@ check_mutation_helper(Mutation_Set &ref,
     }
 }
 void check_ancestor(const MAT::Node* parent_node,Mutation_Set &ref,std::unordered_map<int, uint8_t>& parent_allele_check){
-    while (parent_node) {
+    while (parent_node&&(!ref.empty())) {
         check_mutation_helper(ref, parent_node->mutations, parent_allele_check,
                               true);
         parent_node = parent_node->parent;
     }
     if (!ref.empty()) {
-        raise(SIGTRAP);
+        bool met=false;
+        for (const auto & mut : ref) {
+            fprintf(stderr, "pos: %d, mut_nuc %d, par_nuc %d \n",mut.get_position(),(int)mut.get_mut_one_hot(),(int)mut.get_par_one_hot());
+            met=true;
+        }
+        if (met) {
+            raise(SIGTRAP);        
+        }
     }
-    for (const auto &temp : parent_allele_check) {
+    /*for (const auto &temp : parent_allele_check) {
         if (MAT::Mutation::refs[temp.first] != temp.second) {
             raise(SIGTRAP);
         }
-    }
+    }*/
 }
-void check_mutations(Mutation_Set &ref,
+void check_mutations(Mutation_Set ref,
                      const MAT::Mutations_Collection &sample_mutations,
                      const MAT::Mutations_Collection &shared_mutations,
                      const MAT::Node *parent_node) {
     std::unordered_map<int, uint8_t> parent_allele_check;
+    parent_allele_check.reserve(MAT::Mutation::refs.size());
     check_mutation_helper(ref, sample_mutations, parent_allele_check, false);
     check_mutation_helper(ref, shared_mutations, parent_allele_check, true);
     check_ancestor(parent_node, ref, parent_allele_check);
 
 }
-void check_continuation(const MAT::Node* parent_node,Mutation_Set &ref,const MAT::Mutations_Collection &decendent_mutations){
+void check_continuation(const MAT::Node* parent_node,Mutation_Set ref,const MAT::Mutations_Collection &decendent_mutations){
     assert(decendent_mutations.mutations.back().get_position()==INT_MAX);
     std::unordered_map<int, uint8_t> parent_allele_check;
+    parent_allele_check.reserve(MAT::Mutation::refs.size());
     check_mutation_helper(ref, decendent_mutations, parent_allele_check, false);
     check_ancestor(parent_node, ref, parent_allele_check);
 }

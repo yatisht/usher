@@ -2,6 +2,7 @@
 #include "src/matOptimize/check_samples.hpp"
 #include "src/matOptimize/mutation_annotated_tree.hpp"
 #include <algorithm>
+#include <chrono>
 #include <cstdio>
 #include <tbb/parallel_for.h>
 #include <utility>
@@ -48,6 +49,13 @@ static const MAT::Node *update_main_tree(Main_Tree_Target &target,
     MAT::Node *sample_node = new MAT::Node;
     sample_node->identifier = std::move(sample_string);
     sample_node->mutations = std::move(target.sample_mutations);
+    int sample_node_mut_count=0;
+    for (const auto & mut : sample_node->mutations) {
+        if (!(mut.get_par_one_hot()&mut.get_mut_one_hot())) {
+            sample_node_mut_count++;
+        }
+    }
+    sample_node->branch_length=sample_node_mut_count;
     if (target.splited_mutations.empty()&&(!target.target_node->is_leaf())) {
         sample_node->parent = target.target_node;
         target.target_node->children.push_back(sample_node);
@@ -59,6 +67,13 @@ static const MAT::Node *update_main_tree(Main_Tree_Target &target,
         new_target_node->identifier=target.target_node->identifier;
         new_target_node->children = target.target_node->children;
         new_target_node->mutations = std::move(target.splited_mutations);
+        int target_node_mut_count=0;
+        for (const auto& mut : new_target_node->mutations) {
+            if (!(mut.get_mut_one_hot()&mut.get_par_one_hot())) {
+                target_node_mut_count++;
+            }   
+        }
+        new_target_node->branch_length=target_node_mut_count;
         MAT::Node *split_node = new MAT::Node;
         new_target_node->parent=split_node;
         sample_node->parent=split_node;
@@ -67,6 +82,7 @@ static const MAT::Node *update_main_tree(Main_Tree_Target &target,
         split_node->mutations = std::move(target.shared_mutations);
         split_node->children.push_back(new_target_node);
         split_node->children.push_back(sample_node);
+        split_node->branch_length=split_node->mutations.size();
         auto iter=std::find(target.parent_node->children.begin(),target.parent_node->children.end(),target.target_node);
         *iter=split_node;
     }
@@ -91,6 +107,7 @@ void place_sample(Sample_Muts &&sample_to_place,
     }
     ori_state.emplace(sample_string, new_set);
 #endif
+    auto sampled_tree_start=std::chrono::steady_clock::now();
     int sampled_mutations = 0;
     auto sampled_output = place_on_sampled_tree(
         sampled_tree_root, std::move(sample_mutations), sampled_mutations
@@ -99,6 +116,9 @@ void place_sample(Sample_Muts &&sample_to_place,
                         new_set
 #endif
         );
+    auto sampled_tree_duration=std::chrono::steady_clock::now()-sampled_tree_start;
+    fprintf(stderr, "sampled tree took %ld msec\n",std::chrono::duration_cast<std::chrono::milliseconds>(sampled_tree_duration).count());
+    auto main_tree_start=std::chrono::steady_clock::now();
     auto main_tree_out =
         place_main_tree(sampled_output, main_tree, sampling_radius
 #ifndef NDEBUG
@@ -106,14 +126,20 @@ void place_sample(Sample_Muts &&sample_to_place,
                         new_set
 #endif
         );
+    auto main_tree_duration=std::chrono::steady_clock::now()-main_tree_start;
+    fprintf(stderr, "main tree took %ld msec\n",std::chrono::duration_cast<std::chrono::milliseconds>(main_tree_duration).count());
+    auto whole_tree_start=std::chrono::steady_clock::now();
 #ifndef NDEBUG
     optimality_check(new_set, std::get<2>(main_tree_out),
                      main_tree.root, sampling_radius, sampled_tree_root,
                      sampled_output);
 #endif
+    auto whole_tree_duration=std::chrono::steady_clock::now()-whole_tree_start;
+    fprintf(stderr, "whole tree took %ld msec\n",std::chrono::duration_cast<std::chrono::milliseconds>(whole_tree_duration).count());
+    auto dist=std::get<0>(main_tree_out).distance_left;
     auto main_tree_node =
         update_main_tree(std::get<0>(main_tree_out), std::move(sample_string));
-    if (sampled_mutations > sampling_radius) {
+    if (dist >= sampling_radius) {
         update_sampled_tree(sampled_output[std::get<1>(main_tree_out)],
                             main_tree_node);
     }

@@ -379,7 +379,7 @@ class Node {
     static const uint8_t DESCENDENT_CHANGED_MASK=4;
     static const uint8_t SELF_MOVED_MASK=8;
   public:
-    float branch_length;
+    int branch_length;
     std::string identifier;
     std::vector<std::string> clade_annotations;
     Node* parent;
