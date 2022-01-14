@@ -3,6 +3,9 @@
 #include "usher.hpp"
 #include <algorithm>
 #include <boost/program_options.hpp>
+#include <chrono>
+#include <complex>
+#include <csignal>
 #include <cstdio>
 #include <random>
 #include <tbb/blocked_range.h>
@@ -61,6 +64,7 @@ int main(int argc, char **argv) {
         } else
             return 1;
     }
+    auto start_time=std::chrono::steady_clock::now();
     tbb::task_scheduler_init init(num_threads);
     MAT::Tree tree=MAT::load_mutation_annotated_tree(protobuf_in);
     tree.uncondense_leaves();
@@ -97,6 +101,19 @@ int main(int argc, char **argv) {
     #endif
     std::minstd_rand rng(0);
     std::shuffle(samples_to_place.begin(),samples_to_place.end(),rng);
+/*    for (auto && to_place : samples_to_place) {
+        if (to_place.sample_name=="s2586656s") {
+            std::raise(SIGTRAP);
+            place_sample(std::move(to_place),sampled_tree_root
+                  , tree,
+                  sampling_radius
+#ifndef NDEBUG
+                  ,
+                  ori_state
+#endif
+);
+        }
+    }*/
     for (auto&& to_place : samples_to_place) {
         fprintf(stderr, "placing sample %s\n",to_place.sample_name.c_str());
         place_sample(std::move(to_place),sampled_tree_root
@@ -111,5 +128,6 @@ int main(int argc, char **argv) {
     dfs=tree.depth_first_expansion();
     clean_up_leaf(dfs);
     MAT::save_mutation_annotated_tree(tree, protobuf_out);
-
+    auto duration=std::chrono::steady_clock::now()-start_time;
+    fprintf(stderr, "Took %ld msec\n",std::chrono::duration_cast<std::chrono::milliseconds>(duration).count());
 }

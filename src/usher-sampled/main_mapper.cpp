@@ -191,13 +191,21 @@ struct Upward_Sibling_Hook {
               const MAT::Mutation &target_mut) {
         // Different need split
         if (sample_mut.get_mut_one_hot() != target_mut.get_mut_one_hot()) {
-            if ((sample_mut.get_mut_one_hot() & target_mut.get_mut_one_hot())) {
+            if (sample_mut.get_mut_one_hot()&target_mut.get_par_one_hot()) {
+                splitted_mutations.push_back(target_mut);
+                if (sample_mut.get_mut_one_hot()!=target_mut.get_par_one_hot()) {
+                    sample_mutations.push_back(sample_mut);
+                    sample_mutations.back().set_par_one_hot(
+                        target_mut.get_par_one_hot());    
+                }
+            }
+            else if ((sample_mut.get_mut_one_hot() & target_mut.get_mut_one_hot())) {
                 insert_split(sample_mut, target_mut, sample_mutations,
                              splitted_mutations, shared_mutations);
             } else {
                 parsimony_score++;
                 splitted_mutations.push_back(target_mut);
-                sample_mutations.push_back(target_mut);
+                sample_mutations.push_back(sample_mut);
                 sample_mutations.back().set_par_one_hot(
                     target_mut.get_par_one_hot());
             }
@@ -569,7 +577,7 @@ void optimality_check(Mutation_Set &sample_mutations, int parsimony,
                 sampled_target.target_node->corresponding_main_tree_node);
             if (dist < sampling_radius) {
                 raise(SIGTRAP);
-            }
+            }//867453
         }
         if (min_dist > sampling_radius) {
             std::unordered_map<const MAT::Node *, Sampled_Tree_Node *> node_map;
