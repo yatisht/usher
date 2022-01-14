@@ -197,17 +197,17 @@ void place_sample(Sample_Muts &&sample_to_place,
             std::chrono::duration_cast<std::chrono::milliseconds>(
                 main_tree_duration)
                 .count());
-    auto whole_tree_start = std::chrono::steady_clock::now();
 #ifndef NDEBUG
+    auto whole_tree_start = std::chrono::steady_clock::now();
     optimality_check(new_set, std::get<2>(main_tree_out), main_tree.root,
                      sampling_radius, sampled_tree_root, sampled_output);
-#endif
     auto whole_tree_duration =
         std::chrono::steady_clock::now() - whole_tree_start;
     fprintf(stderr, "whole tree took %ld msec\n",
             std::chrono::duration_cast<std::chrono::milliseconds>(
                 whole_tree_duration)
                 .count());
+#endif
     auto dist = std::get<0>(main_tree_out).distance_left;
     auto main_tree_node =
         update_main_tree(std::get<0>(main_tree_out), std::move(sample_string));
