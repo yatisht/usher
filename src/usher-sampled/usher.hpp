@@ -24,6 +24,15 @@ struct Sampled_Tree_Node{
     std::vector<Sampled_Tree_Node*> children;
     int dfs_idx;
 };
+struct To_Place_Sample_Mutation{
+    int position;
+    uint8_t chrom_idx;
+    uint8_t mut_nuc;
+    union{
+    uint8_t par_nuc;
+    uint16_t range;
+    };
+};
 Sampled_Tree_Node *sample_tree(MAT::Tree &in, int threshold);
 
 struct Sample_Muts{
