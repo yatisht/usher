@@ -16,17 +16,18 @@
 struct Lower_Bound_Hook {
     int &lower_bound;
     int &mutation_count;
-    std::vector<Sampled_Tree_Mutation> &output;
+    std::vector<To_Place_Sample_Mutation> &output;
     Lower_Bound_Hook(int &lower_bound, int &mutation_count,
-                     std::vector<Sampled_Tree_Mutation> &output)
+                     std::vector<To_Place_Sample_Mutation> &output)
         : lower_bound(lower_bound), mutation_count(mutation_count),
           output(output) {
         lower_bound = 0;
         mutation_count = 0;
         output.clear();
     }
-    void add(Sampled_Tree_Mutation mut, const ::Sampled_Tree_Node *node) {
-        if (!(mut.par_nuc & mut.mut_nuc)) {
+    void add(To_Place_Sample_Mutation& mut, const Sampled_Tree_Node *node) {
+        assert(output.empty()||output.back().get_end_range()<mut.position);
+        if (mut.mut_nuc!=0xf&&(!(mut.par_nuc & mut.mut_nuc))) {
             if ((mut.mut_nuc & mut.descendent_possible_nuc) == 0) {
                 lower_bound++;
             }
@@ -36,13 +37,14 @@ struct Lower_Bound_Hook {
     }
 };
 struct Add_Only_Hook {
-    std::vector<Sampled_Tree_Mutation> &output;
+    std::vector<To_Place_Sample_Mutation> &output;
     int &mutation_count;
-    Add_Only_Hook(std::vector<Sampled_Tree_Mutation> &output,
+    Add_Only_Hook(std::vector<To_Place_Sample_Mutation> &output,
                   int &mutation_count)
         : output(output), mutation_count(mutation_count) {}
-    void add(Sampled_Tree_Mutation mut, const ::Sampled_Tree_Node *node) {
-        if ((mut.mut_nuc & mut.par_nuc) == 0) {
+    void add(To_Place_Sample_Mutation mut, const ::Sampled_Tree_Node *node) {
+        assert(output.empty()||output.back().get_end_range()<mut.position);
+        if (mut.mut_nuc!=0xf && ((mut.mut_nuc & mut.par_nuc) == 0)) {
             mutation_count++;
         }
         output.push_back(mut);
@@ -50,28 +52,31 @@ struct Add_Only_Hook {
 };
 
 template <typename Mut_Add_Hook>
-static void merge_mutation(std::vector<Sampled_Tree_Mutation> &par_mutations,
+static void merge_mutation(std::vector<To_Place_Sample_Mutation> &par_mutations,
                            Sampled_Tree_Node *node, Mut_Add_Hook &hook) {
     hook.output.reserve(par_mutations.size() + node->mutations.size());
     auto par_iter = par_mutations.begin();
     for (const auto &mut : node->mutations) {
-        while (par_iter->position < mut.position) {
+        while (par_iter->get_end_range() < mut.position) {
             hook.add(*par_iter, node);
             par_iter++;
         }
+        assert(mut.position<=par_iter->get_end_range());
+        if (par_iter->mut_nuc==0xf&&mut.position>=par_iter->position) {
+            continue;
+        }
+        assert(mut.mut_nuc!=0xf);
+        //assert(par_iter->mut_nuc!=0xf);
         if (par_iter->position == mut.position) {
             if (par_iter->mut_nuc != mut.mut_nuc) {
-                Sampled_Tree_Mutation temp(*par_iter);
+                To_Place_Sample_Mutation temp(*par_iter);
                 temp.par_nuc = mut.mut_nuc;
+                temp.descendent_possible_nuc&=mut.descendent_possible_nuc;
                 hook.add(temp, node);
             }
             par_iter++;
         } else {
-            Sampled_Tree_Mutation temp;
-            temp.position = mut.position;
-            temp.chrom_idx = mut.chrom_idx;
-            temp.mut_nuc = mut.par_nuc;
-            temp.par_nuc = mut.mut_nuc;
+            To_Place_Sample_Mutation temp(mut.position,mut.chrom_idx,mut.par_nuc,mut.mut_nuc);
             hook.add(temp, node);
         }
     }
@@ -83,7 +88,7 @@ static void merge_mutation(std::vector<Sampled_Tree_Mutation> &par_mutations,
 
 // TODO: Handle sampled tree branch spliting
 struct Sampled_Tree_Placer_Task : public tbb::task {
-    std::vector<Sampled_Tree_Mutation> this_muts;
+    std::vector<To_Place_Sample_Mutation> this_muts;
     Output<Sampled_Place_Target> &output;
     const Sampled_Tree_Node *node;
     int lower_bound;
@@ -92,7 +97,7 @@ struct Sampled_Tree_Placer_Task : public tbb::task {
 #endif
     Sampled_Tree_Placer_Task(const Sampled_Tree_Node *node,
                              Output<Sampled_Place_Target> &output,
-                             std::vector<Sampled_Tree_Mutation> &&mutations,
+                             std::vector<To_Place_Sample_Mutation> &&mutations,
                              int lower_bound
 #ifndef NDEBUG
                              ,
@@ -137,6 +142,9 @@ struct Sampled_Tree_Placer_Task : public tbb::task {
         auto cont = new (allocate_continuation()) tbb::empty_task();
         assert(this_muts.back().position==INT_MAX);
         for (const auto child : node->children) {
+            /*if (child->corresponding_main_tree_node->identifier=="104837") {
+                raise(SIGTRAP);
+            }*/
             Sampled_Place_Target target;
             auto& child_mutations=target.muts;
             target.target_node=child;
@@ -185,7 +193,7 @@ struct Sampled_Tree_Placer_Task : public tbb::task {
 
 std::vector<Sampled_Place_Target>
 place_on_sampled_tree(Sampled_Tree_Node *sampled_tree_root,
-                      std::vector<Sampled_Tree_Mutation> &&sample_mutations,
+                      std::vector<To_Place_Sample_Mutation> &&sample_mutations,
                       int& parsimony_score
 #ifndef NDEBUG
                       ,
@@ -194,10 +202,7 @@ place_on_sampled_tree(Sampled_Tree_Node *sampled_tree_root,
 ) {
     Output<Sampled_Place_Target> sampled_output;
     sampled_output.best_par_score = INT_MAX;
-    Sampled_Tree_Mutation temp;
-    temp.position=INT_MAX;
-    temp.par_nuc=0x1;
-    temp.mut_nuc=0xf;
+    To_Place_Sample_Mutation temp(INT_MAX,0,0xf);
     sample_mutations.push_back(temp);
     tbb::task::spawn_root_and_wait(
         *(new (tbb::task::allocate_root()) Sampled_Tree_Placer_Task(

@@ -93,7 +93,7 @@ struct check_samples_worker:public tbb::task {
             if (iter == samples.end()) {
                 fprintf(stderr, "[ERROR] Extra Sample %s \n",
                         root->identifier.c_str());
-                //assert(false);
+                raise(SIGTRAP);
             } else {
                 Mutation_Set to_check(iter->second);
                 for (auto m : parent_mutations) {
@@ -104,13 +104,12 @@ struct check_samples_worker:public tbb::task {
                             "[ERROR] Extra mutation to\t%c\%d\t of Sample\t%s at bfs_index %zu \n",
                             Mutation_Annotated_Tree::get_nuc(m.get_all_major_allele()), m.get_position(),
                             root->identifier.c_str(),root->bfs_index);
-                        //assert(false);
+                            raise(SIGTRAP);
 
                     } else {
                         if ((m.get_all_major_allele())!=m_iter->get_all_major_allele()) {
                             fprintf(stderr, "Mut Nuc Mismatch at \t %d of sample \t %s at bfs_index \t %zu: original \t %c , altered :\t %c \n",m.get_position(),root->identifier.c_str(),root->bfs_index,Mutation_Annotated_Tree::get_nuc(m_iter->get_all_major_allele()),MAT::get_nuc(m.get_all_major_allele()));
-                            //assert(false);
-
+                            raise(SIGTRAP);
                         }
                         to_check.erase(m_iter);
                     }
@@ -121,8 +120,7 @@ struct check_samples_worker:public tbb::task {
                             "[ERROR] Lost mutation to\t%c\t%d\t of Sample\t%s at bfs_index %zu \n",
                             Mutation_Annotated_Tree::get_nuc(m_left.get_all_major_allele()),
                             m_left.get_position(), root->identifier.c_str(),root->bfs_index);
-                    //assert(false);
-
+                    raise(SIGTRAP);
                 }
 
                 visited_samples.insert(iter->first);

@@ -2,8 +2,11 @@
 #include "src/matOptimize/check_samples.hpp"
 #include "src/matOptimize/mutation_annotated_tree.hpp"
 #include <algorithm>
+#include <cassert>
 #include <chrono>
+#include <climits>
 #include <csignal>
+#include <cstddef>
 #include <cstdio>
 #include <tbb/parallel_for.h>
 #include <unordered_map>
@@ -32,9 +35,27 @@ static void update_possible_descendant_alleles(
         node = node->parent;
     }
 }
+static void gather_par_mutation_step(std::unordered_map<int, int>& to_find,MAT::Mutations_Collection& upstream, MAT::Mutations_Collection& output){
+    for (const auto& mut : upstream) {
+        auto iter=to_find.find(mut.get_position());
+        if (iter!=to_find.end()) {
+            output[iter->second].set_par_one_hot(mut.get_mut_one_hot());
+            to_find.erase(iter);
+        }
+    }
+}
+static void gather_par_mut(std::unordered_map<int, int>& to_find,MAT::Node*& node, MAT::Mutations_Collection& output){
+    while (node&&(!to_find.empty())) {
+        gather_par_mutation_step(to_find,node->mutations,output);
+        node=node->parent;
+    }
+    for(auto& temp: to_find){
+        output[temp.second].set_par_one_hot(output[temp.second].get_ref_one_hot());
+    }
+}
 
 static void get_par_mutations(
-    const std::vector<Sampled_Tree_Mutation> &downstream_mutations,
+    const std::vector<To_Place_Sample_Mutation> &downstream_mutations,
     const MAT::Mutations_Collection &backward,
     std::vector<Sampled_Tree_Mutation> &output,
     const Sampled_Tree_Node *attach_node) {
@@ -43,25 +64,44 @@ static void get_par_mutations(
         std::unordered_map<int, int> position_map;
         position_map.reserve(backward.size()+downstream_mutations.size());
         for (const auto& mut : backward) {
-            while (iter->position<mut.get_position()) {
-                if (!(iter->mut_nuc&iter->par_nuc)) {
+            while (iter->get_end_range()<mut.get_position()) {
+                if (iter->mut_nuc!=0xf&&!(iter->mut_nuc&iter->par_nuc)) {
                     assert(__builtin_popcount(iter->mut_nuc)==1);
-                    output.push_back(*iter);
+                    output.push_back(Sampled_Tree_Mutation{iter->position,iter->chrom_idx,iter->mut_nuc,iter->mut_nuc,iter->par_nuc});
                 }
                 iter++;
             }
-            if (mut.get_par_one_hot()&mut.get_mut_one_hot()) {
+            assert(mut.get_position()<=iter->get_end_range());
+            //coincide
+            if (iter->get_end_range()==mut.get_position()) {
+                //Different
                 position_map.emplace(mut.get_position(),output.size());
-                output.push_back(Sampled_Tree_Mutation{mut.get_position(),mut.get_chromIdx(),mut.get_par_one_hot(),mut.get_par_one_hot(),0});
-            }
-            if (iter->position==mut.get_position()) {
+                output.push_back(
+                        Sampled_Tree_Mutation{mut.get_position(),mut.get_chromIdx()
+                        ,mut.get_par_one_hot(),mut.get_par_one_hot(),0});
                 iter++;    
+            }else if (mut.get_position()>=iter->position) {
+                position_map.emplace(mut.get_position(),output.size());
+                output.push_back(
+                        Sampled_Tree_Mutation{mut.get_position(),mut.get_chromIdx()
+                        ,mut.get_par_one_hot(),mut.get_par_one_hot(),0});            
+            }else{
+                //back mutation
+                if (mut.get_par_one_hot()&mut.get_mut_one_hot()) {
+                    fprintf(stderr, "%d not back mutation, iter position %d",mut.get_position(),iter->position);
+                    raise(SIGTRAP);
+
+                }
+                    position_map.emplace(mut.get_position(),output.size());
+                    output.push_back(
+                        Sampled_Tree_Mutation{mut.get_position(),mut.get_chromIdx()
+                        ,mut.get_par_one_hot(),mut.get_par_one_hot(),0});
             }
         }
-        while (iter<downstream_mutations.end()) {
+        while (iter<(downstream_mutations.end()-1)) {
             if (!(iter->mut_nuc&iter->par_nuc)) {
                 assert(__builtin_popcount(iter->mut_nuc)==1);
-                output.push_back(*iter);
+                output.push_back(Sampled_Tree_Mutation{iter->position,iter->chrom_idx,iter->mut_nuc,iter->mut_nuc,iter->par_nuc});
             }
             iter++;
         }
@@ -74,6 +114,9 @@ static void get_par_mutations(
                 }
             }
             attach_node=attach_node->parent;
+        }
+        for (auto& temp : position_map) {
+            output[temp.second].par_nuc=MAT::Mutation::refs[temp.first];
         }
         output.erase(std::remove_if(output.begin(), output.end(), [](const auto& mut){
             return mut.par_nuc&mut.mut_nuc;
@@ -99,12 +142,34 @@ static void update_sampled_tree(Sampled_Place_Target &target,
     #endif
 }
 
+static void discretize_mutations(std::vector<To_Place_Sample_Mutation> &in,
+                                 MAT::Mutations_Collection &shared_mutations,
+                                 MAT::Node *parent_node,
+                                 MAT::Mutations_Collection &out) {
+    out.reserve(in.size());
+    std::unordered_map<int, int> par_nuc_idx;
+    assert(in.back().position==INT_MAX);
+    for (size_t idx=0;idx<(in.size()-1) ; idx++) {
+        const auto & mut=in[idx];
+        if (mut.mut_nuc == 0xf) {
+            for (int pos = mut.position; pos <= mut.get_end_range(); pos++) {
+                par_nuc_idx.emplace(pos, out.size());
+                out.push_back(MAT::Mutation(mut.chrom_idx, pos, 0, 0xf));
+            }
+        } else {
+            out.push_back(MAT::Mutation(mut.chrom_idx, mut.position,
+                                        mut.par_nuc, mut.mut_nuc));
+        }
+    }
+    gather_par_mutation_step(par_nuc_idx, shared_mutations,out);
+    gather_par_mut(par_nuc_idx, parent_node, out);
+}
 static const MAT::Node *update_main_tree(Main_Tree_Target &target,
                                          std::string &&sample_string) {
     // Split branch?
     MAT::Node *sample_node = new MAT::Node;
     sample_node->identifier = std::move(sample_string);
-    sample_node->mutations = std::move(target.sample_mutations);
+    discretize_mutations(target.sample_mutations, target.shared_mutations, target.parent_node, sample_node->mutations);
     int sample_node_mut_count = 0;
     for (const auto &mut : sample_node->mutations) {
         if (!(mut.get_par_one_hot() & mut.get_mut_one_hot())) {
@@ -158,8 +223,20 @@ void place_sample(Sample_Muts &&sample_to_place,
     std::vector<Sampled_Tree_Mutation> &&sample_mutations =
         std::move(sample_to_place.muts);
     std::string &&sample_string = std::move(sample_to_place.sample_name);
+    /*if (sample_string=="s1433144s") {
+        raise(SIGTRAP);
+    }
+    if (sample_string=="s2886812s") {
+        raise(SIGTRAP);
+    }
+    if (sample_string=="s2749940s") {
+        raise(SIGTRAP);
+    }*/
+    std::vector<To_Place_Sample_Mutation> condensed_muts;
+    convert_mut_type(sample_mutations,condensed_muts);
 #ifndef NDEBUG
     Mutation_Set new_set;
+    std::vector<To_Place_Sample_Mutation> condensed_muts_copy(condensed_muts);
     new_set.reserve(sample_mutations.size());
     for (const auto &mut : sample_mutations) {
         new_set.insert(MAT::Mutation(mut.chrom_idx, mut.position,
@@ -171,7 +248,7 @@ void place_sample(Sample_Muts &&sample_to_place,
     auto sampled_tree_start = std::chrono::steady_clock::now();
     int sampled_mutations = 0;
     auto sampled_output = place_on_sampled_tree(
-        sampled_tree_root, std::move(sample_mutations), sampled_mutations
+        sampled_tree_root, std::move(condensed_muts), sampled_mutations
 #ifndef NDEBUG
         ,
         new_set
@@ -200,7 +277,7 @@ void place_sample(Sample_Muts &&sample_to_place,
 #ifndef NDEBUG
     auto whole_tree_start = std::chrono::steady_clock::now();
     optimality_check(new_set, std::get<2>(main_tree_out), main_tree.root,
-                     sampling_radius, sampled_tree_root, sampled_output);
+                     sampling_radius, sampled_tree_root, sampled_output,condensed_muts_copy);
     auto whole_tree_duration =
         std::chrono::steady_clock::now() - whole_tree_start;
     fprintf(stderr, "whole tree took %ld msec\n",
@@ -208,10 +285,13 @@ void place_sample(Sample_Muts &&sample_to_place,
                 whole_tree_duration)
                 .count());
 #endif
-    auto dist = std::get<0>(main_tree_out).distance_left;
+    auto dist_left = std::get<0>(main_tree_out).distance_left;
     auto main_tree_node =
         update_main_tree(std::get<0>(main_tree_out), std::move(sample_string));
-    if (dist >= sampling_radius) {
+    for (const auto & temp : sampled_output) {
+        assert(temp.muts.back().position==INT_MAX);
+    }
+    if (dist_left <= 0) {
         update_sampled_tree(sampled_output[std::get<1>(main_tree_out)],
                             main_tree_node);
     }

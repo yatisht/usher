@@ -1,11 +1,12 @@
 #include "src/matOptimize/mutation_annotated_tree.hpp"
 #include "usher.hpp"
+#include <vector>
 struct Sampled_Place_Target {
     const Sampled_Tree_Node *target_node;
-    std::vector<Sampled_Tree_Mutation> muts;
+    std::vector<To_Place_Sample_Mutation> muts;
     Sampled_Place_Target() = default;
     Sampled_Place_Target(const Sampled_Tree_Node *target_node,
-                         std::vector<Sampled_Tree_Mutation> &muts)
+                         std::vector<To_Place_Sample_Mutation> &muts)
         : target_node(target_node), muts(muts) {}
 };
 template <typename Target_Type> struct Output {
@@ -17,13 +18,13 @@ struct Main_Tree_Target {
     MAT::Node *target_node;
     MAT::Node *parent_node;
     MAT::Mutations_Collection splited_mutations;
-    MAT::Mutations_Collection sample_mutations;
+    std::vector<To_Place_Sample_Mutation> sample_mutations;
     MAT::Mutations_Collection shared_mutations;
     int distance_left;
 };
 std::vector<Sampled_Place_Target>
 place_on_sampled_tree(Sampled_Tree_Node *sampled_tree_root,
-                      std::vector<Sampled_Tree_Mutation> &&sample_mutations,
+                      std::vector<To_Place_Sample_Mutation> &&sample_mutations,
                       int& parsimony_score
 #ifndef NDEBUG
                       ,
@@ -43,7 +44,10 @@ void check_mutations(Mutation_Set ref,const Main_Tree_Target& target_to_check);
 void optimality_check(Mutation_Set &sample_mutations, int parsimony,
                       MAT::Node *main_tree_root, int sampling_radius,
                       Sampled_Tree_Node *sample_tree_root,
-                      const std::vector<Sampled_Place_Target> &sampled_out);
+                      const std::vector<Sampled_Place_Target> &sampled_out,
+                      std::vector<To_Place_Sample_Mutation>& samples_to_place);
 void check_sampled_mutations(Mutation_Set ref,const Sampled_Place_Target& target_to_check);
-void check_continuation(const MAT::Node* parent_node,Mutation_Set ref,const MAT::Mutations_Collection &decendent_mutations);
+void check_continuation(const MAT::Node* parent_node,Mutation_Set ref,const std::vector<To_Place_Sample_Mutation> &decendent_mutations);
 #endif
+void
+set_parent_muts(std::vector<To_Place_Sample_Mutation> &mutations_to_set,const MAT::Node *node);

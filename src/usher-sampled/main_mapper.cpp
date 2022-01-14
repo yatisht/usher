@@ -1,6 +1,5 @@
 #include "mapper.hpp"
 #include "src/matOptimize/mutation_annotated_tree.hpp"
-#include <bits/floatn-common.h>
 #include <cassert>
 #include <climits>
 #include <csignal>
@@ -19,7 +18,7 @@ template <typename Hook1, typename Hook2> struct Combine_Hook {
         hook1.reserve(sample_mutation_count, target_mutation_count);
         hook2.reserve(sample_mutation_count, target_mutation_count);
     }
-    void sample_mut_only(const MAT::Mutation &mut) {
+    void sample_mut_only(const To_Place_Sample_Mutation &mut) {
         hook1.sample_mut_only(mut);
         hook2.sample_mut_only(mut);
     }
@@ -27,7 +26,11 @@ template <typename Hook1, typename Hook2> struct Combine_Hook {
         hook1.target_node_only(mut);
         hook2.target_node_only(mut);
     }
-    void both(const MAT::Mutation &sample_mut,
+    void target_N_skiped(const MAT::Mutation &mut) {
+        hook1.target_N_skiped(mut);
+        hook2.target_N_skiped(mut);
+    }
+    void both(const To_Place_Sample_Mutation &sample_mut,
               const MAT::Mutation &target_mut) {
         hook1.both(sample_mut, target_mut);
         hook2.both(sample_mut, target_mut);
@@ -35,17 +38,18 @@ template <typename Hook1, typename Hook2> struct Combine_Hook {
 };
 struct Empty_Hook {
     void reserve(size_t sample_mutation_count, size_t target_mutation_count) {}
-    void sample_mut_only(const MAT::Mutation &mut) {}
+    void sample_mut_only(const To_Place_Sample_Mutation &mut) {}
     void target_node_only(const MAT::Mutation &mut) {}
-    void both(const MAT::Mutation &mut, const MAT::Mutation &mut2) {}
+    void target_N_skiped(const MAT::Mutation &mut) {}
+    void both(const To_Place_Sample_Mutation &mut, const MAT::Mutation &mut2) {}
 };
-static void insert_split(const MAT::Mutation &sample_mut,
+static void insert_split(const To_Place_Sample_Mutation &sample_mut,
                          const MAT::Mutation &target_mut,
-                         MAT::Mutations_Collection &sample_mutations,
+                         std::vector<To_Place_Sample_Mutation> &sample_mutations,
                          MAT::Mutations_Collection &splitted_mutations,
                          MAT::Mutations_Collection &shared_mutations) {
     auto par_nuc = target_mut.get_par_one_hot();
-    auto sample_nuc = sample_mut.get_mut_one_hot();
+    auto sample_nuc = sample_mut.mut_nuc;
     auto target_nuc = target_mut.get_mut_one_hot();
     auto coincided_mut = sample_nuc & target_nuc;
     if (coincided_mut & par_nuc) {
@@ -61,11 +65,56 @@ static void insert_split(const MAT::Mutation &sample_mut,
     }
     if (coincided_mut != sample_nuc) {
         sample_mutations.push_back(sample_mut);
-        sample_mutations.back().set_par_mut(coincided_mut, sample_nuc);
+        sample_mutations.back().par_nuc=coincided_mut;
+        sample_mutations.back().mut_nuc= sample_nuc;
     }
 }
+static void n_skiped_sibling(
+        MAT::Mutations_Collection &splitted_mutations,
+    MAT::Mutations_Collection &shared_mutations,
+    const MAT::Mutation &mut
+){
+        assert(mut.get_mut_one_hot() != mut.get_par_one_hot());
+        if(__builtin_popcount(mut.get_mut_one_hot())==1){
+            splitted_mutations.push_back(mut);
+            return;
+        }
+        auto concensus_mut=mut.get_mut_one_hot()&mut.get_par_one_hot();
+        if (!concensus_mut) {
+            concensus_mut=1<<__builtin_ctz(mut.get_mut_one_hot());
+            assert(shared_mutations.empty()||shared_mutations.back().get_position()<mut.get_position());
+            shared_mutations.push_back(MAT::Mutation(mut.get_position(),mut.get_chromIdx(),mut.get_par_one_hot(),concensus_mut));
+        }
+        assert(splitted_mutations.empty()||splitted_mutations.back().get_position()<mut.get_position());
+        splitted_mutations.push_back(mut);
+        splitted_mutations.back().set_par_one_hot(concensus_mut);
+}
+static void sample_check_mutation(
+    const std::vector<To_Place_Sample_Mutation> &sample_mutations,
+    const MAT::Mutations_Collection &splitted_mutations,
+    const MAT::Mutations_Collection &shared_mutations,
+    int position
+){
+#ifdef DETAILED_MERGER_CHECK
+        assert(shared_mutations.empty()||shared_mutations.mutations.back().get_position()<position);
+        assert(splitted_mutations.empty()||splitted_mutations.mutations.back().get_position()<position);
+        assert(sample_mutations.empty()||sample_mutations.back().position<position);
+#endif
+}
+static void sample_mut_check_mutation(
+    const std::vector<To_Place_Sample_Mutation> &sample_mutations,
+    const MAT::Mutations_Collection &splitted_mutations,
+    const MAT::Mutations_Collection &shared_mutations,
+    const To_Place_Sample_Mutation& mut
+){
+#ifdef DETAILED_MERGER_CHECK
+        assert(shared_mutations.empty()||shared_mutations.mutations.back().get_position()<=mut.get_end_range());
+        assert(splitted_mutations.empty()||splitted_mutations.mutations.back().get_position()<=mut.get_end_range());
+        assert(sample_mutations.empty()||sample_mutations.back().position<mut.position);
+#endif
+}
 struct Down_Sibling_Hook {
-    MAT::Mutations_Collection &sample_mutations;
+    std::vector<To_Place_Sample_Mutation> &sample_mutations;
     MAT::Mutations_Collection &splitted_mutations;
     MAT::Mutations_Collection &shared_mutations;
     int &parsimony_score;
@@ -84,21 +133,35 @@ struct Down_Sibling_Hook {
         splitted_mutations.reserve(target_mutation_count);
         shared_mutations.reserve(target_mutation_count);
     }
-    void sample_mut_only(const MAT::Mutation &mut) {
-        assert(mut.get_mut_one_hot() != mut.get_par_one_hot());
+    void sample_mut_only(const To_Place_Sample_Mutation &mut) {
+        sample_mut_check_mutation(sample_mutations, splitted_mutations, shared_mutations, mut);
         sample_mutations.push_back(mut);
-        if (!(mut.get_par_one_hot() & mut.get_mut_one_hot())) {
-            parsimony_score++;
+        if (mut.mut_nuc!=0xf) {
+            assert(mut.mut_nuc != mut.par_nuc);
+            if (!(mut.par_nuc & mut.mut_nuc)) {
+                parsimony_score++;
+            }
         }
     }
     void target_node_only(const MAT::Mutation &mut) {
+        sample_check_mutation(sample_mutations, splitted_mutations, shared_mutations, mut.get_position());
         assert(mut.get_mut_one_hot() != mut.get_par_one_hot());
         splitted_mutations.push_back(mut);
     }
-    void both(const MAT::Mutation &sample_mut,
+    void target_N_skiped(const MAT::Mutation &mut) {
+        sample_check_mutation(sample_mutations, splitted_mutations, shared_mutations, mut.get_position());
+        n_skiped_sibling(splitted_mutations, shared_mutations, mut);
+    }
+    void both(const To_Place_Sample_Mutation &sample_mut,
               const MAT::Mutation &target_mut) {
-        if (sample_mut.get_mut_one_hot() != target_mut.get_mut_one_hot()) {
-            if (sample_mut.get_mut_one_hot() & target_mut.get_mut_one_hot()) {
+        /*if (sample_mut.get_position()==241) {
+            fputc('a', stderr);
+        }*/
+        assert(sample_mut.position!=0xf);
+        assert(sample_mut.position==target_mut.get_position());
+        sample_check_mutation(sample_mutations, splitted_mutations, shared_mutations, sample_mut.position);
+        if (sample_mut.mut_nuc != target_mut.get_mut_one_hot()) {
+            if (sample_mut.mut_nuc & target_mut.get_mut_one_hot()) {
                 insert_split(sample_mut, target_mut, sample_mutations,
                              splitted_mutations, shared_mutations);
             } else {
@@ -111,11 +174,11 @@ struct Down_Sibling_Hook {
                 auto common=target_mut.get_par_one_hot()&target_mut.get_mut_one_hot();
                 if (!common) {
                     common=1 << __builtin_ctz(target_mut.get_mut_one_hot());
-                    splitted_mutations.push_back(target_mut);
-                    splitted_mutations.back().set_mut_one_hot(common);
+                    shared_mutations.push_back(target_mut);
+                    shared_mutations.back().set_mut_one_hot(common);
                 }
                 sample_mutations.push_back(sample_mut);
-                sample_mutations.back().set_par_one_hot(common);
+                sample_mutations.back().par_nuc=common;
                 splitted_mutations.push_back(target_mut);
                 splitted_mutations.back().set_par_one_hot(common);
             }else {
@@ -125,37 +188,50 @@ struct Down_Sibling_Hook {
     }
 };
 struct Down_Decendant_Hook {
-    MAT::Mutations_Collection &muts;
-    Down_Decendant_Hook(MAT::Mutations_Collection &muts) : muts(muts) {
+    std::vector<To_Place_Sample_Mutation> &muts;
+    int& descendant_back_count;
+    Down_Decendant_Hook(std::vector<To_Place_Sample_Mutation> &muts,int& descendant_back_count) : muts(muts),descendant_back_count(descendant_back_count) {
+        descendant_back_count=0;
         muts.clear();
     }
     void reserve(size_t sample_mutation_count, size_t target_mutation_count) {
         muts.reserve(sample_mutation_count + target_mutation_count);
     }
-    void sample_mut_only(const MAT::Mutation &mut) {
-        assert(mut.get_mut_one_hot() != mut.get_par_one_hot());
+    void sample_mut_only(const To_Place_Sample_Mutation &mut) {
+        assert(mut.mut_nuc==0xf||mut.mut_nuc != mut.par_nuc);
+        assert(muts.empty()||muts.back().position<mut.position);
         muts.push_back(mut);
+        if (mut.is_back_mutation) {
+            descendant_back_count++;
+        }
+    }
+    void target_N_skiped(const MAT::Mutation &mut) {
     }
     void target_node_only(const MAT::Mutation &mut) {
-        assert(mut.get_mut_one_hot() != mut.get_par_one_hot());
-        muts.push_back(mut);
-        auto &last_mut = muts.back();
-        // back mutation
-        last_mut.set_par_mut(last_mut.get_mut_one_hot(),
-                             last_mut.get_par_one_hot());
+        assert(!(mut.get_mut_one_hot() & mut.get_par_one_hot()));
+        assert(muts.empty()||muts.back().position<mut.get_position());
+        muts.push_back(To_Place_Sample_Mutation(mut.get_position(),mut.get_chromIdx(),mut.get_par_one_hot(),mut.get_mut_one_hot()));
+        muts.back().is_back_mutation=true;
+        descendant_back_count++;
     }
-    void both(const MAT::Mutation &sample_mut,
+    void both(const To_Place_Sample_Mutation &sample_mut,
               const MAT::Mutation &target_mut) {
-        if (sample_mut.get_mut_one_hot() != target_mut.get_mut_one_hot()) {
+        /*if (sample_mut.get_position()==241) {
+            fputc('a', stderr);
+        }*/
+        assert(sample_mut.mut_nuc!=0xf);
+        assert(sample_mut.position==target_mut.get_position());
+        assert(muts.empty()||muts.back().position<sample_mut.position);
+        if (sample_mut.mut_nuc != target_mut.get_mut_one_hot()) {
             muts.push_back(sample_mut);
             auto &last_mut = muts.back();
-            last_mut.set_par_one_hot(target_mut.get_mut_one_hot());
+            last_mut.par_nuc=target_mut.get_mut_one_hot();
         }
-        assert(muts.empty()||muts.back().get_mut_one_hot() != muts.back().get_par_one_hot());
+        //assert(muts.empty()||muts.back().get_mut_one_hot() != muts.back().get_par_one_hot());
     }
 };
 struct Upward_Sibling_Hook {
-    MAT::Mutations_Collection &sample_mutations;
+    std::vector<To_Place_Sample_Mutation> &sample_mutations;
     MAT::Mutations_Collection &splitted_mutations;
     MAT::Mutations_Collection &shared_mutations;
     int &parsimony_score;
@@ -173,41 +249,51 @@ struct Upward_Sibling_Hook {
         sample_mutations.reserve(sample_mutation_count);
         splitted_mutations.reserve(target_mutation_count);
     }
-    void sample_mut_only(const MAT::Mutation &mut) {
-        assert(mut.get_mut_one_hot() != mut.get_par_one_hot());
+    void sample_mut_only(const To_Place_Sample_Mutation &mut) {
+        assert(mut.mut_nuc==0xf||mut.mut_nuc != mut.par_nuc);
+        sample_mut_check_mutation(sample_mutations, splitted_mutations, shared_mutations, mut);
         // same as downward, pass through
         sample_mutations.push_back(mut);
-        if (!(mut.get_mut_one_hot() & mut.get_par_one_hot())) {
+        if (mut.mut_nuc!=0xf&&!(mut.mut_nuc & mut.par_nuc)) {
             parsimony_score++;
         }
+    }
+    void target_N_skiped(const MAT::Mutation &mut) {
+        sample_check_mutation(sample_mutations, splitted_mutations, shared_mutations, mut.get_position());
+        n_skiped_sibling(splitted_mutations, shared_mutations, mut);
     }
     void target_node_only(const MAT::Mutation &mut) {
         // shared mutation
         assert(!(mut.get_mut_one_hot() & mut.get_par_one_hot()));
+        sample_check_mutation(sample_mutations, splitted_mutations, shared_mutations, mut.get_position());
         assert(__builtin_popcount(mut.get_mut_one_hot()) == 1);
         shared_mutations.push_back(mut);
     }
-    void both(const MAT::Mutation &sample_mut,
+    void both(const To_Place_Sample_Mutation &sample_mut,
               const MAT::Mutation &target_mut) {
+        /*if (sample_mut.get_position()==241) {
+            fputc('a', stderr);
+        }*/
         // Different need split
-        if (sample_mut.get_mut_one_hot() != target_mut.get_mut_one_hot()) {
-            if (sample_mut.get_mut_one_hot()&target_mut.get_par_one_hot()) {
+        assert(sample_mut.mut_nuc!=0xf);
+        assert(sample_mut.position==target_mut.get_position());
+        sample_check_mutation(sample_mutations, splitted_mutations, shared_mutations, target_mut.get_position());
+        if (sample_mut.mut_nuc != target_mut.get_mut_one_hot()) {
+            if (sample_mut.mut_nuc&target_mut.get_par_one_hot()) {
                 splitted_mutations.push_back(target_mut);
-                if (sample_mut.get_mut_one_hot()!=target_mut.get_par_one_hot()) {
+                if (sample_mut.mut_nuc!=target_mut.get_par_one_hot()) {
                     sample_mutations.push_back(sample_mut);
-                    sample_mutations.back().set_par_one_hot(
-                        target_mut.get_par_one_hot());    
+                    sample_mutations.back().par_nuc=target_mut.get_par_one_hot();    
                 }
             }
-            else if ((sample_mut.get_mut_one_hot() & target_mut.get_mut_one_hot())) {
+            else if ((sample_mut.mut_nuc & target_mut.get_mut_one_hot())) {
                 insert_split(sample_mut, target_mut, sample_mutations,
                              splitted_mutations, shared_mutations);
             } else {
                 parsimony_score++;
                 splitted_mutations.push_back(target_mut);
                 sample_mutations.push_back(sample_mut);
-                sample_mutations.back().set_par_one_hot(
-                    target_mut.get_par_one_hot());
+                sample_mutations.back().par_nuc=target_mut.get_par_one_hot();
             }
         } else {
             raise(SIGTRAP);
@@ -216,44 +302,70 @@ struct Upward_Sibling_Hook {
 };
 
 struct Upward_Descendant_Hook {
-    MAT::Mutations_Collection &muts;
-    Upward_Descendant_Hook(MAT::Mutations_Collection &muts) : muts(muts) {
+    std::vector<To_Place_Sample_Mutation> &muts;
+    int& descendant_back_count;
+    Upward_Descendant_Hook(std::vector<To_Place_Sample_Mutation> &muts,
+        int& descendant_back_count) : muts(muts),descendant_back_count(descendant_back_count) {
         muts.clear();
+        descendant_back_count=0;
     }
     void reserve(size_t sample_mutation_count, size_t target_mutation_count) {
         muts.reserve(sample_mutation_count + target_mutation_count);
     }
-    void sample_mut_only(const MAT::Mutation &mut) {
-        assert(mut.get_mut_one_hot() != mut.get_par_one_hot());
+    void sample_mut_only(const To_Place_Sample_Mutation &mut) {
+        assert(mut.mut_nuc==0xf||mut.mut_nuc != mut.par_nuc);
+        assert(muts.empty()||muts.back().position<mut.position);
         // same as downward, pass through
+        if (mut.is_back_mutation) {
+            descendant_back_count++;
+        }
         muts.push_back(mut);
     }
+
     void target_node_only(const MAT::Mutation &mut) {
         // shared mutation
-        assert(mut.get_mut_one_hot() != mut.get_par_one_hot());
-        muts.push_back(mut);
+        assert(!(mut.get_mut_one_hot() & mut.get_par_one_hot()));
+        assert(muts.empty()||muts.back().position<mut.get_position());
+        assert(__builtin_popcount(mut.get_mut_one_hot())==1);
+        muts.push_back(To_Place_Sample_Mutation(mut.get_position(),mut.get_chromIdx(),mut.get_mut_one_hot(),mut.get_par_one_hot()));
+        muts.back().is_back_mutation=true;
+        descendant_back_count++;
     }
-    void both(const MAT::Mutation &sample_mut,
+    void target_N_skiped(const MAT::Mutation &mut) {
+        assert(muts.empty()||muts.back().position<mut.get_position());
+    }
+    void both(const To_Place_Sample_Mutation &sample_mut,
               const MAT::Mutation &target_mut) {
-        if (target_mut.get_par_one_hot() != sample_mut.get_mut_one_hot()) {
+        /*if (sample_mut.get_position()==241) {
+            fputc('a', stderr);
+        }*/
+        assert(sample_mut.mut_nuc!=0xf);
+        assert(sample_mut.position==target_mut.get_position());
+        assert(muts.empty()||muts.back().position<target_mut.get_position());
+
+        if (target_mut.get_par_one_hot() != sample_mut.mut_nuc) {
             muts.push_back(sample_mut);
-            muts.back().set_par_one_hot(target_mut.get_par_one_hot());
+            muts.back().par_nuc=target_mut.get_par_one_hot();
         }
     }
 };
 
 template <typename Hook>
 static void generic_merge(const MAT::Node *node,
-                          const MAT::Mutations_Collection &par_mutations,
+                          const std::vector<To_Place_Sample_Mutation> &par_mutations,
                           Hook hook) {
     hook.reserve(par_mutations.size(), node->mutations.size());
     auto par_iter = par_mutations.begin();
     for (const auto &mut : node->mutations) {
-        while (par_iter->get_position() < mut.get_position()) {
+        while (par_iter->get_end_range() < mut.get_position()) {
             hook.sample_mut_only(*par_iter);
             par_iter++;
         }
-        if (par_iter->get_position() == mut.get_position()) {
+        if (par_iter->mut_nuc==0xf&&par_iter->position<=mut.get_position()) {
+            hook.target_N_skiped(mut);
+            continue;
+        }
+        if (par_iter->position == mut.get_position()) {
             hook.both(*par_iter, mut);
             par_iter++;
         } else {
@@ -267,15 +379,17 @@ static void generic_merge(const MAT::Node *node,
 }
 
 struct Main_Tree_Searcher : public tbb::task {
+    int max_back_mutation;
+    int curr_back_mutation;
     int radius_left;
-    MAT::Mutations_Collection this_muts;
+    std::vector<To_Place_Sample_Mutation> this_muts;
     const MAT::Node *node;
     const MAT::Node *exclude_node;
     Output<Main_Tree_Target> &output;
 #ifndef NDEBUG
     Mutation_Set &sample_mutations;
 #endif
-    Main_Tree_Searcher(int radius_left, MAT::Node *node,
+    Main_Tree_Searcher(int max_back_mutation, int radius_left,MAT::Node *node,
                        const MAT::Node *exclude_node,
                        Output<Main_Tree_Target> &output
 #ifndef NDEBUG
@@ -283,7 +397,7 @@ struct Main_Tree_Searcher : public tbb::task {
                        Mutation_Set &sample_mutations
 #endif
                        )
-        : radius_left(radius_left), node(node), exclude_node(exclude_node),
+        : max_back_mutation(max_back_mutation), curr_back_mutation(0),radius_left(radius_left),node(node), exclude_node(exclude_node),
           output(output)
 #ifndef NDEBUG
           ,
@@ -293,7 +407,6 @@ struct Main_Tree_Searcher : public tbb::task {
     }
     void register_target(Main_Tree_Target &target, int this_score) {
         if (output.best_par_score >= this_score) {
-            target.sample_mutations.mutations.pop_back();
             std::lock_guard<std::mutex> lk(output.mutex);
             if (output.best_par_score > this_score) {
                 output.best_par_score = this_score;
@@ -317,7 +430,10 @@ struct Main_Tree_Searcher : public tbb::task {
             target.parent_node = const_cast<MAT::Node *>(node);
             int child_radius_left = radius_left - child->mutations.size();
             int parsimony_score = 0;
-            if (child->is_leaf() || (radius_left <= 0)) {
+            if (child->is_leaf() || (curr_back_mutation > max_back_mutation)) {
+                /*if (!child->is_leaf()) {
+                    fputc('a', stderr);
+                }*/
                 generic_merge(child, this_muts,
                               Combine_Hook<Empty_Hook, Down_Sibling_Hook>{
                                   Empty_Hook(),
@@ -325,7 +441,7 @@ struct Main_Tree_Searcher : public tbb::task {
             } else {
                 children_tasks.push_back(
                     new (cont->allocate_child()) Main_Tree_Searcher(
-                        child_radius_left, child, node, output
+                        max_back_mutation,child_radius_left, child, node, output
 #ifndef NDEBUG
                         ,
                         sample_mutations
@@ -334,7 +450,7 @@ struct Main_Tree_Searcher : public tbb::task {
                 generic_merge(
                     child, this_muts,
                     Combine_Hook<Down_Decendant_Hook, Down_Sibling_Hook>{
-                        Down_Decendant_Hook(children_tasks.back()->this_muts),
+                        Down_Decendant_Hook(children_tasks.back()->this_muts,children_tasks.back()->curr_back_mutation),
                         Down_Sibling_Hook(target, parsimony_score)});
 #ifdef DETAILED_MERGER_CHECK
                 check_continuation(children_tasks.back()->node,
@@ -354,10 +470,10 @@ struct Main_Tree_Searcher : public tbb::task {
         if (parent && parent != exclude_node) {
             target.target_node = const_cast<MAT::Node *>(node);
             target.parent_node = parent;
-            if (radius_left > 0) {
+            if (curr_back_mutation <= max_back_mutation) {
                 children_tasks.push_back(
                     new (cont->allocate_child()) Main_Tree_Searcher(
-                        radius_left_parent, parent, node, output
+                        max_back_mutation,radius_left_parent, parent, node, output
 #ifndef NDEBUG
                         ,
                         sample_mutations
@@ -367,7 +483,7 @@ struct Main_Tree_Searcher : public tbb::task {
                     node, this_muts,
                     Combine_Hook<Upward_Descendant_Hook, Upward_Sibling_Hook>{
                         Upward_Descendant_Hook(
-                            children_tasks.back()->this_muts),
+                            children_tasks.back()->this_muts,children_tasks.back()->curr_back_mutation),
                         Upward_Sibling_Hook(target, parsimony_score)});
 #ifdef DETAILED_MERGER_CHECK
                 check_continuation(children_tasks.back()->node,
@@ -375,6 +491,7 @@ struct Main_Tree_Searcher : public tbb::task {
                                    children_tasks.back()->this_muts);
 #endif
             } else {
+                //fputc('a', stderr);
                 generic_merge(node, this_muts,
                               Combine_Hook<Empty_Hook, Upward_Sibling_Hook>{
                                   Empty_Hook(), Upward_Sibling_Hook(
@@ -390,16 +507,21 @@ struct Main_Tree_Searcher : public tbb::task {
         return children_tasks.empty() ? cont : nullptr;
     }
 };
-void set_parent_muts(std::vector<Sampled_Tree_Mutation> &mutations_to_set,
+void set_parent_muts(std::vector<To_Place_Sample_Mutation> &mutations_to_set,
                      const MAT::Node *node) {
     std::unordered_map<int, uint8_t *> to_set;
     to_set.reserve(mutations_to_set.size());
     assert(mutations_to_set.back().position==INT_MAX);
     for (size_t idx=0; idx<(mutations_to_set.size()-1); idx++) {
-        to_set.emplace(mutations_to_set[idx].position, &mutations_to_set[idx].par_nuc);
+        if (mutations_to_set[idx].mut_nuc!=0xf) {
+            to_set.emplace(mutations_to_set[idx].position, &mutations_to_set[idx].par_nuc);
+        }
     }
     while (!to_set.empty() && node) {
         for (const auto &mut : node->mutations) {
+            /*if (mut.get_position()==241) {
+                fputc('a', stderr);
+            }*/
             auto iter = to_set.find(mut.get_position());
             if (iter != to_set.end()) {
                 *iter->second = mut.get_mut_one_hot();
@@ -424,27 +546,24 @@ struct Main_Tree_Searcher_Par_Op {
         for (size_t idx = range.begin(); idx < range.end(); idx++) {
             auto sampled_root = sampled_tree_result[idx].target_node;
             auto &mutations_left_in = sampled_tree_result[idx].muts;
+            assert(mutations_left_in.back().position==INT_MAX);
+            for (auto& mut : mutations_left_in) {
+                mut.is_back_mutation=false;
+            }
             auto main_tree_node = const_cast<MAT::Node *>(
                 sampled_root->corresponding_main_tree_node);
             set_parent_muts(mutations_left_in, main_tree_node);
             // Mutation vector set as if descendent of main tree node
-            MAT::Mutations_Collection mutations_left;
-            mutations_left.reserve(mutations_left_in.size());
-            for (const auto &mut : mutations_left_in) {
-                mutations_left.push_back(MAT::Mutation(
-                    mut.chrom_idx, mut.position, mut.par_nuc, mut.mut_nuc));
-            }
-
             output[idx].best_par_score = INT_MAX;
             auto main_tree_task_root = new (tbb::task::allocate_root())
-                Main_Tree_Searcher(sampling_radius, main_tree_node, nullptr,
+                Main_Tree_Searcher(sampling_radius,sampling_radius, main_tree_node, nullptr,
                                    output[idx]
 #ifndef NDEBUG
                                    ,
                                    sample_mutations
 #endif
                 );
-            main_tree_task_root->this_muts = std::move(mutations_left);
+            main_tree_task_root->this_muts = mutations_left_in;
             tbb::task::spawn_root_and_wait(*main_tree_task_root);
             assert(!output[idx].targets.empty());
 
@@ -550,22 +669,17 @@ int distance(const MAT::Node *node1, const MAT::Node *node2) {
 void optimality_check(Mutation_Set &sample_mutations, int parsimony,
                       MAT::Node *main_tree_root, int sampling_radius,
                       Sampled_Tree_Node *sample_tree_root,
-                      const std::vector<Sampled_Place_Target> &sampled_out) {
+                      const std::vector<Sampled_Place_Target> &sampled_out,
+                      std::vector<To_Place_Sample_Mutation>& samples_to_place) {
     Output<Main_Tree_Target> temp;
-    MAT::Mutations_Collection ori_mutations;
-    ori_mutations.mutations = std::vector<MAT::Mutation>(
-        sample_mutations.begin(), sample_mutations.end());
-    ori_mutations.reserve(sample_mutations.size());
-    for (auto &mut : ori_mutations) {
-        mut.set_par_one_hot(mut.get_ref_one_hot());
-    }
-    std::sort(ori_mutations.begin(), ori_mutations.end());
-    ori_mutations.push_back(MAT::Mutation(0,INT_MAX,0x1,0xf));
     temp.best_par_score = INT_MAX;
     auto main_tree_task_root = new (tbb::task::allocate_root())
-        Main_Tree_Searcher(INT_MAX, main_tree_root, nullptr, temp,
+        Main_Tree_Searcher(INT_MAX,INT_MAX, main_tree_root, nullptr, temp,
                            sample_mutations);
-    main_tree_task_root->this_muts = std::move(ori_mutations);
+    To_Place_Sample_Mutation temp1(INT_MAX,0,0xf);
+    samples_to_place.push_back(temp1);
+    //assert(samples_to_place.back().position==INT_MAX);
+    main_tree_task_root->this_muts = std::move(samples_to_place);
     tbb::task::spawn_root_and_wait(*main_tree_task_root);
     if (parsimony != temp.best_par_score) {
         int min_dist = INT_MAX;
@@ -577,7 +691,7 @@ void optimality_check(Mutation_Set &sample_mutations, int parsimony,
                 sampled_target.target_node->corresponding_main_tree_node);
             if (dist < sampling_radius) {
                 raise(SIGTRAP);
-            }//867453
+            }
         }
         if (min_dist > sampling_radius) {
             std::unordered_map<const MAT::Node *, Sampled_Tree_Node *> node_map;

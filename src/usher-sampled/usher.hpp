@@ -1,4 +1,5 @@
 #include "src/matOptimize/mutation_annotated_tree.hpp"
+#include <cassert>
 #include <cstdint>
 #include "src/matOptimize/check_samples.hpp"
 #include <vector>
@@ -29,9 +30,32 @@ struct To_Place_Sample_Mutation{
     uint8_t chrom_idx;
     uint8_t mut_nuc;
     union{
-    uint8_t par_nuc;
+    struct{
+        uint8_t par_nuc;
+        union{
+        uint8_t descendent_possible_nuc;
+        bool is_back_mutation;
+        };
+    };
     uint16_t range;
     };
+    To_Place_Sample_Mutation(int position, uint8_t chrom_idx, uint8_t mut_nuc)
+        : position(position), chrom_idx(chrom_idx), mut_nuc(mut_nuc), range(0) {
+        assert(mut_nuc == 0xf);
+    }
+    To_Place_Sample_Mutation(int position, uint8_t chrom_idx, uint8_t mut_nuc,
+                             uint8_t par_nuc)
+        : position(position), chrom_idx(chrom_idx), mut_nuc(mut_nuc),par_nuc(par_nuc)
+        ,descendent_possible_nuc(0xf) {
+        assert(mut_nuc != 0xf);
+    }
+    int get_end_range() const{
+        if (mut_nuc==0xf) {
+            return position+range;
+        }else {
+            return position;
+        }
+    }
 };
 Sampled_Tree_Node *sample_tree(MAT::Tree &in, int threshold);
 
@@ -57,9 +81,8 @@ void place_sample(Sample_Muts &&sample_to_place,
 #endif
 );
 void sample_tree_dfs(Sampled_Tree_Node *sampled_tree_root,std::vector<Sampled_Tree_Node *>& output);
-void
-set_parent_muts(std::vector<Sampled_Tree_Mutation> &mutations_to_set,
-                const MAT::Node *node);
 void fix_parent(Mutation_Annotated_Tree::Node *root);
 void
 check_sampled_main_correspondence(const Sampled_Tree_Node *sampled_tree_node);
+void convert_mut_type(std::vector<Sampled_Tree_Mutation> &in,
+                      std::vector<To_Place_Sample_Mutation> &out);
