@@ -97,6 +97,9 @@ struct Down_Sibling_Hook {
     }
     void both(const MAT::Mutation &sample_mut,
               const MAT::Mutation &target_mut) {
+        /*if (sample_mut.get_position()==241) {
+            fputc('a', stderr);
+        }*/
         if (sample_mut.get_mut_one_hot() != target_mut.get_mut_one_hot()) {
             if (sample_mut.get_mut_one_hot() & target_mut.get_mut_one_hot()) {
                 insert_split(sample_mut, target_mut, sample_mutations,
@@ -111,8 +114,8 @@ struct Down_Sibling_Hook {
                 auto common=target_mut.get_par_one_hot()&target_mut.get_mut_one_hot();
                 if (!common) {
                     common=1 << __builtin_ctz(target_mut.get_mut_one_hot());
-                    splitted_mutations.push_back(target_mut);
-                    splitted_mutations.back().set_mut_one_hot(common);
+                    shared_mutations.push_back(target_mut);
+                    shared_mutations.back().set_mut_one_hot(common);
                 }
                 sample_mutations.push_back(sample_mut);
                 sample_mutations.back().set_par_one_hot(common);
@@ -146,6 +149,9 @@ struct Down_Decendant_Hook {
     }
     void both(const MAT::Mutation &sample_mut,
               const MAT::Mutation &target_mut) {
+        /*if (sample_mut.get_position()==241) {
+            fputc('a', stderr);
+        }*/
         if (sample_mut.get_mut_one_hot() != target_mut.get_mut_one_hot()) {
             muts.push_back(sample_mut);
             auto &last_mut = muts.back();
@@ -189,6 +195,9 @@ struct Upward_Sibling_Hook {
     }
     void both(const MAT::Mutation &sample_mut,
               const MAT::Mutation &target_mut) {
+        /*if (sample_mut.get_position()==241) {
+            fputc('a', stderr);
+        }*/
         // Different need split
         if (sample_mut.get_mut_one_hot() != target_mut.get_mut_one_hot()) {
             if (sample_mut.get_mut_one_hot()&target_mut.get_par_one_hot()) {
@@ -235,6 +244,9 @@ struct Upward_Descendant_Hook {
     }
     void both(const MAT::Mutation &sample_mut,
               const MAT::Mutation &target_mut) {
+        /*if (sample_mut.get_position()==241) {
+            fputc('a', stderr);
+        }*/
         if (target_mut.get_par_one_hot() != sample_mut.get_mut_one_hot()) {
             muts.push_back(sample_mut);
             muts.back().set_par_one_hot(target_mut.get_par_one_hot());
@@ -400,6 +412,9 @@ void set_parent_muts(std::vector<Sampled_Tree_Mutation> &mutations_to_set,
     }
     while (!to_set.empty() && node) {
         for (const auto &mut : node->mutations) {
+            /*if (mut.get_position()==241) {
+                fputc('a', stderr);
+            }*/
             auto iter = to_set.find(mut.get_position());
             if (iter != to_set.end()) {
                 *iter->second = mut.get_mut_one_hot();

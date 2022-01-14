@@ -17,11 +17,26 @@ static void clean_up_leaf(std::vector<MAT::Node*>& dfs){
     tbb::parallel_for(tbb::blocked_range<size_t>(0,dfs.size()),[&dfs](tbb::blocked_range<size_t> range){
         for (size_t node_idx=range.begin(); node_idx<range.end(); node_idx++) {
             auto node=dfs[node_idx];
+                /*if (node->identifier=="s1433144s") {
+        raise(SIGTRAP);
+    }
+    if (node->identifier=="s2886812s") {
+        raise(SIGTRAP);
+    }
+    if (node->identifier=="s2749940s") {
+        raise(SIGTRAP);
+    }*/
             if (node->is_leaf()) {
                 auto& muts=node->mutations.mutations;
                 muts.erase(std::remove_if(muts.begin(), muts.end(), [](const auto& mut){
                     return mut.get_par_one_hot()&mut.get_mut_one_hot();
                 }),muts.end());
+                for (auto &mut : muts) {
+                    /*if (mut.get_par_one_hot()&mut.get_mut_one_hot()) {
+                        raise(SIGTRAP);
+                    }*/
+                    mut.set_mut_one_hot(1<<__builtin_ctz(mut.get_mut_one_hot()));
+                }
             }
         }
     });
@@ -102,7 +117,7 @@ int main(int argc, char **argv) {
     std::minstd_rand rng(0);
     std::shuffle(samples_to_place.begin(),samples_to_place.end(),rng);
 /*    for (auto && to_place : samples_to_place) {
-        if (to_place.sample_name=="s2586656s") {
+        if (to_place.sample_name=="s2749940s") {
             std::raise(SIGTRAP);
             place_sample(std::move(to_place),sampled_tree_root
                   , tree,

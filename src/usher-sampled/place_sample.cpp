@@ -158,6 +158,15 @@ void place_sample(Sample_Muts &&sample_to_place,
     std::vector<Sampled_Tree_Mutation> &&sample_mutations =
         std::move(sample_to_place.muts);
     std::string &&sample_string = std::move(sample_to_place.sample_name);
+    /*if (sample_string=="s1433144s") {
+        raise(SIGTRAP);
+    }
+    if (sample_string=="s2886812s") {
+        raise(SIGTRAP);
+    }
+    if (sample_string=="s2749940s") {
+        raise(SIGTRAP);
+    }*/
 #ifndef NDEBUG
     Mutation_Set new_set;
     new_set.reserve(sample_mutations.size());
