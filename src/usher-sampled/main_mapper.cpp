@@ -57,8 +57,10 @@ static void insert_split(const To_Place_Sample_Mutation &sample_mut,
     }
     coincided_mut = 1 << __builtin_ctz(coincided_mut);
     assert(coincided_mut & sample_nuc & target_nuc);
-    shared_mutations.push_back(target_mut);
-    shared_mutations.back().set_par_mut(par_nuc, coincided_mut);
+    if (par_nuc!=coincided_mut) {
+        shared_mutations.push_back(target_mut);
+        shared_mutations.back().set_par_mut(par_nuc, coincided_mut);
+    }
     if (coincided_mut != target_nuc) {
         splitted_mutations.push_back(target_mut);
         splitted_mutations.back().set_par_mut(coincided_mut, target_nuc);
@@ -83,7 +85,7 @@ static void n_skiped_sibling(
         if (!concensus_mut) {
             concensus_mut=1<<__builtin_ctz(mut.get_mut_one_hot());
             assert(shared_mutations.empty()||shared_mutations.back().get_position()<mut.get_position());
-            shared_mutations.push_back(MAT::Mutation(mut.get_position(),mut.get_chromIdx(),mut.get_par_one_hot(),concensus_mut));
+            shared_mutations.push_back(MAT::Mutation(mut.get_chromIdx(),mut.get_position(),mut.get_par_one_hot(),concensus_mut));
         }
         assert(splitted_mutations.empty()||splitted_mutations.back().get_position()<mut.get_position());
         splitted_mutations.push_back(mut);
@@ -185,6 +187,7 @@ struct Down_Sibling_Hook {
                 shared_mutations.push_back(target_mut);            
             }
         }
+        assert(shared_mutations.empty()||!(shared_mutations.back().get_par_one_hot()&shared_mutations.back().get_mut_one_hot()));
     }
 };
 struct Down_Decendant_Hook {
@@ -298,6 +301,7 @@ struct Upward_Sibling_Hook {
         } else {
             raise(SIGTRAP);
         }
+        assert(shared_mutations.empty()||!(shared_mutations.back().get_par_one_hot()&shared_mutations.back().get_mut_one_hot()));
     }
 };
 
@@ -430,7 +434,7 @@ struct Main_Tree_Searcher : public tbb::task {
             target.parent_node = const_cast<MAT::Node *>(node);
             int child_radius_left = radius_left - child->mutations.size();
             int parsimony_score = 0;
-            if (child->is_leaf() || (curr_back_mutation > max_back_mutation)) {
+            if (child->is_leaf() || (radius_left<0)) {
                 /*if (!child->is_leaf()) {
                     fputc('a', stderr);
                 }*/
@@ -470,7 +474,7 @@ struct Main_Tree_Searcher : public tbb::task {
         if (parent && parent != exclude_node) {
             target.target_node = const_cast<MAT::Node *>(node);
             target.parent_node = parent;
-            if (curr_back_mutation <= max_back_mutation) {
+            if (radius_left >=0) {
                 children_tasks.push_back(
                     new (cont->allocate_child()) Main_Tree_Searcher(
                         max_back_mutation,radius_left_parent, parent, node, output
@@ -667,14 +671,14 @@ int distance(const MAT::Node *node1, const MAT::Node *node2) {
 }
 #ifndef NDEBUG
 void optimality_check(Mutation_Set &sample_mutations, int parsimony,
-                      MAT::Node *main_tree_root, int sampling_radius,
+                      MAT::Tree& main_tree, int sampling_radius,
                       Sampled_Tree_Node *sample_tree_root,
                       const std::vector<Sampled_Place_Target> &sampled_out,
                       std::vector<To_Place_Sample_Mutation>& samples_to_place) {
     Output<Main_Tree_Target> temp;
     temp.best_par_score = INT_MAX;
     auto main_tree_task_root = new (tbb::task::allocate_root())
-        Main_Tree_Searcher(INT_MAX,INT_MAX, main_tree_root, nullptr, temp,
+        Main_Tree_Searcher(INT_MAX,INT_MAX, main_tree.root, nullptr, temp,
                            sample_mutations);
     To_Place_Sample_Mutation temp1(INT_MAX,0,0xf);
     samples_to_place.push_back(temp1);
@@ -682,6 +686,9 @@ void optimality_check(Mutation_Set &sample_mutations, int parsimony,
     main_tree_task_root->this_muts = std::move(samples_to_place);
     tbb::task::spawn_root_and_wait(*main_tree_task_root);
     if (parsimony != temp.best_par_score) {
+        std::vector<Sampled_Tree_Node *> output;
+        sample_tree_dfs(sample_tree_root, output);
+        check_sampled_tree(main_tree, output, sampling_radius);
         int min_dist = INT_MAX;
         auto closest_node_found = temp.targets[0].target_node;
         fprintf(stderr, "Suboptimal placement\n");

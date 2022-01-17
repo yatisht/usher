@@ -6,6 +6,7 @@
 #include <csignal>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <mutex>
 #include <string>
 #include <tbb/parallel_for.h>
@@ -142,9 +143,6 @@ struct Sampled_Tree_Placer_Task : public tbb::task {
         auto cont = new (allocate_continuation()) tbb::empty_task();
         assert(this_muts.back().position==INT_MAX);
         for (const auto child : node->children) {
-            /*if (child->corresponding_main_tree_node->identifier=="104837") {
-                raise(SIGTRAP);
-            }*/
             Sampled_Place_Target target;
             auto& child_mutations=target.muts;
             target.target_node=child;

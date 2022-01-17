@@ -57,8 +57,7 @@ struct To_Place_Sample_Mutation{
         }
     }
 };
-Sampled_Tree_Node *sample_tree(MAT::Tree &in, int threshold);
-
+Sampled_Tree_Node *sample_tree(MAT::Tree &in, int threshold,bool avoid_leaf);
 struct Sample_Muts{
     std::string sample_name;
     std::vector<Sampled_Tree_Mutation> muts;
@@ -86,3 +85,4 @@ void
 check_sampled_main_correspondence(const Sampled_Tree_Node *sampled_tree_node);
 void convert_mut_type(std::vector<Sampled_Tree_Mutation> &in,
                       std::vector<To_Place_Sample_Mutation> &out);
+void remove_sampled_tree(Sampled_Tree_Node *sampled_tree_root);

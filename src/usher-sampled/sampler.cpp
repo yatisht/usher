@@ -1,4 +1,5 @@
 #include "usher.hpp"
+#include <algorithm>
 #include <climits>
 #include <mutex>
 #include <tbb/task.h>
@@ -7,34 +8,37 @@
 #include <signal.h>
 namespace MAT = Mutation_Annotated_Tree;
 int check_split(const MAT::Node *root, std::vector<bool>& do_split,
-                int threshold) {
+                int threshold,bool skip_leaf) {
     if (root->children.empty()) {
         return 0;
     }
     int max_dist = 0;
     const MAT::Node *max_dist_node = nullptr;
+    const MAT::Node *second_max_dist_node = nullptr;
     int second_max_dist = 0;
     for (const MAT::Node *c : root->children) {
         auto child_dist =
-            check_split(c, do_split, threshold) + c->branch_length;
-        if (child_dist>=threshold) {
+            check_split(c, do_split, threshold,skip_leaf) + c->branch_length;
+        if (child_dist>=threshold&&(!(skip_leaf&&c->children.empty()))) {
             do_split[c->dfs_index]=true;
             child_dist=c->branch_length;
         }
         if (child_dist >= max_dist) {
             second_max_dist = max_dist;
+            second_max_dist_node=max_dist_node;
             max_dist = child_dist;
             max_dist_node = c;
         }else if (child_dist>second_max_dist) {
             second_max_dist=child_dist;
+            second_max_dist_node=c;
         }
     }
     if (max_dist + second_max_dist >= threshold) {
-        do_split[max_dist_node->dfs_index] = true;
-        if (max_dist_node->branch_length+second_max_dist>=threshold) {
+        if (max_dist_node->branch_length+second_max_dist>=threshold||(skip_leaf&&max_dist_node->children.empty())) {
             do_split[root->dfs_index]=true;
             return 0;
         }
+        do_split[max_dist_node->dfs_index] = true;
         return std::max((int)max_dist_node->branch_length, second_max_dist);
     }
     return max_dist;
@@ -186,13 +190,10 @@ struct Assign_Descendant_Possible_Muts : public tbb::task {
         return children_tasks.empty()?cont:nullptr;
     }
 };
-Sampled_Tree_Node *sample_tree(MAT::Tree &in, int threshold) {
+Sampled_Tree_Node *sample_tree(MAT::Tree &in, int threshold,bool avoid_leaf) {
     auto dfs = in.depth_first_expansion();
-    for (auto node : dfs) {
-        node->branch_length=node->mutations.size();
-    }
     std::vector<bool> is_sampled(dfs.size(), false);
-    check_split(in.root, is_sampled, threshold);
+    check_split(in.root, is_sampled, threshold,avoid_leaf);
     Sampled_Tree_Node *sample_tree_root = new Sampled_Tree_Node;
     sample_tree_root->corresponding_main_tree_node = in.root;
     sample_tree_root->parent = nullptr;
@@ -216,4 +217,10 @@ void sample_tree_dfs(Sampled_Tree_Node *sampled_tree_root,std::vector<Sampled_Tr
     for (auto child : sampled_tree_root->children) {
         sample_tree_dfs(child, output);
     }
+}
+void remove_sampled_tree(Sampled_Tree_Node *sampled_tree_root){
+    for (auto child : sampled_tree_root->children) {
+        remove_sampled_tree(child);
+    }
+    delete sampled_tree_root;
 }

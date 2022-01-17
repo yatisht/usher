@@ -2,8 +2,10 @@
 #define MUTATION_ANNOTATED_TREE
 #include <algorithm>
 #include <atomic>
+#include <csignal>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <mutex>
 #include <sys/types.h>
 #include <unordered_map>
@@ -292,7 +294,12 @@ class Mutations_Collection {
         mutations.reserve(n);
     }
     void push_back(const Mutation& m) {
-        assert(mutations.empty()||m.get_position()>mutations.back().get_position());
+        if (!mutations.empty()) {
+            if (m.get_position()<=mutations.back().get_position()) {
+                fprintf(stderr, "Adding out of order %d to %d \n",m.get_position(),mutations.back().get_position());
+                raise(SIGTRAP);
+            }
+        }
         mutations.push_back(m);
     }
     //Find next mutation with position greater or equal to pos

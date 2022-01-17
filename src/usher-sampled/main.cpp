@@ -41,6 +41,21 @@ static void clean_up_leaf(std::vector<MAT::Node*>& dfs){
         }
     });
 }
+void fix_condensed_nodes(MAT::Tree *tree) {
+    std::vector<MAT::Node *> nodes_to_fix;
+    for (auto iter : tree->all_nodes) {
+        if (tree->condensed_nodes.count(iter.first) &&
+                (!iter.second->mutations.empty())) {
+            nodes_to_fix.push_back(iter.second);
+        }
+    }
+    for (auto node : nodes_to_fix) {
+        std::string ori_identifier(node->identifier);
+        tree->rename_node(ori_identifier,
+                          std::to_string(++tree->curr_internal_node));
+        tree->create_node(ori_identifier, node);
+    }
+}
 int main(int argc, char **argv) {
     std::string vcf_filename;
     std::string protobuf_in;
@@ -79,6 +94,7 @@ int main(int argc, char **argv) {
         } else
             return 1;
     }
+    fprintf(stderr, "Sampling at radius %d \n",sampling_radius);
     auto start_time=std::chrono::steady_clock::now();
     tbb::task_scheduler_init init(num_threads);
     MAT::Tree tree=MAT::load_mutation_annotated_tree(protobuf_in);
@@ -103,21 +119,48 @@ int main(int argc, char **argv) {
             }),mut.end());
         }
     });
+    for (auto node : dfs) {
+        node->branch_length=node->mutations.size();
+    }
     #ifndef NDEBUG
     check_samples(tree.root, ori_state, &tree);
     fprintf(stderr, "\n------\n%zu samples\n",ori_state.size());
     #endif
-    Sampled_Tree_Node *sampled_tree_root=sample_tree(tree, sampling_radius);
+    Sampled_Tree_Node *sampled_tree_root=sample_tree(tree, sampling_radius,false);
     
     #ifndef NDEBUG
     std::vector<Sampled_Tree_Node *> output;
     sample_tree_dfs(sampled_tree_root, output);
     check_sampled_tree(tree,output,sampling_radius);
     #endif
-    std::minstd_rand rng(0);
+    std::minstd_rand rng(10);
     std::shuffle(samples_to_place.begin(),samples_to_place.end(),rng);
     /*for (auto && to_place : samples_to_place) {
-        if (to_place.sample_name=="s1785550s") {
+        if (to_place.sample_name=="s2138638s") {
+            place_sample(std::move(to_place),sampled_tree_root
+                  , tree,
+                  sampling_radius
+#ifndef NDEBUG
+                  ,
+                  ori_state
+#endif
+);
+        }
+    }
+    for (auto && to_place : samples_to_place) {
+        if (to_place.sample_name=="s1429085s") {
+            place_sample(std::move(to_place),sampled_tree_root
+                  , tree,
+                  sampling_radius
+#ifndef NDEBUG
+                  ,
+                  ori_state
+#endif
+);
+        }
+    }
+    for (auto && to_place : samples_to_place) {
+        if (to_place.sample_name=="s483795s") {
             place_sample(std::move(to_place),sampled_tree_root
                   , tree,
                   sampling_radius
@@ -128,8 +171,14 @@ int main(int argc, char **argv) {
 );
         }
     }*/
+    int placed_sample_count=0;
     for (auto&& to_place : samples_to_place) {
-        fprintf(stderr, "placing sample %s\n",to_place.sample_name.c_str());
+        fprintf(stderr, "placing sample %s, placed %d\n",to_place.sample_name.c_str(),placed_sample_count);
+        placed_sample_count++;
+        if (placed_sample_count%100==0) {
+            remove_sampled_tree(sampled_tree_root);
+            sampled_tree_root=sample_tree(tree, sampling_radius,true);
+        }
         place_sample(std::move(to_place),sampled_tree_root
                   , tree,
                   sampling_radius
@@ -141,6 +190,7 @@ int main(int argc, char **argv) {
     }
     dfs=tree.depth_first_expansion();
     clean_up_leaf(dfs);
+    fix_condensed_nodes(&tree);
     MAT::save_mutation_annotated_tree(tree, protobuf_out);
     auto duration=std::chrono::steady_clock::now()-start_time;
     fprintf(stderr, "Took %ld msec\n",std::chrono::duration_cast<std::chrono::milliseconds>(duration).count());

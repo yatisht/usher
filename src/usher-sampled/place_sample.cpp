@@ -175,6 +175,7 @@ static const MAT::Node *update_main_tree(Main_Tree_Target &target,
         if (!(mut.get_par_one_hot() & mut.get_mut_one_hot())) {
             sample_node_mut_count++;
         }
+        assert(mut.get_position());
     }
     sample_node->branch_length = sample_node_mut_count;
     if (target.splited_mutations.empty() && (!target.target_node->is_leaf())) {
@@ -191,6 +192,7 @@ static const MAT::Node *update_main_tree(Main_Tree_Target &target,
             if (!(mut.get_mut_one_hot() & mut.get_par_one_hot())) {
                 target_node_mut_count++;
             }
+            assert(mut.get_position());
         }
         target.target_node->branch_length = target_node_mut_count;
         MAT::Node *split_node = new MAT::Node;
@@ -202,6 +204,9 @@ static const MAT::Node *update_main_tree(Main_Tree_Target &target,
         split_node->children.push_back(target.target_node);
         split_node->children.push_back(sample_node);
         split_node->branch_length = split_node->mutations.size();
+        for (const auto& mut : split_node->mutations) {
+            assert(mut.get_position());
+        }
         auto iter =
             std::find(target.parent_node->children.begin(),
                       target.parent_node->children.end(), target.target_node);
@@ -276,7 +281,7 @@ void place_sample(Sample_Muts &&sample_to_place,
                 .count());
 #ifndef NDEBUG
     auto whole_tree_start = std::chrono::steady_clock::now();
-    optimality_check(new_set, std::get<2>(main_tree_out), main_tree.root,
+    optimality_check(new_set, std::get<2>(main_tree_out), main_tree,
                      sampling_radius, sampled_tree_root, sampled_output,condensed_muts_copy);
     auto whole_tree_duration =
         std::chrono::steady_clock::now() - whole_tree_start;
@@ -296,10 +301,10 @@ void place_sample(Sample_Muts &&sample_to_place,
                             main_tree_node);
     }
 #ifndef NDEBUG
-    std::vector<Sampled_Tree_Node *> output;
+    /*std::vector<Sampled_Tree_Node *> output;
     sample_tree_dfs(sampled_tree_root, output);
     check_sampled_tree(main_tree, output, sampling_radius);
-    fprintf(stderr, "%zu samples \n", ori_state.size());
-    check_samples(main_tree.root, ori_state, &main_tree);
+    fprintf(stderr, "%zu samples \n", ori_state.size());*/
+    //check_samples(main_tree.root, ori_state, &main_tree);
 #endif
 }

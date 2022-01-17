@@ -42,7 +42,7 @@ place_main_tree(std::vector<Sampled_Place_Target> &sampled_output,
 #ifndef NDEBUG
 void check_mutations(Mutation_Set ref,const Main_Tree_Target& target_to_check);
 void optimality_check(Mutation_Set &sample_mutations, int parsimony,
-                      MAT::Node *main_tree_root, int sampling_radius,
+                      MAT::Tree& main_tree, int sampling_radius,
                       Sampled_Tree_Node *sample_tree_root,
                       const std::vector<Sampled_Place_Target> &sampled_out,
                       std::vector<To_Place_Sample_Mutation>& samples_to_place);
