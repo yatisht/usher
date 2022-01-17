@@ -122,18 +122,8 @@ int main(int argc, char **argv) {
     for (auto node : dfs) {
         node->branch_length=node->mutations.size();
     }
-    #ifndef NDEBUG
-    check_samples(tree.root, ori_state, &tree);
-    fprintf(stderr, "\n------\n%zu samples\n",ori_state.size());
-    #endif
-    Sampled_Tree_Node *sampled_tree_root=sample_tree(tree, sampling_radius,false);
-    
-    #ifndef NDEBUG
-    std::vector<Sampled_Tree_Node *> output;
-    sample_tree_dfs(sampled_tree_root, output);
-    check_sampled_tree(tree,output,sampling_radius);
-    #endif
-    std::minstd_rand rng(10);
+    assign_descendant_muts(tree);
+    std::minstd_rand rng(5);
     std::shuffle(samples_to_place.begin(),samples_to_place.end(),rng);
     /*for (auto && to_place : samples_to_place) {
         if (to_place.sample_name=="s2138638s") {
@@ -175,13 +165,7 @@ int main(int argc, char **argv) {
     for (auto&& to_place : samples_to_place) {
         fprintf(stderr, "placing sample %s, placed %d\n",to_place.sample_name.c_str(),placed_sample_count);
         placed_sample_count++;
-        if (placed_sample_count%100==0) {
-            remove_sampled_tree(sampled_tree_root);
-            sampled_tree_root=sample_tree(tree, sampling_radius,true);
-        }
-        place_sample(std::move(to_place),sampled_tree_root
-                  , tree,
-                  sampling_radius
+        place_sample(std::move(to_place),tree
 #ifndef NDEBUG
                   ,
                   ori_state

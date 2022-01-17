@@ -108,7 +108,7 @@ struct check_samples_worker:public tbb::task {
 
                     } else {
                         if ((m.get_all_major_allele())!=m_iter->get_all_major_allele()) {
-                            fprintf(stderr, "Mut Nuc Mismatch at \t %d of sample \t %s at bfs_index \t %zu: original \t %c , altered :\t %c \n",m.get_position(),root->identifier.c_str(),root->bfs_index,Mutation_Annotated_Tree::get_nuc(m_iter->get_all_major_allele()),MAT::get_nuc(m.get_all_major_allele()));
+                            fprintf(stderr, "Mut Nuc Mismatch at \t %d of sample \t %s at bfs_index \t %zu: original \t %d , altered :\t %d \n",m.get_position(),root->identifier.c_str(),root->bfs_index,m_iter->get_all_major_allele(),m.get_all_major_allele());
                             raise(SIGTRAP);
                         }
                         to_check.erase(m_iter);

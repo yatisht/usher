@@ -10,6 +10,7 @@
 #include "usher.hpp"
 #include <algorithm>
 #include <atomic>
+#include <cassert>
 #include <cctype>
 #include <chrono>
 #include <condition_variable>
@@ -203,7 +204,7 @@ struct gzip_input_source {
     }
 };
 typedef tbb::enumerable_thread_specific<
-    std::vector<std::vector<Sampled_Tree_Mutation>>>
+    std::vector<std::vector<MAT::Mutation>>>
     Sampled_Tree_Mutations_t;
 // Parse a block of lines, assuming there is a complete line in the line_in
 // buffer
@@ -242,19 +243,8 @@ struct line_parser {
             }
             line_in++;
             // REF
-            Sampled_Tree_Mutation mut_template;
-            mut_template.chrom_idx = MAT::Mutation::chromosome_map[chromosome];
-            mut_template.position = pos;
-            mut_template.par_nuc = MAT::get_nuc_id(*line_in);
-            if (MAT::Mutation::refs.size()<=pos) {
-                std::lock_guard<std::mutex> lk(ref_lock);
-                MAT::Mutation::refs.resize(pos+1);
-            }
-            if(MAT::Mutation::refs[pos]==0){
-                MAT::Mutation::refs[pos]=mut_template.par_nuc;
-            }else {
-                assert(MAT::Mutation::refs[pos]==mut_template.par_nuc);
-            }
+            auto ref_nuc=MAT::get_nuc_id(*line_in);
+            MAT::Mutation mut_template(chromosome,pos, 0, ref_nuc, 0,ref_nuc);
             line_in++;
             // assert(*line_in=='\t');
             line_in++;
@@ -297,15 +287,17 @@ struct line_parser {
                 if (output_idx != -1) {
                     // output prototype of mutation, and a map from sample to
                     // non-ref allele
-                    Sampled_Tree_Mutation this_mut(mut_template);
+                    MAT::Mutation this_mut(mut_template);
                     if (allele_idx >= (allele_translated.size() + 1)) {
-                        this_mut.mut_nuc = 0xf;
-                        this_mut.descendent_possible_nuc = 0xf;
+                        this_mut.set_mut_one_hot(0xf);
+                        this_mut.set_auxillary(0xf, 0);
+                        this_mut.set_descendant_mut(0xf);
                         this_blk[output_idx].push_back(this_mut);
                     } else if (allele_idx) {
-                        this_mut.mut_nuc = allele_translated[allele_idx - 1];
-                        this_mut.descendent_possible_nuc =
-                            allele_translated[allele_idx - 1];
+                        this_mut.set_mut_one_hot(allele_translated[allele_idx - 1]);
+                        this_mut.set_descendant_mut(allele_translated[allele_idx - 1]);
+                        this_mut.set_auxillary(allele_translated[allele_idx - 1], 0);
+                        assert(this_mut.get_par_one_hot()!=this_mut.get_mut_one_hot());
                         this_blk[output_idx].push_back(this_mut);
                     }
                 }

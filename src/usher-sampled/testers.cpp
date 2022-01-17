@@ -26,26 +26,6 @@ Mutation_Set get_mutations(const MAT::Node *main_tree_node) {
     }
     return out;
 }
-void
-check_sampled_main_correspondence(const Sampled_Tree_Node *sampled_tree_node) {
-    auto main_tree_mutations =
-        get_mutations(sampled_tree_node->corresponding_main_tree_node);
-    while (sampled_tree_node && (!main_tree_mutations.empty())) {
-        for (const auto &mut : sampled_tree_node->mutations) {
-            auto iter = main_tree_mutations.find(mut.position);
-            if (iter != main_tree_mutations.end()) {
-                if (iter->get_mut_one_hot() != mut.mut_nuc) {
-                    raise(SIGTRAP);
-                }
-                main_tree_mutations.erase(iter);
-            }
-        }
-        sampled_tree_node = sampled_tree_node->parent;
-    }
-    if (!main_tree_mutations.empty()) {
-        raise(SIGTRAP);
-    }
-}
 static void set_covered_main_tree(const MAT::Node *start,
                                   std::vector<char> &checked, int distance_left,
                                   const MAT::Node *exclude_node) {
@@ -58,29 +38,6 @@ static void set_covered_main_tree(const MAT::Node *start,
         int child_dist_left = distance_left - child->branch_length;
         if (distance_left > 0 && child != exclude_node) {
             set_covered_main_tree(child, checked, child_dist_left, start);
-        }
-    }
-}
-
-void check_sampled_tree(MAT::Tree &main_tree,
-                        std::vector<Sampled_Tree_Node *> &sampled_tree_dfs,
-                        int distance) {
-    auto node_list = main_tree.depth_first_expansion();
-    std::vector<char> checked(node_list.size(), false);
-    tbb::parallel_for(tbb::blocked_range<size_t>(0, sampled_tree_dfs.size()),
-                      [&](tbb::blocked_range<size_t> r) {
-                          for (size_t idx = r.begin(); idx < r.end(); idx++) {
-                              auto node = sampled_tree_dfs[idx];
-                              set_covered_main_tree(
-                                  node->corresponding_main_tree_node, checked,
-                                  distance, nullptr);
-                              check_sampled_main_correspondence(node);
-                          }
-                      });
-    for (size_t idx = 0; idx < checked.size(); idx++) {
-        if (!checked[idx]) {
-            fprintf(stderr, "Node %s unreachable \n",node_list[idx]->identifier.c_str());
-            raise(SIGTRAP);
         }
     }
 }
@@ -210,13 +167,21 @@ void check_mutations(Mutation_Set ref,
                     target_to_check.shared_mutations,
                     target_to_check.parent_node);
 }
-void check_sampled_mutations(Mutation_Set ref,
-                             const Sampled_Place_Target &target_to_check) {
-    assert(target_to_check.muts.back().position==INT_MAX);
-    auto temp = target_to_check.muts;
-    set_parent_muts(temp,
-                    target_to_check.target_node->corresponding_main_tree_node);
-    temp.pop_back();
-    check_mutations(ref, temp, MAT::Mutations_Collection(),
-                    target_to_check.target_node->corresponding_main_tree_node);
+void check_descendant_nuc(const MAT::Node* node){
+    std::unordered_map<int, uint8_t> muts;
+    muts.reserve(node->mutations.size());
+    for(const auto& mut:node->mutations){
+        muts.emplace(mut.get_position(),mut.get_mut_one_hot());
+    }
+    while (node) {
+        for(const auto& mut:node->mutations){
+            auto iter=muts.find(mut.get_position());
+            if (iter!=muts.end()) {
+                if ((iter->second&mut.get_descendant_mut())!=iter->second) {
+                    raise(SIGTRAP);
+                }
+            }
+        }
+        node=node->parent;
+    }
 }

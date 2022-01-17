@@ -125,6 +125,12 @@ class Mutation {
     nuc_one_hot get_sensitive_increment()const {
         return decrement_increment_effect&0xf;
     }
+    uint8_t get_descendant_mut() const {
+        return decrement_increment_effect;
+    }
+    void set_descendant_mut(uint8_t value){
+        decrement_increment_effect=value;
+    }
     void set_sensitive_change(nuc_one_hot decrement,nuc_one_hot increment) {
         decrement_increment_effect=(decrement<<4)|increment;
     }
