@@ -1,4 +1,3 @@
-#include "src/matOptimize/mutation_annotated_tree.hpp"
 #include "usher.hpp"
 #include <vector>
 template <typename Target_Type> struct Output {

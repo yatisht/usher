@@ -134,9 +134,9 @@ struct Down_Sibling_Hook {
         parsimony_score = 0;
     }
     void reserve(size_t sample_mutation_count, size_t target_mutation_count) {
-        sample_mutations.reserve(sample_mutation_count);
-        splitted_mutations.reserve(target_mutation_count);
-        shared_mutations.reserve(target_mutation_count);
+        sample_mutations.reserve(sample_mutation_count+1);
+        splitted_mutations.reserve(target_mutation_count+1);
+        shared_mutations.reserve(target_mutation_count+1);
     }
     void sample_mut_only(const To_Place_Sample_Mutation &mut) {
         sample_mut_check_mutation(sample_mutations, splitted_mutations, shared_mutations, mut);
@@ -167,12 +167,23 @@ struct Down_Sibling_Hook {
         sample_check_mutation(sample_mutations, splitted_mutations, shared_mutations, sample_mut.position);
         if (sample_mut.mut_nuc != target_mut.get_mut_one_hot()) {
             if (sample_mut.mut_nuc & target_mut.get_mut_one_hot()) {
-                insert_split(sample_mut, target_mut, sample_mutations,
+                if (target_mut.get_par_one_hot()&target_mut.get_mut_one_hot()) {
+                    splitted_mutations.push_back(target_mut);
+                    sample_mutations.push_back(sample_mut);
+                    if (!(sample_mut.mut_nuc&sample_mut.par_nuc)) {
+                        parsimony_score++;
+                    }
+                }
+                else {
+                    insert_split(sample_mut, target_mut, sample_mutations,
                              splitted_mutations, shared_mutations);
+                }
             } else {
                 sample_mutations.push_back(sample_mut);
                 splitted_mutations.push_back(target_mut);
-                parsimony_score++;
+                    if (!(sample_mut.mut_nuc&sample_mut.par_nuc)) {
+                        parsimony_score++;
+                    }
             }
         } else {
             if (__builtin_popcount(target_mut.get_mut_one_hot())!=1) {
@@ -185,6 +196,9 @@ struct Down_Sibling_Hook {
                 }
                 sample_mutations.push_back(sample_mut);
                 sample_mutations.back().par_nuc=common;
+                if (!(sample_mut.mut_nuc&common)) {
+                        parsimony_score++;
+                }
                 splitted_mutations.push_back(target_mut);
                 splitted_mutations.back().set_par_one_hot(common);
             }else {
@@ -203,7 +217,7 @@ struct Down_Decendant_Hook {
         muts.clear();
     }
     void reserve(size_t sample_mutation_count, size_t target_mutation_count) {
-        muts.reserve(sample_mutation_count + target_mutation_count);
+        muts.reserve(sample_mutation_count + target_mutation_count+1);
     }
     void sample_mut_only(const To_Place_Sample_Mutation &mut) {
         assert(mut.mut_nuc==0xf||mut.mut_nuc != mut.par_nuc);
@@ -301,6 +315,28 @@ struct Main_Tree_Searcher : public tbb::task {
     {
     }
     void register_target(Main_Tree_Target &target, int this_score) {
+        #ifndef NDEBUG
+        int initial_par_score=0;
+        for (const auto & mut : target.target_node->mutations) {
+            if (!(mut.get_par_one_hot()&mut.get_mut_one_hot())) {
+                initial_par_score++;
+            }
+        }
+        for (const auto& mut : target.splited_mutations) {
+            if (!(mut.get_par_one_hot()&mut.get_mut_one_hot())) {
+                initial_par_score--;
+            }
+        }
+        initial_par_score-=target.shared_mutations.size();
+        assert(initial_par_score==0);
+        int sample_par_score=0;
+        for (const auto& mut : target.sample_mutations) {
+            if (mut.mut_nuc!=0xf&&!(mut.par_nuc&mut.mut_nuc)) {
+                sample_par_score++;
+            }
+        }
+        assert(sample_par_score==this_score);
+        #endif
         if (output.best_par_score >= this_score) {
             std::lock_guard<std::mutex> lk(output.mutex);
             if (output.best_par_score > this_score) {
@@ -378,12 +414,13 @@ struct Main_Tree_Searcher : public tbb::task {
 std::tuple<std::vector<Main_Tree_Target>, int>
 place_main_tree(std::vector<To_Place_Sample_Mutation> &mutations,
                 MAT::Tree &main_tree
-#ifndef NDEBUG
+#ifdef DETAILED_MERGER_CHECK
                 ,
                 Mutation_Set &sample_mutations
 #endif
 ){
             Output<Main_Tree_Target> output;
+            output.targets.reserve(1000);
             output.best_par_score = INT_MAX;
             auto main_tree_task_root = new (tbb::task::allocate_root())
                 Main_Tree_Searcher(0,main_tree.root,

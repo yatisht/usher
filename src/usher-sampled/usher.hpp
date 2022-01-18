@@ -1,3 +1,4 @@
+#define USHER
 #include "src/matOptimize/mutation_annotated_tree.hpp"
 #include <cassert>
 #include <cstdint>
@@ -54,7 +55,7 @@ Mutation_Set get_mutations(const MAT::Node *main_tree_node);
 void check_descendant_nuc(const MAT::Node* node);
 #endif
 
-void place_sample(Sample_Muts &&sample_to_place, MAT::Tree &main_tree
+void place_sample(std::vector<Sample_Muts> &sample_to_place, MAT::Tree &main_tree,int batch_size
 #ifndef NDEBUG
                   ,
                   Original_State_t &ori_state

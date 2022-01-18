@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <boost/program_options.hpp>
 #include <chrono>
+#include <climits>
 #include <complex>
 #include <csignal>
 #include <cstdio>
@@ -63,6 +64,7 @@ int main(int argc, char **argv) {
     po::options_description desc{"Options"};
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
     uint32_t num_threads;
+    int first_n_sample;
     int sampling_radius;
     std::string num_threads_message = "Number of threads to use when possible "
                                       "[DEFAULT uses all available cores, " +
@@ -75,7 +77,7 @@ int main(int argc, char **argv) {
         ("load-mutation-annotated-tree,i",
                       po::value<std::string>(&protobuf_in)->default_value(""),
                       "Load mutation-annotated tree object")
-        ("Sampling radius,r",po::value(&sampling_radius)->default_value(10))
+        ("first_n_sample,n",po::value(&first_n_sample)->default_value(INT_MAX))
         ("save-mutation-annotated-tree,o",
         po::value<std::string>(&protobuf_out)->default_value(""),
         "Save output mutation-annotated tree object to the specified filename")(
@@ -121,6 +123,9 @@ int main(int argc, char **argv) {
     });
     for (auto node : dfs) {
         node->branch_length=node->mutations.size();
+        #ifdef NDEBUG
+        node->children.reserve(4*node->children.size());
+        #endif
     }
     assign_descendant_muts(tree);
     assign_levels(tree.root);
@@ -162,17 +167,11 @@ int main(int argc, char **argv) {
 );
         }
     }*/
-    int placed_sample_count=0;
-    for (auto&& to_place : samples_to_place) {
-        fprintf(stderr, "placing sample %s, placed %d\n",to_place.sample_name.c_str(),placed_sample_count);
-        placed_sample_count++;
-        place_sample(std::move(to_place),tree
-#ifndef NDEBUG
-                  ,
-                  ori_state
-#endif
-);
-    }
+    place_sample(samples_to_place,tree,4
+    #ifndef NDEBUG
+        ,ori_state
+    #endif
+    );
     dfs=tree.depth_first_expansion();
     clean_up_leaf(dfs);
     fix_condensed_nodes(&tree);

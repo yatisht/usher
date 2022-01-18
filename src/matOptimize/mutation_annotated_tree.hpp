@@ -386,11 +386,13 @@ class Node {
 #ifdef LOAD
   public:
 #endif
+    #ifndef USHER
     std::atomic_uint8_t changed;
     static const uint8_t SELF_CHANGED_MASK=1;
     static const uint8_t ANCESTOR_CHANGED_MASK=2;
     static const uint8_t DESCENDENT_CHANGED_MASK=4;
     static const uint8_t SELF_MOVED_MASK=8;
+    #endif
   public:
     int branch_length;
     std::string identifier;
@@ -416,6 +418,7 @@ class Node {
     bool add_mutation(Mutation& mut) {
         return mutations.insert(mut,Mutations_Collection::KEEP_OTHER);
     }
+    #ifndef USHER
     void set_self_changed(){
         changed|=SELF_CHANGED_MASK;
     }
@@ -446,6 +449,7 @@ class Node {
     bool have_change_in_neighbor()const{
         return changed;
     }
+    #endif
     void clear_mutations() {
         mutations.clear();
     }
