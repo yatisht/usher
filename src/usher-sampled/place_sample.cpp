@@ -208,6 +208,6 @@ void place_sample(Sample_Muts &&sample_to_place, MAT::Tree &main_tree
     sample_tree_dfs(sampled_tree_root, output);
     check_sampled_tree(main_tree, output, sampling_radius);
     fprintf(stderr, "%zu samples \n", ori_state.size());*/
-    check_samples(main_tree.root, ori_state, &main_tree);
+    //check_samples(main_tree.root, ori_state, &main_tree);
 #endif
 }
