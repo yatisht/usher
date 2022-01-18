@@ -375,7 +375,7 @@ struct Main_Tree_Searcher : public tbb::task {
         return children_tasks.empty() ? cont : nullptr;
     }
 };
-std::tuple<Main_Tree_Target, int>
+std::tuple<std::vector<Main_Tree_Target>, int>
 place_main_tree(std::vector<To_Place_Sample_Mutation> &mutations,
                 MAT::Tree &main_tree
 #ifndef NDEBUG
@@ -399,5 +399,5 @@ place_main_tree(std::vector<To_Place_Sample_Mutation> &mutations,
             tbb::task::spawn_root_and_wait(*main_tree_task_root);
             assert(!output.targets.empty());
 
-    return std::make_tuple(std::move(output.targets[0]), output.best_par_score);
+    return std::make_tuple(std::move(output.targets), output.best_par_score);
 }

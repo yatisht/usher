@@ -64,3 +64,4 @@ void fix_parent(Mutation_Annotated_Tree::Node *root);
 void convert_mut_type(std::vector<MAT::Mutation> &in,
                       std::vector<To_Place_Sample_Mutation> &out);
 void assign_descendant_muts(MAT::Tree &in);
+void assign_levels(MAT::Node* root);

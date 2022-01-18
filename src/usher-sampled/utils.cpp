@@ -23,3 +23,13 @@ void convert_mut_type(std::vector<MAT::Mutation> &in,
         }
     }
 }
+void assign_levels(MAT::Node* root){
+    if (root->parent) {
+        root->level=root->parent->level+1;
+    }else {
+        root->level=0;
+    }
+    for(auto child:root->children){
+        assign_levels(child);
+    }
+}

@@ -14,7 +14,7 @@ struct Main_Tree_Target {
     MAT::Mutations_Collection shared_mutations;
     int distance_left;
 };
-std::tuple<Main_Tree_Target, int>
+std::tuple<std::vector<Main_Tree_Target>, int>
 place_main_tree(std::vector<To_Place_Sample_Mutation> &mutations,
                 MAT::Tree &main_tree
 #ifndef NDEBUG

@@ -123,8 +123,9 @@ int main(int argc, char **argv) {
         node->branch_length=node->mutations.size();
     }
     assign_descendant_muts(tree);
-    std::minstd_rand rng(5);
-    std::shuffle(samples_to_place.begin(),samples_to_place.end(),rng);
+    assign_levels(tree.root);
+    //std::minstd_rand rng(5);
+    //std::shuffle(samples_to_place.begin(),samples_to_place.end(),rng);
     /*for (auto && to_place : samples_to_place) {
         if (to_place.sample_name=="s2138638s") {
             place_sample(std::move(to_place),sampled_tree_root

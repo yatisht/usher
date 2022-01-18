@@ -82,6 +82,7 @@ static const MAT::Node *update_main_tree(Main_Tree_Target &target,
                                          std::string &&sample_string) {
     // Split branch?
     MAT::Node *sample_node = new MAT::Node;
+    sample_node->level=target.target_node->level;
     sample_node->identifier = std::move(sample_string);
     discretize_mutations(target.sample_mutations, target.shared_mutations, target.parent_node, sample_node->mutations);
     int sample_node_mut_count = 0;
@@ -100,27 +101,31 @@ static const MAT::Node *update_main_tree(Main_Tree_Target &target,
         sample_node->parent = target.parent_node;
         target.parent_node->children.push_back(sample_node);
     } else {
-        target.target_node->mutations = std::move(target.splited_mutations);
+        MAT::Node* new_target_node=new MAT::Node;
+        new_target_node->identifier=target.target_node->identifier;
+        new_target_node->level=target.target_node->level;
+        new_target_node->children=target.target_node->children;
+        new_target_node->mutations = std::move(target.splited_mutations);
+        for (auto child : new_target_node->children) {
+            child->parent=new_target_node;
+        }
         int target_node_mut_count = 0;
         for (const auto &mut : target.target_node->mutations) {
             if (!(mut.get_mut_one_hot() & mut.get_par_one_hot())) {
                 target_node_mut_count++;
             }
-            assert(mut.get_position());
         }
-        target.target_node->branch_length = target_node_mut_count;
+        new_target_node->branch_length = target_node_mut_count;
         MAT::Node *split_node = new MAT::Node;
-        target.target_node->parent = split_node;
+        new_target_node->parent = split_node;
         sample_node->parent = split_node;
         split_node->identifier = "";
+        split_node->level=target.target_node->level;
         split_node->parent = target.parent_node;
         split_node->mutations = std::move(target.shared_mutations);
-        split_node->children.push_back(target.target_node);
+        split_node->children.push_back(new_target_node);
         split_node->children.push_back(sample_node);
         split_node->branch_length = split_node->mutations.size();
-        for (const auto& mut : split_node->mutations) {
-            assert(mut.get_position());
-        }
         auto iter =
             std::find(target.parent_node->children.begin(),
                       target.parent_node->children.end(), target.target_node);
@@ -128,6 +133,8 @@ static const MAT::Node *update_main_tree(Main_Tree_Target &target,
             std::raise(SIGTRAP);
         }
         *iter = split_node;
+        delete target.target_node;
+        target.target_node=new_target_node;
     }
     update_possible_descendant_alleles(sample_node->mutations, sample_node->parent);
     #ifndef NDEBUG
@@ -155,6 +162,7 @@ void place_sample(Sample_Muts &&sample_to_place, MAT::Tree &main_tree
     if (sample_string=="s2749940s") {
         raise(SIGTRAP);
     }*/
+    auto main_tree_start = std::chrono::steady_clock::now();
     std::vector<To_Place_Sample_Mutation> condensed_muts;
     convert_mut_type(sample_mutations,condensed_muts);
 #ifndef NDEBUG
@@ -166,7 +174,6 @@ void place_sample(Sample_Muts &&sample_to_place, MAT::Tree &main_tree
     }
     ori_state.emplace(sample_string, new_set);
 #endif
-    auto main_tree_start = std::chrono::steady_clock::now();
     auto main_tree_out =
         place_main_tree(condensed_muts, main_tree
 #ifndef NDEBUG
@@ -174,19 +181,33 @@ void place_sample(Sample_Muts &&sample_to_place, MAT::Tree &main_tree
                         new_set
 #endif
         );
+    auto& selected_target=std::get<0>(main_tree_out)[0];
+    int min_level=0;
+    for (auto& target : std::get<0>(main_tree_out)) {
+        int mut_count=0;
+        for (const auto& mut : target.sample_mutations) {
+            if (mut.mut_nuc!=0xf&&!(mut.par_nuc&mut.mut_nuc)) {
+            mut_count++;
+            }
+        }
+        assert(mut_count==std::get<1>(main_tree_out));
+        if (target.target_node->level<min_level) {
+            min_level=target.target_node->level;
+            selected_target=target;
+        }
+    }
+    auto main_tree_node =
+        update_main_tree(selected_target, std::move(sample_string));
     auto main_tree_duration =
         std::chrono::steady_clock::now() - main_tree_start;
-    fprintf(stderr, "main tree took %ld msec\n",
-            std::chrono::duration_cast<std::chrono::milliseconds>(
+    fprintf(stderr, "Parsimony %d, took %ld msec, target count %zu\n",std::get<1>(main_tree_out),std::chrono::duration_cast<std::chrono::milliseconds>(
                 main_tree_duration)
-                .count());
-    auto main_tree_node =
-        update_main_tree(std::get<0>(main_tree_out), std::move(sample_string));
+                .count(),std::get<0>(main_tree_out).size());
 #ifndef NDEBUG
     /*std::vector<Sampled_Tree_Node *> output;
     sample_tree_dfs(sampled_tree_root, output);
     check_sampled_tree(main_tree, output, sampling_radius);
     fprintf(stderr, "%zu samples \n", ori_state.size());*/
-    //check_samples(main_tree.root, ori_state, &main_tree);
+    check_samples(main_tree.root, ori_state, &main_tree);
 #endif
 }
