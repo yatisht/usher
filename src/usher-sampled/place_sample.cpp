@@ -144,15 +144,67 @@ static const MAT::Node *update_main_tree(Main_Tree_Target &target,
     #endif
     return sample_node;
 }
+
+struct Finder{
+    MAT::Tree& tree;
+    std::vector<Sample_Muts>& to_place;
+    std::tuple<std::vector<Main_Tree_Target>, int,size_t>* operator()(size_t idx){
+        auto output=new std::tuple<std::vector<Main_Tree_Target>, int,size_t>;
+        std::get<2>(*output)= idx;
+        const std::vector<MAT::Mutation>& sample_mutations =to_place[idx].muts;
+        std::vector<To_Place_Sample_Mutation> condensed_muts;
+        convert_mut_type(sample_mutations,condensed_muts);
+        auto main_tree_out=place_main_tree(condensed_muts, tree);
+        std::get<0>(*output)=std::move(std::get<0>(main_tree_out));
+        std::get<1>(*output)=std::get<1>(main_tree_out);
+        return output;
+    }    
+};
+
+struct Placer{
+    std::vector<Sample_Muts>& to_place;
+    std::vector<MAT::Node*>& deleted_nodes;
+#ifndef NDEBUG
+    Original_State_t &ori_state;
+#endif
+    void operator()(std::tuple<std::vector<Main_Tree_Target>, int,size_t>* search_result){
+        auto idx=std::get<2>(*search_result);
+        std::string &&sample_string = std::move(to_place[idx].sample_name);
+#ifndef NDEBUG
+    Mutation_Set new_set;
+    std::vector<To_Place_Sample_Mutation> condensed_muts_copy;
+    const std::vector<MAT::Mutation>& sample_mutations =to_place[idx].muts;
+    convert_mut_type(sample_mutations,condensed_muts_copy);
+    new_set.reserve(sample_mutations.size());
+    for (const auto &mut : sample_mutations) {
+        new_set.insert(mut);
+    }
+    ori_state.emplace(sample_string, new_set);
+#endif
+auto& selected_target=std::get<0>(*search_result)[0];
+    int min_level=0;
+    for (auto& target : std::get<0>(*search_result)) {
+        int mut_count=0;
+        for (const auto& mut : target.sample_mutations) {
+            if (mut.mut_nuc!=0xf&&!(mut.par_nuc&mut.mut_nuc)) {
+            mut_count++;
+            }
+        }
+        assert(mut_count==std::get<1>(*search_result));
+        if (target.target_node->level<min_level) {
+            min_level=target.target_node->level;
+            selected_target=target;
+        }
+    }
+    }
+};
 void place_sample(Sample_Muts &&sample_to_place, MAT::Tree &main_tree
 #ifndef NDEBUG
                   ,
                   Original_State_t &ori_state
 #endif
 ) {
-    std::vector<MAT::Mutation> &&sample_mutations =
-        std::move(sample_to_place.muts);
-    std::string &&sample_string = std::move(sample_to_place.sample_name);
+    
     /*if (sample_string=="s1433144s") {
         raise(SIGTRAP);
     }
@@ -163,41 +215,8 @@ void place_sample(Sample_Muts &&sample_to_place, MAT::Tree &main_tree
         raise(SIGTRAP);
     }*/
     auto main_tree_start = std::chrono::steady_clock::now();
-    std::vector<To_Place_Sample_Mutation> condensed_muts;
-    convert_mut_type(sample_mutations,condensed_muts);
-#ifndef NDEBUG
-    Mutation_Set new_set;
-    std::vector<To_Place_Sample_Mutation> condensed_muts_copy(condensed_muts);
-    new_set.reserve(sample_mutations.size());
-    for (const auto &mut : sample_mutations) {
-        new_set.insert(mut);
-    }
-    ori_state.emplace(sample_string, new_set);
-#endif
-    auto main_tree_out =
-        place_main_tree(condensed_muts, main_tree
-#ifndef NDEBUG
-                        ,
-                        new_set
-#endif
-        );
-    auto& selected_target=std::get<0>(main_tree_out)[0];
-    int min_level=0;
-    for (auto& target : std::get<0>(main_tree_out)) {
-        int mut_count=0;
-        for (const auto& mut : target.sample_mutations) {
-            if (mut.mut_nuc!=0xf&&!(mut.par_nuc&mut.mut_nuc)) {
-            mut_count++;
-            }
-        }
-        assert(mut_count==std::get<1>(main_tree_out));
-        if (target.target_node->level<min_level) {
-            min_level=target.target_node->level;
-            selected_target=target;
-        }
-    }
-    auto main_tree_node =
-        update_main_tree(selected_target, std::move(sample_string));
+
+    
     auto main_tree_duration =
         std::chrono::steady_clock::now() - main_tree_start;
     fprintf(stderr, "Parsimony %d, took %ld msec, target count %zu\n",std::get<1>(main_tree_out),std::chrono::duration_cast<std::chrono::milliseconds>(
