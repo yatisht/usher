@@ -17,7 +17,7 @@ struct Main_Tree_Target {
 std::tuple<std::vector<Main_Tree_Target>, int>
 place_main_tree(std::vector<To_Place_Sample_Mutation> &mutations,
                 MAT::Tree &main_tree
-#ifndef NDEBUG
+#ifdef DETAILED_MERGER_CHECK
                 ,
                 Mutation_Set &sample_mutations
 #endif

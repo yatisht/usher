@@ -2,7 +2,7 @@
 #include "usher.hpp"
 #include <cstdint>
 #include <vector>
-void convert_mut_type(std::vector<MAT::Mutation> &in,
+void convert_mut_type(const std::vector<MAT::Mutation> &in,
                       std::vector<To_Place_Sample_Mutation> &out) {
     out.reserve(in.size());
     for (const auto &mut : in) {

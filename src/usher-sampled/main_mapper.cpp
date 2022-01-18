@@ -282,19 +282,19 @@ struct Main_Tree_Searcher : public tbb::task {
     std::vector<To_Place_Sample_Mutation> this_muts;
     const MAT::Node *node;
     Output<Main_Tree_Target> &output;
-#ifndef NDEBUG
+#ifdef DETAILED_MERGER_CHECK
     Mutation_Set &sample_mutations;
 #endif
     Main_Tree_Searcher(int curr_lower_bound,MAT::Node *node,
                        Output<Main_Tree_Target> &output
-#ifndef NDEBUG
+#ifdef DETAILED_MERGER_CHECK
                        ,
                        Mutation_Set &sample_mutations
 #endif
                        )
         : curr_lower_bound(curr_lower_bound),node(node),
           output(output)
-#ifndef NDEBUG
+#ifdef DETAILED_MERGER_CHECK
           ,
           sample_mutations(sample_mutations)
 #endif
@@ -351,7 +351,7 @@ struct Main_Tree_Searcher : public tbb::task {
                     children_tasks.push_back(
                         new (cont->allocate_child())
                             Main_Tree_Searcher(lower_bound, child, output
-#ifndef NDEBUG
+#ifdef DETAILED_MERGER_CHECK
                                                ,
                                                sample_mutations
 #endif
@@ -388,7 +388,7 @@ place_main_tree(std::vector<To_Place_Sample_Mutation> &mutations,
             auto main_tree_task_root = new (tbb::task::allocate_root())
                 Main_Tree_Searcher(0,main_tree.root,
                                    output
-#ifndef NDEBUG
+#ifdef DETAILED_MERGER_CHECK
                                    ,
                                    sample_mutations
 #endif
