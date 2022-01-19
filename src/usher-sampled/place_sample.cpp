@@ -36,6 +36,11 @@ static void update_possible_descendant_alleles(
                 }
             }
         }
+        node->bfs_index++;
+        node = node->parent;
+    }
+    while (node) {
+        node->bfs_index++;
         node = node->parent;
     }
 }
@@ -181,10 +186,10 @@ struct Finder{
         const std::vector<MAT::Mutation>& sample_mutations =to_place[idx].muts;
         std::vector<To_Place_Sample_Mutation> condensed_muts;
         convert_mut_type(sample_mutations,condensed_muts);
-        auto start_time=std::chrono::steady_clock::now();
+        //auto start_time=std::chrono::steady_clock::now();
         auto main_tree_out=place_main_tree(condensed_muts, tree);
-        auto duration=std::chrono::steady_clock::now()-start_time;
-        fprintf(stderr, "Search took %ld \n",std::chrono::duration_cast<std::chrono::milliseconds>(duration).count());
+        //auto duration=std::chrono::steady_clock::now()-start_time;
+        //fprintf(stderr, "Search took %ld \n",std::chrono::duration_cast<std::chrono::milliseconds>(duration).count());
         
         std::get<0>(*output)=std::move(std::get<0>(main_tree_out));
         std::get<1>(*output)=std::get<1>(main_tree_out);
@@ -195,12 +200,14 @@ struct Finder{
 struct Placer{
     std::vector<Sample_Muts>& to_place;
     std::vector<MAT::Node*>& deleted_nodes;
+    size_t& count;
+    std::chrono::steady_clock::time_point start_time;
 #ifndef NDEBUG
     Original_State_t &ori_state;
     MAT::Tree& tree;
 #endif
     size_t operator()(std::tuple<std::vector<Main_Tree_Target>, int,size_t>* in){
-        auto start_time=std::chrono::steady_clock::now();
+        //auto start_time=std::chrono::steady_clock::now();
         auto & search_result=std::get<0>(*in);
         auto idx=std::get<2>(*in);
         for (const auto& placement : search_result) {
@@ -234,8 +241,15 @@ auto& selected_target=search_result[0];
     if (deleted_node) {
         deleted_nodes.push_back(deleted_node);
     }
-    auto duration=std::chrono::steady_clock::now()-start_time;
-    fprintf(stderr, "Placement took %ld \n",std::chrono::duration_cast<std::chrono::milliseconds>(duration).count());
+    //auto duration=std::chrono::steady_clock::now()-start_time;
+    //fprintf(stderr, "Placement took %ld \n",std::chrono::duration_cast<std::chrono::milliseconds>(duration).count());
+    count++;
+    if (count%100==0) {
+        auto duration=std::chrono::steady_clock::now()-start_time;
+        auto per_sample=duration/count;
+        fprintf(stderr, "placed %zu samples, took %ld msec per sample \n",count,std::chrono::duration_cast<std::chrono::milliseconds>(per_sample).count());
+
+    }
     #ifndef NDEBUG
     if (idx%100==0) {
         check_samples(tree.root, ori_state, &tree);
@@ -254,8 +268,8 @@ struct Pusher{
             if (idx<max_idx) {
                 std::get<0>(out).try_put(idx);
                 idx++;
-                return;
             }
+            return;
         }
         std::get<0>(out).try_put(idx_in);
     }
@@ -270,6 +284,8 @@ void place_sample(std::vector<Sample_Muts> &sample_to_place, MAT::Tree &main_tre
     size_t idx_max=sample_to_place.size();
     std::vector<MAT::Node*> deleted_nodes;
     deleted_nodes.reserve(DELETED_NODE_THRESHOLD);
+    auto start_time=std::chrono::steady_clock::now();
+    size_t count=0;
     while (idx < idx_max) {
         tbb::flow::graph g;
         Pusher_Node_T init(g, 1, Pusher{idx, idx_max, deleted_nodes});
@@ -280,7 +296,7 @@ void place_sample(std::vector<Sample_Muts> &sample_to_place, MAT::Tree &main_tre
         tbb::flow::make_edge(std::get<0>(init.output_ports()),searcher);
         tbb::flow::function_node<std::tuple<std::vector<Main_Tree_Target>, int, size_t> *,size_t>
             placer(g, 1,
-                     Placer{sample_to_place,deleted_nodes
+                     Placer{sample_to_place,deleted_nodes,count,start_time
                      #ifndef NDEBUG
                      ,ori_state,main_tree
                      #endif

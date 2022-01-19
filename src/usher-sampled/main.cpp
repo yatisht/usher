@@ -57,6 +57,15 @@ void fix_condensed_nodes(MAT::Tree *tree) {
         tree->create_node(ori_identifier, node);
     }
 }
+static int set_descendant_count(MAT::Node* root){
+    size_t child_count=0;
+    for (auto child : root->children) {
+        child_count+=set_descendant_count(child);
+    }
+    root->bfs_index=child_count;
+    return child_count;
+}
+
 int main(int argc, char **argv) {
     std::string vcf_filename;
     std::string protobuf_in;
@@ -167,6 +176,7 @@ int main(int argc, char **argv) {
 );
         }
     }*/
+    set_descendant_count(tree.root);
     place_sample(samples_to_place,tree,4
     #ifndef NDEBUG
         ,ori_state

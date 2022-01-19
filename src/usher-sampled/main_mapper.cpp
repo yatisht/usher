@@ -290,31 +290,7 @@ static void generic_merge(const MAT::Node *node,
         par_iter++;
     }
 }
-
-struct Main_Tree_Searcher : public tbb::task {
-    int curr_lower_bound;
-    std::vector<To_Place_Sample_Mutation> this_muts;
-    const MAT::Node *node;
-    Output<Main_Tree_Target> &output;
-#ifdef DETAILED_MERGER_CHECK
-    Mutation_Set &sample_mutations;
-#endif
-    Main_Tree_Searcher(int curr_lower_bound,MAT::Node *node,
-                       Output<Main_Tree_Target> &output
-#ifdef DETAILED_MERGER_CHECK
-                       ,
-                       Mutation_Set &sample_mutations
-#endif
-                       )
-        : curr_lower_bound(curr_lower_bound),node(node),
-          output(output)
-#ifdef DETAILED_MERGER_CHECK
-          ,
-          sample_mutations(sample_mutations)
-#endif
-    {
-    }
-    void register_target(Main_Tree_Target &target, int this_score) {
+    void register_target(Main_Tree_Target &target, int this_score,Output<Main_Tree_Target> &output) {
         #ifndef NDEBUG
         int initial_par_score=0;
         for (const auto & mut : target.target_node->mutations) {
@@ -348,13 +324,79 @@ struct Main_Tree_Searcher : public tbb::task {
             }
         }
     }
+static void search_serial(const MAT::Node* node,std::vector<To_Place_Sample_Mutation>& this_muts,Output<Main_Tree_Target> &output){
+    Main_Tree_Target target;
+    for (const auto child : node->children) {
+            target.target_node = child;
+            target.parent_node = const_cast<MAT::Node *>(node);
+            int parsimony_score = 0;
+            if (child->is_leaf()) {
+                generic_merge(child, this_muts,
+                              Combine_Hook<Empty_Hook, Down_Sibling_Hook>{
+                                  Empty_Hook(),
+                                  Down_Sibling_Hook(target, parsimony_score)});
+                register_target(target, parsimony_score,output);
+            } else {
+                int lower_bound = 0;
+                std::vector<To_Place_Sample_Mutation> descendant_mutations;
+                generic_merge(
+                    child, this_muts,
+                    Combine_Hook<Down_Decendant_Hook, Down_Sibling_Hook>{
+                        Down_Decendant_Hook(descendant_mutations, lower_bound),
+                        Down_Sibling_Hook(target, parsimony_score)});
+#ifdef DETAILED_MERGER_CHECK
+                check_continuation(child,
+                                   sample_mutations, descendant_mutations);
+#endif
+                register_target(target, parsimony_score,output);
+#ifndef BOUND_CHECK
+                assert(parsimony_score>=curr_lower_bound);
+                assert(curr_lower_bound<=lower_bound);
+                if (lower_bound <= output.best_par_score) {
+#endif
+                    search_serial(child, descendant_mutations, output);
+#ifndef BOUND_CHECK
+                }
+#endif
+            }
+#ifdef DETAILED_MERGER_CHECK
+            check_mutations(sample_mutations, target);
+#endif
+        }
+}
+struct Main_Tree_Searcher : public tbb::task {
+    int curr_lower_bound;
+    std::vector<To_Place_Sample_Mutation> this_muts;
+    const MAT::Node *node;
+    Output<Main_Tree_Target> &output;
+#ifdef DETAILED_MERGER_CHECK
+    Mutation_Set &sample_mutations;
+#endif
+    Main_Tree_Searcher(int curr_lower_bound,MAT::Node *node,
+                       Output<Main_Tree_Target> &output
+#ifdef DETAILED_MERGER_CHECK
+                       ,
+                       Mutation_Set &sample_mutations
+#endif
+                       )
+        : curr_lower_bound(curr_lower_bound),node(node),
+          output(output)
+#ifdef DETAILED_MERGER_CHECK
+          ,
+          sample_mutations(sample_mutations)
+#endif
+    {
+    }
     tbb::task *execute() {
 #ifndef BOUND_CHECK
         if(curr_lower_bound>output.best_par_score){
             return nullptr;
         }
 #endif
-
+        if(node->bfs_index<10){
+            search_serial(node, this_muts, output);
+            return nullptr;
+        }
         std::vector<Main_Tree_Searcher *> children_tasks;
         children_tasks.reserve(node->children.size() + 1);
         Main_Tree_Target target;
@@ -402,7 +444,7 @@ struct Main_Tree_Searcher : public tbb::task {
             check_mutations(sample_mutations, target);
 #endif
             assert(parsimony_score>=curr_lower_bound);
-            register_target(target, parsimony_score);
+            register_target(target, parsimony_score,output);
         }
         cont->set_ref_count(children_tasks.size());
         for (auto child : children_tasks) {
