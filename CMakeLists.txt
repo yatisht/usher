@@ -50,6 +50,7 @@ FIND_PACKAGE(Boost COMPONENTS program_options iostreams filesystem date_time REQ
 INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIRS})
 AUX_SOURCE_DIRECTORY(src/matOptimize/Profitable_Moves_Enumerators New_Profitable_Moves_Enumerators) 
 AUX_SOURCE_DIRECTORY(src/matOptimize/apply_move patch_tree) 
+AUX_SOURCE_DIRECTORY(src/check_samples_place check_samples_place) 
 file(GLOB MATUTIL_SRCS "src/matUtils/*.cpp" "src/matUtils/*.hpp")
 file(GLOB RIPPLES_SRCS "src/ripples/*.cpp" "src/ripples/*.hpp")
 file(GLOB USHER_SAMPLED_SRCS "src/usher-sampled/*.cpp" "src/usher-sampled/*.hpp")
@@ -272,6 +273,20 @@ else()
         ${DETAILED_MUTATIONS_PROTO_SRCS}
         ${DETAILED_MUTATIONS_PROTO_HDRS}
         )
+        
+        add_executable(check_samples_place
+        src/matOptimize/mutation_annotated_tree.cpp
+        src/matOptimize/mutation_annotated_tree_node.cpp
+        src/matOptimize/mutation_annotated_tree_load_store.cpp
+        src/matOptimize/mutation_annotated_tree_nuc_util.cpp
+        src/matOptimize/Mutation_Collection.cpp
+        ${check_samples_place}
+        ${PROTO_SRCS}
+        ${PROTO_HDRS}
+        ${DETAILED_MUTATIONS_PROTO_SRCS}
+        ${DETAILED_MUTATIONS_PROTO_HDRS}
+        )
+    
     add_executable(output_final_protobuf
         src/matOptimize/mutation_annotated_tree.cpp
         src/matOptimize/mutation_annotated_tree_node.cpp
@@ -353,6 +368,7 @@ endif(SAVE_PROFILE)
 TARGET_LINK_LIBRARIES(compareVCF PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 
 
+TARGET_LINK_LIBRARIES(check_samples_place PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB  ${MPI_CXX_LIBRARIES} ${MPI_CXX_LINK_FLAGS} ${ISAL_LIB} ) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(matOptimize PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB  ${MPI_CXX_LIBRARIES} ${MPI_CXX_LINK_FLAGS} ${ISAL_LIB} ) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(usher-sampled PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB  ${MPI_CXX_LIBRARIES} ${MPI_CXX_LINK_FLAGS} ${ISAL_LIB} ) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(output_final_protobuf PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB  ${MPI_CXX_LIBRARIES} ${MPI_CXX_LINK_FLAGS} ) # OpenMP::OpenMP_CXX)
