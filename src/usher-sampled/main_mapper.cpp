@@ -349,15 +349,15 @@ static void search_serial(const MAT::Node* node,std::vector<To_Place_Sample_Muta
                                    sample_mutations, descendant_mutations);
 #endif
                 register_target(target, parsimony_score,output);
-#ifndef BOUND_CHECK
+/*#ifndef BOUND_CHECK
                 assert(parsimony_score>=curr_lower_bound);
                 assert(curr_lower_bound<=lower_bound);
                 if (lower_bound <= output.best_par_score) {
-#endif
+#endif*/
                     search_serial(child, descendant_mutations, output);
-#ifndef BOUND_CHECK
+/*#ifndef BOUND_CHECK
                 }
-#endif
+#endif*/
             }
 #ifdef DETAILED_MERGER_CHECK
             check_mutations(sample_mutations, target);

@@ -6,17 +6,23 @@ message node {
     repeated fixed32 mutation_other_fields = 2;
     repeated int32 ignored_range_start = 3;
     repeated int32 ignored_range_end = 4;
-    string identifier = 5;
+    int64 node_id = 5;
     repeated int64 children_offsets =6;
     repeated int32 children_lengths =7;
     repeated string condensed_nodes =8;
     int32 changed =9;
 }
 
+message node_idx{
+    int64 node_id = 1;
+    string node_name=2;
+}
+
 message meta {
     repeated int32 ref_nuc=1;
-    int64 internal_nodes_count=2;
+    int64 nodes_idx_next=2;
     repeated string chromosomes=3;
     int64 root_offset=4;
     int64 root_length=5;
+    repeated node_idx node_idx_map=6;
 }

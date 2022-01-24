@@ -1,5 +1,6 @@
 #include "src/matOptimize/mutation_annotated_tree.hpp"
 #include "tree_rearrangement_internal.hpp"
+#include <cstddef>
 #include <cstdio>
 #include <string>
 #include "apply_move/apply_move.hpp"
@@ -7,15 +8,15 @@
 //A variant of clean tree that can also clean nodes have only 1 children, but have valid mutation
 struct clean_up_internal_nodes_single_child_or_no_mutation:public tbb::task {
     MAT::Node* this_node;
-    tbb::concurrent_vector<std::string>& changed_nodes;
-    tbb::concurrent_vector<std::string>& node_with_inconsistent_state;
-    tbb::concurrent_vector<std::string>& removed_nodes;
+    tbb::concurrent_vector<size_t>& changed_nodes;
+    tbb::concurrent_vector<size_t>& node_with_inconsistent_state;
+    tbb::concurrent_vector<size_t>& removed_nodes;
     std::vector<std::mutex>& node_mutexes;
     clean_up_internal_nodes_single_child_or_no_mutation(
         MAT::Node* this_node,
-        tbb::concurrent_vector<std::string>& changed_nodes,
-        tbb::concurrent_vector<std::string>& node_with_inconsistent_state,
-        tbb::concurrent_vector<std::string>& removed_nodes,
+        tbb::concurrent_vector<size_t>& changed_nodes,
+        tbb::concurrent_vector<size_t>& node_with_inconsistent_state,
+        tbb::concurrent_vector<size_t>& removed_nodes,
         std::vector<std::mutex>& node_mutexes
     ):this_node(this_node),changed_nodes(changed_nodes),node_with_inconsistent_state(node_with_inconsistent_state),removed_nodes(removed_nodes),node_mutexes(node_mutexes) {}
     tbb::task* execute() override {
@@ -37,13 +38,13 @@ struct clean_up_internal_nodes_single_child_or_no_mutation:public tbb::task {
                 parent_children.erase(iter);
                 parent_mutex.unlock();
                 //prent have changed children
-                changed_nodes.push_back(this_node->parent->identifier);
+                changed_nodes.push_back(this_node->parent->node_id);
                 for (MAT::Node *child : this_node_ori_children) {
                     child->parent = this_node->parent;
                     if (this_node_ori_children.size() == 1) {
                         //collapsing because it only have single children, need to merge mutations
                         if (merge_mutation_single_child(child, this_node->mutations)) {
-                            node_with_inconsistent_state.push_back(child->identifier);
+                            node_with_inconsistent_state.push_back(child->node_id);
                         }
                         if (child->children.size() <= 1) {
                             //fix boundary1_alleles of children with only one children
@@ -66,7 +67,7 @@ struct clean_up_internal_nodes_single_child_or_no_mutation:public tbb::task {
                     parent_children.push_back(child);
                     parent_mutex.unlock();
                 }
-                removed_nodes.push_back(this_node->identifier);
+                removed_nodes.push_back(this_node->node_id);
                 delete this_node;
             }
         }
@@ -85,19 +86,22 @@ struct clean_up_internal_nodes_single_child_or_no_mutation:public tbb::task {
     }
 };
 //Warpper for the preceding functor to clean tree
-static void clean_up_internal_nodes_single_child_or_no_mutation(MAT::Node* this_node,MAT::Tree& tree,std::unordered_set<std::string>& changed_nodes,std::unordered_set<std::string>& node_with_inconsistent_state) {
-    tbb::concurrent_vector<std::string> changed_nodes_rep;
-    tbb::concurrent_vector<std::string> node_with_inconsistent_state_rep;
-    tbb::concurrent_vector<std::string> removed_nodes;
+static void clean_up_internal_nodes_single_child_or_no_mutation(
+    MAT::Node* this_node,MAT::Tree& tree,
+    std::unordered_set<size_t>& changed_nodes,
+    std::unordered_set<size_t>& node_with_inconsistent_state) {
+    tbb::concurrent_vector<size_t> changed_nodes_rep;
+    tbb::concurrent_vector<size_t> node_with_inconsistent_state_rep;
+    tbb::concurrent_vector<size_t> removed_nodes;
     auto dfs=tree.depth_first_expansion();
     std::vector<std::mutex> node_mutexes(dfs.size());
-    tbb::task::spawn_root_and_wait(*new(tbb::task::allocate_root())struct clean_up_internal_nodes_single_child_or_no_mutation(this_node,changed_nodes_rep,node_with_inconsistent_state_rep,removed_nodes,node_mutexes));
+    tbb::task::spawn_root_and_wait(*new(tbb::task::allocate_root()) struct clean_up_internal_nodes_single_child_or_no_mutation(this_node,changed_nodes_rep,node_with_inconsistent_state_rep,removed_nodes,node_mutexes));
     changed_nodes.insert(changed_nodes_rep.begin(),changed_nodes_rep.end());
     node_with_inconsistent_state.insert(node_with_inconsistent_state_rep.begin(),node_with_inconsistent_state_rep.end());
     for( const auto& node_id:removed_nodes) {
         changed_nodes.erase(node_id);
         node_with_inconsistent_state.erase(node_id);
-        tree.all_nodes.erase(node_id);
+        tree.erase_node(node_id);
     }
 }
 char get_major_allele(MAT::Node* node, int position) {
@@ -109,8 +113,8 @@ char get_major_allele(MAT::Node* node, int position) {
     }
 }
 //similar to clean tree, but can a more general node collapsing function
-static void clean_tree_load(MAT::Tree& t,std::unordered_set<std::string>& changed_nodes) {
-    std::unordered_set<std::string> node_with_inconsistent_states;
+static void clean_tree_load(MAT::Tree& t,std::unordered_set<size_t>& changed_nodes) {
+    std::unordered_set<size_t> node_with_inconsistent_states;
     clean_up_internal_nodes_single_child_or_no_mutation(t.root, t, changed_nodes,node_with_inconsistent_states);
     //check_samples(t.root, ori_state, &t);
 #ifdef CHECK_STATE_REASSIGN
@@ -163,7 +167,7 @@ char get_state(char* sample,int position) {
     }
 }
 void recondense_tree(MAT::Tree& t) {
-    std::unordered_set<std::string> changed_nodes;
+    std::unordered_set<size_t> changed_nodes;
     clean_tree_load(t, changed_nodes);
     t.condense_leaves();
 #if defined (DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT) || defined (CHECK_STATE_REASSIGN)
@@ -173,9 +177,9 @@ void recondense_tree(MAT::Tree& t) {
     printf("%zu condensed nodes\n",t.condensed_nodes.size());
     for(const auto &condensed:t.condensed_nodes) {
         if (!t.get_node(condensed.first)) {
-            fprintf(stderr, "Couldn't find %s \n",condensed.first.c_str());
+            fprintf(stderr, "Couldn't find %s \n",t.get_node_name(condensed.first).c_str());
         }
-        changed_nodes.insert(t.get_node(condensed.first)->parent->identifier);
+        changed_nodes.insert(t.get_node(condensed.first)->parent->node_id);
     }
     clean_tree_load(t, changed_nodes);
 }

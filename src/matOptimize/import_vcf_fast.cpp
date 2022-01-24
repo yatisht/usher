@@ -368,15 +368,15 @@ static void process(MAT::Tree& tree,infile_t& fd){
     std::vector<MAT::Node*> bfs_ordered_nodes=tree.breadth_first_expansion();
     std::vector<long> idx_map(9);
     for (size_t idx=9; idx<fields.size(); idx++) {
-        auto iter=tree.all_nodes.find(fields[idx]);
-        if (iter==tree.all_nodes.end()) {
+        auto node=tree.get_node(fields[idx]);;
+        if (node==nullptr) {
             fprintf(stderr, "sample %s cannot be found in tree\n",fields[idx].c_str());
             idx_map.push_back(-1);
             //exit(EXIT_FAILURE);
         } else {
             auto res=inserted_samples.insert(fields[idx]);
             if (res.second) {
-                idx_map.push_back(iter->second->bfs_index);
+                idx_map.push_back(node->bfs_index);
             } else {
                 idx_map.push_back(-1);
             }

@@ -28,15 +28,15 @@ std::vector<nuc_one_hot> Mutation_Annotated_Tree::Mutation::refs;
 /* === Tree === */
 std::vector<Mutation_Annotated_Tree::Node*> Mutation_Annotated_Tree::Tree::breadth_first_expansion(std::string nid) {
     std::vector<Node*> traversal;
-
+    Node* node;
     if (nid == "") {
         if (root == NULL) {
             return traversal;
         }
-        nid = root->identifier;
+        node=root;
+    }else {
+        node=get_node(nid);
     }
-
-    Node* node = all_nodes[nid];
     size_t idx=0;
     std::queue<Node*> remaining_nodes;
     remaining_nodes.push(node);
@@ -106,17 +106,18 @@ size_t Mutation_Annotated_Tree::Tree::get_max_level() {
 void Mutation_Annotated_Tree::Tree::uncondense_leaves() {
     for (auto cn = condensed_nodes.begin(); cn != condensed_nodes.end(); cn++) {
 
-        auto n = get_node(cn->first);
+        auto n = all_nodes[cn->first];
         auto par = (n->parent != NULL) ? n->parent : n;
 
         size_t num_samples = cn->second.size();
 
         if (num_samples > 0) {
-            rename_node(n->identifier, cn->second[0]);
+            rename_node(n->node_id, cn->second[0]);
         }
 
         for (size_t s = 1; s < num_samples; s++) {
-            create_node(cn->second[s], par, n->branch_length);
+            auto new_node=create_node(cn->second[s]);
+            par->add_child(new_node);
         }
     }
     condensed_nodes.clear();

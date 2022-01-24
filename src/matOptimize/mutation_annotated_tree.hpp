@@ -381,21 +381,33 @@ class Mutations_Collection {
         return true;
     }
 };
+struct copyable_atomic_uint8_t: public std::atomic_int8_t{
+    copyable_atomic_uint8_t()=default;
+    copyable_atomic_uint8_t (copyable_atomic_uint8_t& other){
+        this->store(other.load());
+    }
+    copyable_atomic_uint8_t& operator=(copyable_atomic_uint8_t& other){
+        this->store(other.load());
+        return *this;
+    }
+    copyable_atomic_uint8_t& operator=(uint8_t other){
+        this->store(other);
+        return *this;
+    }
+};
 typedef std::vector<std::pair<int,int>> ignored_t;
 class Node {
 #ifdef LOAD
   public:
 #endif
-    #ifndef USHER
-    std::atomic_uint8_t changed;
+    copyable_atomic_uint8_t changed;
     static const uint8_t SELF_CHANGED_MASK=1;
     static const uint8_t ANCESTOR_CHANGED_MASK=2;
     static const uint8_t DESCENDENT_CHANGED_MASK=4;
     static const uint8_t SELF_MOVED_MASK=8;
-    #endif
   public:
     int branch_length;
-    std::string identifier;
+    size_t node_id;
     std::vector<std::string> clade_annotations;
     Node* parent;
     std::vector<Node*> children;
@@ -410,15 +422,13 @@ class Node {
     bool have_masked;
     bool is_leaf() const;
     bool is_root();
-    Node();
-    Node(std::string id, float l);
-    Node(std::string id, Node* p, float l);
+    //Node();
+    Node(size_t id);
 
     Node(const Node& other, Node* parent,Tree* tree,bool copy_mutation=true);
     bool add_mutation(Mutation& mut) {
         return mutations.insert(mut,Mutations_Collection::KEEP_OTHER);
     }
-    #ifndef USHER
     void set_self_changed(){
         changed|=SELF_CHANGED_MASK;
     }
@@ -449,7 +459,6 @@ class Node {
     bool have_change_in_neighbor()const{
         return changed;
     }
-    #endif
     void clear_mutations() {
         mutations.clear();
     }
@@ -458,6 +467,10 @@ class Node {
     }
     bool no_valid_mutation()const {
         return mutations.no_valid_mutation();
+    }
+    void add_child(Node* child){
+        child->parent=this;
+        children.push_back(child);
     }
     void populate_ignored_range();
     //refill mutation with the option of filtering invalid mutations
@@ -473,19 +486,53 @@ class Node {
         }
         this->mutations.refill(mutations);
     }
-    Node* add_child(Node* new_child,Mutation_Annotated_Tree::Tree* tree);
     void delete_this();
 };
 
 class Tree {
+#ifdef LOAD
   public:
-    typedef  tbb::concurrent_unordered_map<std::string, std::vector<std::string>> condensed_node_t;
-    std::unordered_map <std::string, Node*> all_nodes;
+#endif
+  std::vector < Node*> all_nodes;
+  std::unordered_map<size_t,  std::string> node_names;
+  std::unordered_map<std::string, size_t> node_name_to_idx_map;
+  size_t node_idx;
+  public:
+    typedef  tbb::concurrent_unordered_map<size_t, std::vector<std::string>> condensed_node_t;
     Tree() {
         root = NULL;
+        node_idx=0;
         all_nodes.clear();
     }
-
+    void register_node_serial(Node* node){
+        all_nodes.resize(node->node_id+1);
+        all_nodes[node->node_id]=node;
+    }
+    void register_node_serial(Node* node,std::string& name){
+        register_node_serial(node);
+        node_names.emplace(node->node_id,name);
+        node_name_to_idx_map.emplace(name,node->node_id);
+    }
+    size_t node_name_to_node_idx(const std::string& in) const{
+        auto iter=node_name_to_idx_map.find(in);
+        if (iter==node_name_to_idx_map.end()) {
+            return -1;
+        }
+        return iter->second;
+    }
+    Node* get_node(size_t idx)const{
+        return all_nodes[idx];
+    }
+    void erase_node(size_t node_idx){
+        if (node_idx<all_nodes.size()) {
+            all_nodes[node_idx]=nullptr;
+        }
+        auto iter=node_names.find(node_idx);
+        if (iter!=node_names.end()) {
+            node_name_to_idx_map.erase(iter->second);
+            node_names.erase(iter);
+        }
+    }
     Tree (Node* n);
 
     std::vector<Node*> new_nodes;
@@ -496,14 +543,20 @@ class Tree {
 
     size_t curr_internal_node;
 
-    void rename_node(std::string old_nid, std::string new_nid);
-    Node* create_node (std::string const& identifier, float branch_length = -1.0, size_t num_annotations=0);
-    Node* create_node (std::string const& identifier, Node* par, float branch_length = -1.0);
-    Node* create_node (std::string const& identifier, std::string const& parent_id, float branch_length = -1.0);
+    void rename_node(size_t old_nid, std::string new_nid);
+    Node* create_node ();
+    std::string get_node_name(size_t node_idx) const {
+        auto node_name_iter=node_names.find(node_idx);
+        if (node_name_iter==node_names.end()) {
+            return "";
+        }
+        return node_name_iter->second;
+    }
+    Node* create_node (std::string const& identifier);
     Node* get_node (const std::string& identifier) const {
-        auto iter=all_nodes.find(identifier);
-        if (iter != all_nodes.end()) {
-            return iter->second;
+        auto iter=node_name_to_idx_map.find(identifier);
+        if (iter != node_name_to_idx_map.end()) {
+            return all_nodes[iter->second];
         }
         return NULL;
     }
@@ -532,11 +585,11 @@ class Tree {
     void MPI_send_tree() const;
     void MPI_receive_tree();
     void delete_nodes();
+    void write_newick_string (std::stringstream& ss, Node* node, bool b1, bool b2, bool b3=false, bool b4=false) const;
+    std::string get_newick_string(bool b1, bool b2, bool b3=false, bool b4=false) const ;
+    std::string get_newick_string(Node* node, bool b1, bool b2, bool b3=false, bool b4=false) const;
 };
 
-std::string get_newick_string(const Tree& T, bool b1, bool b2, bool b3=false, bool b4=false);
-std::string get_newick_string(const Tree& T, Node* node, bool b1, bool b2, bool b3=false, bool b4=false);
-void write_newick_string (std::stringstream& ss, const Tree& T, Node* node, bool b1, bool b2, bool b3=false, bool b4=false);
 Tree create_tree_from_newick (std::string filename);
 Tree create_tree_from_newick_string (std::string newick_string);
 void string_split(std::string const& s, char delim, std::vector<std::string>& words);

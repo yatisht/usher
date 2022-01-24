@@ -13,6 +13,7 @@
 #include <tbb/parallel_for.h>
 #include <tbb/task_scheduler_init.h>
 #include <utility>
+void fix_condensed_nodes(MAT::Tree *tree);
 namespace po = boost::program_options;
 static void clean_up_leaf(std::vector<MAT::Node*>& dfs){
     tbb::parallel_for(tbb::blocked_range<size_t>(0,dfs.size()),[&dfs](tbb::blocked_range<size_t> range){
@@ -41,21 +42,6 @@ static void clean_up_leaf(std::vector<MAT::Node*>& dfs){
             }
         }
     });
-}
-void fix_condensed_nodes(MAT::Tree *tree) {
-    std::vector<MAT::Node *> nodes_to_fix;
-    for (auto iter : tree->all_nodes) {
-        if (tree->condensed_nodes.count(iter.first) &&
-                (!iter.second->mutations.empty())) {
-            nodes_to_fix.push_back(iter.second);
-        }
-    }
-    for (auto node : nodes_to_fix) {
-        std::string ori_identifier(node->identifier);
-        tree->rename_node(ori_identifier,
-                          std::to_string(++tree->curr_internal_node));
-        tree->create_node(ori_identifier, node);
-    }
 }
 static int set_descendant_count(MAT::Node* root){
     size_t child_count=0;

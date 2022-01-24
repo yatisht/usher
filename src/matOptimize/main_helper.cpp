@@ -18,11 +18,8 @@ namespace MAT=Mutation_Annotated_Tree;
 //add a root above current root, so nodes can move above the current node
 void add_root(MAT::Tree *tree) {
     MAT::Node *old_root = tree->root;
-    MAT::Node *new_root = new MAT::Node();
-    new_root->identifier = std::to_string(++tree->curr_internal_node);
-    std::string &node_name = new_root->identifier;
+    MAT::Node *new_root = tree->create_node();
     new_root->children.push_back(old_root);
-    tree->all_nodes.emplace(node_name, new_root);
     old_root->parent=new_root;
     tree->root=new_root;
 }
@@ -30,17 +27,18 @@ void add_root(MAT::Tree *tree) {
 //add intermediate nodes to carry mutations of condensed nodes
 void fix_condensed_nodes(MAT::Tree *tree) {
     std::vector<MAT::Node *> nodes_to_fix;
-    for (auto iter : tree->all_nodes) {
-        if (tree->condensed_nodes.count(iter.first) &&
-                (!iter.second->mutations.empty())) {
-            nodes_to_fix.push_back(iter.second);
+    auto leaves_nodes=tree->get_leaves();
+    for (auto node : leaves_nodes) {
+        if (tree->condensed_nodes.count(node->node_id) &&
+                (!node->mutations.empty())) {
+            nodes_to_fix.push_back(node);
         }
     }
     for (auto node : nodes_to_fix) {
-        std::string ori_identifier(node->identifier);
-        tree->rename_node(ori_identifier,
-                          std::to_string(++tree->curr_internal_node));
-        tree->create_node(ori_identifier, node);
+        std::string ori_identifier(tree->get_node_name(node->node_id));
+        tree->rename_node(node->node_id,"");
+        auto new_node=tree->create_node(ori_identifier);
+        node->add_child(new_node);
     }
 }
 
@@ -97,7 +95,7 @@ void find_nodes_to_move(const std::vector<MAT::Node *> &bfs_ordered_nodes,
         for (const auto node : bfs_ordered_nodes) {
             if (node->get_self_changed()) {
                 changed_nodes_ptr.push_back(node);
-                fprintf(fh, "%s\n", node->identifier.c_str());
+                //fprintf(fh, "%s\n", node->identifier.c_str());
             }
         }
         fclose(fh);

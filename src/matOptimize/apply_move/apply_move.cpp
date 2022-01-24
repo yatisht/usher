@@ -2,12 +2,13 @@
 #include "src/matOptimize/check_samples.hpp"
 #include "src/matOptimize/mutation_annotated_tree.hpp"
 #include <algorithm>
+#include <cstddef>
 #include <cstdio>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
 #include <unordered_set>
 #include <vector>
-std::vector<std::string> changed_nodes;
+std::vector<size_t> changed_nodes;
 //Fix state of src node when its parent state changes to make it consistent with parent state
 //, and if a state change is needed, add to altered nodes list
 void clean_up_src_states(MAT::Node *src,
@@ -21,7 +22,7 @@ void clean_up_src_states(MAT::Node *src,
         nuc_one_hot old_state = mut.get_mut_one_hot();
         //Change state if it can now follow parent state, and the old state is inconsistent
         if (new_state && old_state != new_state) {
-            changed_nodes.push_back(src->identifier);
+            changed_nodes.push_back(src->node_id);
             //have_change = true;
             mut.set_mut_one_hot(new_state);
             changed_state.emplace_back(mut, old_state);
@@ -60,9 +61,9 @@ void compare_mutations(MAT::Node *old_nodes, MAT::Node *new_nodes) {
 #endif
 void check_major_state(MAT::Node *node, const MAT::Tree &new_tree);
 //Called when debugging to locate a node
-const Altered_Node_t* find_altered_node(char* node_name, const std::vector<Altered_Node_t>& to_find) {
+const Altered_Node_t* find_altered_node(size_t node_name, const std::vector<Altered_Node_t>& to_find) {
     for(const auto& temp:to_find) {
-        if (temp.altered_node->identifier==node_name) {
+        if (temp.altered_node->node_id==node_name) {
             return &temp;
         }
     }
@@ -176,7 +177,7 @@ void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t
     //filter out deleted nodes from nodes to search in the next round
     //delayed deletion of removed nodes (these are identified by there memory location, if freed to early, it can be reused)
     for(auto node:deleted_node_ptrs) {
-        t.all_nodes.erase(((MAT::Node*) node)->identifier);
+        t.erase_node(((MAT::Node*) node)->node_id);
         delete ((MAT::Node*) node);
     }
 #ifdef CHECK_STATE_REASSIGN

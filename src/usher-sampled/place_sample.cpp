@@ -106,15 +106,11 @@ static MAT::Node* add_children(MAT::Node* target_node,MAT::Node* sample_node){
     return deleted_node;
 }
 static  MAT::Node *update_main_tree(Main_Tree_Target &target,
-                                         std::string &&sample_string) {
+                                         std::string &&sample_string, MAT::Tree& tree) {
     // Split branch?
     MAT::Node* deleted_node=nullptr;
-    MAT::Node *sample_node = new MAT::Node;
+    MAT::Node *sample_node = tree.create_node(sample_string);
     sample_node->level=target.target_node->level;
-    sample_node->identifier = std::move(sample_string);
-    if (sample_node->identifier=="s484400s") {
-        //raise(SIGTRAP);
-    }
     discretize_mutations(target.sample_mutations, target.shared_mutations, target.parent_node, sample_node->mutations);
     int sample_node_mut_count = 0;
     for (const auto &mut : sample_node->mutations) {
@@ -130,8 +126,7 @@ static  MAT::Node *update_main_tree(Main_Tree_Target &target,
                (!target.target_node->is_leaf())) {
         deleted_node=add_children(target.parent_node, sample_node);
     } else {
-        MAT::Node* new_target_node=new MAT::Node;
-        new_target_node->identifier=target.target_node->identifier;
+        MAT::Node* new_target_node=new MAT::Node(target.target_node->node_id);
         new_target_node->level=target.target_node->level;
         new_target_node->children.reserve(4*target.target_node->children.size());
         new_target_node->children=target.target_node->children;
@@ -146,10 +141,9 @@ static  MAT::Node *update_main_tree(Main_Tree_Target &target,
             }
         }
         new_target_node->branch_length = target_node_mut_count;
-        MAT::Node *split_node = new MAT::Node;
+        MAT::Node *split_node = tree.create_node();
         new_target_node->parent = split_node;
         sample_node->parent = split_node;
-        split_node->identifier = "";
         split_node->level=target.target_node->level;
         split_node->parent = target.parent_node;
         split_node->mutations = std::move(target.shared_mutations);
@@ -196,15 +190,17 @@ struct Finder{
         return output;
     }    
 };
+struct Send_Main_Tree_Target{
 
+};
 struct Placer{
     std::vector<Sample_Muts>& to_place;
     std::vector<MAT::Node*>& deleted_nodes;
     size_t& count;
     std::chrono::steady_clock::time_point start_time;
+    MAT::Tree& tree;
 #ifndef NDEBUG
     Original_State_t &ori_state;
-    MAT::Tree& tree;
 #endif
     size_t operator()(std::tuple<std::vector<Main_Tree_Target>, int,size_t>* in){
         //auto start_time=std::chrono::steady_clock::now();
@@ -226,7 +222,6 @@ struct Placer{
     for (const auto &mut : sample_mutations) {
         new_set.insert(mut);
     }
-    ori_state.emplace(sample_string, new_set);
 #endif
 auto& selected_target=search_result[0];
     int min_level=0;
@@ -237,7 +232,10 @@ auto& selected_target=search_result[0];
         }
     }
     fprintf(stderr, "Sample: %s\t%d\t%zu\n",sample_string.c_str(),std::get<1>(*in),search_result.size());
-    auto deleted_node=update_main_tree(selected_target, std::move(sample_string));
+    auto deleted_node=update_main_tree(selected_target, std::move(sample_string),tree);
+    #ifndef NDEBUG
+    ori_state.emplace(tree.get_node(sample_string)->node_id, new_set);
+    #endif
     if (deleted_node) {
         deleted_nodes.push_back(deleted_node);
     }
@@ -296,9 +294,9 @@ void place_sample(std::vector<Sample_Muts> &sample_to_place, MAT::Tree &main_tre
         tbb::flow::make_edge(std::get<0>(init.output_ports()),searcher);
         tbb::flow::function_node<std::tuple<std::vector<Main_Tree_Target>, int, size_t> *,size_t>
             placer(g, 1,
-                     Placer{sample_to_place,deleted_nodes,count,start_time
+                     Placer{sample_to_place,deleted_nodes,count,start_time,main_tree
                      #ifndef NDEBUG
-                     ,ori_state,main_tree
+                     ,ori_state
                      #endif
                      });
         tbb::flow::make_edge(searcher,placer);

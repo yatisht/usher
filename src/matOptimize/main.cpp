@@ -250,7 +250,7 @@ int main(int argc, char **argv) {
                     if (input_nh_path != "") {
                         t = Mutation_Annotated_Tree::create_tree_from_newick(
                                 input_nh_path);
-                        fprintf(stderr, "Input tree have %zu nodes\n",t.all_nodes.size());
+                        //fprintf(stderr, "Input tree have %zu nodes\n",t.all_nodes.size());
                     } else {
                         t = MAT::load_mutation_annotated_tree(input_pb_path);
                         t.uncondense_leaves();

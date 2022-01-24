@@ -30,7 +30,14 @@ load_meta(MAT::Tree *tree, const uint8_t *start, int length) {
     Mutation_Detailed::meta meta;
     meta.ParseFromCodedStream(&inputi);
     load_chrom_vector(meta);
-    tree->curr_internal_node = meta.internal_nodes_count();
+    tree->node_idx = meta.nodes_idx_next();
+    tree->node_names.reserve(meta.node_idx_map_size());
+    tree->node_name_to_idx_map.reserve(meta.node_idx_map_size());
+    for (int i=0; i<meta.node_idx_map_size(); i++) {
+        auto pair=meta.node_idx_map(i);
+        tree->node_names.emplace(pair.node_id(),pair.node_name());
+        tree->node_name_to_idx_map.emplace(pair.node_name(),pair.node_id());
+    }
     return std::make_pair(meta.root_offset(), meta.root_length());
 }
 static MAT::Mutation get_mutation(Mutation_Detailed::node &to_load,
@@ -159,7 +166,7 @@ struct deserialize_condensed_nodes {
             for (int i = 0; i < condensed_node_size; i++) {
                 this_node_condensed.push_back(node.condensed_nodes(i));
             }
-            condensed_nodes.emplace(out->identifier,
+            condensed_nodes.emplace(out->node_id,
                                     std::move(this_node_condensed));
         }
     }
@@ -192,13 +199,12 @@ struct Load_Subtree_pararllel : public tbb::task {
           length(length), out(out), condensed_nodes(condensed_nodes),
           parent_mutations(parent_mutations) {}
     tbb::task *execute() override {
-        out = new MAT::Node();
-        out->parent = parent;
         google::protobuf::io::CodedInputStream inputi(file_start + start_offset,
                 length);
         Mutation_Detailed::node node;
+        out = new MAT::Node(node.node_id());
+        out->parent = parent;
         node.ParseFromCodedStream(&inputi);
-        out->identifier = node.identifier();
         out->changed=node.changed();
         // deserialize ignored range
         size_t ignore_range_size = node.ignored_range_end_size();
@@ -351,7 +357,7 @@ static void deserialize_common(std::pair<uint8_t*,uint8_t*> uncompressed,MAT::Tr
     free(uncompressed.first);
     std::vector<MAT::Node *> dfs_nodes = tree->depth_first_expansion();
     for (auto node : dfs_nodes) {
-        tree->all_nodes.emplace(node->identifier, node);
+        tree->register_node_serial(node);
     }
 }
 // main load function

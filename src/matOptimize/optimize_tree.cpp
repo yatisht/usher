@@ -57,9 +57,9 @@ bool check_not_ancestor(MAT::Node* dst,MAT::Node* src) {
     }
     return true;
 }
-void log_move_detail(const std::vector<Profitable_Moves_ptr_t> & moves, FILE* out,int iteration,int radius) {
+void log_move_detail(const std::vector<Profitable_Moves_ptr_t> & moves, FILE* out,int iteration,int radius,MAT::Tree& tree) {
     for(const auto& move:moves) {
-        fprintf(out, "%s\t%s\t%d\t%d\t%d\t%lu\n",move->src->identifier.c_str(),move->dst->identifier.c_str()
+        fprintf(out, "%s\t%s\t%d\t%d\t%d\t%lu\n",tree.get_node_name(move->src->node_id).c_str(),tree.get_node_name(move->dst->node_id).c_str()
                 ,iteration,move->score_change,radius-move->radius_left,move->src->dfs_end_index-move->src->dfs_index);
     }
 }
@@ -274,7 +274,7 @@ void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
     Deferred_Move_t deferred_moves;
     Cross_t potential_crosses(dfs_ordered_nodes.size(),nullptr);
     tbb::flow::graph g;
-    std::vector<std::string> defered_node_identifier;
+    std::vector<size_t> defered_node_identifier;
     resolver_node_t resover_node(g, 1,
                                  Conflict_Resolver(potential_crosses,
                                          deferred_moves,
@@ -301,7 +301,7 @@ void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
     if(do_continue) {
         defered_node_identifier.reserve(defered_node_identifier.size()+incomplete_idx.size());
         for(auto idx:incomplete_idx) {
-            defered_node_identifier.push_back(dfs_ordered_nodes[idx]->identifier);
+            defered_node_identifier.push_back(dfs_ordered_nodes[idx]->node_id);
         }
     }
     double search_min=std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now()-start_time).count();
@@ -321,7 +321,7 @@ void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
     schedule_moves(potential_crosses,all_moves);
     fprintf(stderr, "Applying %zu moves\n",all_moves.size());
     if (iteration>0) {
-        log_move_detail(all_moves, log, iteration, radius);
+        log_move_detail(all_moves, log, iteration, radius,t);
     }
     apply_moves(all_moves, t
 #ifdef CHECK_STATE_REASSIGN
@@ -372,7 +372,7 @@ void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
             resolver_g.wait_for_all();
             schedule_moves(potential_crosses,all_moves);
             if (iteration>0) {
-                log_move_detail(all_moves, log, iteration, radius);
+                log_move_detail(all_moves, log, iteration, radius,t);
             }
             recycled+=all_moves.size();
             apply_moves(all_moves, t
@@ -398,9 +398,9 @@ void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
     fprintf(stderr, "First stage %zu deferred node \n",defered_node_identifier.size());
     deferred_nodes_out.reserve(defered_node_identifier.size());
     for (const auto& id : defered_node_identifier) {
-        auto iter=t.all_nodes.find(id);
-        if (iter!=t.all_nodes.end()) {
-            deferred_nodes_out.push_back(iter->second);
+        auto node=t.get_node(id);
+        if (node!=nullptr) {
+            deferred_nodes_out.push_back(node);
         }
     }
     fprintf(stderr, "recycled %f of conflicting moves \n",(double)recycled/(double)init_deferred);
