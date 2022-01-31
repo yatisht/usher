@@ -37,11 +37,6 @@
 thread_local TlRng rng;
 std::atomic_bool interrupted(false);
 bool use_bound;
-size_t get_memory() {
-    struct rusage usage;
-    getrusage(RUSAGE_SELF, &usage);
-    return usage.ru_maxrss;
-}
 int process_count;
 int this_rank;
 uint32_t num_threads;

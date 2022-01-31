@@ -35,10 +35,9 @@ void fix_condensed_nodes(MAT::Tree *tree) {
         }
     }
     for (auto node : nodes_to_fix) {
-        std::string ori_identifier(tree->get_node_name(node->node_id));
-        tree->rename_node(node->node_id,"");
-        auto new_node=tree->create_node(ori_identifier);
+        auto new_node=tree->create_node();
         node->add_child(new_node);
+        tree->exchange_nid(node,new_node);
     }
 }
 
@@ -150,6 +149,13 @@ void save_final_tree(MAT::Tree &t,
             dfs[i]->mutations.remove_invalid();
         }
     });
+                    for (const auto& condensed : t.condensed_nodes) {
+        auto name=t.get_node_name(condensed.first);
+        if (name=="") {
+            fprintf(stderr, "Condensed node %zu not found \n",condensed.first);
+            raise(SIGTRAP);
+        }
+    }
     fix_condensed_nodes(&t);
     fprintf(stderr, "%zu condensed_nodes\n",t.condensed_nodes.size());
     Mutation_Annotated_Tree::save_mutation_annotated_tree(t, output_path);

@@ -8,11 +8,32 @@
 #include <complex>
 #include <csignal>
 #include <cstdio>
+#include <mpi.h>
 #include <random>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
 #include <tbb/task_scheduler_init.h>
 #include <utility>
+
+
+#include <execinfo.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+
+void handler(int sig) {
+  void *array[100];
+  size_t size;
+
+  // get void*'s for all entries on the stack
+  size = backtrace(array, 100);
+
+  // print out all the frames to stderr
+  fprintf(stderr, "Error: signal %d:\n", sig);
+  backtrace_symbols_fd(array, size, STDERR_FILENO);
+  exit(1);
+}
+
 void fix_condensed_nodes(MAT::Tree *tree);
 namespace po = boost::program_options;
 static void clean_up_leaf(std::vector<MAT::Node*>& dfs){
@@ -52,7 +73,7 @@ static int set_descendant_count(MAT::Node* root){
     return child_count;
 }
 
-int main(int argc, char **argv) {
+static int leader_thread(int argc, char **argv,int proc_count){
     std::string vcf_filename;
     std::string protobuf_in;
     std::string protobuf_out;
@@ -60,7 +81,6 @@ int main(int argc, char **argv) {
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
     uint32_t num_threads;
     int first_n_sample;
-    int sampling_radius;
     std::string num_threads_message = "Number of threads to use when possible "
                                       "[DEFAULT uses all available cores, " +
                                       std::to_string(num_cores) +
@@ -91,7 +111,6 @@ int main(int argc, char **argv) {
         } else
             return 1;
     }
-    fprintf(stderr, "Sampling at radius %d \n",sampling_radius);
     auto start_time=std::chrono::steady_clock::now();
     tbb::task_scheduler_init init(num_threads);
     MAT::Tree tree=MAT::load_mutation_annotated_tree(protobuf_in);
@@ -124,54 +143,36 @@ int main(int argc, char **argv) {
     }
     assign_descendant_muts(tree);
     assign_levels(tree.root);
-    //std::minstd_rand rng(5);
-    //std::shuffle(samples_to_place.begin(),samples_to_place.end(),rng);
-    /*for (auto && to_place : samples_to_place) {
-        if (to_place.sample_name=="s2138638s") {
-            place_sample(std::move(to_place),sampled_tree_root
-                  , tree,
-                  sampling_radius
-#ifndef NDEBUG
-                  ,
-                  ori_state
-#endif
-);
-        }
-    }
-    for (auto && to_place : samples_to_place) {
-        if (to_place.sample_name=="s1429085s") {
-            place_sample(std::move(to_place),sampled_tree_root
-                  , tree,
-                  sampling_radius
-#ifndef NDEBUG
-                  ,
-                  ori_state
-#endif
-);
-        }
-    }
-    for (auto && to_place : samples_to_place) {
-        if (to_place.sample_name=="s483795s") {
-            place_sample(std::move(to_place),sampled_tree_root
-                  , tree,
-                  sampling_radius
-#ifndef NDEBUG
-                  ,
-                  ori_state
-#endif
-);
-        }
-    }*/
     set_descendant_count(tree.root);
-    place_sample(samples_to_place,tree,4
-    #ifndef NDEBUG
-        ,ori_state
-    #endif
-    );
+    if (proc_count>1) {
+        fprintf(stderr, "Main sending tree\n");
+        tree.MPI_send_tree();
+    }
+    place_sample_leader(samples_to_place, tree, 2, proc_count);
     dfs=tree.depth_first_expansion();
     clean_up_leaf(dfs);
     fix_condensed_nodes(&tree);
     MAT::save_mutation_annotated_tree(tree, protobuf_out);
     auto duration=std::chrono::steady_clock::now()-start_time;
     fprintf(stderr, "Took %ld msec\n",std::chrono::duration_cast<std::chrono::milliseconds>(duration).count());
+    MPI_Finalize();
+    return 0;
+}
+void wait_debug();
+int main(int argc, char **argv) {
+    wait_debug();
+    //signal(SIGSEGV, handler);
+    int proc_count;
+    MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &proc_count);
+    MPI_Comm_size(MPI_COMM_WORLD, &proc_count);
+    int this_rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &this_rank);
+    if (this_rank==0) {
+        return leader_thread(argc, argv, proc_count);
+    }else {
+        MAT::Tree tree;
+        fprintf(stderr, "follwer recieving tree\n");
+        tree.MPI_receive_tree();
+        follower_place_sample(tree,2);
+    }
 }

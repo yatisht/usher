@@ -18,9 +18,9 @@ message(STATUS "${usher_VERSION}")
 
 configure_file(src/version.hpp.in version.hpp)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -std=c++17 -Wall -g -Wno-unused-function  -Wno-deprecated-declarations") 
-#-DDEBUG_PARSIMONY_SCORE_CHANGE_CORRECT  -DCHECK_PAR_MAIN  -DEASY_DEBUG -DSTOP_ON_ERROR    -fsanitize=address   -DDETAILED_MERGER_CHECK -O0
-set(CMAKE_CXX_FLAGS_DEBUG " -ggdb3 -fno-eliminate-unused-debug-symbols  -DBOUND_CHECK")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -std=c++17 -Wall -pipe -g -Wno-unused-function -rdynamic  -Wno-deprecated-declarations") 
+#-DDEBUG_PARSIMONY_SCORE_CHANGE_CORRECT  -DCHECK_PAR_MAIN  -DEASY_DEBUG -DSTOP_ON_ERROR       -DDETAILED_MERGER_CHECK -O0
+set(CMAKE_CXX_FLAGS_DEBUG " -ggdb3 -fno-eliminate-unused-debug-symbols -fsanitize=address -Og")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-DNDEBUG -O3")
 set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O3")
 set(CMAKE_INCLUDE_CURRENT_DIR ON) 
@@ -57,7 +57,7 @@ file(GLOB USHER_SAMPLED_SRCS "src/usher-sampled/*.cpp" "src/usher-sampled/*.hpp"
 file(GLOB RIPPLES_FAST_SRCS "src/ripples/ripples_fast/*.cpp" "src/ripples/ripples_fast/*.hpp")
 
 set_source_files_properties(src/mutation_annotated_tree.cpp PROPERTIES COMPILE_FLAGS -O3)
-#set_source_files_properties(src/usher_mapper.cpp PROPERTIES COMPILE_FLAGS -O3)
+set_source_files_properties(src/usher-sampled/wait_debug.cpp PROPERTIES COMPILE_FLAGS -O0)
 #set_source_files_properties(src/matOptimize/Profitable_Moves_Enumerators/range_tree.cpp PROPERTIES COMPILE_FLAGS -O0)
 
 #set_source_files_properties(src/matOptimize/detailed_mutations_store.cpp PROPERTIES COMPILE_FLAGS -O0)
@@ -230,6 +230,9 @@ else()
         ${PROTO_HDRS}
         ${DETAILED_MUTATIONS_PROTO_SRCS}
         ${DETAILED_MUTATIONS_PROTO_HDRS}
+        src/matOptimize/main_helper.cpp
+        src/matOptimize/detailed_mutations_store.cpp
+        src/matOptimize/detailed_mutations_load.cpp
         src/matOptimize/mutation_annotated_tree.cpp
         src/matOptimize/mutation_annotated_tree_node.cpp
         src/matOptimize/mutation_annotated_tree_load_store.cpp

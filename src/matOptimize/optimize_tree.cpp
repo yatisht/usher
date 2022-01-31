@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <csignal>
 #include <cstddef>
 #include <cstdio>
 #include <ctime>

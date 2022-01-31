@@ -20,6 +20,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
+#include <functional>
 #include <mutex>
 #include <signal.h>
 #include <string>
@@ -371,15 +372,20 @@ static line_start_later try_get_first_line(infile_t &f, size_t &size) {
 }
 #define CHUNK_SIZ 200ul
 #define ONE_GB 0x4ffffffful
+static void map_names(MAT::Tree &tree,std::vector<Sample_Muts> &sample_mutations,std::vector<std::string>& sample_names){
+    for (size_t idx=0;idx<sample_names.size();idx++) {
+        sample_mutations[idx].sample_idx=tree.map_samp_name_only(sample_names[idx]);
+    }
+}
 template <typename infile_t>
 static void process(infile_t &fd, std::vector<Sample_Muts> &sample_mutations,
                     MAT::Tree &tree) {
+    std::vector<std::string> sample_names;
     std::vector<std::string> fields;
     read_header(fd, fields);
     tbb::flow::graph input_graph;
     Sampled_Tree_Mutations_t tree_mutations;
     std::vector<size_t> sample_idx(fields.size(), -1);
-    std::vector<std::string> sample_names;
     sample_names.reserve(fields.size());
     int curr_sample_idx = 0;
     for (size_t field_idx = 9; field_idx < fields.size(); field_idx++) {
@@ -395,7 +401,8 @@ static void process(infile_t &fd, std::vector<Sample_Muts> &sample_mutations,
         input_graph, tbb::flow::unlimited,
         line_parser{tree_mutations, sample_idx, sample_names.size()});
     // feed used buffer back to decompressor
-
+    sample_mutations.resize(sample_names.size());
+    std::thread sname_mapper(map_names,std::ref(tree), std::ref(sample_mutations), std::ref(sample_names));
     size_t single_line_size;
     parser.try_put(try_get_first_line(fd, single_line_size));
     size_t first_approx_size =
@@ -409,7 +416,6 @@ static void process(infile_t &fd, std::vector<Sample_Muts> &sample_mutations,
     fd(queue);
     input_graph.wait_for_all();
     fd.unalloc();
-    sample_mutations.resize(sample_names.size());
     tbb::parallel_for(
         tbb::blocked_range<size_t>(0, sample_names.size()),
         [&](tbb::blocked_range<size_t> range) {
@@ -418,16 +424,17 @@ static void process(infile_t &fd, std::vector<Sample_Muts> &sample_mutations,
                 for (const auto &one_thread : tree_mutations) {
                     mut_count += one_thread[idx].size();
                 }
-                sample_mutations[idx].sample_name = std::move(sample_names[idx]);
-                auto &this_out = sample_mutations[idx].muts;
+                std::vector<MAT::Mutation> this_out;
                 this_out.reserve(mut_count);
                 for (auto &one_thread : tree_mutations) {
                     this_out.insert(this_out.end(), one_thread[idx].begin(),
                                     one_thread[idx].end());
                 }
                 std::sort(this_out.begin(),this_out.end());
+                convert_mut_type(this_out,  sample_mutations[idx].muts);
             }
         });
+    sname_mapper.join();
 }
 void Sample_Input(const char *name, std::vector<Sample_Muts> &sample_mutations,
                   MAT::Tree &tree) {

@@ -1,6 +1,7 @@
 #include "mutation_annotated_tree.hpp"
 #include <boost/iostreams/filtering_stream.hpp>
 #include <fstream>
+#include <csignal>
 #include <cstddef>
 #include <cstdio>
 #include <fcntl.h>
@@ -393,10 +394,20 @@ void Mutation_Annotated_Tree::save_mutation_annotated_tree (const Mutation_Annot
         }
     }
 
+    for (const auto& condensed :tree.condensed_nodes) {
+        auto name=tree.get_node_name(condensed.first);
+        if (name=="") {
+            fprintf(stderr, "Condensed node %zu not found \n",condensed.first);
+            raise(SIGTRAP);
+        }
+    }
     // Add condensed nodes
     for (auto cn: tree.condensed_nodes) {
         auto cn_ptr = data.add_condensed_nodes();
-        cn_ptr->set_node_name(tree.get_node_name(cn.first));
+        auto node_name=tree.get_node_name(cn.first);
+        if (node_name=="") {
+        }
+        cn_ptr->set_node_name(node_name);
         for (auto lid: cn.second) {
             cn_ptr->add_condensed_leaves(lid);
         }

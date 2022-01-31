@@ -1,3 +1,4 @@
+#include <cstddef>
 #define USHER
 #include "src/matOptimize/mutation_annotated_tree.hpp"
 #include <cassert>
@@ -9,6 +10,11 @@
 #define IDX_TREE_IDX_T uint32_t
 #define EMPTY_POS UINT32_MAX
 namespace MAT = Mutation_Annotated_Tree;
+#ifdef MPI_TRACE
+#define mpi_trace_print(...) fprintf(stderr, __VA_ARGS__ )
+#else
+#define mpi_trace_print(...)
+#endif
 struct To_Place_Sample_Mutation{
     int position;
     uint8_t chrom_idx;
@@ -36,6 +42,7 @@ struct To_Place_Sample_Mutation{
         ,descendent_possible_nuc(descendant_nuc) {
         assert(mut_nuc != 0xf);
     }
+    To_Place_Sample_Mutation()=default;
     int get_end_range() const{
         if (mut_nuc==0xf) {
             return position+range;
@@ -45,8 +52,8 @@ struct To_Place_Sample_Mutation{
     }
 };
 struct Sample_Muts{
-    std::string sample_name;
-    std::vector<MAT::Mutation> muts;
+    size_t sample_idx;
+    std::vector<To_Place_Sample_Mutation> muts;
 };
 void Sample_Input(const char *name, std::vector<Sample_Muts> &sample_mutations,
                   MAT::Tree &tree);
@@ -55,14 +62,11 @@ Mutation_Set get_mutations(const MAT::Node *main_tree_node);
 void check_descendant_nuc(const MAT::Node* node);
 #endif
 
-void place_sample(std::vector<Sample_Muts> &sample_to_place, MAT::Tree &main_tree,int batch_size
-#ifndef NDEBUG
-                  ,
-                  Original_State_t &ori_state
-#endif
-);
+void place_sample_leader(std::vector<Sample_Muts> &sample_to_place, MAT::Tree &main_tree,int batch_size,int proc_count);
+
 void fix_parent(Mutation_Annotated_Tree::Node *root);
 void convert_mut_type(const std::vector<MAT::Mutation> &in,
                       std::vector<To_Place_Sample_Mutation> &out);
 void assign_descendant_muts(MAT::Tree &in);
 void assign_levels(MAT::Node* root);
+void follower_place_sample(MAT::Tree &main_tree,int batch_size);

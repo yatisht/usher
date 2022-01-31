@@ -77,6 +77,7 @@ struct line_align{
                 prev_end[0]=0;
                 return true;
             }else {
+                fprintf(stderr, "done");
                 return false;
             }
         }
@@ -132,7 +133,9 @@ struct gzip_input_source{
         get_c_ptr=getc_buf;
     }
     void unalloc(){
-        munmap(map_start, alloc_size);
+        fprintf(stderr, "unalloc gzip\n");
+        munmap(map_start, mapped_size);
+        fprintf(stderr, "unalloc gzip done\n");
     }
     bool decompress_to_buffer(unsigned char* buffer, size_t buffer_size) const{
         if (!state->avail_in) {
@@ -190,6 +193,7 @@ struct gzip_input_source{
         }
         out.emplace(nullptr,nullptr);
         out.emplace(nullptr,nullptr);
+        fprintf(stderr, "reach end\n");
         delete [] line_out;
     }
 };
@@ -364,9 +368,10 @@ template<typename infile_t>
 static void process(MAT::Tree& tree,infile_t& fd){
     std::vector<std::string> fields;
     read_header(fd, fields);
-    std::unordered_set<std::string> inserted_samples;
     std::vector<MAT::Node*> bfs_ordered_nodes=tree.breadth_first_expansion();
     std::vector<long> idx_map(9);
+    {
+    std::unordered_set<std::string> inserted_samples;
     for (size_t idx=9; idx<fields.size(); idx++) {
         auto node=tree.get_node(fields[idx]);;
         if (node==nullptr) {
@@ -383,14 +388,16 @@ static void process(MAT::Tree& tree,infile_t& fd){
 
         }
     }
-    tbb::flow::graph input_graph;
-    line_parser_t parser(input_graph,tbb::flow::unlimited,line_parser{idx_map});
-    //feed used buffer back to decompressor
-
+    }
+    {
     std::vector<backward_pass_range> child_idx_range;
     std::vector<forward_pass_range> parent_idx;
     FS_result_per_thread_t output;
     Fitch_Sankoff_prep(bfs_ordered_nodes,child_idx_range, parent_idx);
+    {
+    tbb::flow::graph input_graph;
+    line_parser_t parser(input_graph,tbb::flow::unlimited,line_parser{idx_map});
+    //feed used buffer back to decompressor
     tbb::flow::function_node<Parsed_VCF_Line*> assign_state(input_graph,tbb::flow::unlimited,Assign_State{child_idx_range,parent_idx,output});
     tbb::flow::make_edge(tbb::flow::output_port<0>(parser),assign_state);
     size_t single_line_size;
@@ -399,12 +406,16 @@ static void process(MAT::Tree& tree,infile_t& fd){
     read_size=first_approx_size*single_line_size;
     alloc_size=(first_approx_size+2)*single_line_size;
     tbb::concurrent_bounded_queue<std::pair<char*,uint8_t*>> queue;
+    queue.set_capacity(10);
     tbb::flow::source_node<line_start_later> line(input_graph,line_align(queue));
     tbb::flow::make_edge(line,parser);
+    //raise(SIGTRAP);
     fd(queue);
     input_graph.wait_for_all();
-    deallocate_FS_cache(output);
+    }
+    //deallocate_FS_cache(output);
     fill_muts(output, bfs_ordered_nodes);
+    }
     size_t total_mutation_size=0;
     for(const auto node:bfs_ordered_nodes) {
         total_mutation_size+=node->mutations.size();
@@ -429,4 +440,5 @@ void VCF_input(const char * name,MAT::Tree& tree) {
     done=true;
     progress_bar_cv.notify_all();
     progress_meter.join();
+    fprintf(stderr, "Finish vcf input \n");
 }

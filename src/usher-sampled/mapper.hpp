@@ -14,7 +14,7 @@ struct Main_Tree_Target {
     int distance_left;
 };
 std::tuple<std::vector<Main_Tree_Target>, int>
-place_main_tree(std::vector<To_Place_Sample_Mutation> &mutations,
+place_main_tree(const std::vector<To_Place_Sample_Mutation> &mutations,
                 MAT::Tree &main_tree
 #ifdef DETAILED_MERGER_CHECK
                 ,

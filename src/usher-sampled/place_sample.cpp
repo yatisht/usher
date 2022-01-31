@@ -1,7 +1,8 @@
-#include "mapper.hpp"
+#include "place_sample.hpp"
 #include "src/matOptimize/check_samples.hpp"
 #include "src/matOptimize/mutation_annotated_tree.hpp"
 #include <algorithm>
+#include <atomic>
 #include <cassert>
 #include <chrono>
 #include <climits>
@@ -9,42 +10,17 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <string>
+#include <tbb/concurrent_queue.h>
 #include <tbb/flow_graph.h>
-#include <tbb/parallel_for.h>
+#include <thread>
 #include <tuple>
 #include <unordered_map>
 #include <utility>
 #include <vector>
-#define DELETED_NODE_THRESHOLD 1000
-static void update_possible_descendant_alleles(
-    const MAT::Mutations_Collection &mutations_to_set,
-    MAT::Node *node) {
-    std::unordered_map<int, uint8_t> alleles;
-    alleles.reserve(mutations_to_set.size());
-    for (auto &mut : mutations_to_set) {
-        alleles.emplace(mut.get_position(), mut.get_mut_one_hot());
-    }
-    while (!alleles.empty() && node) {
-        for (auto &mut : node->mutations) {
-            auto iter = alleles.find(mut.get_position());
-            if (iter != alleles.end()) {
-                if ((mut.get_descendant_mut() & iter->second) ==
-                    iter->second) {
-                    alleles.erase(iter);
-                } else {
-                    mut.set_descendant_mut(mut.get_descendant_mut()|iter->second);
-                }
-            }
-        }
-        node->bfs_index++;
-        node = node->parent;
-    }
-    while (node) {
-        node->bfs_index++;
-        node = node->parent;
-    }
-}
-static void gather_par_mutation_step(std::unordered_map<int, int>& to_find,MAT::Mutations_Collection& upstream, MAT::Mutations_Collection& output){
+#include <mpi.h>
+
+static void gather_par_mutation_step(std::unordered_map<int, int>& to_find,const MAT::Mutations_Collection& upstream, MAT::Mutations_Collection& output){
     for (const auto& mut : upstream) {
         auto iter=to_find.find(mut.get_position());
         if (iter!=to_find.end()) {
@@ -63,8 +39,8 @@ static void gather_par_mut(std::unordered_map<int, int>& to_find,MAT::Node*& nod
     }
 }
 
-static void discretize_mutations(std::vector<To_Place_Sample_Mutation> &in,
-                                 MAT::Mutations_Collection &shared_mutations,
+static void discretize_mutations(const std::vector<To_Place_Sample_Mutation> &in,
+                                 const MAT::Mutations_Collection &shared_mutations,
                                  MAT::Node *parent_node,
                                  MAT::Mutations_Collection &out) {
     out.reserve(in.size());
@@ -87,234 +63,237 @@ static void discretize_mutations(std::vector<To_Place_Sample_Mutation> &in,
     gather_par_mutation_step(par_nuc_idx, shared_mutations,out);
     gather_par_mut(par_nuc_idx, parent_node, out);
 }
-static MAT::Node* add_children(MAT::Node* target_node,MAT::Node* sample_node){
-    MAT::Node* deleted_node=nullptr;
-    if ((target_node->children.size()+1)>=target_node->children.capacity()) {
-        MAT::Node* new_target_node=new MAT::Node(*target_node);
-        for(auto child:new_target_node->children){
-            child->parent=new_target_node;
-        }
-        new_target_node->children.reserve(4*new_target_node->children.size());
-        auto& parent_children=target_node->parent->children;
-        auto iter=std::find(parent_children.begin(),parent_children.end(),target_node);
-        *iter=new_target_node;
-        deleted_node=target_node;
-        target_node=new_target_node;
+
+static std::tuple<std::vector<Main_Tree_Target>, size_t> *
+deserialize_move(char *in, int size, MAT::Tree &tree) {
+    Mutation_Detailed::search_result result;
+    result.ParseFromArray((void *)in, size);
+    auto out = new std::tuple<std::vector<Main_Tree_Target>, size_t>;
+    auto &targets = std::get<0>(*out);
+    std::get<1>(*out) = result.sample_id();
+    if (tree.get_node_name(std::get<1>(*out))=="") {
+        fprintf(stderr, "node %zu no name\n",std::get<1>(*out));
+        raise(SIGTRAP);
     }
-    target_node->children.push_back(sample_node);
-    sample_node->parent=target_node;
-    return deleted_node;
+    auto target_count = result.place_targets_size();
+    targets.reserve(target_count);
+    for (int count = 0; count < target_count; count++) {
+        Main_Tree_Target target;
+        auto &parsed_target = result.place_targets(count);
+        target.target_node = tree.get_node(parsed_target.target_node_id());
+        target.parent_node = tree.get_node(parsed_target.parent_node_id());
+        load_mutations(parsed_target.sample_mutation_positions(),
+                       parsed_target.sample_mutation_other_fields(),
+                       target.sample_mutations);
+        load_mutations(parsed_target.split_mutation_positions(),
+                       parsed_target.split_mutation_other_fields(),
+                       target.splited_mutations.mutations);
+        load_mutations(parsed_target.shared_mutation_positions(),
+                       parsed_target.shared_mutation_other_fields(),
+                       target.shared_mutations.mutations);
+        targets.emplace_back(std::move(target));
+    }
+    return out;
 }
-static  MAT::Node *update_main_tree(Main_Tree_Target &target,
-                                         std::string &&sample_string, MAT::Tree& tree) {
-    // Split branch?
-    MAT::Node* deleted_node=nullptr;
-    MAT::Node *sample_node = tree.create_node(sample_string);
-    sample_node->level=target.target_node->level;
-    discretize_mutations(target.sample_mutations, target.shared_mutations, target.parent_node, sample_node->mutations);
-    int sample_node_mut_count = 0;
-    for (const auto &mut : sample_node->mutations) {
-        if (!(mut.get_par_one_hot() & mut.get_mut_one_hot())) {
-            sample_node_mut_count++;
-        }
-        assert(mut.get_position());
-    }
-    sample_node->branch_length = sample_node_mut_count;
-    if (target.splited_mutations.empty() && (!target.target_node->is_leaf())) {
-        deleted_node=add_children(target.target_node, sample_node);
-    } else if (target.shared_mutations.empty() &&
-               (!target.target_node->is_leaf())) {
-        deleted_node=add_children(target.parent_node, sample_node);
-    } else {
-        MAT::Node* new_target_node=new MAT::Node(target.target_node->node_id);
-        new_target_node->level=target.target_node->level;
-        new_target_node->children.reserve(4*target.target_node->children.size());
-        new_target_node->children=target.target_node->children;
-        new_target_node->mutations = std::move(target.splited_mutations);
-        for (auto child : new_target_node->children) {
-            child->parent=new_target_node;
-        }
-        int target_node_mut_count = 0;
-        for (const auto &mut : target.target_node->mutations) {
-            if (!(mut.get_mut_one_hot() & mut.get_par_one_hot())) {
-                target_node_mut_count++;
+typedef tbb::flow::function_node<
+    std::tuple<std::vector<Main_Tree_Target>, size_t> *,size_t>
+    placer_node_t;
+typedef tbb::flow::buffer_node<std::tuple<std::vector<Main_Tree_Target>, size_t> *> Other_Proc_Buffer_T;
+static void recieve_place(Other_Proc_Buffer_T &handler,
+                          MAT::Tree &tree,int processes_left) {
+    MPI_Status status;
+    while (true) {
+        MPI_Probe(MPI_ANY_SOURCE, PROPOSED_PLACE, MPI_COMM_WORLD, &status);
+        int msg_size;
+        MPI_Get_count(&status, MPI_BYTE, &msg_size);
+        if (msg_size == 0) {
+            processes_left--;
+            if (processes_left) {
+                continue;
+            }else {
+                break;            
             }
         }
-        new_target_node->branch_length = target_node_mut_count;
-        MAT::Node *split_node = tree.create_node();
-        new_target_node->parent = split_node;
-        sample_node->parent = split_node;
-        split_node->level=target.target_node->level;
-        split_node->parent = target.parent_node;
-        split_node->mutations = std::move(target.shared_mutations);
-        split_node->children.reserve(4);
-        split_node->children.push_back(new_target_node);
-        split_node->children.push_back(sample_node);
-        split_node->branch_length = split_node->mutations.size();
-        auto iter =
-            std::find(target.parent_node->children.begin(),
-                      target.parent_node->children.end(), target.target_node);
-        if (iter==target.parent_node->children.end()||*iter!=target.target_node) {
-            std::raise(SIGTRAP);
-        }
-        *iter = split_node;
-        deleted_node=target.target_node;
-        deleted_node->parent=nullptr;
-        target.target_node=new_target_node;
+        auto temp = new char[msg_size];
+        mpi_trace_print("recieving proposed place from %d\n",status.MPI_SOURCE);
+        MPI_Recv(temp, msg_size, MPI_BYTE, status.MPI_SOURCE, PROPOSED_PLACE, MPI_COMM_WORLD,
+                 MPI_STATUS_IGNORE);
+        auto recieved = deserialize_move(temp, msg_size, tree);
+        delete[] temp;
+        mpi_trace_print("recieved proposed place\n");
+        handler.try_put(recieved);
     }
-    update_possible_descendant_alleles(sample_node->mutations, sample_node->parent);
-    #ifndef NDEBUG
-    check_descendant_nuc(sample_node);
-    check_descendant_nuc(target.target_node);
-    check_descendant_nuc(sample_node->parent);
-    #endif
-    return deleted_node;
+}
+static std::string *
+serialize_placed_sample(const MAT::Mutations_Collection &sample_mutations,
+                        const MAT::Mutations_Collection &splited_mutations,
+                        const MAT::Mutations_Collection &shared_mutations,
+                        size_t target_id, size_t split_id, size_t sample_id) {
+    Mutation_Detailed::placed_target target;
+    target.set_sample_id(sample_id);
+    target.set_target_node_id(target_id);
+    target.set_split_node_id(split_id);
+    fill_mutation_vect(target.mutable_sample_mutation_positions(),
+                       target.mutable_sample_mutation_other_fields(),
+                       sample_mutations);
+    fill_mutation_vect(target.mutable_split_mutation_positions(),
+                       target.mutable_split_mutation_other_fields(),
+                       splited_mutations);
+    fill_mutation_vect(target.mutable_shared_mutation_positions(),
+                       target.mutable_shared_mutation_other_fields(),
+                       shared_mutations);
+    auto out = new std::string;
+    *out = target.SerializeAsString();
+    return out;
 }
 
-struct Finder{
-    MAT::Tree& tree;
-    std::vector<Sample_Muts>& to_place;
-    std::tuple<std::vector<Main_Tree_Target>, int,size_t>* operator()(size_t idx){
-        auto output=new std::tuple<std::vector<Main_Tree_Target>, int,size_t>;
-        std::get<2>(*output)= idx;
-        const std::vector<MAT::Mutation>& sample_mutations =to_place[idx].muts;
-        std::vector<To_Place_Sample_Mutation> condensed_muts;
-        convert_mut_type(sample_mutations,condensed_muts);
-        //auto start_time=std::chrono::steady_clock::now();
-        auto main_tree_out=place_main_tree(condensed_muts, tree);
-        //auto duration=std::chrono::steady_clock::now()-start_time;
-        //fprintf(stderr, "Search took %ld \n",std::chrono::duration_cast<std::chrono::milliseconds>(duration).count());
-        
-        std::get<0>(*output)=std::move(std::get<0>(main_tree_out));
-        std::get<1>(*output)=std::get<1>(main_tree_out);
-        return output;
-    }    
-};
-struct Send_Main_Tree_Target{
-
-};
-struct Placer{
-    std::vector<Sample_Muts>& to_place;
-    std::vector<MAT::Node*>& deleted_nodes;
-    size_t& count;
-    std::chrono::steady_clock::time_point start_time;
-    MAT::Tree& tree;
-#ifndef NDEBUG
-    Original_State_t &ori_state;
-#endif
-    size_t operator()(std::tuple<std::vector<Main_Tree_Target>, int,size_t>* in){
-        //auto start_time=std::chrono::steady_clock::now();
-        auto & search_result=std::get<0>(*in);
-        auto idx=std::get<2>(*in);
-        for (const auto& placement : search_result) {
-            if (placement.parent_node!=placement.target_node->parent) {
-                fprintf(stderr, "Redoing %s \n",to_place[idx].sample_name.c_str());
+static void send_paced_move(tbb::concurrent_bounded_queue<std::string*>& send_queue){
+    while (true) {
+        std::string* in;
+        send_queue.pop(in);
+        if (in==nullptr) {
+            break;
+        }
+        auto size = in->size();
+        MPI_Bcast((void *)&size, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
+        mpi_trace_print("Main sending move of size %zu\n",size);
+        MPI_Bcast((void *)in->c_str(), size, MPI_BYTE, 0, MPI_COMM_WORLD);
+        mpi_trace_print("Main sent move\n");
+        delete in;
+    }
+}
+struct main_tree_new_place_handler {
+    MAT::Tree &main_tree;
+    std::vector<MAT::Node *> &deleted_nodes;
+    tbb::concurrent_bounded_queue<std::string*>& send_queue;
+    size_t
+    operator()(std::tuple<std::vector<Main_Tree_Target>, size_t> *in) {
+        auto &search_result = std::get<0>(*in);
+        auto idx = std::get<1>(*in);
+        for (const auto &placement : search_result) {
+            if (placement.parent_node == nullptr ||
+                placement.target_node == nullptr ||
+                placement.parent_node != placement.target_node->parent) {
+                fprintf(stderr, "Redoing %s \n",
+                        main_tree.get_node_name(idx).c_str());
+                delete in;
                 return idx;
             }
         }
-        std::string sample_string = to_place[idx].sample_name;
-#ifndef NDEBUG
-    Mutation_Set new_set;
-    std::vector<To_Place_Sample_Mutation> condensed_muts_copy;
-    const std::vector<MAT::Mutation>& sample_mutations =to_place[idx].muts;
-    convert_mut_type(sample_mutations,condensed_muts_copy);
-    new_set.reserve(sample_mutations.size());
-    for (const auto &mut : sample_mutations) {
-        new_set.insert(mut);
-    }
-#endif
-auto& selected_target=search_result[0];
-    int min_level=0;
-    for (auto& target : search_result) {
-        if (target.target_node->level<min_level) {
-            min_level=target.target_node->level;
-            selected_target=target;
+        auto smallest_idx = search_result[0].target_node->node_id;
+        auto arg_small_idx = 0;
+        for (int target_idx = 1; target_idx < search_result.size();
+             target_idx++) {
+            if (smallest_idx > search_result[0].target_node->node_id) {
+                smallest_idx = search_result[target_idx].target_node->node_id;
+                arg_small_idx = target_idx;
+            }
         }
-    }
-    fprintf(stderr, "Sample: %s\t%d\t%zu\n",sample_string.c_str(),std::get<1>(*in),search_result.size());
-    auto deleted_node=update_main_tree(selected_target, std::move(sample_string),tree);
-    #ifndef NDEBUG
-    ori_state.emplace(tree.get_node(sample_string)->node_id, new_set);
-    #endif
-    if (deleted_node) {
-        deleted_nodes.push_back(deleted_node);
-    }
-    //auto duration=std::chrono::steady_clock::now()-start_time;
-    //fprintf(stderr, "Placement took %ld \n",std::chrono::duration_cast<std::chrono::milliseconds>(duration).count());
-    count++;
-    if (count%100==0) {
-        auto duration=std::chrono::steady_clock::now()-start_time;
-        auto per_sample=duration/count;
-        fprintf(stderr, "placed %zu samples, took %ld msec per sample \n",count,std::chrono::duration_cast<std::chrono::milliseconds>(per_sample).count());
-
-    }
-    #ifndef NDEBUG
-    if (idx%100==0) {
-        check_samples(tree.root, ori_state, &tree);
-    }
-    #endif
-    return SIZE_MAX;
+        auto target = search_result[arg_small_idx];
+        auto target_idx = target.target_node->node_id;
+        MAT::Mutations_Collection sample_mutations;
+        discretize_mutations(target.sample_mutations, target.shared_mutations,
+                             target.parent_node, sample_mutations);
+        auto out = update_main_tree(sample_mutations, target.splited_mutations,
+                                    target.shared_mutations, target.target_node,
+                                    idx, main_tree, 0);
+        if (out.deleted_nodes) {
+            deleted_nodes.push_back(out.deleted_nodes);
+        }
+        auto split_id = out.splitted_node ? out.splitted_node->node_id : 0;
+        send_queue.push(serialize_placed_sample(
+            sample_mutations, target.splited_mutations, target.shared_mutations,
+            target_idx, split_id, idx));
+        delete in;
+        return SIZE_MAX;
     }
 };
-typedef tbb::flow::multifunction_node<size_t,tbb::flow::tuple<size_t>> Pusher_Node_T;
+static void main_tree_distribute_samples(std::atomic_uint64_t& curr_idx,std::vector<Sample_Muts>& to_place,int processes_left){
+    int ignore;
+    while (true) {
+        MPI_Status status;
+        MPI_Recv(&ignore, 0, MPI_BYTE, MPI_ANY_SOURCE, WORK_REQ_TAG, MPI_COMM_WORLD, &status);
+        mpi_trace_print("main recieved work req \n");
+        int reply_dest=status.MPI_SOURCE;
+        Mutation_Detailed::sample_to_place temp;
+        auto send_idx=curr_idx++;
+        mpi_trace_print("cur send idx %zu \n",send_idx);
+        if (send_idx>=to_place.size()) { 
+            MPI_Send(&ignore, 0, MPI_BYTE, reply_dest, WORK_RES_TAG, MPI_COMM_WORLD);
+            processes_left--;
+            break;
+        }
+        auto to_send=to_place[send_idx];
+        temp.set_sample_id(to_send.sample_idx);
+        fill_mutation_vect(temp.mutable_sample_mutation_positions(), temp.mutable_sample_mutation_other_fields(), to_send.muts);
+        auto buffer=temp.SerializeAsString();
+        mpi_trace_print( "main sending work res \n");
+        MPI_Send(buffer.c_str(), buffer.size(), MPI_BYTE, reply_dest, WORK_RES_TAG, MPI_COMM_WORLD);
+        mpi_trace_print("main sent work res \n");
+    }
+    for(;processes_left>0;processes_left--){
+        MPI_Status status;
+        MPI_Recv(&ignore, 0, MPI_BYTE, MPI_ANY_SOURCE, WORK_REQ_TAG, MPI_COMM_WORLD, &status);
+        int reply_dest=status.MPI_SOURCE;
+        MPI_Send(&ignore, 0, MPI_BYTE, reply_dest, WORK_RES_TAG, MPI_COMM_WORLD);    
+    }
+}
+
+typedef tbb::flow::multifunction_node<size_t,tbb::flow::tuple<Sample_Muts*>> Pusher_Node_T;
 struct Pusher{
-    size_t& idx;
-    size_t max_idx;
-    std::vector<MAT::Node*> deleted_nodes;
+    std::atomic_uint64_t& curr_idx;
+    std::vector<Sample_Muts>& to_place;
+
     void operator()(size_t idx_in,Pusher_Node_T::output_ports_type& out ){
-        if (idx_in==SIZE_MAX&&(deleted_nodes.size()<DELETED_NODE_THRESHOLD)) {
-            if (idx<max_idx) {
-                std::get<0>(out).try_put(idx);
-                idx++;
+        if (idx_in==SIZE_MAX) {
+            auto send_idx=curr_idx++;
+            if (send_idx<to_place.size()) {
+                std::get<0>(out).try_put(&to_place[send_idx]);
             }
             return;
         }
-        std::get<0>(out).try_put(idx_in);
+        std::get<0>(out).try_put(&to_place[idx_in-to_place[0].sample_idx]);
     }
 };
-void place_sample(std::vector<Sample_Muts> &sample_to_place, MAT::Tree &main_tree,int batch_size
-#ifndef NDEBUG
-                  ,
-                  Original_State_t &ori_state
-#endif
-) {
-    size_t idx=0;
-    size_t idx_max=sample_to_place.size();
+void place_sample_leader(std::vector<Sample_Muts> &sample_to_place, MAT::Tree &main_tree,int batch_size,int proc_count) {
     std::vector<MAT::Node*> deleted_nodes;
-    deleted_nodes.reserve(DELETED_NODE_THRESHOLD);
+    deleted_nodes.reserve(sample_to_place.size());
     auto start_time=std::chrono::steady_clock::now();
-    size_t count=0;
-    while (idx < idx_max) {
+    std::thread *listen_thread;
+    std::thread *distribute_thread;
+    std::atomic_uint64_t curr_idx(0);
+    tbb::concurrent_bounded_queue<std::string*> send_queue;
         tbb::flow::graph g;
-        Pusher_Node_T init(g, 1, Pusher{idx, idx_max, deleted_nodes});
+        Pusher_Node_T init(g, 1, Pusher{curr_idx, sample_to_place});
         tbb::flow::function_node<
-            size_t, std::tuple<std::vector<Main_Tree_Target>, int, size_t> *>
+            Sample_Muts*, std::tuple<std::vector<Main_Tree_Target>, size_t> *>
             searcher(g, tbb::flow::unlimited,
-                     Finder{main_tree,sample_to_place});
+                     Finder{main_tree,false});
         tbb::flow::make_edge(std::get<0>(init.output_ports()),searcher);
-        tbb::flow::function_node<std::tuple<std::vector<Main_Tree_Target>, int, size_t> *,size_t>
-            placer(g, 1,
-                     Placer{sample_to_place,deleted_nodes,count,start_time,main_tree
-                     #ifndef NDEBUG
-                     ,ori_state
-                     #endif
-                     });
+        placer_node_t placer(g, 1,
+                     main_tree_new_place_handler{main_tree,deleted_nodes,send_queue});
         tbb::flow::make_edge(searcher,placer);
         tbb::flow::make_edge(placer,init);
+        Other_Proc_Buffer_T buffer(g);
+        tbb::flow::make_edge(buffer,placer);
+        if (proc_count>0) {
+            listen_thread=new std::thread (recieve_place,std::ref(buffer),std::ref(main_tree),proc_count-1);
+            distribute_thread= new std::thread(main_tree_distribute_samples,std::ref(curr_idx), std::ref(sample_to_place),proc_count-1);
+            MPI_Barrier(MPI_COMM_WORLD);
+        }
         for(int temp=0;temp<batch_size;temp++){
             init.try_put(SIZE_MAX);
         }
         g.wait_for_all();
+        send_queue.push(nullptr);
         for(auto node:deleted_nodes){
             delete node;
         }
         deleted_nodes.clear();
-    }
-#ifndef NDEBUG
-    /*std::vector<Sampled_Tree_Node *> output;
-    sample_tree_dfs(sampled_tree_root, output);
-    check_sampled_tree(main_tree, output, sampling_radius);
-    fprintf(stderr, "%zu samples \n", ori_state.size());*/
-    //
-#endif
+        if (proc_count>0) {
+            listen_thread->join();
+            distribute_thread->join();    
+            delete listen_thread;
+            delete distribute_thread;
+        }       
 }

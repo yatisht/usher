@@ -7,6 +7,8 @@
 #include <tbb/flow_graph.h>
 #include <unistd.h>
 #include <mpi.h>
+#include <sys/time.h>
+#include <sys/resource.h>
 /*
 File structure:
 offset of metadata message (8 byte)
@@ -15,7 +17,11 @@ node in the tree, each contain the offset and size of its children metadata
 message (meta in mutation_detailed.proto), contain offset and size of root node
 */
 namespace MAT = Mutation_Annotated_Tree;
-
+size_t get_memory() {
+    struct rusage usage;
+    getrusage(RUSAGE_SELF, &usage);
+    return usage.ru_maxrss;
+}
 static void save_chrom_vector(Mutation_Detailed::meta &to_save) {
     for (const std::string &chrom : MAT::Mutation::chromosomes) {
         to_save.add_chromosomes(chrom);

@@ -552,6 +552,12 @@ class Tree {
         }
         return node_name_iter->second;
     }
+    size_t map_samp_name_only(const std::string& samp_name){
+        auto assigned_idx=node_idx++;
+        node_names.emplace(assigned_idx,samp_name);
+        node_name_to_idx_map.emplace(samp_name,assigned_idx);
+        return assigned_idx;
+    }
     Node* create_node (std::string const& identifier);
     Node* get_node (const std::string& identifier) const {
         auto iter=node_name_to_idx_map.find(identifier);
@@ -572,6 +578,13 @@ class Tree {
             ret = root->clade_annotations.size();
         }
         return ret;
+    }
+    void exchange_nid(Node* n1, Node* n2){
+        auto n1_id=n1->node_id;
+        n1->node_id=n2->node_id;
+        n2->node_id=n1_id;
+        all_nodes[n1->node_id]=n1;
+        all_nodes[n2->node_id]=n2;
     }
     void save_detailed_mutations(const std::string& path)const;
     void load_detatiled_mutations(const std::string& path);
