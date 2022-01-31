@@ -160,8 +160,8 @@ static int leader_thread(int argc, char **argv,int proc_count){
 }
 void wait_debug();
 int main(int argc, char **argv) {
-    wait_debug();
-    //signal(SIGSEGV, handler);
+    //wait_debug();
+    signal(SIGSEGV, handler);
     int proc_count;
     MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &proc_count);
     MPI_Comm_size(MPI_COMM_WORLD, &proc_count);
@@ -173,6 +173,6 @@ int main(int argc, char **argv) {
         MAT::Tree tree;
         fprintf(stderr, "follwer recieving tree\n");
         tree.MPI_receive_tree();
-        follower_place_sample(tree,2);
+        follower_place_sample(tree,20);
     }
 }

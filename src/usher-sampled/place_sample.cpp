@@ -162,13 +162,16 @@ static void send_paced_move(tbb::concurrent_bounded_queue<std::string*>& send_qu
         delete in;
     }
 }
+float redo;
+float total;
 struct main_tree_new_place_handler {
     MAT::Tree &main_tree;
     std::vector<MAT::Node *> &deleted_nodes;
     tbb::concurrent_bounded_queue<std::string*>& send_queue;
     size_t
     operator()(std::tuple<std::vector<Main_Tree_Target>, size_t> *in) {
-        auto &search_result = std::get<0>(*in);
+        total++;
+	auto &search_result = std::get<0>(*in);
         auto idx = std::get<1>(*in);
         for (const auto &placement : search_result) {
             if (placement.parent_node == nullptr ||
@@ -177,7 +180,10 @@ struct main_tree_new_place_handler {
                 fprintf(stderr, "Redoing %s \n",
                         main_tree.get_node_name(idx).c_str());
                 delete in;
-                return idx;
+                redo++;
+		float redo_rate=redo/total;
+		fprintf(stderr,"%f%% redon, %f redos, %f total\n",redo_rate*100,redo,total);
+		return idx;
             }
         }
         auto smallest_idx = search_result[0].target_node->node_id;
@@ -256,6 +262,8 @@ struct Pusher{
     }
 };
 void place_sample_leader(std::vector<Sample_Muts> &sample_to_place, MAT::Tree &main_tree,int batch_size,int proc_count) {
+    redo=0;
+    total=0;
     std::vector<MAT::Node*> deleted_nodes;
     deleted_nodes.reserve(sample_to_place.size());
     auto start_time=std::chrono::steady_clock::now();
