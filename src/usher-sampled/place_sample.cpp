@@ -429,5 +429,7 @@ void place_sample_leader(std::vector<Sample_Muts> &sample_to_place, MAT::Tree &m
         if (proc_count>1) {
             mpi_thread->join();
             delete mpi_thread;
+            size_t size=0;
+            MPI_Bcast((void *)&size, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
         }       
 }
