@@ -348,6 +348,7 @@ static void mpi_loop(Dist_sample_state dist_sample,Recieve_Place_State recieve_p
                 not_idle=true;
             }else if (ret==DONE) {
                 dist_sample_done=true;
+                fprintf(stderr, "Distributor exit \n");
             }
         }
         if(!recieve_place_done){
@@ -356,6 +357,7 @@ static void mpi_loop(Dist_sample_state dist_sample,Recieve_Place_State recieve_p
                 not_idle=true;
             }else if (ret==DONE) {
                 recieve_place_done=true;
+                fprintf(stderr, "reciever exit \n");
             }
         }
         if (!send_move_done) {

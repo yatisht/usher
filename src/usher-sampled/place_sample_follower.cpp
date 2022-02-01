@@ -3,9 +3,11 @@
 #include <climits>
 #include <csignal>
 #include <cstdio>
+#include <string>
 #include <tbb/pipeline.h>
 #include <thread>
 #include <mpi.h>
+#include <type_traits>
 void check_parent(MAT::Node* root,MAT::Tree& tree){
     if (root!=tree.get_node(root->node_id)) {
         fprintf(stderr, "dict mismatch\n");
@@ -86,6 +88,17 @@ void check_order(MAT::Mutations_Collection& in){
         prev_pos=mut.get_position();
     }
 }
+static void check_parent_match(MAT::Node* node,MAT::Tree& tree,char* name){
+    auto split_node_par_child=node->parent->children;
+    if (std::find(split_node_par_child.begin(),split_node_par_child.end(),node)==split_node_par_child.end()) {
+        fprintf(stderr, "%s parent mismatch\n",name);
+        raise(SIGTRAP);
+    }
+    if (tree.get_node(node->node_id)!=node) {
+        fprintf(stderr, "%s node id mismatch\n",name);
+        raise(SIGTRAP);
+    }
+}
 static void recv_and_place_follower(MAT::Tree &tree,
                            std::vector<MAT::Node *> &deleted_nodes) {
     fprintf(stderr, "Place Recievier started \n");
@@ -95,6 +108,7 @@ static void recv_and_place_follower(MAT::Tree &tree,
         mpi_trace_print("Recieving move of size %zu \n",bcast_size);
         if (bcast_size == 0) {
             return;
+            fprintf(stderr, "Place Recievier exit \n");
         }
         auto buffer = new uint8_t[bcast_size];
         MPI_Bcast(buffer, bcast_size, MPI_BYTE, 0, MPI_COMM_WORLD);
@@ -125,7 +139,16 @@ static void recv_and_place_follower(MAT::Tree &tree,
             sample_mutations, splitted_mutations, shared_mutations,
             target_node,
             parsed_target.sample_id(), tree, parsed_target.split_node_id());
+        if (out.splitted_node) {
+            if (out.splitted_node->node_id!=parsed_target.split_node_id()) {
+                fprintf(stderr, "split node id mismatch\n");
+                raise(SIGTRAP);
+            }
+            check_parent_match(out.splitted_node,tree,"split_node");
+        }
         target_node=tree.get_node(parsed_target.target_node_id());
+        check_parent_match(target_node,tree,"target_node");
+        check_parent_match(tree.get_node(parsed_target.sample_id()),tree,"sample_node");
         check_parent(tree.root, tree);
         /*check_order(target_node->mutations);
         check_order(tree.get_node(parsed_target.sample_id())->mutations);
@@ -154,6 +177,7 @@ struct Fetcher {
         mpi_trace_print("follower recieve work res \n");
         MPI_Get_count(&status, MPI_BYTE, &res_size);
         if (res_size==0) {
+            fprintf(stderr, "Fetcher exit \n");
             fc.stop();
             return nullptr;
         }

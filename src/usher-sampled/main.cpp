@@ -170,7 +170,7 @@ int main(int argc, char **argv) {
         } else
             return 1;
     }
-    tbb::task_scheduler_init init(num_threads-2);
+    tbb::task_scheduler_init init(num_threads-1);
     
     //wait_debug();
 
