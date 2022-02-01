@@ -109,14 +109,14 @@ static int leader_thread(std::string& vcf_filename,
     assign_descendant_muts(tree);
     assign_levels(tree.root);
     set_descendant_count(tree.root);
+    samples_to_place.resize(1000);
     if (proc_count>1) {
         fprintf(stderr, "Main sending tree\n");
         tree.MPI_send_tree();
         MPI_Barrier(MPI_COMM_WORLD);
     }
-    samples_to_place.resize(10);
-    fprintf(stderr, "Mainfinised place\n");
     place_sample_leader(samples_to_place, tree, 2, proc_count);
+    fprintf(stderr, "Main finised place\n");
     dfs=tree.depth_first_expansion();
     clean_up_leaf(dfs);
     fix_condensed_nodes(&tree);
