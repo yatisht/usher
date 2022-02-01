@@ -197,6 +197,9 @@ static Status send_paced_move(Placed_move_sended_state& send_queue){
             in->sample_mutations, in->splited_mutations, in->shared_mutations,
             in->target_id, in->split_id, in->sample_id);
         auto size = serialized.size();
+        if (send_queue.size()>5) {
+            fprintf(stderr, "queue size %d\n",send_queue.size());        
+        }
         MPI_Bcast((void *)&size, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
         mpi_trace_print("Main sending move of size %zu\n",size);
         MPI_Bcast((void *)serialized.c_str(), size, MPI_BYTE, 0, MPI_COMM_WORLD);
