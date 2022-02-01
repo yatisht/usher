@@ -22,13 +22,19 @@ void check_parent(MAT::Node* root,MAT::Tree& tree){
 }
 
 static std::string
-serialize_move(move_type *in) {
+serialize_move(move_type *in, MAT::Tree& tree) {
     Mutation_Detailed::search_result result;
     result.set_sample_id(std::get<1>(*in));
     result.mutable_place_targets()->Reserve(std::get<0>(*in).size());
     for (const auto &place_target : std::get<0>(*in)) {
         auto new_target = result.add_place_targets();
         new_target->set_target_node_id(place_target.target_node->node_id);
+        if (place_target.target_node->parent!=place_target.parent_node) {
+            fprintf(stderr, "parent Mismatch at sender\n");
+        }
+        if (tree.get_node(place_target.target_node->node_id)!=place_target.target_node) {
+            fprintf(stderr, "node id Mismatch at sender\n");
+        }
         new_target->set_parent_node_id(place_target.parent_node->node_id);
         fill_mutation_vect(new_target->mutable_sample_mutation_positions(),
                            new_target->mutable_sample_mutation_other_fields(),
@@ -51,9 +57,10 @@ serialize_move(move_type *in) {
     return result.SerializeAsString();
 }
 struct Send_Main_Tree_Target {
+    MAT::Tree& tree;
     void
     operator()(move_type *in)const {
-        auto buffer = serialize_move(in);
+        auto buffer = serialize_move(in,tree);
         mpi_trace_print( "follower sent placement \n");
         MPI_Send(buffer.c_str(), buffer.size(), MPI_BYTE, 0, PROPOSED_PLACE,
                  MPI_COMM_WORLD);
@@ -204,8 +211,7 @@ void follower_place_sample(MAT::Tree &main_tree,int batch_size){
         tbb::make_filter<Sample_Muts*,move_type *>(
             tbb::filter::parallel,Finder{main_tree,true})&
         tbb::make_filter<move_type *,void>(
-            tbb::filter::serial,Send_Main_Tree_Target())
-        );
+            tbb::filter::serial,Send_Main_Tree_Target{main_tree}));
     for (auto node : deleted_nodes) {
         delete node;
     }
