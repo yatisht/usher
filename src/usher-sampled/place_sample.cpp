@@ -135,18 +135,19 @@ static Status recieve_place(Recieve_Place_State& state) {
         }
         int msg_size;
         MPI_Get_count(&status, MPI_BYTE, &msg_size);
+        auto temp = new char[msg_size];
+        mpi_trace_print("recieving proposed place from %d\n",status.MPI_SOURCE);
+        MPI_Recv(temp, msg_size, MPI_BYTE, status.MPI_SOURCE, PROPOSED_PLACE, MPI_COMM_WORLD,
+                 MPI_STATUS_IGNORE);
         if (msg_size == 0) {
-            state.processes_left--;
+ 	    state.processes_left--;
+	    fprintf(stderr, "reciever exiting %d proc left\n",state.processes_left);
             if (state.processes_left) {
                 return OK;
             }else {
                 return DONE;            
             }
         }
-        auto temp = new char[msg_size];
-        mpi_trace_print("recieving proposed place from %d\n",status.MPI_SOURCE);
-        MPI_Recv(temp, msg_size, MPI_BYTE, status.MPI_SOURCE, PROPOSED_PLACE, MPI_COMM_WORLD,
-                 MPI_STATUS_IGNORE);
         mpi_trace_print("recieved proposed place\n");
         state.handler.try_put(std::make_pair(temp, msg_size));
         return OK;
@@ -400,7 +401,7 @@ void place_sample_leader(std::vector<Sample_Muts> &sample_to_place, MAT::Tree &m
     std::thread *mpi_thread;
     std::atomic_uint64_t curr_idx(0);
     tbb::concurrent_bounded_queue<Preped_Sample_To_Place*> send_queue;
-        tbb::flow::graph g;
+    {        tbb::flow::graph g;
         Pusher_Node_T init(g, tbb::flow::serial, Pusher{curr_idx, sample_to_place});
         tbb::flow::function_node<
             Sample_Muts*, move_type *>
@@ -426,15 +427,18 @@ void place_sample_leader(std::vector<Sample_Muts> &sample_to_place, MAT::Tree &m
             init.try_put(SIZE_MAX);
         }
         g.wait_for_all();
-        send_queue.push(nullptr);
-        for(auto node:deleted_nodes){
+    }
+     	send_queue.push(nullptr);
+	fprintf(stderr,"main done\n");
+       /* for(auto node:deleted_nodes){
             delete node;
         }
-        deleted_nodes.clear();
+        deleted_nodes.clear();*/
         if (proc_count>1) {
             mpi_thread->join();
-            delete mpi_thread;
+            //delete mpi_thread;
             size_t size=0;
             MPI_Bcast((void *)&size, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
         }       
+	fprintf(stderr,"main exit\n");
 }

@@ -107,8 +107,8 @@ static void recv_and_place_follower(MAT::Tree &tree,
         MPI_Bcast(&bcast_size, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
         mpi_trace_print("Recieving move of size %zu \n",bcast_size);
         if (bcast_size == 0) {
-            return;
             fprintf(stderr, "Place Recievier exit \n");
+            return;
         }
         auto buffer = new uint8_t[bcast_size];
         MPI_Bcast(buffer, bcast_size, MPI_BYTE, 0, MPI_COMM_WORLD);
@@ -211,5 +211,7 @@ void follower_place_sample(MAT::Tree &main_tree,int batch_size){
     }
     int ignored;
     MPI_Send(&ignored, 0, MPI_BYTE, 0, PROPOSED_PLACE, MPI_COMM_WORLD);
+    fprintf(stderr,"follower send end\n");
     tree_update_thread.join();
+    fprintf(stderr,"follower  end return\n");
 }

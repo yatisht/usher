@@ -114,6 +114,8 @@ static int leader_thread(std::string& vcf_filename,
         tree.MPI_send_tree();
         MPI_Barrier(MPI_COMM_WORLD);
     }
+    samples_to_place.resize(10);
+    fprintf(stderr, "Mainfinised place\n");
     place_sample_leader(samples_to_place, tree, 2, proc_count);
     dfs=tree.depth_first_expansion();
     clean_up_leaf(dfs);
@@ -186,5 +188,6 @@ int main(int argc, char **argv) {
         }
         MPI_Barrier(MPI_COMM_WORLD);
         follower_place_sample(tree,2);
+	MPI_Finalize();
     }
 }

@@ -11,6 +11,7 @@
 #define EMPTY_POS UINT32_MAX
 #define SIZE_MULT 8
 namespace MAT = Mutation_Annotated_Tree;
+#define MPI_TRACE
 #ifdef MPI_TRACE
 #define mpi_trace_print(...) fprintf(stderr, __VA_ARGS__ )
 #else
