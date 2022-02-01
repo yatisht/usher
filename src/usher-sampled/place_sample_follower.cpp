@@ -6,7 +6,7 @@
 #include <tbb/pipeline.h>
 #include <thread>
 #include <mpi.h>
-static void check_parent(MAT::Node* root,MAT::Tree& tree){
+void check_parent(MAT::Node* root,MAT::Tree& tree){
     if (root!=tree.get_node(root->node_id)) {
         fprintf(stderr, "dict mismatch\n");
         raise(SIGTRAP);

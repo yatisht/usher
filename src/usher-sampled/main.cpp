@@ -102,7 +102,7 @@ static int leader_thread(std::string& vcf_filename,
     for (auto node : dfs) {
         node->branch_length=node->mutations.size();
         #ifdef NDEBUG
-        node->children.reserve(4*node->children.size());
+        node->children.reserve(SIZE_MULT*node->children.size());
         #endif
     }
     fprintf(stderr, "main dfs size %zu\n",dfs.size());
@@ -170,7 +170,7 @@ int main(int argc, char **argv) {
         } else
             return 1;
     }
-    tbb::task_scheduler_init init(num_threads);
+    tbb::task_scheduler_init init(num_threads-2);
     
     //wait_debug();
 

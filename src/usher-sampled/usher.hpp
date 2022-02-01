@@ -9,6 +9,7 @@
 #define MAX_LEVLEL UINT8_MAX
 #define IDX_TREE_IDX_T uint32_t
 #define EMPTY_POS UINT32_MAX
+#define SIZE_MULT 8
 namespace MAT = Mutation_Annotated_Tree;
 #ifdef MPI_TRACE
 #define mpi_trace_print(...) fprintf(stderr, __VA_ARGS__ )
@@ -71,3 +72,4 @@ void convert_mut_type(const std::vector<MAT::Mutation> &in,
 void assign_descendant_muts(MAT::Tree &in);
 void assign_levels(MAT::Node* root);
 void follower_place_sample(MAT::Tree &main_tree,int batch_size);
+void check_parent(MAT::Node* root,MAT::Tree& tree);

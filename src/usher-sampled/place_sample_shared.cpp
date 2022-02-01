@@ -38,7 +38,7 @@ static MAT::Node* add_children(MAT::Node* target_node,MAT::Node* sample_node,MAT
         for(auto child:new_target_node->children){
             child->parent=new_target_node;
         }
-        new_target_node->children.reserve(4*new_target_node->children.size());
+        new_target_node->children.reserve(SIZE_MULT*new_target_node->children.size());
         auto& parent_children=target_node->parent->children;
         auto iter=std::find(parent_children.begin(),parent_children.end(),target_node);
         if (iter==parent_children.end()) {
@@ -106,7 +106,7 @@ update_main_tree_output update_main_tree(const MAT::Mutations_Collection& sample
         split_node->level=target_node->level;
         split_node->parent = parent_node;
         split_node->mutations = std::move(shared_mutations);
-        split_node->children.reserve(4);
+        split_node->children.reserve(2*SIZE_MULT);
         split_node->children.push_back(new_target_node);
         split_node->children.push_back(sample_node);
         split_node->branch_length = split_node->mutations.size();
