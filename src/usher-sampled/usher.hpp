@@ -15,6 +15,7 @@ namespace MAT = Mutation_Annotated_Tree;
 #else
 #define mpi_trace_print(...)
 #endif
+void check_order(MAT::Mutations_Collection& in);
 struct To_Place_Sample_Mutation{
     int position;
     uint8_t chrom_idx;

@@ -300,6 +300,10 @@ class Mutations_Collection {
         mutations.reserve(n);
     }
     void push_back(const Mutation& m) {
+        if (m.get_position()>=(int)(Mutation::refs.size()+1)&&m.get_position()!=INT_MAX) {
+                fprintf(stderr, "strange size \n");
+                raise(SIGTRAP);
+        }
         if (!mutations.empty()) {
             if (m.get_position()<=mutations.back().get_position()) {
                 fprintf(stderr, "Adding out of order %d to %d \n",m.get_position(),mutations.back().get_position());
@@ -505,7 +509,7 @@ class Tree {
         all_nodes.clear();
     }
     void register_node_serial(Node* node){
-        all_nodes.resize(node->node_id+1);
+        all_nodes.resize(std::max(all_nodes.size(),node->node_id+1),nullptr);
         all_nodes[node->node_id]=node;
     }
     void register_node_serial(Node* node,std::string& name){

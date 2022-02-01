@@ -73,7 +73,66 @@ static int set_descendant_count(MAT::Node* root){
     return child_count;
 }
 
-static int leader_thread(int argc, char **argv,int proc_count){
+static int leader_thread(std::string& vcf_filename,
+    std::string& protobuf_in,
+    std::string& protobuf_out,int proc_count){
+    auto start_time=std::chrono::steady_clock::now();
+    MAT::Tree tree=MAT::load_mutation_annotated_tree(protobuf_in);
+    tree.uncondense_leaves();
+    std::vector<Sample_Muts> samples_to_place;
+    Sample_Input(vcf_filename.c_str(),samples_to_place,tree);
+    fprintf(stderr, "Placing %zu samples \n",samples_to_place.size());
+    tree.condense_leaves();
+    
+    fix_parent(tree.root);
+    #ifndef NDEBUG
+    Original_State_t ori_state;
+    check_samples(tree.root, ori_state, &tree);
+    fprintf(stderr, "\n------\n%zu samples\n",ori_state.size());
+    #endif
+    auto dfs=tree.depth_first_expansion();
+    tbb::parallel_for(tbb::blocked_range<size_t>(0,dfs.size()),[&dfs](tbb::blocked_range<size_t> r){
+        for (size_t idx=r.begin(); idx<r.end(); idx++) {
+            auto & mut=dfs[idx]->mutations.mutations;
+            mut.erase(std::remove_if(mut.begin(), mut.end(), [](const MAT::Mutation& mut){
+                return mut.get_mut_one_hot()==mut.get_par_one_hot();
+            }),mut.end());
+        }
+    });
+    for (auto node : dfs) {
+        node->branch_length=node->mutations.size();
+        #ifdef NDEBUG
+        node->children.reserve(4*node->children.size());
+        #endif
+    }
+    fprintf(stderr, "main dfs size %zu\n",dfs.size());
+    assign_descendant_muts(tree);
+    assign_levels(tree.root);
+    set_descendant_count(tree.root);
+    if (proc_count>1) {
+        fprintf(stderr, "Main sending tree\n");
+        tree.MPI_send_tree();
+        MPI_Barrier(MPI_COMM_WORLD);
+    }
+    place_sample_leader(samples_to_place, tree, 2, proc_count);
+    dfs=tree.depth_first_expansion();
+    clean_up_leaf(dfs);
+    fix_condensed_nodes(&tree);
+    MAT::save_mutation_annotated_tree(tree, protobuf_out);
+    auto duration=std::chrono::steady_clock::now()-start_time;
+    fprintf(stderr, "Took %ld msec\n",std::chrono::duration_cast<std::chrono::milliseconds>(duration).count());
+    MPI_Finalize();
+    return 0;
+}
+void wait_debug();
+int main(int argc, char **argv) {
+    
+    //signal(SIGSEGV, handler);
+    int proc_count;
+    MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &proc_count);
+    MPI_Comm_size(MPI_COMM_WORLD, &proc_count);
+    int this_rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &this_rank);
     std::string vcf_filename;
     std::string protobuf_in;
     std::string protobuf_out;
@@ -111,68 +170,21 @@ static int leader_thread(int argc, char **argv,int proc_count){
         } else
             return 1;
     }
-    auto start_time=std::chrono::steady_clock::now();
     tbb::task_scheduler_init init(num_threads);
-    MAT::Tree tree=MAT::load_mutation_annotated_tree(protobuf_in);
-    tree.uncondense_leaves();
-    std::vector<Sample_Muts> samples_to_place;
-    Sample_Input(vcf_filename.c_str(),samples_to_place,tree);
-    fprintf(stderr, "Placing %zu samples \n",samples_to_place.size());
-    tree.condense_leaves();
     
-    fix_parent(tree.root);
-    #ifndef NDEBUG
-    Original_State_t ori_state;
-    check_samples(tree.root, ori_state, &tree);
-    fprintf(stderr, "\n------\n%zu samples\n",ori_state.size());
-    #endif
-    auto dfs=tree.depth_first_expansion();
-    tbb::parallel_for(tbb::blocked_range<size_t>(0,dfs.size()),[&dfs](tbb::blocked_range<size_t> r){
-        for (size_t idx=r.begin(); idx<r.end(); idx++) {
-            auto & mut=dfs[idx]->mutations.mutations;
-            mut.erase(std::remove_if(mut.begin(), mut.end(), [](const MAT::Mutation& mut){
-                return mut.get_mut_one_hot()==mut.get_par_one_hot();
-            }),mut.end());
-        }
-    });
-    for (auto node : dfs) {
-        node->branch_length=node->mutations.size();
-        #ifdef NDEBUG
-        node->children.reserve(4*node->children.size());
-        #endif
-    }
-    assign_descendant_muts(tree);
-    assign_levels(tree.root);
-    set_descendant_count(tree.root);
-    if (proc_count>1) {
-        fprintf(stderr, "Main sending tree\n");
-        tree.MPI_send_tree();
-    }
-    place_sample_leader(samples_to_place, tree, 2, proc_count);
-    dfs=tree.depth_first_expansion();
-    clean_up_leaf(dfs);
-    fix_condensed_nodes(&tree);
-    MAT::save_mutation_annotated_tree(tree, protobuf_out);
-    auto duration=std::chrono::steady_clock::now()-start_time;
-    fprintf(stderr, "Took %ld msec\n",std::chrono::duration_cast<std::chrono::milliseconds>(duration).count());
-    MPI_Finalize();
-    return 0;
-}
-void wait_debug();
-int main(int argc, char **argv) {
     //wait_debug();
-    signal(SIGSEGV, handler);
-    int proc_count;
-    MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &proc_count);
-    MPI_Comm_size(MPI_COMM_WORLD, &proc_count);
-    int this_rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &this_rank);
+
     if (this_rank==0) {
-        return leader_thread(argc, argv, proc_count);
+        return leader_thread(vcf_filename,protobuf_in,protobuf_out, proc_count);
     }else {
         MAT::Tree tree;
         fprintf(stderr, "follwer recieving tree\n");
         tree.MPI_receive_tree();
-        follower_place_sample(tree,20);
+        auto dfs=tree.depth_first_expansion();
+        for (auto node : dfs) {
+            check_order(node->mutations);
+        }
+        MPI_Barrier(MPI_COMM_WORLD);
+        follower_place_sample(tree,2);
     }
 }

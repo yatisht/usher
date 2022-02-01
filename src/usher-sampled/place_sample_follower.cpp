@@ -1,11 +1,26 @@
 #include "place_sample.hpp"
+#include "src/matOptimize/mutation_annotated_tree.hpp"
+#include <climits>
+#include <csignal>
 #include <cstdio>
 #include <tbb/pipeline.h>
 #include <thread>
 #include <mpi.h>
+static void check_parent(MAT::Node* root,MAT::Tree& tree){
+    if (root!=tree.get_node(root->node_id)) {
+        fprintf(stderr, "dict mismatch\n");
+        raise(SIGTRAP);
+    }
+    for (auto child : root->children) {
+        if (child->parent!=root) {
+            fprintf(stderr, "parent mismatch\n");
+            raise(SIGTRAP);
+        }
+    }
+}
 
 static std::string
-serialize_move(std::tuple<std::vector<Main_Tree_Target>, size_t> *in) {
+serialize_move(move_type *in) {
     Mutation_Detailed::search_result result;
     result.set_sample_id(std::get<1>(*in));
     result.mutable_place_targets()->Reserve(std::get<0>(*in).size());
@@ -22,12 +37,20 @@ serialize_move(std::tuple<std::vector<Main_Tree_Target>, size_t> *in) {
         fill_mutation_vect(new_target->mutable_shared_mutation_positions(),
                            new_target->mutable_shared_mutation_other_fields(),
                            place_target.shared_mutations);
+        if (place_target.sample_mutations.size()==0) {
+            fprintf(stderr, "follower send size mismatch\n");
+            raise(SIGTRAP);
+        }
+        if (new_target->sample_mutation_positions_size()!=place_target.sample_mutations.size()) {
+            fprintf(stderr, "follower send size mismatch\n");
+            raise(SIGTRAP);
+        }
     }
     return result.SerializeAsString();
 }
 struct Send_Main_Tree_Target {
     void
-    operator()(std::tuple<std::vector<Main_Tree_Target>, size_t> *in)const {
+    operator()(move_type *in)const {
         auto buffer = serialize_move(in);
         mpi_trace_print( "follower sent placement \n");
         MPI_Send(buffer.c_str(), buffer.size(), MPI_BYTE, 0, PROPOSED_PLACE,
@@ -35,11 +58,39 @@ struct Send_Main_Tree_Target {
         delete in;
     }
 };
+void check_order_node(MAT::Node* node){
+    int prev_pos=-1;
+    for (const auto& mut : node->mutations) {
+            if (mut.get_position()>=MAT::Mutation::refs.size()) {
+                fprintf(stderr, "%zu: placement_check strange size\n",node->node_id);
+                raise(SIGTRAP);
+            }
+        if (mut.get_position()<=prev_pos) {
+            fprintf(stderr, "%zu:placement out of order\n",node->node_id);
+            raise(SIGTRAP);
+        }
+        prev_pos=mut.get_position();
+    }
+}
+void check_order(MAT::Mutations_Collection& in){
+    int prev_pos=-1;
+    for (const auto& mut : in) {
+        if (mut.get_position()<=prev_pos) {
+            if (mut.get_position()>=MAT::Mutation::refs.size()) {
+                fprintf(stderr, "placement_check strange size\n");
+                raise(SIGTRAP);
+            }
+            fprintf(stderr, "placement out of order\n");
+            raise(SIGTRAP);
+        }
+        prev_pos=mut.get_position();
+    }
+}
 static void recv_and_place_follower(MAT::Tree &tree,
                            std::vector<MAT::Node *> &deleted_nodes) {
+    fprintf(stderr, "Place Recievier started \n");
     while (true) {
         size_t bcast_size;
-        mpi_trace_print("follower waiting for move  \n");
         MPI_Bcast(&bcast_size, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
         mpi_trace_print("Recieving move of size %zu \n",bcast_size);
         if (bcast_size == 0) {
@@ -47,9 +98,9 @@ static void recv_and_place_follower(MAT::Tree &tree,
         }
         auto buffer = new uint8_t[bcast_size];
         MPI_Bcast(buffer, bcast_size, MPI_BYTE, 0, MPI_COMM_WORLD);
-        mpi_trace_print("Recieved move \n");
         Mutation_Detailed::placed_target parsed_target;
         parsed_target.ParseFromArray(buffer, bcast_size);
+        //fprintf(stderr,"Recieved move target :%zu, split %zu, sample: %zu\n",parsed_target.target_node_id(),parsed_target.split_node_id(),parsed_target.sample_id());
         MAT::Mutations_Collection sample_mutations;
         MAT::Mutations_Collection shared_mutations;
         MAT::Mutations_Collection splitted_mutations;
@@ -62,10 +113,29 @@ static void recv_and_place_follower(MAT::Tree &tree,
         load_mutations(parsed_target.shared_mutation_positions(),
                        parsed_target.shared_mutation_other_fields(),
                        shared_mutations.mutations);
+        /*check_order(sample_mutations);
+        check_order(splitted_mutations);
+        check_order(shared_mutations);*/
+        auto target_node=tree.get_node(parsed_target.target_node_id());
+        if (target_node==nullptr) {
+            fprintf(stderr, "Node not found %zu \n",parsed_target.target_node_id());
+            std::raise(SIGTRAP);
+        }
         auto out = update_main_tree(
             sample_mutations, splitted_mutations, shared_mutations,
-            tree.get_node(parsed_target.target_node_id()),
+            target_node,
             parsed_target.sample_id(), tree, parsed_target.split_node_id());
+        target_node=tree.get_node(parsed_target.target_node_id());
+        check_parent(tree.root, tree);
+        /*check_order(target_node->mutations);
+        check_order(tree.get_node(parsed_target.sample_id())->mutations);
+        if (out.splitted_node) {
+            check_order(out.splitted_node->mutations);
+        }
+        auto dfs=tree.depth_first_expansion();
+        for (auto node : dfs) {
+            check_order_node(node);
+        }*/
         if (out.deleted_nodes) {
             deleted_nodes.push_back(out.deleted_nodes);
         }
@@ -107,9 +177,9 @@ void follower_place_sample(MAT::Tree &main_tree,int batch_size){
     MPI_Barrier(MPI_COMM_WORLD);
     tbb::parallel_pipeline(batch_size,
         tbb::make_filter<void,Sample_Muts*>(tbb::filter::serial,Fetcher())&
-        tbb::make_filter<Sample_Muts*,std::tuple<std::vector<Main_Tree_Target>, size_t> *>(
+        tbb::make_filter<Sample_Muts*,move_type *>(
             tbb::filter::parallel,Finder{main_tree,true})&
-        tbb::make_filter<std::tuple<std::vector<Main_Tree_Target>, size_t> *,void>(
+        tbb::make_filter<move_type *,void>(
             tbb::filter::serial,Send_Main_Tree_Target())
         );
     for (auto node : deleted_nodes) {

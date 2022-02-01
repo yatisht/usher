@@ -157,6 +157,7 @@ void Mutation_Annotated_Tree::Tree::load_from_newick(const std::string& newick_s
     std::vector<size_t> num_close;
     std::vector<std::queue<float>> branch_len (128);  // will be resized later if needed
     size_t level = 0;
+    node_idx=0;
 
     std::vector<std::string> s1;
     string_split(newick_string, ',', s1);

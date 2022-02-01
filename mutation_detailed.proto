@@ -6,7 +6,7 @@ message node {
     repeated fixed32 mutation_other_fields = 2;
     repeated int32 ignored_range_start = 3;
     repeated int32 ignored_range_end = 4;
-    int64 node_id = 5;
+    uint64 node_id = 5;
     repeated int64 children_offsets =6;
     repeated int32 children_lengths =7;
     repeated string condensed_nodes =8;

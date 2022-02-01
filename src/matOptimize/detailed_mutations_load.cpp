@@ -3,6 +3,7 @@
 #include <climits>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <mpi.h>
 #include <sys/mman.h>
@@ -202,9 +203,9 @@ struct Load_Subtree_pararllel : public tbb::task {
         google::protobuf::io::CodedInputStream inputi(file_start + start_offset,
                 length);
         Mutation_Detailed::node node;
+        node.ParseFromCodedStream(&inputi);
         out = new MAT::Node(node.node_id());
         out->parent = parent;
-        node.ParseFromCodedStream(&inputi);
         out->changed=node.changed();
         // deserialize ignored range
         size_t ignore_range_size = node.ignored_range_end_size();
@@ -356,6 +357,7 @@ static void deserialize_common(std::pair<uint8_t*,uint8_t*> uncompressed,MAT::Tr
             tree->condensed_nodes, root_muts));
     free(uncompressed.first);
     std::vector<MAT::Node *> dfs_nodes = tree->depth_first_expansion();
+    fprintf(stderr, "follower dfs size %zu\n",dfs_nodes.size());
     for (auto node : dfs_nodes) {
         tree->register_node_serial(node);
     }
@@ -374,4 +376,5 @@ void Mutation_Annotated_Tree::Tree::MPI_receive_tree() {
     auto uncompressed = receive_mpi_uncompress();
     deserialize_common<no_deserialize_condensed_nodes>(uncompressed, this);
     fputs("Finished loading intermediate protobuf\n", stderr);
+    fprintf(stderr, "node list zize %zu\n",all_nodes.size());
 }

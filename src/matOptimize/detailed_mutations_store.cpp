@@ -1,4 +1,5 @@
 #include "detailed_mutation_load_store.hpp"
+#include "mutation_detailed.pb.h"
 #include "src/matOptimize/mutation_annotated_tree.hpp"
 #include "src/matOptimize/tree_rearrangement_internal.hpp"
 #include <cstddef>
@@ -129,7 +130,7 @@ struct no_serialize_condensed_node {
 };
 static void serialize_node(Mutation_Detailed::node &this_node,
                            const MAT::Node *root, const MAT::Tree &tree) {
-    this_node.set_node_id(root->node_id);
+    this_node.set_node_id(root->node_id);    
     this_node.set_changed(root->changed);
     this_node.mutable_mutation_positions()->Reserve(root->mutations.size());
     this_node.mutable_mutation_other_fields()->Reserve(root->mutations.size());
@@ -332,4 +333,5 @@ void Mutation_Annotated_Tree::Tree::MPI_send_tree() const {
     size_t size_t_max=UINT64_MAX;
     MPI_Bcast(&size_t_max, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
     MPI_Bcast(&uncompressed_length, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
+    fprintf(stderr, "main node list zize %zu\n",all_nodes.size());
 }

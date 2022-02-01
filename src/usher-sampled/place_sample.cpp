@@ -64,11 +64,16 @@ static void discretize_mutations(const std::vector<To_Place_Sample_Mutation> &in
     gather_par_mut(par_nuc_idx, parent_node, out);
 }
 
-static std::tuple<std::vector<Main_Tree_Target>, size_t> *
+static std::tuple<std::vector<Main_Tree_Target>, size_t,bool> *
 deserialize_move(char *in, int size, MAT::Tree &tree) {
     Mutation_Detailed::search_result result;
-    result.ParseFromArray((void *)in, size);
-    auto out = new std::tuple<std::vector<Main_Tree_Target>, size_t>;
+    bool parse_result=result.ParseFromArray((void *)in, size);
+    if (!parse_result) {
+        fprintf(stderr, "parse error");
+        raise(SIGTRAP);
+    }
+    auto out = new std::tuple<std::vector<Main_Tree_Target>, size_t,bool>;
+    std::get<2>(*out)=false;
     auto &targets = std::get<0>(*out);
     std::get<1>(*out) = result.sample_id();
     if (tree.get_node_name(std::get<1>(*out))=="") {
@@ -81,6 +86,10 @@ deserialize_move(char *in, int size, MAT::Tree &tree) {
         Main_Tree_Target target;
         auto &parsed_target = result.place_targets(count);
         target.target_node = tree.get_node(parsed_target.target_node_id());
+        if (target.target_node->parent==nullptr) {
+            fprintf(stderr, "unset patetn\n");
+            raise(SIGTRAP);
+        }
         target.parent_node = tree.get_node(parsed_target.parent_node_id());
         load_mutations(parsed_target.sample_mutation_positions(),
                        parsed_target.sample_mutation_other_fields(),
@@ -91,14 +100,19 @@ deserialize_move(char *in, int size, MAT::Tree &tree) {
         load_mutations(parsed_target.shared_mutation_positions(),
                        parsed_target.shared_mutation_other_fields(),
                        target.shared_mutations.mutations);
+        if (parsed_target.sample_mutation_positions_size()==0) {
+        raise(SIGTRAP);
+        }
+        if (parsed_target.sample_mutation_positions_size()!=target.sample_mutations.size()) {
+        fprintf(stderr, "sample mut mismatch %d, loaded %d\n",parsed_target.sample_mutation_positions_size(),target.sample_mutations.size());
+        raise(SIGTRAP);
+        }
         targets.emplace_back(std::move(target));
     }
     return out;
 }
-typedef tbb::flow::function_node<
-    std::tuple<std::vector<Main_Tree_Target>, size_t> *,size_t>
-    placer_node_t;
-typedef tbb::flow::buffer_node<std::tuple<std::vector<Main_Tree_Target>, size_t> *> Other_Proc_Buffer_T;
+typedef tbb::flow::function_node<move_type *,size_t> placer_node_t;
+typedef tbb::flow::buffer_node<std::tuple<std::vector<Main_Tree_Target>, size_t,bool> *> Other_Proc_Buffer_T;
 static void recieve_place(Other_Proc_Buffer_T &handler,
                           MAT::Tree &tree,int processes_left) {
     MPI_Status status;
@@ -152,6 +166,7 @@ static void send_paced_move(tbb::concurrent_bounded_queue<std::string*>& send_qu
         std::string* in;
         send_queue.pop(in);
         if (in==nullptr) {
+            fprintf(stderr, "send queue exit\n");
             break;
         }
         auto size = in->size();
@@ -159,6 +174,7 @@ static void send_paced_move(tbb::concurrent_bounded_queue<std::string*>& send_qu
         mpi_trace_print("Main sending move of size %zu\n",size);
         MPI_Bcast((void *)in->c_str(), size, MPI_BYTE, 0, MPI_COMM_WORLD);
         mpi_trace_print("Main sent move\n");
+        //fprintf(stderr, "send queue size %zu\n",send_queue.size());
         delete in;
     }
 }
@@ -169,14 +185,24 @@ struct main_tree_new_place_handler {
     std::vector<MAT::Node *> &deleted_nodes;
     tbb::concurrent_bounded_queue<std::string*>& send_queue;
     size_t
-    operator()(std::tuple<std::vector<Main_Tree_Target>, size_t> *in) {
-        total++;
+    operator()(move_type *in) {
 	auto &search_result = std::get<0>(*in);
         auto idx = std::get<1>(*in);
         for (const auto &placement : search_result) {
             if (placement.parent_node == nullptr ||
                 placement.target_node == nullptr ||
                 placement.parent_node != placement.target_node->parent) {
+                if (placement.parent_node&&placement.target_node) {
+                    auto actual_par=placement.target_node->parent;
+                    fprintf(stderr, "par mismatch: recieved %zu, actual %zu, target %zu",placement.parent_node->node_id,actual_par?actual_par->node_id:-1,placement.target_node->node_id);
+                    if (std::get<2>(*in)) {
+                        fprintf(stderr, " from self\n");
+                    }else {
+                        fprintf(stderr, " from other\n");
+                    }
+                }else {
+                    fprintf(stderr, "Node not found\n");
+                }
                 fprintf(stderr, "Redoing %s \n",
                         main_tree.get_node_name(idx).c_str());
                 delete in;
@@ -186,6 +212,7 @@ struct main_tree_new_place_handler {
 		return idx;
             }
         }
+        total++;
         auto smallest_idx = search_result[0].target_node->node_id;
         auto arg_small_idx = 0;
         for (int target_idx = 1; target_idx < search_result.size();
@@ -269,12 +296,13 @@ void place_sample_leader(std::vector<Sample_Muts> &sample_to_place, MAT::Tree &m
     auto start_time=std::chrono::steady_clock::now();
     std::thread *listen_thread;
     std::thread *distribute_thread;
+    std::thread *sender_thread;
     std::atomic_uint64_t curr_idx(0);
     tbb::concurrent_bounded_queue<std::string*> send_queue;
         tbb::flow::graph g;
         Pusher_Node_T init(g, 1, Pusher{curr_idx, sample_to_place});
         tbb::flow::function_node<
-            Sample_Muts*, std::tuple<std::vector<Main_Tree_Target>, size_t> *>
+            Sample_Muts*, move_type *>
             searcher(g, tbb::flow::unlimited,
                      Finder{main_tree,false});
         tbb::flow::make_edge(std::get<0>(init.output_ports()),searcher);
@@ -285,9 +313,11 @@ void place_sample_leader(std::vector<Sample_Muts> &sample_to_place, MAT::Tree &m
         Other_Proc_Buffer_T buffer(g);
         tbb::flow::make_edge(buffer,placer);
         if (proc_count>0) {
+            sender_thread= new std::thread(send_paced_move,std::ref(send_queue));
+            MPI_Barrier(MPI_COMM_WORLD);
             listen_thread=new std::thread (recieve_place,std::ref(buffer),std::ref(main_tree),proc_count-1);
             distribute_thread= new std::thread(main_tree_distribute_samples,std::ref(curr_idx), std::ref(sample_to_place),proc_count-1);
-            MPI_Barrier(MPI_COMM_WORLD);
+            
         }
         for(int temp=0;temp<batch_size;temp++){
             init.try_put(SIZE_MAX);

@@ -19,9 +19,9 @@ message(STATUS "${usher_VERSION}")
 configure_file(src/version.hpp.in version.hpp)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -std=c++17 -Wall -pipe -g -Wno-unused-function -rdynamic  -Wno-deprecated-declarations") 
-#-DDEBUG_PARSIMONY_SCORE_CHANGE_CORRECT  -DCHECK_PAR_MAIN  -DEASY_DEBUG -DSTOP_ON_ERROR       -DDETAILED_MERGER_CHECK -O0
-set(CMAKE_CXX_FLAGS_DEBUG " -ggdb3 -fno-eliminate-unused-debug-symbols -fsanitize=address -Og")
-set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-DNDEBUG -O3")
+#-DDEBUG_PARSIMONY_SCORE_CHANGE_CORRECT  -DCHECK_PAR_MAIN  -DEASY_DEBUG -DSTOP_ON_ERROR -fsanitize=address -DDETAILED_MERGER_CHECK -O0
+set(CMAKE_CXX_FLAGS_DEBUG " -ggdb3 -fno-eliminate-unused-debug-symbols  -Og")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-DNDEBUG  -O3")
 set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O3")
 set(CMAKE_INCLUDE_CURRENT_DIR ON) 
 

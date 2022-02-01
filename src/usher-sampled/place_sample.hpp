@@ -5,6 +5,8 @@
 #define CONFIRMED_PLACE 1
 #define WORK_REQ_TAG 2
 #define WORK_RES_TAG 3
+typedef std::tuple<std::vector<Main_Tree_Target>, size_t,bool> move_type;
+
 struct update_main_tree_output{
     MAT::Node* splitted_node;
     MAT::Node* deleted_nodes;
@@ -17,12 +19,13 @@ update_main_tree_output update_main_tree(const MAT::Mutations_Collection& sample
 struct Finder{
     MAT::Tree& tree;
     bool do_free;
-    std::tuple<std::vector<Main_Tree_Target>,size_t>* operator()(Sample_Muts* in)const {
-        auto output=new std::tuple<std::vector<Main_Tree_Target>,size_t>;
+    move_type* operator()(Sample_Muts* in)const {
+        auto output=new move_type;
         std::get<1>(*output)= in->sample_idx;
         const auto& condensed_muts =in->muts;
         auto main_tree_out=place_main_tree(condensed_muts, tree);
         std::get<0>(*output)=std::move(std::get<0>(main_tree_out));
+        std::get<2>(*output)=true;
         if (do_free) {
             delete in;
         }
@@ -50,5 +53,6 @@ static void load_mutations(const pos_field_type &pos_fields,
         MUT_TYPE mut;
         *((uint32_t *)(&mut)) = pos_fields.Get(idx);
         *((uint32_t *)(&mut) + 1) = other_fields.Get(idx);
+        out.push_back(mut);
     }
 }

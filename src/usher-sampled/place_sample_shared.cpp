@@ -1,4 +1,7 @@
 #include "place_sample.hpp"
+#include "src/matOptimize/mutation_annotated_tree.hpp"
+#include <csignal>
+#include <cstdio>
 static void update_possible_descendant_alleles(
     const MAT::Mutations_Collection &mutations_to_set,
     MAT::Node *node) {
@@ -27,16 +30,20 @@ static void update_possible_descendant_alleles(
         node = node->parent;
     }
 }
-static MAT::Node* add_children(MAT::Node* target_node,MAT::Node* sample_node){
+static MAT::Node* add_children(MAT::Node* target_node,MAT::Node* sample_node,MAT::Tree& tree){
     MAT::Node* deleted_node=nullptr;
     if ((target_node->children.size()+1)>=target_node->children.capacity()) {
         MAT::Node* new_target_node=new MAT::Node(*target_node);
+        tree.register_node_serial(new_target_node);
         for(auto child:new_target_node->children){
             child->parent=new_target_node;
         }
         new_target_node->children.reserve(4*new_target_node->children.size());
         auto& parent_children=target_node->parent->children;
         auto iter=std::find(parent_children.begin(),parent_children.end(),target_node);
+        if (iter==parent_children.end()) {
+            fprintf(stderr, "not found in children\n");
+        }
         *iter=new_target_node;
         deleted_node=target_node;
         target_node=new_target_node;
@@ -67,12 +74,13 @@ update_main_tree_output update_main_tree(const MAT::Mutations_Collection& sample
     }
     sample_node->branch_length = sample_node_mut_count;
     if (splitted_mutations.empty() && (!target_node->is_leaf())) {
-        deleted_node=add_children(target_node, sample_node);
+        deleted_node=add_children(target_node, sample_node,tree);
     } else if (shared_mutations.empty() &&
                (!target_node->is_leaf())) {
-        deleted_node=add_children(parent_node, sample_node);
+        deleted_node=add_children(parent_node, sample_node,tree);
     } else {
         MAT::Node* new_target_node=new MAT::Node(target_node->node_id);
+        tree.register_node_serial(new_target_node);
         new_target_node->level=target_node->level;
         new_target_node->children.reserve(4*target_node->children.size());
         new_target_node->children=target_node->children;
