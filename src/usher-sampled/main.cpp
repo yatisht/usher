@@ -109,7 +109,6 @@ static int leader_thread(std::string& vcf_filename,
     assign_descendant_muts(tree);
     assign_levels(tree.root);
     set_descendant_count(tree.root);
-    samples_to_place.resize(1000);
     if (proc_count>1) {
         fprintf(stderr, "Main sending tree\n");
         tree.MPI_send_tree();
@@ -185,6 +184,9 @@ int main(int argc, char **argv) {
         auto dfs=tree.depth_first_expansion();
         for (auto node : dfs) {
             check_order(node->mutations);
+            #ifdef NDEBUG
+            node->children.reserve(SIZE_MULT*node->children.size());
+            #endif
         }
         MPI_Barrier(MPI_COMM_WORLD);
         follower_place_sample(tree,2);
