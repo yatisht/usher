@@ -4,13 +4,16 @@
 #include <csignal>
 #include <cstdio>
 #include <string>
+#include <tbb/flow_graph.h>
 #include <tbb/pipeline.h>
+#include <tbb/task.h>
 #include <thread>
 #include <mpi.h>
+#include <tuple>
 #include <type_traits>
 void check_parent(MAT::Node* root,MAT::Tree& tree){
     if (root!=tree.get_node(root->node_id)) {
-        fprintf(stderr, "dict mismatch\n");
+        fprintf(stderr, "dict mismatch at node %d\n",root->node_id);
         raise(SIGTRAP);
     }
     for (auto child : root->children) {
@@ -24,18 +27,11 @@ void check_parent(MAT::Node* root,MAT::Tree& tree){
 static std::string
 serialize_move(move_type *in, MAT::Tree& tree) {
     Mutation_Detailed::search_result result;
-    result.set_sample_id(std::get<1>(*in));
+    result.set_sample_id(std::get<1>(*in)->sample_idx);
     result.mutable_place_targets()->Reserve(std::get<0>(*in).size());
     for (const auto &place_target : std::get<0>(*in)) {
         auto new_target = result.add_place_targets();
         new_target->set_target_node_id(place_target.target_node->node_id);
-        if (place_target.target_node->parent!=place_target.parent_node) {
-            auto par_id= place_target.target_node->parent?  place_target.target_node->parent->node_id:0;
-            fprintf(stderr, "parent Mismatch at sender ; from placement: %d ; actual %d \n", place_target.parent_node->node_id,par_id);
-        }
-        if (tree.get_node(place_target.target_node->node_id)!=place_target.target_node) {
-            fprintf(stderr, "node id Mismatch at sender id: %d \n", place_target.target_node->node_id);
-        }
         new_target->set_parent_node_id(place_target.parent_node->node_id);
         fill_mutation_vect(new_target->mutable_sample_mutation_positions(),
                            new_target->mutable_sample_mutation_other_fields(),
@@ -57,17 +53,8 @@ serialize_move(move_type *in, MAT::Tree& tree) {
     }
     return result.SerializeAsString();
 }
-struct Send_Main_Tree_Target {
-    MAT::Tree& tree;
-    void
-    operator()(move_type *in)const {
-        auto buffer = serialize_move(in,tree);
-        mpi_trace_print( "follower sent placement \n");
-        MPI_Send(buffer.c_str(), buffer.size(), MPI_BYTE, 0, PROPOSED_PLACE,
-                 MPI_COMM_WORLD);
-        delete in;
-    }
-};
+
+
 void check_order_node(MAT::Node* node){
     int prev_pos=-1;
     for (const auto& mut : node->mutations) {
@@ -174,7 +161,7 @@ static void recv_and_place_follower(MAT::Tree &tree,
     }
 }
 
-
+typedef tbb::flow::multifunction_node<Sample_Muts*, tbb::flow::tuple<Sample_Muts*>> Fetcher_Node_t;
 struct Fetcher {
     Sample_Muts* operator()(tbb::flow_control& fc) const {
         int res_size;
@@ -202,17 +189,25 @@ struct Fetcher {
         return out;
     }
 };
-
+struct Finder{
+    MAT::Tree& tree;
+    void operator()(Sample_Muts* to_search)const{
+        auto buffer = serialize_move(find_place(tree, to_search),tree);
+        //fprintf(stderr, "follower sent placement \n");
+        MPI_Send(buffer.c_str(), buffer.size(), MPI_BYTE, 0, PROPOSED_PLACE,
+                 MPI_COMM_WORLD);
+        delete to_search;
+    }
+};
 void follower_place_sample(MAT::Tree &main_tree,int batch_size){
+    check_parent(main_tree.root, main_tree);
     std::vector<MAT::Node *> deleted_nodes;
     std::thread tree_update_thread(recv_and_place_follower,std::ref(main_tree),std::ref(deleted_nodes));
     MPI_Barrier(MPI_COMM_WORLD);
     tbb::parallel_pipeline(batch_size,
         tbb::make_filter<void,Sample_Muts*>(tbb::filter::serial,Fetcher())&
-        tbb::make_filter<Sample_Muts*,move_type *>(
-            tbb::filter::parallel,Finder{main_tree,true})&
-        tbb::make_filter<move_type *,void>(
-            tbb::filter::serial,Send_Main_Tree_Target{main_tree}));
+        tbb::make_filter<Sample_Muts*,void>(
+            tbb::filter::parallel,Finder{main_tree}));
     for (auto node : deleted_nodes) {
         delete node;
     }

@@ -1,5 +1,6 @@
 #include "place_sample.hpp"
 #include "src/matOptimize/mutation_annotated_tree.hpp"
+#include <cassert>
 #include <csignal>
 #include <cstdio>
 static void update_possible_descendant_alleles(
@@ -35,6 +36,13 @@ static MAT::Node* add_children(MAT::Node* target_node,MAT::Node* sample_node,MAT
     if ((target_node->children.size()+1)>=target_node->children.capacity()) {
         MAT::Node* new_target_node=new MAT::Node(*target_node);
         tree.register_node_serial(new_target_node);
+        if (!new_target_node->parent) {
+            if (new_target_node->node_id!=0){
+                fprintf(stderr, "replacing root is root?\n");
+                raise(SIGTRAP);
+            }
+            tree.root=new_target_node;
+        }
         for(auto child:new_target_node->children){
             child->parent=new_target_node;
         }
@@ -46,6 +54,7 @@ static MAT::Node* add_children(MAT::Node* target_node,MAT::Node* sample_node,MAT
         }
         *iter=new_target_node;
         deleted_node=target_node;
+        deleted_node->parent=nullptr;
         target_node=new_target_node;
     }
     target_node->children.push_back(sample_node);
@@ -62,6 +71,7 @@ update_main_tree_output update_main_tree(const MAT::Mutations_Collection& sample
     MAT::Node* deleted_node=nullptr;
     MAT::Node *split_node=nullptr;
     MAT::Node *sample_node = new MAT::Node(node_idx);
+    sample_node->mutations=sample_mutations;
     tree.register_node_serial(sample_node);
     sample_node->level=target_node->level;
     int sample_node_mut_count = 0;
@@ -79,6 +89,10 @@ update_main_tree_output update_main_tree(const MAT::Mutations_Collection& sample
                (!target_node->is_leaf())) {
         deleted_node=add_children(parent_node, sample_node,tree);
     } else {
+        if(!target_node->parent){
+            fprintf(stderr, "spliting root?");
+            raise(SIGTRAP);
+        }
         MAT::Node* new_target_node=new MAT::Node(target_node->node_id);
         tree.register_node_serial(new_target_node);
         new_target_node->level=target_node->level;
@@ -129,4 +143,28 @@ update_main_tree_output update_main_tree(const MAT::Mutations_Collection& sample
     check_descendant_nuc(sample_node->parent);
     #endif*/
     return update_main_tree_output{split_node, deleted_node};
+}
+bool check_overriden(MAT::Tree& tree,move_type* in){
+    for (const auto& place_target : std::get<0>(*in)) {
+            if (place_target.target_node->parent!=place_target.parent_node) {
+            auto par_id= place_target.target_node->parent?  place_target.target_node->parent->node_id:0;
+            fprintf(stderr, "parent Mismatch  ; from placement: %d ; actual %d \n", place_target.parent_node->node_id,par_id);
+            return true;
+        }
+        if (tree.get_node(place_target.target_node->node_id)!=place_target.target_node) {
+            fprintf(stderr, "node id Mismatch: %d \n", place_target.target_node->node_id);
+            return true;
+        }
+    }
+    return false;
+}
+move_type* find_place(MAT::Tree& tree,Sample_Muts* in){
+        auto output=new move_type;
+        std::get<1>(*output)= in;
+        const auto& condensed_muts =in->muts;
+        do{
+        auto main_tree_out=place_main_tree(condensed_muts, tree);
+        std::get<0>(*output)=std::move(std::get<0>(main_tree_out));
+        } while(check_overriden(tree, output));
+        return output;
 }

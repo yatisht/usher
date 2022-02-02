@@ -1,4 +1,5 @@
 #include "src/matOptimize/mutation_annotated_tree.hpp"
+#include <cstdio>
 namespace MAT = Mutation_Annotated_Tree;
 #include "src/matOptimize/check_samples.hpp"
 void Sample_Input(const char *name, Original_State_t& ori_state,
@@ -11,5 +12,14 @@ int main (int argc,char** argv){
     Sample_Input(argv[2],ori_state,ori_tree);
     MAT::Tree new_tree=MAT::load_mutation_annotated_tree(argv[3]);
     new_tree.uncondense_leaves();
-    check_samples(new_tree.root, ori_state, &new_tree);
+    Original_State_t new_state;
+    for (const auto& samp_pair : ori_state) {
+        auto new_idx=new_tree.get_node(ori_tree.get_node_name(samp_pair.first));
+        if (new_idx) {
+            new_state.emplace(new_idx->node_id,std::move(samp_pair.second));            
+        }else {
+            fprintf(stderr, "Sample %s missing\n",ori_tree.get_node_name(samp_pair.first).c_str());
+        }
+    }
+    check_samples(new_tree.root, new_state, &new_tree);
 }

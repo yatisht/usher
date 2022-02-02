@@ -1,11 +1,12 @@
 #include "mutation_detailed.pb.h"
 #include "mapper.hpp"
+#include <utility>
 #define DELETED_NODE_THRESHOLD 1000
 #define PROPOSED_PLACE 0
 #define CONFIRMED_PLACE 1
 #define WORK_REQ_TAG 2
 #define WORK_RES_TAG 3
-typedef std::tuple<std::vector<Main_Tree_Target>, size_t,bool> move_type;
+typedef std::tuple<std::vector<Main_Tree_Target>, Sample_Muts*,bool> move_type;
 
 struct update_main_tree_output{
     MAT::Node* splitted_node;
@@ -16,22 +17,8 @@ update_main_tree_output update_main_tree(const MAT::Mutations_Collection& sample
                                     const MAT::Mutations_Collection& shared_mutations,
                                     MAT::Node* target_node,
                                     size_t node_idx, MAT::Tree& tree,size_t split_node_idx) ;
-struct Finder{
-    MAT::Tree& tree;
-    bool do_free;
-    move_type* operator()(Sample_Muts* in)const {
-        auto output=new move_type;
-        std::get<1>(*output)= in->sample_idx;
-        const auto& condensed_muts =in->muts;
-        auto main_tree_out=place_main_tree(condensed_muts, tree);
-        std::get<0>(*output)=std::move(std::get<0>(main_tree_out));
-        std::get<2>(*output)=true;
-        if (do_free) {
-            delete in;
-        }
-        return output;
-    }    
-};
+bool check_overriden(MAT::Tree& tree,move_type* to_check);
+move_type* find_place(MAT::Tree& tree,Sample_Muts* in);
 template <typename pos_field_type, typename other_field_type, typename mut_type>
 static void fill_mutation_vect(pos_field_type *pos_field,
                                other_field_type *other_field,

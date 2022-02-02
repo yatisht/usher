@@ -410,6 +410,10 @@ static void process(infile_t &fd, Original_State_t& ori_state,
     fd(queue);
     input_graph.wait_for_all();
     fd.unalloc();
+    auto start_idx=tree.map_samp_name_only(sample_names[0]);
+    for (size_t idx=1; idx<sample_names.size(); idx++) {
+        tree.map_samp_name_only(sample_names[idx]);
+    }
     tbb::parallel_for(
         tbb::blocked_range<size_t>(0, sample_names.size()),
         [&](tbb::blocked_range<size_t> range) {
@@ -426,7 +430,7 @@ static void process(infile_t &fd, Original_State_t& ori_state,
                     this_out.insert(one_thread[idx].begin(),
                                     one_thread[idx].end());
                 }
-                ori_state.emplace(std::move(sample_names[idx]),std::move(this_out));
+                ori_state.emplace(start_idx+idx,std::move(this_out));
             }
         });
 }

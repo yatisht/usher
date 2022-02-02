@@ -14,25 +14,9 @@
 #include <tbb/parallel_for.h>
 #include <tbb/task_scheduler_init.h>
 #include <utility>
-
-
 #include <execinfo.h>
 #include <stdlib.h>
 #include <unistd.h>
-
-
-void handler(int sig) {
-  void *array[100];
-  size_t size;
-
-  // get void*'s for all entries on the stack
-  size = backtrace(array, 100);
-
-  // print out all the frames to stderr
-  fprintf(stderr, "Error: signal %d:\n", sig);
-  backtrace_symbols_fd(array, size, STDERR_FILENO);
-  exit(1);
-}
 
 void fix_condensed_nodes(MAT::Tree *tree);
 namespace po = boost::program_options;
@@ -161,6 +145,7 @@ int main(int argc, char **argv) {
         num_threads_message.c_str())("version", "Print version number")(
         "help,h", "Print help messages");
     po::variables_map vm;
+    //wait_debug();
     try {
         po::store(po::command_line_parser(argc, argv).options(desc).run(), vm);
         po::notify(vm);
@@ -171,13 +156,13 @@ int main(int argc, char **argv) {
         } else
             return 1;
     }
-    tbb::task_scheduler_init init(num_threads-1);
     
-    //wait_debug();
 
     if (this_rank==0) {
+    tbb::task_scheduler_init init(num_threads);
         return leader_thread(vcf_filename,protobuf_in,protobuf_out, proc_count);
     }else {
+    tbb::task_scheduler_init init(num_threads-1);
         MAT::Tree tree;
         fprintf(stderr, "follwer recieving tree\n");
         tree.MPI_receive_tree();

@@ -475,6 +475,7 @@ place_main_tree(const std::vector<To_Place_Sample_Mutation> &mutations,
             main_tree_task_root->this_muts = mutations;
             To_Place_Sample_Mutation temp(INT_MAX,0,0xf);
             main_tree_task_root->this_muts.push_back(temp);
+            main_tree_task_root->set_group_priority(tbb::priority_low);
             tbb::task::spawn_root_and_wait(*main_tree_task_root);
             assert(!output.targets.empty());
 
