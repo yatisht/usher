@@ -30,10 +30,10 @@ serialize_move(move_type *in, MAT::Tree& tree) {
         auto new_target = result.add_place_targets();
         new_target->set_target_node_id(place_target.target_node->node_id);
         if (place_target.target_node->parent!=place_target.parent_node) {
-            fprintf(stderr, "parent Mismatch at sender\n");
+            fprintf(stderr, "parent Mismatch at sender ; from placement: %d ; actual %d \n", place_target.parent_node->node_id, place_target.target_node->node_id);
         }
         if (tree.get_node(place_target.target_node->node_id)!=place_target.target_node) {
-            fprintf(stderr, "node id Mismatch at sender\n");
+            fprintf(stderr, "node id Mismatch at sender id: %d \n", place_target.target_node->node_id);
         }
         new_target->set_parent_node_id(place_target.parent_node->node_id);
         fill_mutation_vect(new_target->mutable_sample_mutation_positions(),
