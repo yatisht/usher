@@ -163,8 +163,10 @@ static void recv_and_place_follower(MAT::Tree &tree,
 
 typedef tbb::flow::multifunction_node<Sample_Muts*, tbb::flow::tuple<Sample_Muts*>> Fetcher_Node_t;
 struct Fetcher {
+    bool& is_first;
     Sample_Muts* operator()(tbb::flow_control& fc) const {
         int res_size;
+        while(true){
         mpi_trace_print("follower send work req \n");
         MPI_Send(&res_size, 0, MPI_BYTE, 0, WORK_REQ_TAG, MPI_COMM_WORLD);
         MPI_Status status;
@@ -172,10 +174,19 @@ struct Fetcher {
         mpi_trace_print("follower recieve work res \n");
         MPI_Get_count(&status, MPI_BYTE, &res_size);
         if (res_size==0) {
+            MPI_Recv(&res_size, res_size, MPI_BYTE, 0, WORK_RES_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            if (is_first) {
+                continue;
+            }
+            fprintf(stderr, "tag: %d, sender:%d, error %d",status.MPI_TAG,status.MPI_SOURCE,status.MPI_ERROR);
             fprintf(stderr, "Fetcher exit \n");
             fc.stop();
             return nullptr;
+        }else {
+            break;
         }
+        }
+        is_first=false;
         auto buffer=new char[res_size];
         MPI_Recv(buffer, res_size, MPI_BYTE, 0, WORK_RES_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         mpi_trace_print("follower recieved work res \n");
@@ -202,10 +213,10 @@ struct Finder{
 void follower_place_sample(MAT::Tree &main_tree,int batch_size){
     check_parent(main_tree.root, main_tree);
     std::vector<MAT::Node *> deleted_nodes;
+    bool is_first=true;
     std::thread tree_update_thread(recv_and_place_follower,std::ref(main_tree),std::ref(deleted_nodes));
-    MPI_Barrier(MPI_COMM_WORLD);
     tbb::parallel_pipeline(batch_size,
-        tbb::make_filter<void,Sample_Muts*>(tbb::filter::serial,Fetcher())&
+        tbb::make_filter<void,Sample_Muts*>(tbb::filter::serial,Fetcher{is_first})&
         tbb::make_filter<Sample_Muts*,void>(
             tbb::filter::parallel,Finder{main_tree}));
     for (auto node : deleted_nodes) {

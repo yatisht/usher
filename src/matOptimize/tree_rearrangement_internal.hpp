@@ -107,7 +107,7 @@ struct TlRng:public std::mt19937_64 {
     TlRng():std::mt19937_64(std::chrono::steady_clock::now().time_since_epoch().count()*std::hash<std::thread::id>()(std::this_thread::get_id())) {}
 };
 extern thread_local TlRng rng;
-
+void reassign_states(MAT::Tree& t, Original_State_t& origin_states);
 void adjust_all(MAT::Tree &tree) ;
 size_t get_memory();
 #ifdef CHECK_BOUND

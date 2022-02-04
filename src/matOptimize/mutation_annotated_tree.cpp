@@ -130,7 +130,11 @@ void Node::delete_this() {
     delete this;
 }
 void Mutation_Annotated_Tree::Tree::delete_nodes() {
+    if (!root) {
+        return;
+    }
     root->delete_this();
+    root=nullptr;
 }
 static void get_leaves_helper(Node* root, std::vector<Node*>& out) {
     for(auto child:root->children) {

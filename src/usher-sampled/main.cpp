@@ -1,7 +1,9 @@
 #include "src/matOptimize/check_samples.hpp"
 #include "src/matOptimize/mutation_annotated_tree.hpp"
+#include "src/matOptimize/tree_rearrangement_internal.hpp"
 #include "usher.hpp"
 #include <algorithm>
+#include <atomic>
 #include <boost/program_options.hpp>
 #include <chrono>
 #include <climits>
@@ -17,7 +19,12 @@
 #include <execinfo.h>
 #include <stdlib.h>
 #include <unistd.h>
-
+#include <vector>
+bool use_bound;
+int process_count;
+int this_rank;
+unsigned int num_threads;
+std::atomic_bool interrupted(false);
 void fix_condensed_nodes(MAT::Tree *tree);
 namespace po = boost::program_options;
 static void clean_up_leaf(std::vector<MAT::Node*>& dfs){
@@ -64,7 +71,9 @@ static int leader_thread(std::string& vcf_filename,
     MAT::Tree tree=MAT::load_mutation_annotated_tree(protobuf_in);
     tree.uncondense_leaves();
     std::vector<Sample_Muts> samples_to_place;
-    Sample_Input(vcf_filename.c_str(),samples_to_place,tree);
+    std::vector<mutated_t> position_wise_out;
+    Sample_Input(vcf_filename.c_str(),samples_to_place,tree,position_wise_out);
+    get_pos_samples_old_tree(tree, position_wise_out);
     fprintf(stderr, "Placing %zu samples \n",samples_to_place.size());
     tree.condense_leaves();
     
@@ -90,15 +99,73 @@ static int leader_thread(std::string& vcf_filename,
         #endif
     }
     fprintf(stderr, "main dfs size %zu\n",dfs.size());
-    assign_descendant_muts(tree);
-    assign_levels(tree.root);
-    set_descendant_count(tree.root);
-    if (proc_count>1) {
-        fprintf(stderr, "Main sending tree\n");
-        tree.MPI_send_tree();
-        MPI_Barrier(MPI_COMM_WORLD);
+    std::atomic_size_t curr_idx(0);
+    FILE* ignored_file=fopen("/dev/null", "w");
+    int optimization_radius=8;
+    auto end_time=std::chrono::steady_clock::time_point::max();
+    use_bound=true;
+    //samples_to_place.resize(1000);
+    while (true) {
+        assign_descendant_muts(tree);
+        assign_levels(tree.root);
+        set_descendant_count(tree.root);
+        if (proc_count>1) {
+            fprintf(stderr, "Main sending tree\n");
+            tree.MPI_send_tree();
+        }
+        place_sample_leader(samples_to_place, tree, 2, proc_count,curr_idx,10000);
+        fprintf(stderr, "Main sent optimization prep\n");
+        if (process_count==1) {
+            Original_State_t origin_states;
+            reassign_states(tree, origin_states);
+            tree.populate_ignored_range();
+        }
+        MPI_reassign_states(tree, position_wise_out, 0);
+        fprintf(stderr, "Main sent optimization prep done\n");
+        std::vector<size_t> node_to_search_idx;
+        if (curr_idx>samples_to_place.size()) {
+            curr_idx.store(samples_to_place.size());
+        }
+        find_moved_node_neighbors(optimization_radius, samples_to_place[0].sample_idx, tree, curr_idx.load(), node_to_search_idx);
+        fprintf(stderr, "Main found nodes to move\n");
+        bool distributed=process_count>1;
+        while (!node_to_search_idx.empty()) {
+            std::vector<MAT::Node *> deferred_nodes_out;
+            adjust_all(tree);
+            fprintf(stderr, "Main sent tree_optimizing\n");
+            optimize_tree_main_thread(node_to_search_idx, tree, optimization_radius, ignored_file, false, 1, deferred_nodes_out, distributed, end_time, true, true,true);
+            node_to_search_idx.clear();
+            dfs=tree.depth_first_expansion();
+            for (auto node : deferred_nodes_out) {
+                node_to_search_idx.push_back(node->dfs_index);
+            }
+            clean_tree(tree);
+            distributed=false;
+        }
+        dfs=tree.depth_first_expansion();
+        for (auto node : dfs) {
+            node->mutations.remove_invalid();
+        }
+        if (curr_idx<samples_to_place.size()) {
+            int to_board_cast=0;
+            if (process_count>1) {            
+                MPI_Bcast(&to_board_cast, 1, MPI_INT, 0, MPI_COMM_WORLD);
+            }
+            for (auto node : dfs) {
+                if(node->is_leaf()){
+                    for (auto& mut : node->mutations) {
+                        mut.set_mut_one_hot(mut.get_all_major_allele());
+                    }
+                }
+            }
+        }else {
+            int to_board_cast=1;
+            if (process_count>1) {
+                MPI_Bcast(&to_board_cast, 1, MPI_INT, 0, MPI_COMM_WORLD);            
+            }
+            break;
+        }
     }
-    place_sample_leader(samples_to_place, tree, 2, proc_count);
     fprintf(stderr, "Main finised place\n");
     dfs=tree.depth_first_expansion();
     clean_up_leaf(dfs);
@@ -113,17 +180,15 @@ void wait_debug();
 int main(int argc, char **argv) {
     
     //signal(SIGSEGV, handler);
-    int proc_count;
-    MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &proc_count);
-    MPI_Comm_size(MPI_COMM_WORLD, &proc_count);
-    int this_rank;
+    int ignored;
+    MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &ignored);
+    MPI_Comm_size(MPI_COMM_WORLD, &process_count);
     MPI_Comm_rank(MPI_COMM_WORLD, &this_rank);
     std::string vcf_filename;
     std::string protobuf_in;
     std::string protobuf_out;
     po::options_description desc{"Options"};
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
-    uint32_t num_threads;
     int first_n_sample;
     std::string num_threads_message = "Number of threads to use when possible "
                                       "[DEFAULT uses all available cores, " +
@@ -160,21 +225,38 @@ int main(int argc, char **argv) {
 
     if (this_rank==0) {
     tbb::task_scheduler_init init(num_threads);
-        return leader_thread(vcf_filename,protobuf_in,protobuf_out, proc_count);
+        return leader_thread(vcf_filename,protobuf_in,protobuf_out, process_count);
     }else {
     tbb::task_scheduler_init init(num_threads-1);
         MAT::Tree tree;
-        fprintf(stderr, "follwer recieving tree\n");
-        tree.MPI_receive_tree();
-        auto dfs=tree.depth_first_expansion();
-        for (auto node : dfs) {
-            check_order(node->mutations);
-            #ifdef NDEBUG
-            node->children.reserve(SIZE_MULT*node->children.size());
-            #endif
+        std::vector<mutated_t> position_wise_mutations;
+        int start_idx=follower_recieve_positions(position_wise_mutations);
+        while (true) {
+            fprintf(stderr, "follwer recieving tree\n");
+            tree.MPI_receive_tree();
+            assign_levels(tree.root);
+            set_descendant_count(tree.root);
+            auto dfs=tree.depth_first_expansion();
+            for (auto node : dfs) {
+                check_order(node->mutations);
+                #ifdef NDEBUG
+                node->children.reserve(SIZE_MULT*node->children.size());
+                #endif
+            }
+            follower_place_sample(tree,2);
+            fprintf(stderr, "follower recieving trees\n");
+            MPI_reassign_states(tree, position_wise_mutations, start_idx);
+            adjust_all(tree);
+            use_bound=true;
+            fprintf(stderr, "follower start optimizing\n");
+            optimize_tree_worker_thread(tree, 8, false, true);
+            int stop;
+            MPI_Bcast(&stop, 1, MPI_INT, 0, MPI_COMM_WORLD);
+            if (stop) {
+                break;
+            }
+            tree.delete_nodes();
         }
-        MPI_Barrier(MPI_COMM_WORLD);
-        follower_place_sample(tree,2);
-	MPI_Finalize();
+	    MPI_Finalize();
     }
 }

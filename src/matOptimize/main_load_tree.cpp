@@ -1,5 +1,6 @@
 #include "mutation_annotated_tree.hpp"
 #include "Fitch_Sankoff.hpp"
+#include <chrono>
 #include <cstddef>
 #include <cstdio>
 #include <iostream>
@@ -34,7 +35,7 @@ static bool no_valid_mut(MAT::Node* node) {
  * @param[out] changed_nodes nodes with their children set changed, need fitch sankoff backward pass
  * @param[out] node_with_inconsistent_state nodes with parent state change, need forward pass
  */
-static void clean_up_internal_nodes(MAT::Node* this_node,MAT::Tree& tree,std::unordered_set<size_t>& changed_nodes_local,std::unordered_set<size_t>& node_with_inconsistent_state) {
+void clean_up_internal_nodes(MAT::Node* this_node,MAT::Tree& tree,std::unordered_set<size_t>& changed_nodes_local,std::unordered_set<size_t>& node_with_inconsistent_state) {
 
     std::vector<MAT::Node *> &parent_children = this_node->parent->children;
     std::vector<MAT::Node *> this_node_ori_children = this_node->children;
@@ -135,9 +136,9 @@ void populate_mutated_pos(const Original_State_t& origin_state,MAT::Tree& tree) 
     //clean up all mutexes
 }
 //Use Full fitch sankoff to reassign state from scratch
-static void reassign_states(MAT::Tree& t, Original_State_t& origin_states) {
+void reassign_states(MAT::Tree& t, Original_State_t& origin_states) {
     auto bfs_ordered_nodes = t.breadth_first_expansion();
-
+    auto start_time=std::chrono::steady_clock::now();
     check_samples(t.root, origin_states, &t);
     {
         std::unordered_set<size_t> ignored;
@@ -157,6 +158,9 @@ static void reassign_states(MAT::Tree& t, Original_State_t& origin_states) {
         }
     });
     Fitch_Sankoff_prep(bfs_ordered_nodes,child_idx_range, parent_idx);
+    auto prep_end=std::chrono::steady_clock::now();
+    auto prep_dur=std::chrono::duration_cast<std::chrono::milliseconds>(prep_end-start_time).count();
+    fprintf(stderr, "Preparation took %zu\n",prep_dur);
     FS_result_per_thread_t FS_result;
     tbb::parallel_for(
         tbb::blocked_range<size_t>(0,pos_mutated.size()),
@@ -175,6 +179,9 @@ static void reassign_states(MAT::Tree& t, Original_State_t& origin_states) {
 
         }
     });
+    auto FS_end=std::chrono::steady_clock::now();
+    auto FS_dur=std::chrono::duration_cast<std::chrono::milliseconds>(FS_end-prep_end).count();
+    fprintf(stderr, "FS took %zu, ratio %f\n",FS_dur,(float)FS_dur/(float)prep_dur);
     fill_muts(FS_result, bfs_ordered_nodes);
     size_t total_mutation_size=0;
     for(const auto node:bfs_ordered_nodes) {

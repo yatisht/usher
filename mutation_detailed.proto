@@ -60,3 +60,14 @@ message search_result{
     uint64 sample_id=1;
     repeated target place_targets=2;
 }
+
+message mutation_at_each_pos{
+    repeated int64 node_id=1;
+    repeated int32 mut=2;
+}
+
+message mutation_collection{
+    int64 node_idx=1;
+    repeated int32 positions=3;
+    repeated fixed32 other_fields=4;
+}

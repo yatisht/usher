@@ -113,7 +113,7 @@ move_type* deser_other_thread_move(char* in, int size,MAT::Tree &tree,std::vecto
         raise(SIGTRAP);
         }
         if (parsed_target.sample_mutation_positions_size()!=target.sample_mutations.size()) {
-        fprintf(stderr, "sample mut mismatch %d, loaded %d\n",parsed_target.sample_mutation_positions_size(),target.sample_mutations.size());
+        fprintf(stderr, "sample mut mismatch %d, loaded %zu\n",parsed_target.sample_mutation_positions_size(),target.sample_mutations.size());
         raise(SIGTRAP);
         }
         targets.emplace_back(std::move(target));
@@ -199,7 +199,7 @@ static Status send_paced_move(Placed_move_sended_state& send_queue){
             in->target_id, in->split_id, in->sample_id);
         auto size = serialized.size();
         if (send_queue.size()>5) {
-            fprintf(stderr, "queue size %d\n",send_queue.size());        
+            fprintf(stderr, "queue size %ld\n",send_queue.size());        
         }
         MPI_Bcast((void *)&size, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
         mpi_trace_print("Main sending move of size %zu\n",size);
@@ -213,11 +213,15 @@ typedef tbb::flow::function_node<Preped_Sample_To_Place *,size_t> placer_node_t;
 typedef tbb::concurrent_bounded_queue<Sample_Muts*> retry_place_t;
 typedef tbb::flow::multifunction_node<Sample_Muts*,tbb::flow::tuple<Sample_Muts*>> Pusher_Node_T;
 static void place_sample_thread( MAT::Tree &main_tree,std::unordered_set<MAT::Node *> &deleted_nodes,
-    Placed_move_sended_state& send_queue,found_place_t& found_place_queue,Pusher_Node_T& retry_queue,int all_size){
+    Placed_move_sended_state& send_queue,found_place_t& found_place_queue,Pusher_Node_T& retry_queue
+    ,int all_size,std::atomic_bool& stop,std::atomic_size_t& curr_idx, 
+    const int parsimony_increase_threshold, size_t sample_start_idx){
     int redo=0;
     int total=0;
-    int other=0;
-    while (total<all_size) {
+    int parsimony_increase=0;
+    int start_idx=curr_idx;
+    int stop_count=all_size-start_idx;
+    while (total<stop_count) {
         move_type* in;
         found_place_queue.pop(in);
         auto& search_result=std::get<0>(*in);
@@ -252,12 +256,6 @@ static void place_sample_thread( MAT::Tree &main_tree,std::unordered_set<MAT::No
             continue;
         }
         total++;
-        if (!std::get<2>(*in)) {
-            other++;
-        }
-        if (total%100==0) {
-            fprintf(stderr, "all %d, other %d\n",(int)total,other);        
-        }
         auto smallest_idx = search_result[0].target_node->node_id;
         auto arg_small_idx = 0;
         for (int target_idx = 1; target_idx < search_result.size();
@@ -289,7 +287,11 @@ static void place_sample_thread( MAT::Tree &main_tree,std::unordered_set<MAT::No
                 mut_size++;
             }
         }
-        fprintf(stderr,"%s\t%d\n",main_tree.get_node_name(std::get<1>(*in)->sample_idx).c_str(), mut_size);
+        parsimony_increase+=mut_size;
+        if (parsimony_increase>parsimony_increase_threshold) {
+            stop.store(true);
+        }
+        fprintf(stderr,"%zu:%s\t%d\t%zu\n",std::get<1>(*in)->sample_idx-sample_start_idx,main_tree.get_node_name(std::get<1>(*in)->sample_idx).c_str(), mut_size,search_result.size());
         to_ser->split_id = out.splitted_node ? out.splitted_node->node_id : 0;
         to_ser->splited_mutations=std::move(target.splited_mutations);
         to_ser->shared_mutations=std::move(target.shared_mutations);
@@ -297,9 +299,13 @@ static void place_sample_thread( MAT::Tree &main_tree,std::unordered_set<MAT::No
         to_ser->sample_id=std::get<1>(*in)->sample_idx;
         send_queue.push(to_ser);
         check_parent(main_tree.root,main_tree); 
-        if (std::get<2>(*in)) {
+        if (std::get<2>(*in)&&(parsimony_increase<=parsimony_increase_threshold)) {
             //fprintf(stderr, "self out\n");
             retry_queue.try_put(nullptr);
+        }
+        if (parsimony_increase>parsimony_increase_threshold) {
+            stop_count=curr_idx-start_idx;
+            fprintf(stderr, "curr_idx: %zu,stoped parsimpny score %d\n",curr_idx.load(),parsimony_increase);
         }
     }
 }
@@ -307,6 +313,7 @@ struct Dist_sample_state{
     std::atomic_uint64_t& curr_idx;
     std::vector<Sample_Muts>& to_place;
     int processes_left;
+    std::atomic_bool& stop;
 };
 static Status main_tree_distribute_samples(Dist_sample_state& state){
     int ignore;
@@ -320,8 +327,11 @@ static Status main_tree_distribute_samples(Dist_sample_state& state){
         mpi_trace_print("main recieved work req \n");
         int reply_dest=status.MPI_SOURCE;
         Mutation_Detailed::sample_to_place temp;
-        auto send_idx=state.curr_idx++;
-        mpi_trace_print("cur send idx %zu \n",send_idx);
+        size_t send_idx=SIZE_MAX;
+        if (!state.stop) {
+            send_idx=state.curr_idx++;    
+        }
+        //fprintf(stderr,"cur send idx %zu \n",send_idx);
         if (send_idx>=state.to_place.size()) { 
             MPI_Send(&ignore, 0, MPI_BYTE, reply_dest, WORK_RES_TAG, MPI_COMM_WORLD);
             state.processes_left--;
@@ -380,11 +390,16 @@ static void mpi_loop(Dist_sample_state dist_sample,Recieve_Place_State recieve_p
 struct Pusher{
     std::atomic_uint64_t& curr_idx;
     std::vector<Sample_Muts>& to_place;
+    std::atomic_bool& stop;
     void operator()(Sample_Muts* in,Pusher_Node_T::output_ports_type& out )const {
         if (!in) {
-            auto send_idx=curr_idx++;
+            size_t send_idx=SIZE_MAX;
+            if (!stop) {
+                send_idx=curr_idx++;        
+            }
             if (send_idx<to_place.size()) {
                 std::get<0>(out).try_put(&to_place[send_idx]);
+                //fprintf(stderr, "main place %zu\n",send_idx);
             }
             return;
         }
@@ -401,16 +416,19 @@ struct Finder{
         found_queue.push(res);
     }
 };
-void place_sample_leader(std::vector<Sample_Muts> &sample_to_place, MAT::Tree &main_tree,int batch_size,int proc_count) {
-    std::unordered_set<MAT::Node*> deleted_nodes;
+void place_sample_leader(std::vector<Sample_Muts> &sample_to_place,
+                         MAT::Tree &main_tree, int batch_size, int proc_count,
+                         std::atomic_uint64_t &curr_idx,
+                         int parsimony_increase_threshold) {
+    std::unordered_set<MAT::Node *> deleted_nodes;
     deleted_nodes.reserve(sample_to_place.size());
     std::thread *mpi_thread;
-    std::atomic_uint64_t curr_idx(0);
     tbb::concurrent_bounded_queue<Preped_Sample_To_Place*> send_queue;
     {   
+        std::atomic_bool stop(false);
         tbb::flow::graph g;
         found_place_t found_queue;
-        Pusher_Node_T init(g, tbb::flow::serial, Pusher{curr_idx, sample_to_place});
+        Pusher_Node_T init(g, tbb::flow::serial, Pusher{curr_idx, sample_to_place,stop});
         tbb::flow::function_node<
             Sample_Muts*>
             searcher(g, tbb::flow::unlimited,
@@ -418,16 +436,16 @@ void place_sample_leader(std::vector<Sample_Muts> &sample_to_place, MAT::Tree &m
         tbb::flow::make_edge(std::get<0>(init.output_ports()),searcher);
         //std::thread placer_thread(place_sample_thread,std::ref(main_tree), std::ref(deleted_nodes), std::ref(send_queue), std::ref(found_queue),std::ref(init));
         if (proc_count>1) {
-            MPI_Barrier(MPI_COMM_WORLD);
+            //MPI_Barrier(MPI_COMM_WORLD);
             mpi_thread=new std::thread(mpi_loop,
-            Dist_sample_state{curr_idx,sample_to_place,proc_count-1},
+            Dist_sample_state{curr_idx,sample_to_place,proc_count-1,stop},
             Recieve_Place_State {found_queue,main_tree,proc_count-1,sample_to_place},
             std::ref(send_queue));
         }
         for(int temp=0;temp<batch_size;temp++){
             init.try_put(nullptr);
         }
-        place_sample_thread(main_tree,deleted_nodes,send_queue,found_queue,init,sample_to_place.size());
+        place_sample_thread(main_tree,deleted_nodes,send_queue,found_queue,init,sample_to_place.size(),stop,curr_idx,parsimony_increase_threshold,sample_to_place[0].sample_idx);
         g.wait_for_all();        
         //placer_thread.join();
     }

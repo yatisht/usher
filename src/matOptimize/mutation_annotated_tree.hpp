@@ -525,6 +525,9 @@ class Tree {
         return iter->second;
     }
     Node* get_node(size_t idx)const{
+        if (idx>all_nodes.size()) {
+            return nullptr;
+        }
         return all_nodes[idx];
     }
     void erase_node(size_t node_idx){
