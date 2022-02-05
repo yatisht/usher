@@ -165,6 +165,9 @@ struct Parse_result{
         Mutation_Detailed::mutation_collection parsed;
         parsed.ParseFromArray(in.first, in.second);
         //fprintf(stderr, "adding to node %zu",parsed.node_idx());
+        if (parsed.node_idx()>=FS_result.local().output.size()) {
+            fprintf(stderr, "Node idx %ld, total length %zu \n",parsed.node_idx(),FS_result.local().output.size());
+        }
         auto& to_add=FS_result.local().output[parsed.node_idx()];
         for (size_t idx=0; idx<parsed.positions_size(); idx++) {
             MAT::Mutation temp;
