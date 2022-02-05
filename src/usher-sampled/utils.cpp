@@ -159,34 +159,6 @@ static void acc_mutations(FS_result_per_thread_t& FS_result,ACC_type& accumulato
             }
         });
 }
-struct Recieve_Feeder{
-    int &thread_left;
-    bool operator()(std::pair<char* ,size_t>& out) const{
-        int count;
-        MPI_Status status;
-        while (true) {
-            MPI_Probe(MPI_ANY_SOURCE, FS_RESULT_TAG, MPI_COMM_WORLD, &status);
-            MPI_Get_count(&status, MPI_INT,&count);
-            fprintf(stderr, "recieve message of size %d\n",count);
-            if (count<0) {
-                raise(SIGTRAP);
-            }
-            if (count==0) {
-                thread_left--;
-                if (!thread_left) {
-                    return false;
-                }
-            }else {
-                break;
-            }
-        }
-        out.second=count;
-        out.first=new char[count];
-        MPI_Recv(out.first, count, MPI_BYTE, status.MPI_SOURCE, FS_RESULT_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        return true;
-    }
-};
-
 struct Parse_result{
     FS_result_per_thread_t& FS_result;
     void operator()(std::pair<char* ,size_t> in){
@@ -258,6 +230,7 @@ void MPI_reassign_states(MAT::Tree& tree,const std::vector<mutated_t>& mutations
         tbb::flow::function_node<std::pair<char*, size_t>> proc(g,tbb::flow::unlimited,Parse_result{FS_result});
         bool is_first=true;
         char ignore;
+        fprintf(stderr, "Start recieving assignment message\n");
         while (processes_left) {
             int count;
             MPI_Status status;
@@ -276,7 +249,9 @@ void MPI_reassign_states(MAT::Tree& tree,const std::vector<mutated_t>& mutations
             MPI_Recv(buffer, count, MPI_BYTE, status.MPI_SOURCE, FS_RESULT_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             proc.try_put(std::make_pair(buffer, count));
         }
+        fprintf(stderr, "Recieved last assignment message\n");
         g.wait_for_all();
+        fprintf(stderr, "Finished parsing assignment messages\n");
         tbb::parallel_for(tbb::blocked_range<size_t>(0,bfs_ordered_nodes.size()),[&FS_result,&bfs_ordered_nodes](tbb::blocked_range<size_t> range){
             for (auto & temp : FS_result) {
                 for (size_t idx=range.begin(); idx<range.end(); idx++) {
@@ -289,6 +264,7 @@ void MPI_reassign_states(MAT::Tree& tree,const std::vector<mutated_t>& mutations
                     std::sort(to_fill.begin(),to_fill.end());
             }
         });
+        fprintf(stderr, "Finished filling mutations\n");
         tree.populate_ignored_range();
         fprintf(stderr, "parsiomony score %zu\n",tree.get_parsimony_score());
         tree.MPI_send_tree();
