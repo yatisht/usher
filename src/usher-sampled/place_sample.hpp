@@ -4,8 +4,8 @@
 #define DELETED_NODE_THRESHOLD 1000
 #define PROPOSED_PLACE 10
 #define CONFIRMED_PLACE 11
-#define WORK_REQ_TAG 12
-#define WORK_RES_TAG 13
+#define PLACEMENT_WORK_REQ_TAG 12
+#define PLACEMENT_WORK_RES_TAG 13
 typedef std::tuple<std::vector<Main_Tree_Target>, Sample_Muts*,bool> move_type;
 
 struct update_main_tree_output{

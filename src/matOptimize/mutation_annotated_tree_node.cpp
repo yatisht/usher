@@ -51,6 +51,8 @@ Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Tree::create_node (std::
 Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Tree::create_node () {
     auto new_node_id=node_idx++;
     Node* n = new Node(new_node_id);
+    size_t num_annotations = get_num_annotations();
+    n->clade_annotations.resize(num_annotations,"");
     register_node_serial(n);
     return n;
 }
@@ -106,4 +108,14 @@ void Mutation_Annotated_Tree::Node::populate_ignored_range() {
     if (!ignore.empty()) {
         ignore.emplace_back(INT_MAX,INT_MAX);
     }
+}
+size_t Mutation_Annotated_Tree::Node::get_num_leaves() const{
+    if (children.empty()) {
+        return 1;
+    }
+    size_t leaf_count=0;
+    for (auto child : children) {
+        leaf_count+=child->get_num_leaves();
+    }
+    return leaf_count;
 }

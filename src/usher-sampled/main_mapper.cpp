@@ -313,6 +313,9 @@ static void generic_merge(const MAT::Node *node,
         }
         assert(sample_par_score==this_score);
         #endif
+        if ((!target.target_node->is_root())&&target.shared_mutations.empty()) {
+            return;
+        }
         if (output.best_par_score >= this_score) {
             std::lock_guard<std::mutex> lk(output.mutex);
             if (output.best_par_score > this_score) {

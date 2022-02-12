@@ -476,6 +476,7 @@ class Node {
         child->parent=this;
         children.push_back(child);
     }
+    size_t get_num_leaves() const;
     void populate_ignored_range();
     //refill mutation with the option of filtering invalid mutations
     template<typename iter_t>
@@ -524,10 +525,19 @@ class Tree {
         }
         return iter->second;
     }
-    Node* get_node(size_t idx)const{
+    Node* get_node(size_t idx,bool warn=false)const{
         if (idx>all_nodes.size()) {
+            if (warn) {
+                fprintf(stderr, "%zu node out of range, total size %zu \n",idx,all_nodes.size());
+                raise(SIGTRAP);
+            }
             return nullptr;
         }
+        if (warn&&!all_nodes[idx]) {        
+            fprintf(stderr, "%zu node not found \n",idx);
+            raise(SIGTRAP);
+        }
+
         return all_nodes[idx];
     }
     void erase_node(size_t node_idx){
@@ -541,8 +551,6 @@ class Tree {
         }
     }
     Tree (Node* n);
-
-    std::vector<Node*> new_nodes;
     size_t max_level;
 
     Node* root;
@@ -566,6 +574,11 @@ class Tree {
         return assigned_idx;
     }
     Node* create_node (std::string const& identifier);
+    Node* create_node (std::string const& identifier,size_t annotation_size){
+        auto node=create_node(identifier);
+        node->clade_annotations.resize(annotation_size);
+        return node;
+    }
     Node* get_node (const std::string& identifier) const {
         auto iter=node_name_to_idx_map.find(identifier);
         if (iter != node_name_to_idx_map.end()) {
@@ -598,7 +611,8 @@ class Tree {
     void load_from_newick(const std::string& newick_string,bool use_internal_node_label=false);
     void condense_leaves(std::vector<std::string> = std::vector<std::string>());
     void uncondense_leaves();
-    std::vector<Node*> get_leaves() const;
+    std::string get_clade_assignment (const Node* n, int clade_id, bool include_self) const;
+    std::vector<Node*> get_leaves(const Node* n=nullptr) const;
     void populate_ignored_range();
     size_t get_max_level();
     friend class Node;
@@ -608,17 +622,30 @@ class Tree {
     void write_newick_string (std::stringstream& ss, Node* node, bool b1, bool b2, bool b3=false, bool b4=false) const;
     std::string get_newick_string(bool b1, bool b2, bool b3=false, bool b4=false) const ;
     std::string get_newick_string(Node* node, bool b1, bool b2, bool b3=false, bool b4=false) const;
+    void rotate_for_display(bool reverse = false);
+    Tree copy_tree();
 };
 
 Tree create_tree_from_newick (std::string filename);
 Tree create_tree_from_newick_string (std::string newick_string);
 void string_split(std::string const& s, char delim, std::vector<std::string>& words);
 void string_split(std::string s, std::vector<std::string>& words);
-
-Tree load_mutation_annotated_tree (std::string filename);
+Tree get_subtree(const Tree &tree, const std::vector<Node*> &samples,
+                 bool keep_clade_annotations = false);
+void get_random_single_subtree(Mutation_Annotated_Tree::Tree *T,
+                               std::vector<Node*> samples,
+                               std::string outdir, size_t subtree_size,
+                               size_t tree_idx = 0, bool use_tree_idx = false,
+                               bool retain_original_branch_len = false);
+void get_random_sample_subtrees(Mutation_Annotated_Tree::Tree *T,
+                                std::vector<Node*> samples,
+                                std::string outdir, size_t subtree_size,
+                                size_t tree_idx = 0, bool use_tree_idx = false,
+                                bool retain_original_branch_len = false);
+Tree load_mutation_annotated_tree(std::string filename);
 void save_mutation_annotated_tree (const Tree& tree, std::string filename);
+void get_sample_mutation_paths (Mutation_Annotated_Tree::Tree* T, std::vector<Node*> samples, std::string mutation_paths_filename);
 }
 bool check_grand_parent(const Mutation_Annotated_Tree::Node* node,const Mutation_Annotated_Tree::Node* grand_parent);
-
 nuc_one_hot get_parent_state(Mutation_Annotated_Tree::Node* ancestor,int position);
 #endif

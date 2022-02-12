@@ -100,7 +100,9 @@ check_mutation_helper(Mutation_Set &ref,
         }   
         auto ins_result = parent_allele_check.emplace(mut.position,
                                                       mut.par_nuc);
-        assert(ins_result.second);
+        if(!ins_result.second){
+            raise(SIGTRAP);
+        }
     }
 }
 

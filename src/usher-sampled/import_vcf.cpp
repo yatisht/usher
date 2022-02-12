@@ -13,6 +13,7 @@
 #include <cassert>
 #include <cctype>
 #include <chrono>
+#include <climits>
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
@@ -136,7 +137,9 @@ struct gzip_input_source {
         decompress_to_buffer(getc_buf, BUFSIZ);
         get_c_ptr = getc_buf;
     }
-    void unalloc() { munmap(map_start, alloc_size); }
+    void unalloc() { 
+        munmap(map_start, mapped_size);
+    }
     bool decompress_to_buffer(unsigned char *buffer, size_t buffer_size) const {
         if (!state->avail_in) {
             return false;
@@ -211,10 +214,33 @@ typedef std::vector<mutated_t> mut_container_t;
 // Parse a block of lines, assuming there is a complete line in the line_in
 // buffer
 typedef tbb::flow::function_node<line_start_later> line_parser_t;
+std::mutex mutation_mutex;
+static void add_mutation(long output_idx, const MAT::Mutation &mut_template,
+                         std::vector<std::vector<MAT::Mutation>> &this_blk,
+                         mut_container_t &mutations_out,
+                         size_t offset,uint8_t mut_nuc) {
+    if (mutations_out.size()<mut_template.get_position()+1) {
+        std::lock_guard<std::mutex> lk(mutation_mutex);
+        mutations_out.resize(std::max(mutations_out.size(),(size_t)(mut_template.get_position()+1)));
+    }
+    if (output_idx >= 0) {
+        if (output_idx>=this_blk.size()) {
+            raise(SIGTRAP);
+        }
+        MAT::Mutation this_mut(mut_template);
+        this_mut.set_mut_one_hot(mut_nuc);
+        this_mut.set_auxillary(mut_nuc, 0);
+        this_mut.set_descendant_mut(mut_nuc);
+        this_blk[output_idx].push_back(this_mut);
+        mutations_out[mut_template.get_position()].push_back(std::make_pair(output_idx + offset, mut_nuc));
+    } else {
+        mutations_out[mut_template.get_position()].push_back(std::make_pair(-output_idx, mut_nuc));
+    }
+}
 struct line_parser {
     Sampled_Tree_Mutations_t &header;
     mut_container_t& mutations_out;
-    std::vector<size_t> &sample_idx;
+    std::vector<long> &sample_idx;
     size_t sample_size;
     int offset;
     void operator()(line_start_later line_in_struct) const {
@@ -288,24 +314,13 @@ struct line_parser {
                     line_in++;
                 }
                 auto output_idx = sample_idx[field_idx];
-                if (output_idx != -1) {
+                if (output_idx != LONG_MAX) {
                     // output prototype of mutation, and a map from sample to
                     // non-ref allele
-                    MAT::Mutation this_mut(mut_template);
                     if (allele_idx >= (allele_translated.size() + 1)) {
-                        this_mut.set_mut_one_hot(0xf);
-                        this_mut.set_auxillary(0xf, 0);
-                        this_mut.set_descendant_mut(0xf);
-                        this_blk[output_idx].push_back(this_mut);
-                        mutations_out[pos].push_back(std::make_pair(output_idx+offset, 0xf));
+                        add_mutation(output_idx, mut_template, this_blk, mutations_out, offset,0xf);
                     } else if (allele_idx) {
-                        auto this_allele=allele_translated[allele_idx - 1];
-                        this_mut.set_mut_one_hot(this_allele);
-                        this_mut.set_descendant_mut(this_allele);
-                        this_mut.set_auxillary(this_allele, 0);
-                        assert(this_mut.get_par_one_hot()!=this_mut.get_mut_one_hot());
-                        this_blk[output_idx].push_back(this_mut);
-                        mutations_out[pos].push_back(std::make_pair(output_idx+offset, this_allele));
+                        add_mutation(output_idx, mut_template, this_blk, mutations_out, offset,allele_translated[allele_idx - 1]);
                     }
                 }
 
@@ -385,32 +400,35 @@ static void map_names(MAT::Tree &tree,std::vector<Sample_Muts> &sample_mutations
 }
 template <typename infile_t>
 static void process(infile_t &fd, std::vector<Sample_Muts> &sample_mutations,
-                    MAT::Tree &tree,mut_container_t& mutations_out) {
-    std::vector<std::string> sample_names;
-    std::vector<std::string> fields;
+                    MAT::Tree &tree,mut_container_t& mutations_out,bool override,std::vector<std::string>& fields) {
     read_header(fd, fields);
     tbb::flow::graph input_graph;
     Sampled_Tree_Mutations_t tree_mutations;
-    std::vector<size_t> sample_idx(fields.size(), -1);
-    sample_names.reserve(fields.size());
-    int curr_sample_idx = 0;
+    std::vector<long> sample_idx(fields.size(), LONG_MAX);
+    sample_mutations.reserve(fields.size());
     for (size_t field_idx = 9; field_idx < fields.size(); field_idx++) {
-        if (tree.get_node(fields[field_idx]) == nullptr) {
-            sample_names.push_back(fields[field_idx]);
-            sample_idx[field_idx] = curr_sample_idx;
-            curr_sample_idx++;
+        auto node=tree.get_node(fields[field_idx]);
+        if (node != nullptr) {
+            if (override) {
+                sample_idx[field_idx]=-node->node_id;
+            }else {
+                fprintf(stderr, "WARNING: Sample %s already in the tree! Ignoring.\n\n", fields[field_idx].c_str());
+            }
         }else {
-            //fprintf(stderr, "%s already present\n",fields[field_idx].c_str());
-        }
+            auto new_samp_idx=tree.map_samp_name_only(fields[field_idx]);
+            sample_idx[field_idx] = sample_mutations.size();
+            sample_mutations.emplace_back();
+            sample_mutations.back().sample_idx=new_samp_idx;
+        }       
     }
     mutations_out.resize(MAT::Mutation::refs.size());
-    sample_mutations.resize(sample_names.size());
-    map_names(tree,sample_mutations,sample_names);
+    if (MAT::Mutation::refs.size()==0) {
+        mutations_out.reserve(30000);
+    }
     int offset=sample_mutations[0].sample_idx;
     line_parser_t parser(
         input_graph, tbb::flow::unlimited,
-        line_parser{tree_mutations,mutations_out, sample_idx, sample_names.size(),offset});
-    // feed used buffer back to decompressor
+        line_parser{tree_mutations,mutations_out, sample_idx, sample_mutations.size(),offset});
     size_t single_line_size;
     parser.try_put(try_get_first_line(fd, single_line_size));
     size_t first_approx_size =
@@ -423,9 +441,10 @@ static void process(infile_t &fd, std::vector<Sample_Muts> &sample_mutations,
     tbb::flow::make_edge(line, parser);
     fd(queue);
     input_graph.wait_for_all();
+    fprintf(stderr, "Processed all blocks\n");
     fd.unalloc();
     tbb::parallel_for(
-        tbb::blocked_range<size_t>(0, sample_names.size()),
+        tbb::blocked_range<size_t>(0, sample_mutations.size()),
         [&](tbb::blocked_range<size_t> range) {
             for (size_t idx = range.begin(); idx < range.end(); idx++) {
                 size_t mut_count = 2;
@@ -444,7 +463,7 @@ static void process(infile_t &fd, std::vector<Sample_Muts> &sample_mutations,
         });
 }
 void Sample_Input(const char *name, std::vector<Sample_Muts> &sample_mutations,
-                  MAT::Tree &tree,mut_container_t& position_wise_out) {
+                  MAT::Tree &tree,mut_container_t& position_wise_out,bool override,std::vector<std::string>& fields) {
     assigned_count = 0;
     std::atomic<bool> done(false);
     std::mutex done_mutex;
@@ -453,10 +472,10 @@ void Sample_Input(const char *name, std::vector<Sample_Muts> &sample_mutations,
     std::string vcf_filename(name);
     if (vcf_filename.find(".gz\0") != std::string::npos) {
         gzip_input_source fd(name);
-        process(fd, sample_mutations, tree,position_wise_out);
+        process(fd, sample_mutations, tree,position_wise_out,override,fields);
     } else {
         raw_input_source fd(name);
-        process(fd, sample_mutations, tree,position_wise_out);
+        process(fd, sample_mutations, tree,position_wise_out,override,fields);
     }
     done = true;
     progress_bar_cv.notify_all();

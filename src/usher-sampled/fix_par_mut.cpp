@@ -2,6 +2,7 @@
 #include <cstdio>
 #include <string>
 #include <tbb/concurrent_unordered_set.h>
+#include <tbb/parallel_for.h>
 #include <tbb/task.h>
 #include <unordered_map>
 #include <unordered_set>
@@ -53,8 +54,24 @@ struct fix_root_worker:public tbb::task {
         return root->children.empty()?empty:nullptr;
     }
 };
-void fix_parent(Mutation_Annotated_Tree::Node *root) {
+void fix_parent(Mutation_Annotated_Tree::Tree &tree) {
     Mutation_Set mutations;
         tbb::task::spawn_root_and_wait(*new(tbb::task::allocate_root())
-                                       fix_root_worker(root, mutations));
+                                       fix_root_worker(tree.root, mutations));
+    auto dfs=tree.depth_first_expansion();
+    tbb::parallel_for(tbb::blocked_range<size_t>(0,dfs.size()),[&dfs](tbb::blocked_range<size_t> r){
+        for (size_t idx=r.begin(); idx<r.end(); idx++) {
+            auto & mut=dfs[idx]->mutations.mutations;
+            mut.erase(std::remove_if(mut.begin(), mut.end(), [](const MAT::Mutation& mut){
+                return mut.get_mut_one_hot()==mut.get_par_one_hot();
+            }),mut.end());
+        }
+    });
+    for (auto node : dfs) {
+        node->branch_length=node->mutations.size();
+        #ifdef NDEBUG
+        node->children.reserve(SIZE_MULT*node->children.size());
+        #endif
+    }
+    fprintf(stderr, "main dfs size %zu\n",dfs.size());
 }

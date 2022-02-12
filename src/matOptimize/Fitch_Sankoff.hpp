@@ -1,3 +1,4 @@
+#pragma once
 #include "mutation_annotated_tree.hpp"
 #include <cstddef>
 #include <tbb/concurrent_vector.h>

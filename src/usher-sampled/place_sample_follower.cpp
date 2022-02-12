@@ -13,7 +13,7 @@
 #include <type_traits>
 void check_parent(MAT::Node* root,MAT::Tree& tree){
     if (root!=tree.get_node(root->node_id)) {
-        fprintf(stderr, "dict mismatch at node %d\n",root->node_id);
+        fprintf(stderr, "dict mismatch at node %zu\n",root->node_id);
         raise(SIGTRAP);
     }
     for (auto child : root->children) {
@@ -42,14 +42,14 @@ serialize_move(move_type *in, MAT::Tree& tree) {
         fill_mutation_vect(new_target->mutable_shared_mutation_positions(),
                            new_target->mutable_shared_mutation_other_fields(),
                            place_target.shared_mutations);
-        if (place_target.sample_mutations.size()==0) {
+        /*if (place_target.sample_mutations.size()==0) {
             fprintf(stderr, "follower send size mismatch\n");
             raise(SIGTRAP);
         }
         if (new_target->sample_mutation_positions_size()!=place_target.sample_mutations.size()) {
             fprintf(stderr, "follower send size mismatch\n");
             raise(SIGTRAP);
-        }
+        }*/
     }
     return result.SerializeAsString();
 }
@@ -58,7 +58,7 @@ serialize_move(move_type *in, MAT::Tree& tree) {
 void check_order_node(MAT::Node* node){
     int prev_pos=-1;
     for (const auto& mut : node->mutations) {
-            if (mut.get_position()>=MAT::Mutation::refs.size()) {
+            if (mut.get_position()>=(int)MAT::Mutation::refs.size()) {
                 fprintf(stderr, "%zu: placement_check strange size\n",node->node_id);
                 raise(SIGTRAP);
             }
@@ -73,7 +73,7 @@ void check_order(MAT::Mutations_Collection& in){
     int prev_pos=-1;
     for (const auto& mut : in) {
         if (mut.get_position()<=prev_pos) {
-            if (mut.get_position()>=MAT::Mutation::refs.size()) {
+            if (mut.get_position()>=(int)MAT::Mutation::refs.size()) {
                 fprintf(stderr, "placement_check strange size\n");
                 raise(SIGTRAP);
             }
@@ -95,7 +95,10 @@ static void check_parent_match(MAT::Node* node,MAT::Tree& tree,char* name){
     }
 }
 static void recv_and_place_follower(MAT::Tree &tree,
-                           std::vector<MAT::Node *> &deleted_nodes) {
+                           std::vector<MAT::Node *> &deleted_nodes,bool dry_run) {
+    if (dry_run) {
+        return;
+    }
     fprintf(stderr, "Place Recievier started \n");
     while (true) {
         size_t bcast_size;
@@ -126,26 +129,26 @@ static void recv_and_place_follower(MAT::Tree &tree,
         check_order(splitted_mutations);
         check_order(shared_mutations);*/
         auto target_node=tree.get_node(parsed_target.target_node_id());
-        if (target_node==nullptr) {
+        /*if (target_node==nullptr) {
             fprintf(stderr, "Node not found %zu \n",parsed_target.target_node_id());
             std::raise(SIGTRAP);
-        }
+        }*/
         auto out = update_main_tree(
             sample_mutations, splitted_mutations, shared_mutations,
             target_node,
             parsed_target.sample_id(), tree, parsed_target.split_node_id());
-        if (out.splitted_node) {
+        /*if (out.splitted_node) {
             if (out.splitted_node->node_id!=parsed_target.split_node_id()) {
                 fprintf(stderr, "split node id mismatch\n");
                 raise(SIGTRAP);
             }
             check_parent_match(out.splitted_node,tree,"split_node");
-        }
+        }*/
         target_node=tree.get_node(parsed_target.target_node_id());
-        check_parent_match(target_node,tree,"target_node");
+        /*check_parent_match(target_node,tree,"target_node");
         check_parent_match(tree.get_node(parsed_target.sample_id()),tree,"sample_node");
         check_parent(tree.root, tree);
-        /*check_order(target_node->mutations);
+        check_order(target_node->mutations);
         check_order(tree.get_node(parsed_target.sample_id())->mutations);
         if (out.splitted_node) {
             check_order(out.splitted_node->mutations);
@@ -168,13 +171,13 @@ struct Fetcher {
         int res_size;
         while(true){
         mpi_trace_print("follower send work req \n");
-        MPI_Send(&res_size, 0, MPI_BYTE, 0, WORK_REQ_TAG, MPI_COMM_WORLD);
+        MPI_Send(&res_size, 0, MPI_BYTE, 0, PLACEMENT_WORK_REQ_TAG, MPI_COMM_WORLD);
         MPI_Status status;
-        MPI_Probe(0, WORK_RES_TAG, MPI_COMM_WORLD, &status);
+        MPI_Probe(0, PLACEMENT_WORK_RES_TAG, MPI_COMM_WORLD, &status);
         mpi_trace_print("follower recieve work res \n");
         MPI_Get_count(&status, MPI_BYTE, &res_size);
         if (res_size==0) {
-            MPI_Recv(&res_size, res_size, MPI_BYTE, 0, WORK_RES_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            MPI_Recv(&res_size, res_size, MPI_BYTE, 0, PLACEMENT_WORK_RES_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             if (is_first) {
                 continue;
             }
@@ -188,7 +191,7 @@ struct Fetcher {
         }
         is_first=false;
         auto buffer=new char[res_size];
-        MPI_Recv(buffer, res_size, MPI_BYTE, 0, WORK_RES_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Recv(buffer, res_size, MPI_BYTE, 0, PLACEMENT_WORK_RES_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         mpi_trace_print("follower recieved work res \n");
         Mutation_Detailed::sample_to_place parsed;
         parsed.ParseFromArray(buffer, res_size);
@@ -210,11 +213,11 @@ struct Finder{
         delete to_search;
     }
 };
-void follower_place_sample(MAT::Tree &main_tree,int batch_size){
+void follower_place_sample(MAT::Tree &main_tree,int batch_size,bool dry_run){
     check_parent(main_tree.root, main_tree);
     std::vector<MAT::Node *> deleted_nodes;
     bool is_first=true;
-    std::thread tree_update_thread(recv_and_place_follower,std::ref(main_tree),std::ref(deleted_nodes));
+    std::thread tree_update_thread(recv_and_place_follower,std::ref(main_tree),std::ref(deleted_nodes),dry_run);
     tbb::parallel_pipeline(batch_size,
         tbb::make_filter<void,Sample_Muts*>(tbb::filter::serial,Fetcher{is_first})&
         tbb::make_filter<Sample_Muts*,void>(

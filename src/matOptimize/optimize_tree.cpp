@@ -259,7 +259,7 @@ Reachable set_reachable(int radius,MAT::Tree& t,bool search_all_dir){
 void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
                                MAT::Tree &t,int radius,FILE* log,bool allow_drift,int iteration,
                                std::vector<MAT::Node*>& deferred_nodes_out,bool MPI_involved,std::chrono::steady_clock::time_point end_time,bool do_continue,bool search_all_dir,bool isfirst_this_iter
-#ifndef NDEBUG
+#ifdef CHECK_STATE_REASSIGN
                                , Original_State_t& origin_states
 #endif
                               ) {
