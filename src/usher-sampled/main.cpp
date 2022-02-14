@@ -195,7 +195,7 @@ static int leader_thread(
     options.out_options.only_one_tree=options.keep_n_tree==1;
     if(options.keep_n_tree>1){
         std::vector<MAT::Tree> trees{tree};
-        place_sample_multiple_tree(samples_to_place, trees, placement_stats_file, options.first_n_samples);
+        place_sample_multiple_tree(samples_to_place, trees, placement_stats_file, options.keep_n_tree);
         for (int t_idx=0; t_idx<trees.size(); t_idx++) {
             std::vector<Clade_info> assigned_clades;
             std::vector<std::string> low_confidence_samples;

@@ -1,6 +1,7 @@
 #include "place_sample.hpp"
 #include <algorithm>
 #include <climits>
+#include <cstdio>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
 #include <vector>
@@ -17,10 +18,12 @@ static void place_sample(MAT::Tree &main_tree, const Sample_Muts &samp,
         delete out.deleted_nodes;
     }
 }
+void check_leaves(const MAT::Tree& T);
 void place_sample_multiple_tree(
     std::vector<Sample_Muts> &sample_to_place,
     std::vector<MAT::Tree>& trees,
     FILE *placement_stats_file, int max_trees) {
+    fprintf(stderr, "Max tree size %d\n",max_trees);
     for (const auto &samp : sample_to_place) {
         std::vector<std::tuple<std::vector<Main_Tree_Target>, int>>
             placement_result(trees.size());
@@ -53,6 +56,7 @@ void place_sample_multiple_tree(
         }
         for (size_t idx = 0; idx < placement_result.size(); idx++) {
             auto to_place = std::get<0>(placement_result[idx]);
+            if (to_place.size()>1) {
             if ((size_t)max_trees<trees.size()+to_place.size()) {
                 fprintf(
                     stderr,
@@ -65,13 +69,17 @@ void place_sample_multiple_tree(
                         "parsimony-optimal placements.\n",
                         to_place.size() - 1, to_place.size());
             }
+            }
             for (size_t place_idx = 1; place_idx < to_place.size();
                  place_idx++) {
                 if (trees.size() >= (size_t)max_trees) {
                     break;
                 }
                 trees.push_back(trees[idx].copy_tree());
-                place_sample(trees.back(), samp, to_place[place_idx]);
+                auto temp=to_place[place_idx];
+                temp.target_node=trees.back().get_node(temp.target_node->node_id);
+                temp.parent_node=trees.back().get_node(temp.parent_node->node_id);
+                place_sample(trees.back(), samp, temp);
             }
             place_sample(trees[idx], samp, to_place[0]);
         }

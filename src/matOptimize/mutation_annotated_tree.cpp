@@ -170,6 +170,10 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::Tree::copy_tree(){
     out.condensed_nodes=condensed_nodes;
     out.curr_internal_node=curr_internal_node;
     out.root=new Mutation_Annotated_Tree::Node(*root,nullptr,&out);
+    out.all_nodes.resize(all_nodes.size());
+    for (auto node : out.depth_first_expansion()) {
+        out.all_nodes[node->node_id]=node;
+    }
     return out;
 }
 std::string Mutation_Annotated_Tree::Tree::get_clade_assignment (const Node* n, int clade_id, bool include_self) const {
