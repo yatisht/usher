@@ -199,14 +199,17 @@ static void acc_mutations(FS_result_per_thread_t& FS_result,ACC_type& accumulato
 }
 struct Parse_result{
     FS_result_per_thread_t& FS_result;
+    int nodes_size;
     void operator()(std::pair<char* ,size_t> in){
         Mutation_Detailed::mutation_collection parsed;
         parsed.ParseFromArray(in.first, in.second);
+	auto& local_res=FS_result.local().output;
         //fprintf(stderr, "adding to node %zu",parsed.node_idx());
-        if (parsed.node_idx()>=(int)FS_result.local().output.size()) {
+        if (nodes_size>(int)local_res.size()) {
+	    local_res.resize(nodes_size);
             fprintf(stderr, "Node idx %ld, total length %zu \n",parsed.node_idx(),FS_result.local().output.size());
         }
-        auto& to_add=FS_result.local().output[parsed.node_idx()];
+        auto& to_add=local_res[parsed.node_idx()];
         for (int idx=0; idx<parsed.positions_size(); idx++) {
             MAT::Mutation temp;
             *((int*)&temp)=parsed.positions(idx);
@@ -299,7 +302,7 @@ void MPI_reassign_states(MAT::Tree& tree,const std::vector<mutated_t>& mutations
     if (this_rank==0) {
         tbb::flow::graph g;
         int processes_left=process_count-1;
-        tbb::flow::function_node<std::pair<char*, size_t>> proc(g,tbb::flow::unlimited,Parse_result{FS_result});
+        tbb::flow::function_node<std::pair<char*, size_t>> proc(g,tbb::flow::unlimited,Parse_result{FS_result,bfs_ordered_nodes.size()});
         bool is_first=true;
         char ignore;
         fprintf(stderr, "Start recieving assignment message\n");
