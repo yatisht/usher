@@ -68,6 +68,7 @@ void Mutation_Annotated_Tree::Tree::rename_node(size_t old_nid, std::string new_
             node_name_to_idx_map.erase(iter->second);
             node_names.erase(iter);            
         }
+        return;
     }
     auto ins_result=node_names.emplace(old_nid,new_nid);
     if (ins_result.second==false) {

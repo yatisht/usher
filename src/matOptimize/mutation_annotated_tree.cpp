@@ -20,6 +20,7 @@
 #include <vector>
 #include <fstream>
 // Uses one-hot encoding if base is unambiguous
+void check_leaves(const Mutation_Annotated_Tree::Tree& T);
 // A:1,C:2,G:4,T:8
 using Mutation_Annotated_Tree::Node;
 tbb::concurrent_unordered_map<std::string, uint8_t>  Mutation_Annotated_Tree::Mutation::chromosome_map;
@@ -258,21 +259,22 @@ void Mutation_Annotated_Tree::get_sample_mutation_paths(
     }
     fclose(mutation_paths_file);
 }
-static bool is_anncestor_after_dfs(Node *ancestral, Node *to_test) {
+static bool is_anncestor_after_dfs(const Node *ancestral, const Node *to_test) {
     if (to_test->dfs_index > ancestral->dfs_index &&
         to_test->dfs_index <= ancestral->dfs_end_index) {
         return true;
     }
     return false;
 }
-static std::vector<Node *> get_ancestor(Node *node, bool include_self) {
-    std::vector<Node *> output;
+static std::vector<const Node *> get_ancestor(const Node *node, bool include_self) {
+    std::vector<const Node *> output;
     if (include_self) {
         output.push_back(node);
     }
     node = node->parent;
     while (node) {
         output.push_back(node);
+        node = node->parent;
     }
     return output;
 }
@@ -284,9 +286,9 @@ Mutation_Annotated_Tree::get_subtree(const Mutation_Annotated_Tree::Tree &tree,
     Tree subtree;
 
     // Set of leaf and internal nodes corresponding to the subtree
-    tbb::concurrent_unordered_set<Node *> subtree_nodes;
+    tbb::concurrent_unordered_set<size_t> subtree_nodes;
     // Maintain a set of all ancestors of a sample for each sample
-    std::vector<tbb::concurrent_unordered_set<Node *>> all_ancestors(
+    std::vector<tbb::concurrent_unordered_set<const Node *>> all_ancestors(
         samples.size());
 
     static tbb::affinity_partitioner ap;
@@ -294,7 +296,7 @@ Mutation_Annotated_Tree::get_subtree(const Mutation_Annotated_Tree::Tree &tree,
         tbb::blocked_range<size_t>(0, samples.size()),
         [&](tbb::blocked_range<size_t> r) {
             for (size_t k = r.begin(); k < r.end(); ++k) {
-                subtree_nodes.insert(samples[k]);
+                subtree_nodes.insert(samples[k]->node_id);
                 auto anc = samples[k];
                 while (anc) {
                     all_ancestors[k].insert(anc);
@@ -313,7 +315,7 @@ Mutation_Annotated_Tree::get_subtree(const Mutation_Annotated_Tree::Tree &tree,
                     while (anc) {
                         if (all_ancestors[j].find(anc) !=
                             all_ancestors[j].end()) {
-                            subtree_nodes.insert(anc);
+                            subtree_nodes.insert(anc->node_id);
                             break;
                         }
                         anc = anc->parent;
@@ -328,11 +330,12 @@ Mutation_Annotated_Tree::get_subtree(const Mutation_Annotated_Tree::Tree &tree,
     if (keep_clade_annotations) {
         num_annotations = tree.get_num_annotations();
     }
+    check_leaves(tree);
 
     std::stack<Node *> last_subtree_node;
-    for (auto n : dfs) {
+    for (const Mutation_Annotated_Tree::Node* n : dfs) {
         // If the node is in subtree_nodes, it should be added to the subtree
-        if (subtree_nodes.find(n) != subtree_nodes.end()) {
+        if (subtree_nodes.find(n->node_id) != subtree_nodes.end()) {
             Node *subtree_parent = NULL;
             if (last_subtree_node.size() > 0) {
                 while (!is_anncestor_after_dfs(last_subtree_node.top(), n)) {
@@ -341,10 +344,12 @@ Mutation_Annotated_Tree::get_subtree(const Mutation_Annotated_Tree::Tree &tree,
                 subtree_parent = last_subtree_node.top();
             }
             // Add as root of the subtree
+            Node *new_node;
             if (subtree_parent == NULL) {
                 // for root node, need to size the annotations vector
-                Node *new_node = subtree.create_node(
+                new_node = subtree.create_node(
                     tree.get_node_name(n->node_id), num_annotations);
+                subtree.root=new_node;
                 // need to assign any clade annotations which would belong to
                 // that root as well
                 for (size_t k = 0; k < num_annotations; k++) {
@@ -353,7 +358,7 @@ Mutation_Annotated_Tree::get_subtree(const Mutation_Annotated_Tree::Tree &tree,
                             n->clade_annotations[k];
                     }
                 }
-                std::vector<Node *> root_to_node = get_ancestor(n, true);
+                std::vector<const Node *> root_to_node = get_ancestor(n, true);
                 std::reverse(root_to_node.begin(), root_to_node.end());
                 // root_to_node.emplace_back(n);
 
@@ -365,7 +370,7 @@ Mutation_Annotated_Tree::get_subtree(const Mutation_Annotated_Tree::Tree &tree,
             }
             // Add to the parent identified
             else {
-                Node *new_node = subtree.create_node(
+                new_node = subtree.create_node(
                     tree.get_node_name(n->node_id), num_annotations);
                 subtree_parent->children.push_back(new_node);
                 new_node->parent = subtree_parent;
@@ -373,7 +378,7 @@ Mutation_Annotated_Tree::get_subtree(const Mutation_Annotated_Tree::Tree &tree,
                 std::reverse(par_to_node.begin(), par_to_node.end());
                 par_to_node.erase(par_to_node.begin(),
                                   std::find(par_to_node.begin(),
-                                            par_to_node.end(), subtree_parent) +
+                                            par_to_node.end(), tree.get_node(subtree_parent->node_id)) +
                                       1);
 
                 for (auto curr : par_to_node) {
@@ -388,9 +393,10 @@ Mutation_Annotated_Tree::get_subtree(const Mutation_Annotated_Tree::Tree &tree,
                     }
                 }
             }
-            last_subtree_node.push(n);
+            last_subtree_node.push(new_node);
         }
     }
+    check_leaves(tree);
 
     subtree.curr_internal_node = tree.curr_internal_node;
 
@@ -425,7 +431,7 @@ void Mutation_Annotated_Tree::Tree::rotate_for_display(bool reverse) {
     }
 }
 void Mutation_Annotated_Tree::get_random_single_subtree(
-    Mutation_Annotated_Tree::Tree *T, std::vector<Node *> samples,
+    const Mutation_Annotated_Tree::Tree & T, std::vector<Node *> samples,
     std::string outdir, size_t subtree_size, size_t tree_idx, bool use_tree_idx,
     bool retain_original_branch_len) {
     // timer.Start();
@@ -435,7 +441,7 @@ void Mutation_Annotated_Tree::get_random_single_subtree(
     }
     std::set<Node *> leaves_to_keep_set(samples.begin(), samples.end());
 
-    auto all_leaves = T->get_leaves();
+    auto all_leaves = T.get_leaves();
     for (size_t i = 0; i < all_leaves.size(); i++) {
         auto l = all_leaves.begin();
         std::advance(l, std::rand() % all_leaves.size());
@@ -447,8 +453,8 @@ void Mutation_Annotated_Tree::get_random_single_subtree(
 
     std::vector<Node *> leaves_to_keep(samples.begin(), samples.end());
 
-    auto new_T = get_subtree(*T, leaves_to_keep);
-
+    auto new_T = get_subtree(T, leaves_to_keep);
+    check_leaves(T);
     // Rotate tree for display
     new_T.rotate_for_display();
 
@@ -491,12 +497,13 @@ void Mutation_Annotated_Tree::get_random_single_subtree(
     }
 
     fclose(subtree_mutations_file);
+    check_leaves(T);
 
     // Expand internal nodes that are condensed
     bool has_condensed = false;
     FILE *subtree_expanded_file = NULL;
     for (auto l : new_T.get_leaves()) {
-        if (T->condensed_nodes.find(l->node_id) != T->condensed_nodes.end()) {
+        if (T.condensed_nodes.find(l->node_id) != T.condensed_nodes.end()) {
             if (!has_condensed) {
 
                 auto subtree_expanded_filename =
@@ -511,23 +518,25 @@ void Mutation_Annotated_Tree::get_random_single_subtree(
             }
             fprintf(subtree_expanded_file,
                     "%s: ", new_T.get_node_name(l->node_id).c_str());
-            for (auto n : T->condensed_nodes[l->node_id]) {
+            auto iter=T.condensed_nodes.find(l->node_id);
+            for (auto n : iter->second) {
                 fprintf(subtree_expanded_file, "%s ", n.c_str());
             }
             fprintf(subtree_expanded_file, "\n");
         }
     }
+    check_leaves(T);
     if (has_condensed) {
         fclose(subtree_expanded_file);
     }
 }
-void Mutation_Annotated_Tree::get_random_sample_subtrees (Mutation_Annotated_Tree::Tree* T, std::vector<Node*> samples, std::string outdir, size_t subtree_size, size_t tree_idx, bool use_tree_idx, bool retain_original_branch_len) {
+void Mutation_Annotated_Tree::get_random_sample_subtrees (const Mutation_Annotated_Tree::Tree& T, std::vector<Node*> samples, std::string outdir, size_t subtree_size, size_t tree_idx, bool use_tree_idx, bool retain_original_branch_len) {
     fprintf(stderr, "Computing subtrees for %ld samples. \n\n", samples.size());
     std::string preid = "/";
     if (use_tree_idx) {
         preid = "/tree-" + std::to_string(tree_idx) + "-";
     }
-    T->depth_first_expansion();
+    T.depth_first_expansion();
     // For each final tree, write a subtree of user-specified size around
     // each requested sample in newick format
     // We split the subtree size into two: one half for nearest sequences to
@@ -542,7 +551,7 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (Mutation_Annotated_Tre
     std::srand(0);
 
     // Randomly shuffle the leaves for selecting the random subtree
-    auto all_leaves = T->get_leaves();
+    auto all_leaves = T.get_leaves();
     std::set<Mutation_Annotated_Tree::Node*> random_ordered_leaves;
     for (size_t i=0; i< all_leaves.size(); i++) {
         auto l = all_leaves.begin();
@@ -596,12 +605,12 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (Mutation_Annotated_Tre
                     }
                 };
 
-                for (auto l: T->get_leaves(last_anc)) {
+                for (auto l: T.get_leaves(last_anc)) {
                     leaves_to_keep.emplace_back(l);
                 }
 
                 std::vector<NodeDist> node_distances;
-                for (auto l: T->get_leaves(anc)) {
+                for (auto l: T.get_leaves(anc)) {
                     if (is_anncestor_after_dfs(last_anc, l)) {
                         continue;
                     }
@@ -637,7 +646,7 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (Mutation_Annotated_Tre
                     }
                 }
             } else {
-                for (auto l: T->get_leaves(anc)) {
+                for (auto l: T.get_leaves(anc)) {
                     if (leaves_to_keep.size() == subtree_size) {
                         break;
                     }
@@ -645,7 +654,7 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (Mutation_Annotated_Tre
                 }
             }
 
-            auto new_T = Mutation_Annotated_Tree::get_subtree(*T, leaves_to_keep);
+            auto new_T = Mutation_Annotated_Tree::get_subtree(T, leaves_to_keep);
 
             // Rotate tree for display
             new_T.rotate_for_display();
@@ -699,15 +708,16 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (Mutation_Annotated_Tre
             bool has_condensed = false;
             FILE* subtree_expanded_file = NULL;
             for (auto l: new_T.get_leaves()) {
-                if (T->condensed_nodes.find(l->node_id) != T->condensed_nodes.end()) {
+                if (T.condensed_nodes.find(l->node_id) != T.condensed_nodes.end()) {
                     if (!has_condensed) {
                         auto subtree_expanded_filename = outdir + preid +  "subtree-" + std::to_string(num_subtrees) + "-expanded.txt";
                         fprintf(stderr, "Subtree %d has condensed nodes.\nExpanding the condensed nodes for subtree %d in file %s\n", num_subtrees, num_subtrees, subtree_expanded_filename.c_str());
                         subtree_expanded_file = fopen(subtree_expanded_filename.c_str(), "w");
                         has_condensed = true;
                     }
-                    fprintf(subtree_expanded_file, "%s: ", T->get_node_name(l->node_id).c_str());
-                    for (auto n: T->condensed_nodes[l->node_id]) {
+                    fprintf(subtree_expanded_file, "%s: ", T.get_node_name(l->node_id).c_str());
+                    auto iter=T.condensed_nodes.find(l->node_id);
+                    for (auto n: iter->second) {
                         fprintf(subtree_expanded_file, "%s ", n.c_str());
                     }
                     fprintf(subtree_expanded_file, "\n");

@@ -436,10 +436,77 @@ static void output_newick(MAT::Tree& T,const output_options& options,int t_idx){
     final_tree_file.close();
 
 }
-void final_output(MAT::Tree& T,const output_options& options,int t_idx,std::vector<Clade_info>& assigned_clades,
-    size_t sample_start_idx,size_t sample_end_idx,std::vector<std::string>& low_confidence_samples){
+void check_leaves(const MAT::Tree& T){
+    for (const auto node :T.depth_first_expansion() ) {
+        if (node->children.empty()) {
+            if (T.get_node_name(node->node_id)=="") {
+                fprintf(stderr,"Leaf node without name %zu",node->node_id);
+                raise(SIGTRAP);
+            }
+        }
+    }
+}
+void print_annotation(const MAT::Tree &T, const output_options &options,
+               const std::vector<Clade_info> &assigned_clades,
+               size_t &sample_start_idx, size_t &sample_end_idx,
+               size_t &num_annotations) {
+    auto annotations_filename = options.outdir + "/clades.txt";
+
+    FILE *annotations_file = fopen(annotations_filename.c_str(), "w");
+
+    for (size_t s = 0; s < sample_end_idx - sample_start_idx; s++) {
+        if (assigned_clades[s].best_clade_assignment.size() == 0) {
+            // Sample was not placed (e.g. exceeded max EPPs) so no clades
+            // assigned
+            continue;
+        }
+        auto sample = T.get_node_name(sample_start_idx + s);
+
+        fprintf(annotations_file, "%s\t", sample.c_str());
+        for (size_t k = 0; k < num_annotations; k++) {
+            fprintf(annotations_file, "%s",
+                    assigned_clades[s].best_clade_assignment[k].c_str());
+            // TODO
+            fprintf(annotations_file, "*|");
+            if (options.detailed_clades) {
+                std::string curr_clade = "";
+                int curr_count = 0;
+                for (auto clade : assigned_clades[s].clade_assignments[k]) {
+                    if (clade == curr_clade) {
+                        curr_count++;
+                    } else {
+                        if (curr_count > 0) {
+                            fprintf(
+                                annotations_file, "%s(%i/%zu),",
+                                curr_clade.c_str(), curr_count,
+                                assigned_clades[s].clade_assignments[k].size());
+                        }
+                        curr_clade = clade;
+                        curr_count = 1;
+                    }
+                }
+                if (curr_count > 0) {
+                    fprintf(annotations_file, "%s(%i/%zu)", curr_clade.c_str(),
+                            curr_count,
+                            assigned_clades[s].clade_assignments[k].size());
+                }
+            }
+            if (k + 1 < num_annotations) {
+                fprintf(annotations_file, "\t");
+            }
+        }
+        fprintf(annotations_file, "\n");
+    }
+
+    fclose(annotations_file);
+}
+void final_output(MAT::Tree &T, const output_options &options, int t_idx,
+                  std::vector<Clade_info> &assigned_clades,
+                  size_t sample_start_idx, size_t sample_end_idx,
+                  std::vector<std::string> &low_confidence_samples) {
     // If user need uncondensed tree output, write uncondensed tree(s) to
     // file(s)
+    check_leaves(T);
     output_newick(T, options,t_idx);
     // For each final tree write the path of mutations from tree root to the
     // sample for each newly placed sample
@@ -468,79 +535,33 @@ void final_output(MAT::Tree& T,const output_options& options,int t_idx,std::vect
     // For each final tree write the annotations for each sample
 
     size_t num_annotations = T.get_num_annotations();
+    check_leaves(T);
 
     if (num_annotations > 0&&options.only_one_tree) {
         // timer.Start();
 
-        auto annotations_filename = options.outdir + "/clades.txt";
-
-        FILE *annotations_file = fopen(annotations_filename.c_str(), "w");
-
-        for (size_t s = 0; s < sample_end_idx - sample_start_idx; s++) {
-            if (assigned_clades[s].best_clade_assignment.size() == 0) {
-                // Sample was not placed (e.g. exceeded max EPPs) so no clades
-                // assigned
-                continue;
-            }
-            auto sample = T.get_node_name(sample_start_idx + s);
-
-            fprintf(annotations_file, "%s\t", sample.c_str());
-            for (size_t k = 0; k < num_annotations; k++) {
-                fprintf(annotations_file, "%s",
-                        assigned_clades[s].best_clade_assignment[k].c_str());
-                // TODO
-                fprintf(annotations_file, "*|");
-                if (options.detailed_clades) {                
-                std::string curr_clade = "";
-                int curr_count = 0;
-                for (auto clade : assigned_clades[s].clade_assignments[k]) {
-                    if (clade == curr_clade) {
-                        curr_count++;
-                    } else {
-                        if (curr_count > 0) {
-                            fprintf(
-                                annotations_file, "%s(%i/%zu),",
-                                curr_clade.c_str(), curr_count,
-                                assigned_clades[s].clade_assignments[k].size());
-                        }
-                        curr_clade = clade;
-                        curr_count = 1;
-                    }
-                }
-                if (curr_count > 0) {
-                    fprintf(annotations_file, "%s(%i/%zu)", curr_clade.c_str(),
-                            curr_count,
-                            assigned_clades[s].clade_assignments[k].size());
-                }
-                }
-                if (k + 1 < num_annotations) {
-                    fprintf(annotations_file, "\t");
-                }
-            }
-            fprintf(annotations_file, "\n");
-        }
-
-        fclose(annotations_file);
+        print_annotation(T, options, assigned_clades, sample_start_idx, sample_end_idx,
+                  num_annotations);
 
         // fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
-
+    check_leaves(T);
     if ((options.print_subtrees_single > 1) ) {
         fprintf(stderr, "Computing the single subtree for added samples with %zu random leaves. \n\n", options.print_subtrees_single);
         //timer.Start();
         // For each final tree, write a subtree of user-specified size around
         // each newly placed sample in newick format
-        MAT::get_random_single_subtree(&T, targets, options.outdir, options.print_subtrees_single, t_idx, use_tree_idx, options.retain_original_branch_len);
+        MAT::get_random_single_subtree(T, targets, options.outdir, options.print_subtrees_single, t_idx, use_tree_idx, options.retain_original_branch_len);
         //fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
-
+    check_leaves(T);
     if ((options.print_subtrees_size > 1)) {
         fprintf(stderr, "Computing subtrees for added samples. \n\n");
 
         // For each final tree, write a subtree of user-specified size around
         // each newly placed sample in newick format
         //timer.Start();
-        MAT::get_random_sample_subtrees(&T, targets, options.outdir, options.print_subtrees_size, t_idx, use_tree_idx, options.retain_original_branch_len);
+        MAT::get_random_sample_subtrees(T, targets, options.outdir, options.print_subtrees_size, t_idx, use_tree_idx, options.retain_original_branch_len);
         //fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
 
@@ -563,9 +584,11 @@ void final_output(MAT::Tree& T,const output_options& options,int t_idx,std::vect
         }
         fprintf(stderr, "Saving mutation-annotated tree object to file (after condensing identical sequences) %s\n", options.dout_filename.c_str());
         // Recondense tree with new samples
+        check_leaves(T);
         if (T.condensed_nodes.size() > 0) {
             T.uncondense_leaves();
         }
+        check_leaves(T);
         T.condense_leaves();
         MAT::save_mutation_annotated_tree(T, options.dout_filename);
 

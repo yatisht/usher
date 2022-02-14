@@ -635,12 +635,12 @@ void string_split(std::string const& s, char delim, std::vector<std::string>& wo
 void string_split(std::string s, std::vector<std::string>& words);
 Tree get_subtree(const Tree &tree, const std::vector<Node*> &samples,
                  bool keep_clade_annotations = false);
-void get_random_single_subtree(Mutation_Annotated_Tree::Tree *T,
+void get_random_single_subtree(const Mutation_Annotated_Tree::Tree &T,
                                std::vector<Node*> samples,
                                std::string outdir, size_t subtree_size,
                                size_t tree_idx = 0, bool use_tree_idx = false,
                                bool retain_original_branch_len = false);
-void get_random_sample_subtrees(Mutation_Annotated_Tree::Tree *T,
+void get_random_sample_subtrees(const Mutation_Annotated_Tree::Tree &T,
                                 std::vector<Node*> samples,
                                 std::string outdir, size_t subtree_size,
                                 size_t tree_idx = 0, bool use_tree_idx = false,
