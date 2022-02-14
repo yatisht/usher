@@ -18,7 +18,7 @@ static void place_sample(MAT::Tree &main_tree, const Sample_Muts &samp,
         delete out.deleted_nodes;
     }
 }
-void check_leaves(const MAT::Tree& T);
+//void check_leaves(const MAT::Tree& T);
 void place_sample_multiple_tree(
     std::vector<Sample_Muts> &sample_to_place,
     std::vector<MAT::Tree>& trees,

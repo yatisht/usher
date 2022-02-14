@@ -23,7 +23,7 @@
 #include <vector>
 #include <fstream>
 // Uses one-hot encoding if base is unambiguous
-void check_leaves(const Mutation_Annotated_Tree::Tree& T);
+//void check_leaves(const Mutation_Annotated_Tree::Tree& T);
 // A:1,C:2,G:4,T:8
 using Mutation_Annotated_Tree::Node;
 tbb::concurrent_unordered_map<std::string, uint8_t>  Mutation_Annotated_Tree::Mutation::chromosome_map;
@@ -422,7 +422,7 @@ void Mutation_Annotated_Tree::get_random_single_subtree(
     std::vector<Node *> leaves_to_keep(samples.begin(), samples.end());
 
     auto new_T = get_subtree(T, leaves_to_keep);
-    check_leaves(T);
+    //check_leaves(T);
     // Rotate tree for display
     new_T.rotate_for_display();
 
@@ -465,7 +465,7 @@ void Mutation_Annotated_Tree::get_random_single_subtree(
     }
 
     fclose(subtree_mutations_file);
-    check_leaves(T);
+    //check_leaves(T);
 
     // Expand internal nodes that are condensed
     bool has_condensed = false;
@@ -493,7 +493,7 @@ void Mutation_Annotated_Tree::get_random_single_subtree(
             fprintf(subtree_expanded_file, "\n");
         }
     }
-    check_leaves(T);
+    //check_leaves(T);
     if (has_condensed) {
         fclose(subtree_expanded_file);
     }
