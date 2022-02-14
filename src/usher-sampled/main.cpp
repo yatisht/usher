@@ -4,7 +4,7 @@
 #include "usher.hpp"
 #include <algorithm>
 #include <atomic>
-#include <bits/types/FILE.h>
+#include <cstdio>
 #include <boost/filesystem/operations.hpp>
 #include <boost/filesystem/path.hpp>
 #include <boost/program_options.hpp>
