@@ -641,10 +641,10 @@ bool sort_samples(const Leader_Thread_Options& options,std::vector<Sample_Muts>&
             });
         if (options.reverse_sort) {
             std::sort(samples_to_place.begin(), samples_to_place.end(),
-                [](const auto& samp1,const auto& samp2){return samp1.sorting_key1<samp2.sorting_key1;});
+                [](const auto& samp1,const auto& samp2){return samp1.sorting_key1>samp2.sorting_key1;});
         }else {
             std::sort(samples_to_place.begin(), samples_to_place.end(),
-                [](const auto& samp1,const auto& samp2){return samp1.sorting_key1>samp2.sorting_key1;});
+                [](const auto& samp1,const auto& samp2){return samp1.sorting_key1<samp2.sorting_key1;});
 
         }        // Reverse sorted order if specified
         //fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
