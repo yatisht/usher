@@ -310,8 +310,8 @@ Mutation_Annotated_Tree::Tree
 Mutation_Annotated_Tree::get_subtree(const Mutation_Annotated_Tree::Tree &tree,
                                      const std::vector<Node *> &samples,
                                      bool keep_clade_annotations) {
-    //Original_State_t ori_state;
-    //check_samples(tree.root, ori_state, &tree);
+    Original_State_t ori_state;
+    check_samples(tree.root, ori_state, &tree);
     TIMEIT();
     Tree subtree=tree;
     size_t num_annotations = 0;
@@ -362,8 +362,8 @@ Mutation_Annotated_Tree::get_subtree(const Mutation_Annotated_Tree::Tree &tree,
             std::sort(new_tree_node->mutations.begin(),new_tree_node->mutations.end());
         }
     });
-    //check_samples(tree.root, ori_state, &tree);
-    //check_samples(subtree.root, ori_state, &subtree,true);
+    check_samples(tree.root, ori_state, &tree);
+    check_samples(subtree.root, ori_state, &subtree,true);
     return subtree;
 }
 void Mutation_Annotated_Tree::Tree::rotate_for_display(bool reverse) {
