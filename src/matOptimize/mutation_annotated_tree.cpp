@@ -1,4 +1,5 @@
 #include "mutation_annotated_tree.hpp"
+#include "src/matOptimize/check_samples.hpp"
 #include <algorithm>
 #include <atomic>
 #include <cstddef>
@@ -16,6 +17,8 @@
 #include <queue>
 #include <tbb/parallel_sort.h>
 #include <tbb/task.h>
+#include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 #include <fstream>
@@ -278,128 +281,89 @@ static std::vector<const Node *> get_ancestor(const Node *node, bool include_sel
     }
     return output;
 }
+static Node* get_subtree_helper(const std::unordered_set<size_t>& nodes_to_place,const Node* main_tree_node,Mutation_Annotated_Tree::Tree& new_tree,int num_annotations){
+    std::vector<Node*> child_node;
+    for (const Node* child : main_tree_node->children) {
+        auto ret=get_subtree_helper(nodes_to_place, child, new_tree,num_annotations);
+        if (ret) {
+            child_node.push_back(ret);
+        }
+    }
+    auto iter=nodes_to_place.find(main_tree_node->node_id);
+    if (iter!=nodes_to_place.end()||child_node.size()>1) {
+        auto new_node=new Node(main_tree_node->node_id);
+        new_node->clade_annotations.resize(num_annotations);
+        new_tree.register_node_serial(new_node);
+        new_node->children=std::move(child_node);
+        for (auto node : new_node->children) {
+            node->parent=new_node;
+        }
+        return new_node;
+    }
+    if (child_node.empty()) {
+        return nullptr;
+    }else {
+        return child_node[0];
+    }
+};
 Mutation_Annotated_Tree::Tree
 Mutation_Annotated_Tree::get_subtree(const Mutation_Annotated_Tree::Tree &tree,
                                      const std::vector<Node *> &samples,
                                      bool keep_clade_annotations) {
+    //Original_State_t ori_state;
+    //check_samples(tree.root, ori_state, &tree);
     TIMEIT();
-    Tree subtree;
-
-    // Set of leaf and internal nodes corresponding to the subtree
-    tbb::concurrent_unordered_set<size_t> subtree_nodes;
-    // Maintain a set of all ancestors of a sample for each sample
-    std::vector<tbb::concurrent_unordered_set<const Node *>> all_ancestors(
-        samples.size());
-
-    static tbb::affinity_partitioner ap;
-    tbb::parallel_for(
-        tbb::blocked_range<size_t>(0, samples.size()),
-        [&](tbb::blocked_range<size_t> r) {
-            for (size_t k = r.begin(); k < r.end(); ++k) {
-                subtree_nodes.insert(samples[k]->node_id);
-                auto anc = samples[k];
-                while (anc) {
-                    all_ancestors[k].insert(anc);
-                    anc = anc->parent;
-                }
-            }
-        },
-        ap);
-
-    tbb::parallel_for(
-        tbb::blocked_range<size_t>(0, samples.size()),
-        [&](tbb::blocked_range<size_t> r) {
-            for (size_t i = r.begin(); i < r.end(); ++i) {
-                for (size_t j = i + 1; j < samples.size(); ++j) {
-                    auto anc = samples[i];
-                    while (anc) {
-                        if (all_ancestors[j].find(anc) !=
-                            all_ancestors[j].end()) {
-                            subtree_nodes.insert(anc->node_id);
-                            break;
-                        }
-                        anc = anc->parent;
-                    }
-                }
-            }
-        },
-        ap);
-
-    auto dfs = tree.depth_first_expansion();
+    Tree subtree=tree;
     size_t num_annotations = 0;
     if (keep_clade_annotations) {
         num_annotations = tree.get_num_annotations();
     }
-    check_leaves(tree);
-
-    std::stack<Node *> last_subtree_node;
-    for (const Mutation_Annotated_Tree::Node* n : dfs) {
-        // If the node is in subtree_nodes, it should be added to the subtree
-        if (subtree_nodes.find(n->node_id) != subtree_nodes.end()) {
-            Node *subtree_parent = NULL;
-            if (last_subtree_node.size() > 0) {
-                while (!is_anncestor_after_dfs(last_subtree_node.top(), n)) {
-                    last_subtree_node.pop();
-                }
-                subtree_parent = last_subtree_node.top();
-            }
-            // Add as root of the subtree
-            Node *new_node;
-            if (subtree_parent == NULL) {
-                // for root node, need to size the annotations vector
-                new_node = subtree.create_node(
-                    tree.get_node_name(n->node_id), num_annotations);
-                subtree.root=new_node;
-                // need to assign any clade annotations which would belong to
-                // that root as well
-                for (size_t k = 0; k < num_annotations; k++) {
-                    if (n->clade_annotations[k] != "") {
-                        new_node->clade_annotations[k] =
-                            n->clade_annotations[k];
-                    }
-                }
-                std::vector<const Node *> root_to_node = get_ancestor(n, true);
-                std::reverse(root_to_node.begin(), root_to_node.end());
-                // root_to_node.emplace_back(n);
-
-                for (auto curr : root_to_node) {
-                    for (auto m : curr->mutations) {
-                        new_node->add_mutation(m);
-                    }
-                }
-            }
-            // Add to the parent identified
-            else {
-                new_node = subtree.create_node(
-                    tree.get_node_name(n->node_id), num_annotations);
-                subtree_parent->children.push_back(new_node);
-                new_node->parent = subtree_parent;
-                auto par_to_node = get_ancestor(n, true);
-                std::reverse(par_to_node.begin(), par_to_node.end());
-                par_to_node.erase(par_to_node.begin(),
-                                  std::find(par_to_node.begin(),
-                                            par_to_node.end(), tree.get_node(subtree_parent->node_id)) +
-                                      1);
-
-                for (auto curr : par_to_node) {
-                    for (size_t k = 0; k < num_annotations; k++) {
-                        if (curr->clade_annotations[k] != "") {
-                            new_node->clade_annotations[k] =
-                                curr->clade_annotations[k];
-                        }
-                    }
-                    for (auto m : curr->mutations) {
-                        new_node->add_mutation(m);
-                    }
-                }
-            }
-            last_subtree_node.push(new_node);
-        }
+    std::unordered_set<size_t> nodes_to_place;
+    nodes_to_place.reserve(samples.size());
+    for (const auto samp : samples) {
+        nodes_to_place.insert(samp->node_id);
     }
-    check_leaves(tree);
-
-    subtree.curr_internal_node = tree.curr_internal_node;
-
+    subtree.root=get_subtree_helper(nodes_to_place, tree.root, subtree, num_annotations);
+    auto new_tree_dfs=subtree.depth_first_expansion();
+    tbb::parallel_for(tbb::blocked_range<size_t>(0,new_tree_dfs.size()),[&new_tree_dfs,&tree,num_annotations](tbb::blocked_range<size_t> range){
+        for(size_t idx=range.begin();idx<range.end();idx++){
+            auto new_tree_node=new_tree_dfs[idx];
+            const Node* corresponding_main_tree_node=tree.get_node(new_tree_node->node_id);
+            if (corresponding_main_tree_node==tree.root) {
+                continue;
+            }
+            const Node* corresponding_main_parent_node=tree.root;
+            if (new_tree_node->parent) {
+                corresponding_main_parent_node=tree.get_node(new_tree_node->parent->node_id);
+            }
+            const Node* curr_node=corresponding_main_tree_node;
+            std::unordered_map<int, Mutation> mutations;
+            while (curr_node!=corresponding_main_parent_node) {
+                for (const auto& mut : curr_node->mutations) {
+                    auto res=mutations.emplace(mut.get_position(),mut);
+                    if (!res.second) {
+                        res.first->second.set_par_one_hot(mut.get_par_one_hot());
+                    }
+                }
+                for (size_t k = 0; k < num_annotations; k++) {
+                    if (curr_node->clade_annotations[k] != ""&&new_tree_node->clade_annotations[k]=="") {
+                        new_tree_node->clade_annotations[k]=curr_node->clade_annotations[k];
+                    }
+                }
+                curr_node=curr_node->parent;
+            }
+            new_tree_node->mutations.reserve(mutations.size());
+            for (const auto& mut : mutations) {
+                if (mut.second.get_par_one_hot()&mut.second.get_mut_one_hot()) {
+                    continue;
+                }
+                new_tree_node->mutations.mutations.push_back(mut.second);
+            }
+            std::sort(new_tree_node->mutations.begin(),new_tree_node->mutations.end());
+        }
+    });
+    //check_samples(tree.root, ori_state, &tree);
+    //check_samples(subtree.root, ori_state, &subtree,true);
     return subtree;
 }
 void Mutation_Annotated_Tree::Tree::rotate_for_display(bool reverse) {
@@ -583,7 +547,15 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (const Mutation_Annotat
         // Keep moving up the tree till a subtree of required size is
         // found
         auto anc=samples[i];
+        bool is_first=true;
         while (anc) {
+            if (!is_first) {
+                anc=anc->parent;
+                if (!anc) {
+                    break;
+                }
+            }
+            is_first=false;
             size_t num_leaves = anc->get_num_leaves();
             if (num_leaves < subtree_size) {
                 last_anc = anc;
@@ -727,7 +699,6 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (const Mutation_Annotat
                 fclose(subtree_expanded_file);
             }
             break;
-            anc=anc->parent;
         }
     }
 }

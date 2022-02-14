@@ -239,7 +239,6 @@ static int leader_thread(
     fprintf(stderr, "Main finised place\n");
     auto dfs=tree.depth_first_expansion();
     clean_up_leaf(dfs);
-    fix_condensed_nodes(&tree);
     final_output(
         tree, options.out_options, 0, samples_clade, samples_to_place.front().sample_idx,
         samples_to_place.back().sample_idx + 1, low_confidence_samples);

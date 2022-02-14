@@ -438,6 +438,10 @@ static void output_newick(MAT::Tree& T,const output_options& options,int t_idx){
 }
 void check_leaves(const MAT::Tree& T){
     for (const auto node :T.depth_first_expansion() ) {
+        if (node!=T.get_node(node->node_id)) {
+            fprintf(stderr, "Node mismatch\n");
+            raise(SIGTRAP);
+        }
         if (node->children.empty()) {
             if (T.get_node_name(node->node_id)=="") {
                 fprintf(stderr,"Leaf node without name %zu",node->node_id);
@@ -506,6 +510,12 @@ void final_output(MAT::Tree &T, const output_options &options, int t_idx,
                   std::vector<std::string> &low_confidence_samples) {
     // If user need uncondensed tree output, write uncondensed tree(s) to
     // file(s)
+    {
+    std::unordered_set<size_t> ignored1;
+    std::unordered_set<size_t> ignored2;
+    clean_up_internal_nodes(T.root,T,ignored1,ignored2);
+    }
+    fix_condensed_nodes(&T);
     check_leaves(T);
     output_newick(T, options,t_idx);
     // For each final tree write the path of mutations from tree root to the

@@ -21,7 +21,10 @@ void ins_mut(Mutation_Set &parent_mutations,const Mutation_Annotated_Tree::Mutat
     }
     if (!temp.second) {
         //already present
-        assert(temp.first->get_mut_one_hot()==m.get_par_one_hot());
+        if(temp.first->get_mut_one_hot()!=m.get_par_one_hot()){
+            fprintf(stderr, "nuc mismatch, at pos %d\n",m.get_position());
+            raise(SIGTRAP);
+        }
         //mutate back to ref, so no more mutation
         if ((m.get_mut_one_hot() == m.get_ref_one_hot()&&(!is_leaf))||(m.get_all_major_allele()==m.get_ref_one_hot())) {
             parent_mutations.erase(temp.first);
@@ -31,6 +34,10 @@ void ins_mut(Mutation_Set &parent_mutations,const Mutation_Annotated_Tree::Mutat
             const_cast<MAT::Mutation&>(*temp.first).set_auxillary(is_leaf?m.get_all_major_allele():m.get_mut_one_hot(),0);
         }
     } else {
+        if (m.get_par_one_hot()!=m.get_ref_one_hot()) {
+            fprintf(stderr, "nuc mismatch, at pos %d\n",m.get_position());
+            raise(SIGTRAP);
+        }
         if (m.get_all_major_allele()==m.get_ref_one_hot()) {
             parent_mutations.erase(temp.first);
         }
@@ -38,17 +45,17 @@ void ins_mut(Mutation_Set &parent_mutations,const Mutation_Annotated_Tree::Mutat
 }
 //functor for getting state of all leaves
 struct insert_samples_worker:public tbb::task {
-    Mutation_Annotated_Tree::Node *root; //starting node whose subtree need to be processed
+    const Mutation_Annotated_Tree::Node *root; //starting node whose subtree need to be processed
     Mutation_Set parent_mutations; //mutation of parent of "root" relative to the root of the entire tree
     Original_State_t &samples; //output
-    insert_samples_worker(Mutation_Annotated_Tree::Node *root,
+    insert_samples_worker(const Mutation_Annotated_Tree::Node *root,
                           const Mutation_Set &parent_mutations,
                           Original_State_t &samples)
         : root(root), parent_mutations(parent_mutations),
           samples(samples) {}
     tbb::task* execute() override {
         //add mutation of "root"
-        for (Mutation_Annotated_Tree::Mutation &m : root->mutations) {
+        for (const Mutation_Annotated_Tree::Mutation &m : root->mutations) {
             if(m.is_valid()||root->is_leaf()) {
                 ins_mut(parent_mutations, m,root->is_leaf());
             }
@@ -78,7 +85,7 @@ struct check_samples_worker:public tbb::task {
     const Original_State_t &samples;
     tbb::concurrent_unordered_set<size_t>& visited_samples;
     const MAT::Tree& tree;
-    check_samples_worker(Mutation_Annotated_Tree::Node *root,
+    check_samples_worker(const Mutation_Annotated_Tree::Node *root,
                          const Mutation_Set& parent_mutations,
                          const Original_State_t &samples,
                          tbb::concurrent_unordered_set<size_t>& visited_samples,
@@ -150,8 +157,8 @@ struct check_samples_worker:public tbb::task {
     }
 };
 //top level
-void check_samples(Mutation_Annotated_Tree::Node *root,
-                   Original_State_t &samples,MAT::Tree* tree) {
+void check_samples(const Mutation_Annotated_Tree::Node *root,
+                   Original_State_t &samples,const MAT::Tree* tree,bool ignore_missed_samples) {
     Mutation_Set mutations;
     if (samples.empty()) {
         tbb::task::spawn_root_and_wait(*new(tbb::task::allocate_root())
@@ -159,6 +166,7 @@ void check_samples(Mutation_Annotated_Tree::Node *root,
     } else {
         tbb::concurrent_unordered_set<size_t> visited_sample;
         tbb::task::spawn_root_and_wait(*new(tbb::task::allocate_root())check_samples_worker(root, mutations, samples,visited_sample,*tree));
+        if (!ignore_missed_samples) {
         bool have_missed=false;
         for (auto s : samples) {
             if (!visited_sample.count(s.first)) {
@@ -171,6 +179,7 @@ void check_samples(Mutation_Annotated_Tree::Node *root,
             fprintf(stderr, "have_missing samples\n");
         }
         assert(!have_missed);
+        }
         fputs("checked\n", stderr);
     }
 }
