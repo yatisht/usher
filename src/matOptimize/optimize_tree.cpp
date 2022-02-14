@@ -258,7 +258,7 @@ Reachable set_reachable(int radius,MAT::Tree& t,bool search_all_dir){
 }
 void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
                                MAT::Tree &t,int radius,FILE* log,bool allow_drift,int iteration,
-                               std::vector<MAT::Node*>& deferred_nodes_out,bool MPI_involved,std::chrono::steady_clock::time_point end_time,bool do_continue,bool search_all_dir,bool isfirst_this_iter
+                               std::vector<size_t>& defered_node_identifier,bool MPI_involved,std::chrono::steady_clock::time_point end_time,bool do_continue,bool search_all_dir,bool isfirst_this_iter
 #ifdef CHECK_STATE_REASSIGN
                                , Original_State_t& origin_states
 #endif
@@ -275,7 +275,6 @@ void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
     Deferred_Move_t deferred_moves;
     Cross_t potential_crosses(dfs_ordered_nodes.size(),nullptr);
     tbb::flow::graph g;
-    std::vector<size_t> defered_node_identifier;
     resolver_node_t resover_node(g, 1,
                                  Conflict_Resolver(potential_crosses,
                                          deferred_moves,
@@ -395,15 +394,7 @@ void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
         return;
     }
     clean_tree(t);
-    deferred_nodes_out.clear();
     fprintf(stderr, "First stage %zu deferred node \n",defered_node_identifier.size());
-    deferred_nodes_out.reserve(defered_node_identifier.size());
-    for (const auto& id : defered_node_identifier) {
-        auto node=t.get_node(id);
-        if (node!=nullptr) {
-            deferred_nodes_out.push_back(node);
-        }
-    }
     fprintf(stderr, "recycled %f of conflicting moves \n",(double)recycled/(double)init_deferred);
     fprintf(stderr, "recycling moves took %ld seconds\n",elpased_time.count());
     t.populate_ignored_range();

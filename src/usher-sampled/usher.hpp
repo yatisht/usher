@@ -83,7 +83,7 @@ struct output_options{
     std::string dout_filename;
     bool detailed_clades;
 };
-void final_output(MAT::Tree& T,output_options& options,int t_idx,std::vector<Clade_info>& assigned_clades,
+void final_output(MAT::Tree& T,const output_options& options,int t_idx,std::vector<Clade_info>& assigned_clades,
     size_t sample_start_idx,size_t sample_end_idx,std::vector<std::string>& low_confidence_samples);
 void place_sample_leader(std::vector<Sample_Muts> &sample_to_place,
                          MAT::Tree &main_tree, int batch_size,
@@ -92,7 +92,8 @@ void place_sample_leader(std::vector<Sample_Muts> &sample_to_place,
                          FILE *placement_stats_file,
                          int max_parsimony,size_t max_uncertainty,
                          std::vector<std::string>& low_confidence_samples,
-                         std::vector<Clade_info>& samples_clade
+                         std::vector<Clade_info>& samples_clade,
+                         size_t sample_start_idx,std::vector<size_t>* idx_map
                          ) ;
 void fix_parent(Mutation_Annotated_Tree::Tree &tree);
 void convert_mut_type(const std::vector<MAT::Mutation> &in,
@@ -128,7 +129,7 @@ void discretize_mutations(const std::vector<To_Place_Sample_Mutation> &in,
                                  const MAT::Mutations_Collection &shared_mutations,
                                  MAT::Node *parent_node,
                                  MAT::Mutations_Collection &out);
-void sort_samples(Leader_Thread_Options& options,std::vector<Sample_Muts>& samples_to_place, MAT::Tree& tree);
+bool sort_samples(const Leader_Thread_Options& options,std::vector<Sample_Muts>& samples_to_place, MAT::Tree& tree,size_t sample_start_idx);
 void place_sample_multiple_tree(
     std::vector<Sample_Muts> &sample_to_place, 
     std::vector<MAT::Tree>& trees,

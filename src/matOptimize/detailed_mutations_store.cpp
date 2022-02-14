@@ -321,7 +321,7 @@ void Mutation_Annotated_Tree::Tree::save_detailed_mutations(
 void Mutation_Annotated_Tree::Tree::MPI_send_tree() const {
     size_t max_memory=get_memory();
     MPI_Bcast(&max_memory, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
-    //fprintf(stderr, "Sending memory requirement of %zu \n",max_memory);
+    fprintf(stderr, "Sending memory requirement of %zu \n",max_memory);
     tbb::flow::graph g;
     compressor_node_t compressor(g, tbb::flow::unlimited, compressor_node());
     tbb::flow::function_node<compressor_out,tbb::flow::continue_msg,tbb::flow::queueing> sender(

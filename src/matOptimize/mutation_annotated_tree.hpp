@@ -525,18 +525,21 @@ class Tree {
         }
         return iter->second;
     }
-    Node* get_node(size_t idx,bool warn=false)const{
+    size_t get_size_upper() const{
+        return all_nodes.size();
+    }
+    Node* get_node(size_t idx)const{
         if (idx>all_nodes.size()) {
-            if (warn) {
+            /*if (warn) {
                 fprintf(stderr, "%zu node out of range, total size %zu \n",idx,all_nodes.size());
                 raise(SIGTRAP);
-            }
+            }*/
             return nullptr;
         }
-        if (warn&&!all_nodes[idx]) {        
+        /*if (warn&&!all_nodes[idx]) {        
             fprintf(stderr, "%zu node not found \n",idx);
             raise(SIGTRAP);
-        }
+        }*/
 
         return all_nodes[idx];
     }

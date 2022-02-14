@@ -70,7 +70,7 @@ void discretize_mutations(const std::vector<To_Place_Sample_Mutation> &in,
     gather_par_mut(par_nuc_idx, parent_node, out);
 }
 typedef std::pair<char*,int> pair_str;
-move_type* deser_other_thread_move(char* in, int size,MAT::Tree &tree,std::vector<Sample_Muts>& to_place)  {
+move_type* deser_other_thread_move(char* in, int size,MAT::Tree &tree,std::vector<Sample_Muts>& to_place,size_t first_sample_idx,const std::vector<size_t>* idx_map)  {
     Mutation_Detailed::search_result result;
     bool parse_result=result.ParseFromArray((void *)in, size);
     if (!parse_result) {
@@ -80,7 +80,10 @@ move_type* deser_other_thread_move(char* in, int size,MAT::Tree &tree,std::vecto
     auto out = new move_type;
     std::get<2>(*out)=false;
     auto &targets = std::get<0>(*out);
-    auto sample_idx=result.sample_id()-to_place[0].sample_idx;
+    auto sample_idx=result.sample_id()-first_sample_idx;
+    if (idx_map) {
+        sample_idx=(*idx_map)[sample_idx];
+    }
     /*if (sample_idx>to_place.size()) {
         fprintf(stderr, "Sample id out of range\n");
         raise(SIGTRAP);
@@ -129,8 +132,9 @@ struct Recieve_Place_State{
     MAT::Tree &tree;
     int processes_left;
     std::vector<Sample_Muts>& to_place;
+    const std::vector<size_t>* idx_map;
 };
-static Status recieve_place(Recieve_Place_State& state) {
+static Status recieve_place(Recieve_Place_State& state,size_t sample_start_idx) {
     MPI_Status status;
         int recieved;
         MPI_Iprobe(MPI_ANY_SOURCE, PROPOSED_PLACE, MPI_COMM_WORLD,&recieved, &status);
@@ -153,7 +157,7 @@ static Status recieve_place(Recieve_Place_State& state) {
             }
         }
         //fprintf(stderr, "recieved proposed place from %d of size %d\n",status.MPI_SOURCE,msg_size);
-        state.handler.push(deser_other_thread_move(temp, msg_size,state.tree,state.to_place));
+        state.handler.push(deser_other_thread_move(temp, msg_size,state.tree,state.to_place,sample_start_idx,state.idx_map));
         return OK;
 }
 static std::string
@@ -233,9 +237,9 @@ struct Print_Thread{
         auto num_epps=search_result.size();
         fprintf(stderr,
                 "Current tree size (#nodes): %zu\tSample name: %s\tParsimony "
-                "score: %d\tNumber of parsimony-optimal placements: %zu\n",
+                "score: %d\tNumber of parsimony-optimal placements: %zu, old Parsimony %d\n",
                 sample_idx, sample_name.c_str(), in.parsimony_score,
-                num_epps);
+                num_epps,std::get<1>(*in.placement_info)->sorting_key1);
         if (placement_stats_file) {
             fprintf(placement_stats_file, "%s\t%d\t%zu\t", sample_name.c_str(),
                     in.parsimony_score, num_epps);
@@ -304,7 +308,7 @@ struct Print_Thread{
                 if (!imputed_nuc) {
                     imputed_nuc=1<<(__builtin_ctz(mut.get_mut_one_hot()));
                 }
-                fprintf (stderr, "%i:%c;", mut.get_position(), MAT::get_nuc(imputed_nuc));
+                fprintf (stderr, "%i:%c", mut.get_position(), MAT::get_nuc(imputed_nuc));
                 if (placement_stats_file) {
                     fprintf (placement_stats_file, "%i:%c;", mut.get_position(), MAT::get_nuc(imputed_nuc));
                 }
@@ -351,8 +355,12 @@ static void place_sample_thread( MAT::Tree &main_tree,std::vector<MAT::Node *> &
         bool skip=false;
         if (dry_run) {
             std::get<1>(*in)->sorting_key1=count_mutation(search_result[0].sample_mutations);
-            std::get<1>(*in)->sorting_key1=search_result.size();
-            retry_queue.try_put(nullptr);
+            std::get<1>(*in)->sorting_key2=search_result.size();
+            fprintf(stderr, "Sample %zu, mutation count %d,curr_count %d, total %d\n",std::get<1>(*in)->sample_idx,std::get<1>(*in)->sorting_key1,total,stop_count);
+            if (std::get<2>(*in)) {
+                retry_queue.try_put(nullptr);
+            }
+            total++;
             delete in;
             continue;
         }
@@ -487,7 +495,7 @@ static Status main_tree_distribute_samples(Dist_sample_state& state){
         mpi_trace_print("main sent work res \n");
         return OK;
 }
-static void mpi_loop(Dist_sample_state dist_sample,Recieve_Place_State recieve_place_state,Placed_move_sended_state& send_move_state){
+static void mpi_loop(Dist_sample_state dist_sample,Recieve_Place_State recieve_place_state,Placed_move_sended_state& send_move_state,size_t sample_start_idx){
     bool dist_sample_done=false;
     bool recieve_place_done=false;
     bool send_move_done=false;
@@ -503,7 +511,7 @@ static void mpi_loop(Dist_sample_state dist_sample,Recieve_Place_State recieve_p
             }
         }
         if(!recieve_place_done){
-            auto ret=recieve_place(recieve_place_state);
+            auto ret=recieve_place(recieve_place_state,sample_start_idx);
             if (ret==OK) {
                 not_idle=true;
             }else if (ret==DONE) {
@@ -560,7 +568,8 @@ void place_sample_leader(std::vector<Sample_Muts> &sample_to_place,
                          FILE *placement_stats_file,
                          int max_parsimony,size_t max_uncertainty,
                          std::vector<std::string>& low_confidence_samples,
-                         std::vector<Clade_info>& samples_clade
+                         std::vector<Clade_info>& samples_clade,
+                         size_t sample_start_idx,std::vector<size_t>* idx_map
                          ) {
     std::vector<MAT::Node *> deleted_nodes;
     size_t node_count=main_tree.depth_first_expansion().size();
@@ -579,12 +588,12 @@ void place_sample_leader(std::vector<Sample_Muts> &sample_to_place,
         tbb::flow::make_edge(std::get<0>(init.output_ports()),searcher);
         Printer_Node_t printer_node(g,tbb::flow::serial,
             Print_Thread{main_tree,placement_stats_file,max_parsimony,
-            max_uncertainty,node_count,low_confidence_samples,samples_clade,sample_to_place[0].sample_idx});
+            max_uncertainty,node_count,low_confidence_samples,samples_clade,sample_start_idx});
         if (process_count>1) {
             mpi_thread=new std::thread(mpi_loop,
             Dist_sample_state{curr_idx,sample_to_place,process_count-1,stop},
-            Recieve_Place_State {found_queue,main_tree,process_count-1,sample_to_place},
-            std::ref(send_queue));
+            Recieve_Place_State {found_queue,main_tree,process_count-1,sample_to_place,idx_map},
+            std::ref(send_queue),sample_start_idx);
         }
         for(int temp=0;temp<batch_size;temp++){
             init.try_put(nullptr);
@@ -595,7 +604,7 @@ void place_sample_leader(std::vector<Sample_Muts> &sample_to_place,
         place_sample_thread(main_tree, deleted_nodes, send_queue, found_queue,
                             init, sample_to_place.size(), stop, curr_idx,
                             parsimony_increase_threshold,
-                            sample_to_place[0].sample_idx, dry_run,max_parsimony,max_uncertainty,process_count>1,printer_node);
+                            sample_start_idx, dry_run,max_parsimony,max_uncertainty,process_count>1,printer_node);
         g.wait_for_all();
         //placer_thread.join();
     }

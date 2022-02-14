@@ -359,7 +359,7 @@ int main(int argc, char **argv) {
                 for(const auto node:nodes_to_search) {
                     nodes_to_search_idx.push_back(node->dfs_index);
                 }
-                std::vector<MAT::Node*> defered_nodes;
+                std::vector<size_t> defered_nodes;
                 auto next_save_time=minutes_between_save?last_save_time+save_period:std::chrono::steady_clock::time_point::max();
                 bool do_continue=true;
                 auto search_stop_time=next_save_time;
@@ -373,7 +373,10 @@ int main(int argc, char **argv) {
                                          );
                 isfirst_this_iter=false;
                 fprintf(stderr, "Defered %zu nodes\n",defered_nodes.size());
-                nodes_to_search=std::move(defered_nodes);
+                nodes_to_search.reserve(defered_nodes.size());
+                for (auto idx : defered_nodes) {
+                    nodes_to_search.push_back(t.get_node(idx));
+                }
                 new_score=t.get_parsimony_score();
                 fprintf(stderr, "parsimony score after optimizing: %zu,with radius %d, second from start %ld \n\n",
                         new_score,std::abs(radius),std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now()-start_time).count());

@@ -59,6 +59,7 @@ void clean_up_internal_nodes(MAT::Node* this_node,MAT::Tree& tree,std::unordered
             parent_children.push_back(child);
         }
         //tree.all_nodes.erase(this_node->identifier);
+        tree.erase_node(this_node->node_id);
         delete this_node;
     }
 

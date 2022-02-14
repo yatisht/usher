@@ -7,6 +7,9 @@
 #include <mpi.h>
 #include <string>
 #include <tbb/blocked_range.h>
+#include <tbb/concurrent_hash_map.h>
+#include <tbb/concurrent_unordered_map.h>
+#include <tbb/concurrent_unordered_set.h>
 #include <tbb/flow_graph.h>
 #include <tbb/parallel_for.h>
 #include <tbb/pipeline.h>
@@ -60,8 +63,15 @@ void assign_levels(MAT::Node* root){
         assign_levels(child);
     }
 }
-static void add_neighbor(MAT::Node* center,MAT::Node* exclude, int radius_left, std::unordered_set<size_t>& to_search_node_idx){
-    to_search_node_idx.insert(center->dfs_index);
+static void add_neighbor(MAT::Node* center,MAT::Node* exclude, int radius_left, tbb::concurrent_unordered_map<size_t,int>& to_search_node_idx){
+    auto res=to_search_node_idx.emplace(center->dfs_index,radius_left);
+    if (!res.second) {
+        if (res.first->second>=radius_left) {
+            return;
+        }else {
+            res.first->second=radius_left;
+        }
+    }
     if (radius_left<0) {
         return;
     }
@@ -74,12 +84,21 @@ static void add_neighbor(MAT::Node* center,MAT::Node* exclude, int radius_left, 
 }
 void find_moved_node_neighbors(int radius,size_t start_idx, MAT::Tree& tree, size_t cur_idx,std::vector<size_t>& node_to_search_idx){
     tree.depth_first_expansion();
-    std::unordered_set<size_t> to_search_node_idx_dict;
-    for (size_t ori_idx=0; ori_idx<cur_idx;ori_idx++ ) {
-        auto node=tree.get_node(ori_idx+start_idx,true);
-        add_neighbor(tree.get_node(ori_idx+start_idx), nullptr, radius, to_search_node_idx_dict);
+    tbb::concurrent_unordered_map<size_t,int> to_search_node_idx_dict;
+    to_search_node_idx_dict.rehash(tree.get_size_upper());
+    tbb::parallel_for(tbb::blocked_range<size_t>(0,cur_idx),[&](tbb::blocked_range<size_t> r){
+        for (size_t idx=r.begin(); idx<r.end(); idx++) {
+            auto node=tree.get_node(idx+start_idx);
+            if (!node) {
+                continue;
+            }
+            add_neighbor(tree.get_node(idx+start_idx), nullptr, radius, to_search_node_idx_dict);
+        }
+    });
+    node_to_search_idx.reserve(to_search_node_idx_dict.size());
+    for(const auto& target:to_search_node_idx_dict){
+        node_to_search_idx.push_back(target.first);
     }
-    node_to_search_idx.insert(node_to_search_idx.begin(),to_search_node_idx_dict.begin(),to_search_node_idx_dict.end());
     fprintf(stderr, "%zu nodes to search \n",node_to_search_idx.size());
 }
 static void send_positions(const std::vector<mutated_t>& to_send,int start_position,int end_position, int target_rank){
@@ -101,9 +120,12 @@ static void send_positions(const std::vector<mutated_t>& to_send,int start_posit
     MPI_Send(&start_position, 0, MPI_INT, target_rank, POSITION_TAG, MPI_COMM_WORLD);
 }
 int follower_recieve_positions( std::vector<mutated_t>& to_recieve){
-    int length;
+    int length=0;
     int start_position;
-    MPI_Recv(&length, 1, MPI_INT, 0, POSITION_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);    
+    while (length==0) {
+        MPI_Recv(&length, 1, MPI_INT, 0, POSITION_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);    
+        fprintf(stderr, "follower recieving %d positions\n",length);
+    }
     MPI_Recv(&start_position, 1, MPI_INT, 0, POSITION_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);    
     to_recieve.reserve(length);
     while (length) {
@@ -224,6 +246,7 @@ static void reassign_state_kernel(MAT::Tree& tree,const std::vector<mutated_t>& 
             for (auto& node_p :mutations[idx] ) {
                 auto node=tree.get_node(node_p.first);
                 if (!node) {
+                    //fprintf(stderr, "%zu node not found from rank %d\n",node_p.first,this_rank);
                     continue;
                 }
                 translated.emplace_back(node->bfs_index,node_p.second);
@@ -280,6 +303,13 @@ void MPI_reassign_states(MAT::Tree& tree,const std::vector<mutated_t>& mutations
         bool is_first=true;
         char ignore;
         fprintf(stderr, "Start recieving assignment message\n");
+        size_t before_recieving_count=0;
+        for (const auto& res : FS_result) {
+            for (const auto& temp : res.output) {
+                before_recieving_count+=temp.size();
+            }
+        }
+        fprintf(stderr, "%zu mutations before recieving\n",before_recieving_count);
         while (processes_left) {
             int count;
             MPI_Status status;
@@ -301,6 +331,13 @@ void MPI_reassign_states(MAT::Tree& tree,const std::vector<mutated_t>& mutations
         fprintf(stderr, "Recieved last assignment message\n");
         g.wait_for_all();
         fprintf(stderr, "Finished parsing assignment messages\n");
+        size_t after_recieving_count=0;
+        for (const auto& res : FS_result) {
+            for (const auto& temp : res.output) {
+                after_recieving_count+=temp.size();            
+            }
+        }
+        fprintf(stderr, "%zu mutations after recieving\n",after_recieving_count);
         output_mutations(bfs_ordered_nodes, FS_result);
         fprintf(stderr, "Finished filling mutations\n");
         tree.populate_ignored_range();
@@ -318,15 +355,21 @@ void MPI_reassign_states(MAT::Tree& tree,const std::vector<mutated_t>& mutations
             }
         } other_T_acc{mutation_collection_to_serialize};
         acc_mutations(FS_result, other_T_acc);
+        fprintf(stderr, "Start sending assignment messages\n");
         for (size_t idx=0; idx<bfs_ordered_nodes.size(); idx++) {
             if (mutation_collection_to_serialize[idx].positions_size()!=0) {
                 mutation_collection_to_serialize[idx].set_node_idx(idx);
                 auto serialized=mutation_collection_to_serialize[idx].SerializeAsString();
                 //fprintf(stderr, "sending assigned of size %zu\n",serialized.size());
+                if (serialized.size()==0) {
+                    fprintf(stderr, "Sending assignment message of size 0\n");
+                    raise(SIGTRAP);
+                }
                 MPI_Send(serialized.c_str(), serialized.size(), MPI_BYTE, 0, FS_RESULT_TAG, MPI_COMM_WORLD);
             }
         }
         MPI_Send(&this_rank, 0, MPI_BYTE, 0, FS_RESULT_TAG, MPI_COMM_WORLD);
+        fprintf(stderr, "Finish sending assignment messages\n");
         tree.delete_nodes();
         tree.MPI_receive_tree();
     }
@@ -361,6 +404,7 @@ static void remove_absent_leaves(MAT::Node* node,MAT::Tree& tree,std::unordered_
     if (node->children.size()==1) {
         remove_node_helper(node, tree);
         node->parent->children.push_back(node->children[0]);
+        node->children[0]->parent=node->parent;
         delete node;
     }
 }
@@ -368,7 +412,7 @@ static void remove_absent_leaves(MAT::Node* node,MAT::Tree& tree,std::unordered_
 void remove_absent_leaves(MAT::Tree& tree,std::unordered_set<std::string>& present){
     remove_absent_leaves(tree.root,tree,present);
 }
-static void output_newick(MAT::Tree& T,output_options& options,int t_idx){
+static void output_newick(MAT::Tree& T,const output_options& options,int t_idx){
     std::string uncondensed_string=options.print_uncondensed_tree?"uncondensed":"";
     auto final_tree_filename = options.outdir + "/";
     if (options.print_uncondensed_tree) {
@@ -392,7 +436,7 @@ static void output_newick(MAT::Tree& T,output_options& options,int t_idx){
     final_tree_file.close();
 
 }
-void final_output(MAT::Tree& T,output_options& options,int t_idx,std::vector<Clade_info>& assigned_clades,
+void final_output(MAT::Tree& T,const output_options& options,int t_idx,std::vector<Clade_info>& assigned_clades,
     size_t sample_start_idx,size_t sample_end_idx,std::vector<std::string>& low_confidence_samples){
     // If user need uncondensed tree output, write uncondensed tree(s) to
     // file(s)
@@ -528,7 +572,24 @@ void final_output(MAT::Tree& T,output_options& options,int t_idx,std::vector<Cla
         //fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
 }
-void sort_samples(Leader_Thread_Options& options,std::vector<Sample_Muts>& samples_to_place, MAT::Tree& tree){
+/*static void check_repeats(const std::vector<Sample_Muts>& samples_to_place,size_t sample_start_idx){
+    std::vector<bool> encountered(samples_to_place.size());
+    for(const auto& to_place:samples_to_place){
+        auto array_idx=to_place.sample_idx-sample_start_idx;
+        if (encountered[array_idx]) {
+            fprintf(stderr, "Repeated\n");
+        }
+        encountered[array_idx]=true;
+    }
+    for (size_t idx=0; idx<samples_to_place.size(); idx++) {
+        if (!encountered[idx]) {
+            fprintf(stderr, "%zu missing\n",idx+sample_start_idx);
+            raise(SIGTRAP);
+        }
+    }
+}*/
+bool sort_samples(const Leader_Thread_Options& options,std::vector<Sample_Muts>& samples_to_place, MAT::Tree& tree,size_t sample_start_idx){
+    bool reordered=false;
     if (options.sort_by_ambiguous_bases) {
         fprintf(stderr, "Sorting missing samples based on the number of ambiguous bases \n");
         tbb::parallel_for(tbb::blocked_range<size_t>(0,samples_to_place.size()),
@@ -547,13 +608,14 @@ void sort_samples(Leader_Thread_Options& options,std::vector<Sample_Muts>& sampl
             });
         if (options.reverse_sort) {
             std::sort(samples_to_place.begin(), samples_to_place.end(),
-                [](const auto& samp1,const auto& samp2){return samp1.sorting_key1>samp1.sorting_key2;});
+                [](const auto& samp1,const auto& samp2){return samp1.sorting_key1<samp2.sorting_key1;});
         }else {
             std::sort(samples_to_place.begin(), samples_to_place.end(),
-                [](const auto& samp1,const auto& samp2){return samp1.sorting_key1<samp1.sorting_key2;});
+                [](const auto& samp1,const auto& samp2){return samp1.sorting_key1>samp2.sorting_key1;});
 
         }        // Reverse sorted order if specified
         //fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+        reordered=true;
     }
     if (options.collapse_tree) {
         //timer.Start();
@@ -604,39 +666,45 @@ void sort_samples(Leader_Thread_Options& options,std::vector<Sample_Muts>& sampl
             place_sample_leader(samples_to_place, tree, 100, curr_idx, INT_MAX,
                                 true, nullptr, options.max_parsimony,
                                 options.max_uncertainty, low_confidence_samples,
-                                samples_clade);
-
+                                samples_clade,sample_start_idx,nullptr);
+                for (const auto& to_place : samples_to_place) {
+        fprintf(stderr, "sample %zu,par %d\t",to_place.sample_idx,to_place.sorting_key1);
+    }
+    fputc('\n', stderr);
+            //check_repeats(samples_to_place, sample_start_idx);
             // Sort samples order in indexes based on parsimony scores
             // and number of parsimony-optimal placements
             if (options.sort_before_placement_1) {
                 std::sort(samples_to_place.begin(), samples_to_place.end(),
                           [&options](const auto &samp1, const auto &samp2) {
                               if (samp1.sorting_key1 < samp2.sorting_key1) {
-                                  return !options.reverse_sort;
+                                  return options.reverse_sort;
                               }
                               if (samp1.sorting_key1 == samp2.sorting_key1 &&
                                   samp1.sorting_key2 < samp2.sorting_key2) {
-                                  return !options.reverse_sort;
+                                  return options.reverse_sort;
                               }
-                              return options.reverse_sort;
+                              return !options.reverse_sort;
                           });
             } else if (options.sort_before_placement_2) {
                 std::sort(samples_to_place.begin(), samples_to_place.end(),
                           [&options](const auto &samp1, const auto &samp2) {
                               if (samp1.sorting_key2 < samp2.sorting_key2) {
-                                  return !options.reverse_sort;
+                                  return options.reverse_sort;
                               }
                               if (samp1.sorting_key2 == samp2.sorting_key2 &&
                                   samp1.sorting_key1 < samp2.sorting_key1) {
-                                  return !options.reverse_sort;
+                                  return options.reverse_sort;
                               }
-                              return options.reverse_sort;
+                              return !options.reverse_sort;
                           });
             }
             // fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+            reordered=true;
         }
+        //check_repeats(samples_to_place, sample_start_idx);
 
         fprintf(stderr, "Adding missing samples to the tree.\n");
     }
-
+    return reordered;
 }
