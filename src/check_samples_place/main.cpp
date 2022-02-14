@@ -5,6 +5,11 @@ namespace MAT = Mutation_Annotated_Tree;
 void Sample_Input(const char *name, Original_State_t& ori_state,
                   MAT::Tree &tree);
 int main (int argc,char** argv){
+    bool ignore_missings=false;
+    if (argc==5) {
+        ignore_missings=true;
+        fprintf(stderr, "Ignoring missing samples\n");
+    }
     MAT::Tree ori_tree=MAT::load_mutation_annotated_tree(argv[1]);
     ori_tree.uncondense_leaves();
     Original_State_t ori_state;
@@ -21,5 +26,5 @@ int main (int argc,char** argv){
             fprintf(stderr, "Sample %s missing\n",ori_tree.get_node_name(samp_pair.first).c_str());
         }
     }
-    check_samples(new_tree.root, new_state, &new_tree);
+    check_samples(new_tree.root, new_state, &new_tree,ignore_missings);
 }

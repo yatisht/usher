@@ -38,17 +38,17 @@ void ins_mut(Mutation_Set &parent_mutations,const Mutation_Annotated_Tree::Mutat
 }
 //functor for getting state of all leaves
 struct insert_samples_worker:public tbb::task {
-    Mutation_Annotated_Tree::Node *root; //starting node whose subtree need to be processed
+    const Mutation_Annotated_Tree::Node *root; //starting node whose subtree need to be processed
     Mutation_Set parent_mutations; //mutation of parent of "root" relative to the root of the entire tree
     Original_State_t &samples; //output
-    insert_samples_worker(Mutation_Annotated_Tree::Node *root,
+    insert_samples_worker(const Mutation_Annotated_Tree::Node *root,
                           const Mutation_Set &parent_mutations,
                           Original_State_t &samples)
         : root(root), parent_mutations(parent_mutations),
           samples(samples) {}
     tbb::task* execute() override {
         //add mutation of "root"
-        for (Mutation_Annotated_Tree::Mutation &m : root->mutations) {
+        for (const Mutation_Annotated_Tree::Mutation &m : root->mutations) {
             if(m.is_valid()||root->is_leaf()) {
                 ins_mut(parent_mutations, m,root->is_leaf());
             }
@@ -77,12 +77,12 @@ struct check_samples_worker:public tbb::task {
     Mutation_Set parent_mutations;
     const Original_State_t &samples;
     tbb::concurrent_unordered_set<size_t>& visited_samples;
-    MAT::Tree* tree;
-    check_samples_worker(Mutation_Annotated_Tree::Node *root,
+    const MAT::Tree* tree;
+    check_samples_worker(const Mutation_Annotated_Tree::Node *root,
                          const Mutation_Set& parent_mutations,
                          const Original_State_t &samples,
                          tbb::concurrent_unordered_set<size_t>& visited_samples
-                         ,MAT::Tree* tree):root(root),parent_mutations(parent_mutations),samples(samples),visited_samples(visited_samples),tree(tree) {}
+                         ,const MAT::Tree* tree):root(root),parent_mutations(parent_mutations),samples(samples),visited_samples(visited_samples),tree(tree) {}
     tbb::task* execute() override {
         tbb::empty_task* empty=new(allocate_continuation()) tbb::empty_task();
         empty->set_ref_count(root->children.size());
@@ -145,8 +145,8 @@ struct check_samples_worker:public tbb::task {
     }
 };
 //top level
-void check_samples(Mutation_Annotated_Tree::Node *root,
-                   Original_State_t &samples,MAT::Tree* tree) {
+void check_samples(const Mutation_Annotated_Tree::Node *root,
+                   Original_State_t &samples,const MAT::Tree* tree,bool ignore_missed_samples) {
     Mutation_Set mutations;
     if (samples.empty()) {
         tbb::task::spawn_root_and_wait(*new(tbb::task::allocate_root())
@@ -154,6 +154,7 @@ void check_samples(Mutation_Annotated_Tree::Node *root,
     } else {
         tbb::concurrent_unordered_set<size_t> visited_sample;
         tbb::task::spawn_root_and_wait(*new(tbb::task::allocate_root())check_samples_worker(root, mutations, samples,visited_sample,tree));
+        if (!ignore_missed_samples) {
         bool have_missed=false;
         for (auto s : samples) {
             if (!visited_sample.count(s.first)) {
@@ -166,6 +167,7 @@ void check_samples(Mutation_Annotated_Tree::Node *root,
             fprintf(stderr, "have_missing samples\n");
         }
         assert(!have_missed);
+        }
         fputs("checked\n", stderr);
     }
 }
