@@ -396,7 +396,9 @@ static void place_sample_thread( MAT::Tree &main_tree,std::vector<MAT::Node *> &
         total++;
         auto mut_size=count_mutation(search_result[0].sample_mutations);
         if (mut_size>max_parsimony||search_result.size()>max_uncertainty) {
-            retry_queue.try_put(nullptr);
+            if (std::get<2>(*in)) {
+                retry_queue.try_put(nullptr);
+            }
             printer_node.try_put(print_format{mut_size,in});
             continue;
         }
