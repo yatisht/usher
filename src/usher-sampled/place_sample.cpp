@@ -566,7 +566,7 @@ struct Finder{
 };
 void place_sample_leader(std::vector<Sample_Muts> &sample_to_place,
                          MAT::Tree &main_tree, int batch_size,
-                         std::atomic_uint64_t &curr_idx,
+                         std::atomic_size_t &curr_idx,
                          int parsimony_increase_threshold,bool dry_run,
                          FILE *placement_stats_file,
                          int max_parsimony,size_t max_uncertainty,

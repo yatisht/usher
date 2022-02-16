@@ -1,3 +1,4 @@
+#include <atomic>
 #include <cstddef>
 #define USHER
 #include "src/matOptimize/mutation_annotated_tree.hpp"
@@ -89,7 +90,7 @@ void final_output(MAT::Tree& T,const output_options& options,int t_idx,std::vect
     size_t sample_start_idx,size_t sample_end_idx,std::vector<std::string>& low_confidence_samples);
 void place_sample_leader(std::vector<Sample_Muts> &sample_to_place,
                          MAT::Tree &main_tree, int batch_size,
-                         std::atomic_uint64_t &curr_idx,
+                         std::atomic_size_t &curr_idx,
                          int parsimony_increase_threshold,bool dry_run,
                          FILE *placement_stats_file,
                          int max_parsimony,size_t max_uncertainty,
