@@ -237,9 +237,9 @@ struct Print_Thread{
         auto num_epps=search_result.size();
         fprintf(stderr,
                 "Current tree size (#nodes): %zu\tSample name: %s\tParsimony "
-                "score: %d\tNumber of parsimony-optimal placements: %zu, old Parsimony %d\n",
+                "score: %d\tNumber of parsimony-optimal placements: %zu\n",
                 sample_idx, sample_name.c_str(), in.parsimony_score,
-                num_epps,std::get<1>(*in.placement_info)->sorting_key1);
+                num_epps);
         if (placement_stats_file) {
             fprintf(placement_stats_file, "%s\t%d\t%zu\t", sample_name.c_str(),
                     in.parsimony_score, num_epps);
