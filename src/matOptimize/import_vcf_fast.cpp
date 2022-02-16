@@ -86,6 +86,11 @@ struct line_align{
             prev.alloc_start=line.first;
             prev_end=line.second;    
             in.pop(line);
+            if (line.first==nullptr) {
+                out=prev;
+                prev.start=nullptr;
+                return true;
+            }
         }
         auto start_ptr=strchr(line.first, '\n');
         if (*start_ptr!='\n') {
@@ -133,9 +138,7 @@ struct gzip_input_source{
         get_c_ptr=getc_buf;
     }
     void unalloc(){
-        fprintf(stderr, "unalloc gzip\n");
         munmap(map_start, mapped_size);
-        fprintf(stderr, "unalloc gzip done\n");
     }
     bool decompress_to_buffer(unsigned char* buffer, size_t buffer_size) const{
         if (!state->avail_in) {

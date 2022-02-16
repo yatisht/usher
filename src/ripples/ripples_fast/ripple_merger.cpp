@@ -1,5 +1,15 @@
 #include "ripples.hpp"
+#include "src/mutation_annotated_tree.hpp"
+#include <algorithm>
+#include <cassert>
 #include <stdio.h>
+#include <emmintrin.h>
+#include <vector>
+typedef unsigned short __v8hu __attribute__((__vector_size__(16)));
+typedef  short __v8h __attribute__((__vector_size__(16)));
+typedef  int __v4i __attribute__((__vector_size__(16)));
+typedef char __v16b __attribute__((__vector_size__(16)));
+typedef unsigned short __v8hu_u __attribute__((__vector_size__(16), __aligned__(1)));
 static int acceptor (const Mut_Count_Out_t &counts, size_t i, size_t j,
                    size_t curr_node_idx, size_t node_size,
                    size_t num_mutations) {
@@ -19,14 +29,42 @@ static int donor(const Mut_Count_Out_t &counts, size_t i, size_t j,
                (counts[i * node_size + curr_node_idx].count_before_exclusive());
     }
 
+    static void push_val(std::vector<int> &filtered_idx,
+                         std::vector<unsigned short>& filtered_par_score,
+                         int start_idx, int mask, __v8hu par_score) {
+        for (int indi_idx = 0; indi_idx < 8; indi_idx++) {
+            if (mask & (1 << (2 * indi_idx))) {
+                filtered_idx.push_back(start_idx + indi_idx);
+                filtered_par_score.push_back(par_score[indi_idx]);
+            }
+        }
+    }
+static unsigned short min_8(__v8h in){
+    __v8h temp1=(__v8h)__builtin_ia32_pshufd((__v4i)in,0x4e);
+    auto min1=__builtin_ia32_pminsw128(temp1,in);
+    temp1=__builtin_ia32_pshuflw(min1,0x4e);
+    min1=__builtin_ia32_pminsw128(temp1,min1);
+    temp1=__builtin_ia32_pshuflw(min1,0xb1);
+    min1=__builtin_ia32_pminsw128(temp1,min1);
+    auto out=min1[0];
+    #ifndef NDEBUG
+    unsigned short test=in[0];
+    for (int i=0; i<8; i++) {
+        test=std::min((unsigned short)in[i],test);
+    }
+    assert(test==out);
+    #endif
+    return out;
+}
 static std::pair<int,int> filter(const Ripples_Mapper_Output_Interface &out_ifc, size_t i,
                   size_t j, size_t node_size, size_t num_mutations,
                   int idx_start,int idx_end,
-                  std::vector<Recomb_Node> &donor_filtered,
-                  std::vector<Recomb_Node> &acceptor_filtered,
-                  int pasimony_threshold,
-                  const std::vector<MAT::Node*> nodes_to_search) {
-    int donor_min_par = pasimony_threshold + 1;
+                  std::vector<int> &donor_filtered_idx,
+                  std::vector<unsigned short> &donor_filtered_par_score,
+                  std::vector<int> &acceptor_filtered_idx,
+                  std::vector<unsigned short> &acceptor_filtered_par_score,
+                  int pasimony_threshold) {
+    /*int donor_min_par = pasimony_threshold + 1;
     int acceptor_min_par = pasimony_threshold + 1;
     const auto& counts = out_ifc.mut_count_out;
     for (; idx_start < idx_end;
@@ -38,34 +76,132 @@ static std::pair<int,int> filter(const Ripples_Mapper_Output_Interface &out_ifc,
         
         if (donor_par <= pasimony_threshold) {
             donor_min_par = std::min(donor_min_par, donor_par);
-            donor_filtered.emplace_back(nodes_to_search[idx_start],
-                                  counts[node_size * num_mutations + idx_start]
-                                      .count_before_exclusive(),
-                                  donor_par, out_ifc.is_sibling[idx_start]);
+            donor_filtered_idx.push_back(idx_start);
+            donor_filtered_par_score.push_back(donor_par);
         }
         if (acceptor_par <= pasimony_threshold) {
             acceptor_min_par = std::min(acceptor_min_par, acceptor_par);
-            acceptor_filtered.emplace_back(nodes_to_search[idx_start],
-                                  counts[node_size * num_mutations + idx_start]
-                                      .count_before_exclusive(),
-                                  acceptor_par, out_ifc.is_sibling[idx_start]);
+            acceptor_filtered_idx.push_back(idx_start);
+            acceptor_filtered_par_score.push_back(acceptor_par);
         }
+    }*/
+    #ifndef NDEBUG
+    int donor_par_min_debug= pasimony_threshold + 1;
+    int acceptor_par_min_debug= pasimony_threshold + 1;
+    std::vector<int> donor_idx_debug(donor_filtered_idx);
+    std::vector<int> acceptor_idx_debug(acceptor_filtered_idx);
+    #endif
+    unsigned short threshold_par = pasimony_threshold + 1;
+    __v8hu load_cmp_mask={1,2,3,4,5,6,7,8};
+    __v8hu threshold_par_vec=threshold_par-(__v8hu){};
+    __v8h donor_min_par_vec=(__v8h)threshold_par_vec;
+    __v8h acceptor_min_par_vec=(__v8h)threshold_par_vec;
+
+    const auto& counts = out_ifc.mut_count_out;
+    const auto* base_i_offset=counts.data()+i*node_size;
+    const auto* base_j_offset=counts.data()+(j - 1) * node_size;
+    const auto* base_all_mut_offset=counts.data()+num_mutations*node_size;
+    __v8hu exlusive_count_extract_mask=0x7fff-(__v8hu){};
+    //__m128i_u inclusive_extract_mask=_mm_set1_epi16(0x8000);
+    for (; idx_start < (idx_end-8);
+         idx_start+=8) {
+        __v8hu first_half_raw=*(__v8hu_u*)(base_i_offset+idx_start);
+        __v8hu first_half_exclusive=exlusive_count_extract_mask&first_half_raw;
+        __v8hu all_muts_raw=*((__v8hu_u*)(base_all_mut_offset+idx_start));
+        __v8hu all_muts=exlusive_count_extract_mask& all_muts_raw;
+        __v8hu second_half_before_raw=*((__v8hu_u*)(base_j_offset+idx_start));
+        __v8hu second_half_before_included_flag=(second_half_before_raw>>15);
+        __v8hu second_half_before_inclusive=(second_half_before_raw&exlusive_count_extract_mask)+ second_half_before_included_flag;
+        __v8hu acceptor_par=all_muts-second_half_before_inclusive+first_half_exclusive;
+        __v8hu donor_par=second_half_before_inclusive-first_half_exclusive;
+        int donor_pass=__builtin_ia32_pmovmskb128((__v16b)(donor_par<threshold_par_vec));
+        int acceptor_pass=__builtin_ia32_pmovmskb128((__v16b)(acceptor_par<threshold_par_vec));
+        #ifndef NDEBUG
+        auto end_idx=std::min(8,idx_end-idx_start);
+        for (int indi_idx=0; indi_idx<end_idx; indi_idx++) {
+            auto donor_par_i =
+                donor(counts, i, j, idx_start+indi_idx, node_size, num_mutations);
+            auto acceptor_par_i =
+                acceptor(counts, i, j, idx_start+indi_idx, node_size, num_mutations);
+            if (donor_par_i<=pasimony_threshold) {
+                donor_idx_debug.push_back(idx_start+indi_idx);
+            }
+            if (acceptor_par_i<=pasimony_threshold) {
+                acceptor_idx_debug.push_back(idx_start+indi_idx);
+            }
+            assert(donor_par_i==donor_par[indi_idx]);
+            assert(acceptor_par_i==acceptor_par[indi_idx]);
+            assert((donor_par_i<=pasimony_threshold)==((donor_pass&(1<<(2*indi_idx)))!=0));
+            assert((acceptor_par_i<=pasimony_threshold)==((acceptor_pass&(1<<(2*indi_idx)))!=0));
+            donor_par_min_debug=std::min(donor_par_min_debug,(int)donor_par_i);
+            acceptor_par_min_debug=std::min(acceptor_par_min_debug,(int)acceptor_par_i);
+        }
+        for (; end_idx<8; end_idx++) {
+            assert(donor_par[end_idx]==0x7fff);
+            assert(acceptor_par[end_idx]==0x7fff);
+        }
+        #endif
+        if (donor_pass) {
+            push_val(donor_filtered_idx, donor_filtered_par_score, idx_start, donor_pass, donor_par);
+            donor_min_par_vec=__builtin_ia32_pminsw128(donor_min_par_vec,(__v8h)donor_par);
+        }
+        if (acceptor_pass) {
+            push_val(acceptor_filtered_idx, acceptor_filtered_par_score, idx_start, acceptor_pass, acceptor_par);
+            acceptor_min_par_vec=__builtin_ia32_pminsw128(acceptor_min_par_vec,(__v8h)acceptor_par);
+        }
+        assert(donor_idx_debug.size()==donor_filtered_idx.size());
+        assert(acceptor_idx_debug.size()==acceptor_filtered_idx.size());
     }
+    __v8hu first_half_raw=*(__v8hu_u*)(base_i_offset+idx_start);
+    __v8hu first_half_exclusive=exlusive_count_extract_mask&first_half_raw;
+    __v8hu all_muts_raw=*((__v8hu_u*)(base_all_mut_offset+idx_start));
+    __v8hu all_muts=exlusive_count_extract_mask& all_muts_raw;
+    __v8hu second_half_before_raw=*((__v8hu_u*)(base_j_offset+idx_start));
+    __v8hu second_half_before_included_flag=(second_half_before_raw>>15);
+    __v8hu second_half_before_inclusive=(second_half_before_raw&exlusive_count_extract_mask)+ second_half_before_included_flag;
+    __v8hu acceptor_par=all_muts-second_half_before_inclusive+first_half_exclusive;
+    __v8hu donor_par=second_half_before_inclusive-first_half_exclusive;
+    __v8hu load_mask=load_cmp_mask>((unsigned short)(idx_end-idx_start))-(__v8hu){};
+    load_mask>>=1;
+    acceptor_par|=load_mask;
+    acceptor_par&=exlusive_count_extract_mask;
+    donor_par|=load_mask;
+    donor_par&=exlusive_count_extract_mask;
+    int donor_pass=__builtin_ia32_pmovmskb128((__v16b)(donor_par<threshold_par_vec));
+    int acceptor_pass=__builtin_ia32_pmovmskb128((__v16b)(acceptor_par<threshold_par_vec));
+    if (donor_pass) {
+        push_val(donor_filtered_idx, donor_filtered_par_score, idx_start, donor_pass, donor_par);
+        donor_min_par_vec=__builtin_ia32_pminsw128(donor_min_par_vec,(__v8h)donor_par);
+    }
+    if (acceptor_pass) {
+        push_val(acceptor_filtered_idx, acceptor_filtered_par_score, idx_start, acceptor_pass, acceptor_par);
+        acceptor_min_par_vec=__builtin_ia32_pminsw128(acceptor_min_par_vec,(__v8h)acceptor_par);
+    }
+    auto donor_min_par=min_8(donor_min_par_vec);
+    auto acceptor_min_par=min_8(acceptor_min_par_vec);
+    assert(donor_min_par==donor_par_min_debug);
+    assert(acceptor_min_par==acceptor_par_min_debug);
+
     return std::make_pair(donor_min_par,acceptor_min_par);
 }
-static void threshold_parsimony(std::vector<Recomb_Node> &donor_filtered,
-                                int pasimony_threshold) {
-    auto end_iter = donor_filtered.end();
-    auto start_iter = donor_filtered.begin();
-    while (start_iter != end_iter) {
-        if (start_iter->parsimony > pasimony_threshold) {
-            *start_iter = *(end_iter - 1);
-            end_iter--;
-        } else {
-            start_iter++;
+static void threshold_parsimony(const Ripples_Mapper_Output_Interface &out_ifc,
+    size_t node_size, size_t num_mutations,
+    std::vector<int> &idx,
+    std::vector<unsigned short> &par_score,
+    std::vector<Recomb_Node> &filtered,
+    int pasimony_threshold,
+    const std::vector<MAT::Node*>& nodes_to_search) {
+    const auto& counts = out_ifc.mut_count_out;
+    for (size_t filtered_idx = 0; filtered_idx < idx.size(); filtered_idx++) {
+        if (par_score[filtered_idx] <= pasimony_threshold) {
+            auto idx_start = idx[filtered_idx];
+            filtered.emplace_back(nodes_to_search[idx_start],
+                                  counts[node_size * num_mutations + idx_start]
+                                      .count_before_exclusive(),
+                                  par_score[filtered_idx],
+                                  out_ifc.is_sibling[idx_start]);
         }
     }
-    donor_filtered.erase(end_iter, donor_filtered.end());
 }
 
 static void find_pairs(
@@ -206,17 +342,40 @@ struct check_breakpoint {
         }
         
         size_t num_mutations = pruned_sample_mutations.size();
-        std::vector<Recomb_Node> donor_filtered;
-        std::vector<Recomb_Node> acceptor_filtered;
-        auto min_first=filter(out_ifc,i,j,node_size,num_mutations,0,skip_start_idx,donor_filtered,acceptor_filtered,pasimony_threshold,nodes_to_search);
-        auto min_second=filter(out_ifc,i,j,node_size,num_mutations,skip_end_idx,nodes_to_search.size(),donor_filtered,acceptor_filtered,pasimony_threshold,nodes_to_search);
-        auto donor_min=std::min(min_first.first,min_second.first);
+        std::vector<int> donor_filtered_idx;
+        std::vector<unsigned short> donor_filtered_par_score;
+        std::vector<int> acceptor_filtered_idx;
+        std::vector<unsigned short> acceptor_filtered_par_score;
+        donor_filtered_idx.reserve(nodes_to_search.size());
+        donor_filtered_par_score.reserve(nodes_to_search.size());
+        acceptor_filtered_idx.reserve(nodes_to_search.size());
+        acceptor_filtered_par_score.reserve(nodes_to_search.size());
+        auto min_first = filter(
+            out_ifc, i, j, node_size, num_mutations, 0, skip_start_idx,
+            donor_filtered_idx, donor_filtered_par_score, acceptor_filtered_idx,
+            acceptor_filtered_par_score, pasimony_threshold);
+        auto min_second = filter(
+            out_ifc, i, j, node_size, num_mutations, skip_end_idx,
+            nodes_to_search.size(), donor_filtered_idx,
+            donor_filtered_par_score, acceptor_filtered_idx,
+            acceptor_filtered_par_score, pasimony_threshold);
+        auto donor_min = std::min(min_first.first, min_second.first);
         auto acceptor_min=std::min(min_first.second,min_second.second);
         if (acceptor_min+donor_min>pasimony_threshold) {
             return;
         }
-        threshold_parsimony(donor_filtered, pasimony_threshold - acceptor_min);
-        threshold_parsimony(acceptor_filtered, pasimony_threshold - donor_min);
+        std::vector<Recomb_Node> donor_filtered;
+        std::vector<Recomb_Node> acceptor_filtered;
+        donor_filtered.reserve(donor_filtered_idx.size());
+        acceptor_filtered.reserve(donor_filtered_idx.size());
+        threshold_parsimony(out_ifc, node_size, num_mutations,
+                            donor_filtered_idx, donor_filtered_par_score,
+                            donor_filtered, pasimony_threshold - acceptor_min,
+                            nodes_to_search);
+        threshold_parsimony(out_ifc, node_size, num_mutations,
+                            acceptor_filtered_idx, acceptor_filtered_par_score,
+                            acceptor_filtered, pasimony_threshold - donor_min,
+                            nodes_to_search);
         std::sort(acceptor_filtered.begin(), acceptor_filtered.end());
         std::sort(donor_filtered.begin(), donor_filtered.end());
         find_pairs(donor_filtered, acceptor_filtered, pruned_sample_mutations,
@@ -238,7 +397,7 @@ struct search_position {
                    max_range;
     }
     std::pair<int, int> operator()(tbb::flow_control &fc) const {
-        int start_range_high;// = pruned_sample_mutations[i].position;
+        int start_range_high=0;// = pruned_sample_mutations[i].position;
         int total_size = pruned_sample_mutations.size();
         // i end
         if (i > last_i) {
