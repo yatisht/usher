@@ -15,6 +15,7 @@
 #include <csignal>
 #include <cstddef>
 #include <cstdio>
+#include <iostream>
 #include <mpi.h>
 #include <random>
 #include <tbb/blocked_range.h>
