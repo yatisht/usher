@@ -340,7 +340,7 @@ int main(int argc, char **argv) {
     if (optimization_radius<=0) {
         options.parsimony_threshold=INT_MAX;
     }
-
+    fprintf(stderr, "Num threads %d\n",num_threads);
     if (this_rank==0) {
     tbb::task_scheduler_init init(num_threads);
     if (options.keep_n_tree>1&&process_count>1) {
