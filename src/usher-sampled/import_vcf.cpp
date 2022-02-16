@@ -1,5 +1,5 @@
 #include "isa-l/igzip_lib.h"
-#include "oneTBB-2019_U9/include/tbb/blocked_range.h"
+#include "oneTBB-2019_U9/include/tbb/parallel_for.h"
 #include "oneTBB-2019_U9/include/tbb/enumerable_thread_specific.h"
 #include "oneTBB-2019_U9/include/tbb/flow_graph.h"
 #include "oneTBB-2019_U9/include/tbb/parallel_for.h"
