@@ -331,6 +331,14 @@ int main(int argc, char **argv) {
     } catch(std::exception &e) {
         // Return with error code 1 unless the user specifies help
         if (this_rank==0) {
+            if (vm.count("version")) {
+                std::cout << "UShER " << std::endl;
+            } else {
+                std::cerr << "UShER " << std::endl;
+                std::cerr << desc << std::endl;
+            }
+        }
+        if (this_rank==0) {
             if(vm.count("help")) {
                 return 0;
             } else
