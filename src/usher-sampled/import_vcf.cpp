@@ -25,6 +25,7 @@
 #include <string>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <unistd.h>
 #include <thread>
 #include <unordered_map>
 #include <unordered_set>
