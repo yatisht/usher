@@ -199,13 +199,13 @@ static void acc_mutations(FS_result_per_thread_t& FS_result,ACC_type& accumulato
 }
 struct Parse_result{
     FS_result_per_thread_t& FS_result;
-    int nodes_size;
+    size_t nodes_size;
     void operator()(std::pair<char* ,size_t> in){
         Mutation_Detailed::mutation_collection parsed;
         parsed.ParseFromArray(in.first, in.second);
 	auto& local_res=FS_result.local().output;
         //fprintf(stderr, "adding to node %zu",parsed.node_idx());
-        if (nodes_size>(int)local_res.size()) {
+        if (nodes_size>local_res.size()) {
 	    local_res.resize(nodes_size);
             fprintf(stderr, "Node idx %ld, total length %zu \n",parsed.node_idx(),FS_result.local().output.size());
         }
@@ -462,6 +462,9 @@ void print_annotation(const MAT::Tree &T, const output_options &options,
     FILE *annotations_file = fopen(annotations_filename.c_str(), "w");
 
     for (size_t s = 0; s < sample_end_idx - sample_start_idx; s++) {
+        if (!assigned_clades[s].valid) {
+            continue;
+        }
         if (assigned_clades[s].best_clade_assignment.size() == 0) {
             // Sample was not placed (e.g. exceeded max EPPs) so no clades
             // assigned
@@ -525,6 +528,7 @@ void final_output(MAT::Tree &T, const output_options &options, int t_idx,
     // sample for each newly placed sample
     bool use_tree_idx = !options.only_one_tree;
     std::vector<MAT::Node *> targets;
+    fprintf(stderr, "Sample start idx %zu, end index %zu\n",sample_start_idx,sample_end_idx);
     targets.reserve(sample_end_idx - sample_start_idx);
 
     for (size_t idx = sample_start_idx; idx < sample_end_idx; idx++) {

@@ -66,6 +66,8 @@ struct Sample_Muts{
 struct Clade_info{
     std::vector<std::string> best_clade_assignment;
     std::vector<std::vector<std::string>> clade_assignments;
+    bool valid;
+    Clade_info():valid(false){}
 };
 void Sample_Input(const char *name, std::vector<Sample_Muts> &sample_mutations,
                   MAT::Tree &tree,std::vector<mutated_t>&,bool,std::vector<std::string>& fields);

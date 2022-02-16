@@ -22,7 +22,7 @@ int main (int argc,char** argv){
         auto new_idx=new_tree.get_node(ori_tree.get_node_name(samp_pair.first));
         if (new_idx) {
             new_state.emplace(new_idx->node_id,std::move(samp_pair.second));            
-        }else {
+        }else if (!ignore_missings) {
             fprintf(stderr, "Sample %s missing\n",ori_tree.get_node_name(samp_pair.first).c_str());
         }
     }

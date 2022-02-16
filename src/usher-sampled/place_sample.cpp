@@ -273,6 +273,7 @@ struct Print_Thread{
         }
         node_count++;
         auto& this_sample_clade=samples_clade[sample_vec_idx];
+        this_sample_clade.valid=true;
         this_sample_clade.clade_assignments.clear();
         this_sample_clade.clade_assignments.resize(tree.get_num_annotations());
         this_sample_clade.best_clade_assignment.clear();

@@ -78,6 +78,7 @@ void leader_thread_optimization(MAT::Tree& tree,std::vector<mutated_t>& position
                                       curr_idx.load(), node_to_search_idx);
             fprintf(stderr, "Main found nodes to move\n");
             bool distributed = process_count > 1;
+            int last_parsimony_score=INT_MAX;
             while (!node_to_search_idx.empty()) {
                 std::vector<size_t> deferred_nodes_out;
                 adjust_all(tree);
@@ -96,6 +97,12 @@ void leader_thread_optimization(MAT::Tree& tree,std::vector<mutated_t>& position
                     }
                 }
                 distributed = false;
+                auto new_parsimony_score=tree.get_parsimony_score();
+                if(new_parsimony_score>last_parsimony_score){
+                    break;
+                }
+                last_parsimony_score=new_parsimony_score;
+                fprintf(stderr, "Last parsimony score %d\n",last_parsimony_score);
             }
             auto dfs = tree.depth_first_expansion();
             for (auto node : dfs) {
@@ -136,7 +143,10 @@ static int leader_thread(
     std::vector<mutated_t> position_wise_out_dup;
     std::vector<std::string> samples;
     Sample_Input(options.vcf_filename.c_str(),samples_to_place,tree,position_wise_out,options.override_mutations,samples);
-    int sample_start_idx=samples_to_place[0].sample_idx;
+    samples_to_place.resize(std::min(samples_to_place.size(),options.first_n_samples));
+    size_t sample_start_idx=samples_to_place[0].sample_idx;
+    size_t sample_end_idx=samples_to_place.back().sample_idx;
+    fprintf(stderr, "Sample start idx %d, end index %d\n",sample_start_idx,sample_end_idx);
     if (options.tree_in=="") {
         get_pos_samples_old_tree(tree, position_wise_out);    
     }else {
@@ -172,8 +182,10 @@ static int leader_thread(
 
     }
     std::vector<std::string> low_confidence_samples;
-    samples_to_place.resize(std::min(samples_to_place.size(),options.first_n_samples));
     std::vector<Clade_info> samples_clade(samples_to_place.size());
+    for (auto& temp : samples_clade) {
+        temp.valid=false;
+    }
     fprintf(stderr, "Found %zu missing samples.\n\n", samples_to_place.size());
     auto reordered=sort_samples(options, samples_to_place, tree,sample_start_idx);
     fprintf(stderr, "sorting done\n");
@@ -199,7 +211,7 @@ static int leader_thread(
         for (int t_idx=0; t_idx<trees.size(); t_idx++) {
             std::vector<Clade_info> assigned_clades;
             std::vector<std::string> low_confidence_samples;
-            final_output(trees[t_idx], options.out_options, t_idx, assigned_clades, samples_to_place.front().sample_idx, samples_to_place.back().sample_idx,low_confidence_samples);
+            final_output(trees[t_idx], options.out_options, t_idx, assigned_clades, sample_start_idx, sample_end_idx,low_confidence_samples);
         }
         return 0;
     }
@@ -240,8 +252,7 @@ static int leader_thread(
     auto dfs=tree.depth_first_expansion();
     clean_up_leaf(dfs);
     final_output(
-        tree, options.out_options, 0, samples_clade, samples_to_place.front().sample_idx,
-        samples_to_place.back().sample_idx + 1, low_confidence_samples);
+        tree, options.out_options, 0, samples_clade, sample_start_idx, sample_end_idx, low_confidence_samples);
     auto duration=std::chrono::steady_clock::now()-start_time;
     fprintf(stderr, "Took %ld msec\n",std::chrono::duration_cast<std::chrono::milliseconds>(duration).count());
     MPI_Finalize();
