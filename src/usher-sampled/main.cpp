@@ -84,7 +84,8 @@ void leader_thread_optimization(MAT::Tree& tree,std::vector<mutated_t>& position
             fprintf(stderr, "Main found nodes to move\n");
             bool distributed = process_count > 1;
             int last_parsimony_score=INT_MAX;
-            std::random_shuffle(node_to_search_idx.begin(),node_to_search_idx.end());
+            std::default_random_engine g;
+            std::shuffle(node_to_search_idx.begin(),node_to_search_idx.end(),g);
             auto optimiation_start=std::chrono::steady_clock::now();
             auto optimization_end=optimiation_start+std::chrono::milliseconds((long)desired_optimization_msec);
             while (!node_to_search_idx.empty()) {
