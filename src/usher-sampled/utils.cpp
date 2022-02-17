@@ -1,5 +1,6 @@
 #include "src/matOptimize/mutation_annotated_tree.hpp"
 #include "usher.hpp"
+#include <atomic>
 #include <csignal>
 #include <cstddef>
 #include <cstdint>
@@ -703,7 +704,7 @@ bool sort_samples(const Leader_Thread_Options& options,std::vector<Sample_Muts>&
                 fprintf(stderr, "Main sending tree\n");
                 tree.MPI_send_tree();
             }
-            std::atomic_uint64_t curr_idx(0);
+            std::atomic_size_t curr_idx(0);
             place_sample_leader(samples_to_place, tree, 100, curr_idx, INT_MAX,
                                 true, nullptr, options.max_parsimony,
                                 options.max_uncertainty, low_confidence_samples,
