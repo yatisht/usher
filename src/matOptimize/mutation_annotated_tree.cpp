@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 #include <fstream>
+#include <sstream>
 // Uses one-hot encoding if base is unambiguous
 //void check_leaves(const Mutation_Annotated_Tree::Tree& T);
 // A:1,C:2,G:4,T:8
