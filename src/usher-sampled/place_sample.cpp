@@ -458,7 +458,7 @@ static void place_sample_thread( MAT::Tree &main_tree,std::vector<MAT::Node *> &
     }
 }
 struct Dist_sample_state{
-    std::atomic_uint64_t& curr_idx;
+    std::atomic_size_t& curr_idx;
     std::vector<Sample_Muts>& to_place;
     int processes_left;
     std::atomic_bool& stop;
@@ -536,7 +536,7 @@ static void mpi_loop(Dist_sample_state dist_sample,Recieve_Place_State recieve_p
     }
 }
 struct Pusher{
-    std::atomic_uint64_t& curr_idx;
+    std::atomic_size_t& curr_idx;
     std::vector<Sample_Muts>& to_place;
     std::atomic_bool& stop;
     void operator()(Sample_Muts* in,Pusher_Node_T::output_ports_type& out )const {
