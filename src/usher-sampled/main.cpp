@@ -63,12 +63,16 @@ static void clean_up_leaf(std::vector<MAT::Node*>& dfs){
     });
 }
 void leader_thread_optimization(MAT::Tree& tree,std::vector<mutated_t>& position_wise_out,
-    std::atomic_size_t& curr_idx,int optimization_radius, size_t start_idx,FILE* ignored_file){
-                fprintf(stderr, "Main sent optimization prep\n");
+    std::atomic_size_t& curr_idx,int& optimization_radius, size_t start_idx,FILE* ignored_file,float desired_optimization_msec,bool is_last){
+            if (is_last) {
+                desired_optimization_msec=3600000;
+            }
+            fprintf(stderr, "Main sent optimization prep\n");
             if (process_count == 1) {
                 reassign_state_local(tree,position_wise_out);
                 tree.MPI_send_tree();
             } else {
+                MPI_Bcast(&optimization_radius, 1, MPI_INT, 0, MPI_COMM_WORLD);
                 MPI_reassign_states(tree, position_wise_out, 0);
             }
             fprintf(stderr, "Main parsimony score %zu",tree.get_parsimony_score());
@@ -80,13 +84,16 @@ void leader_thread_optimization(MAT::Tree& tree,std::vector<mutated_t>& position
             fprintf(stderr, "Main found nodes to move\n");
             bool distributed = process_count > 1;
             int last_parsimony_score=INT_MAX;
+            std::random_shuffle(node_to_search_idx.begin(),node_to_search_idx.end());
+            auto optimiation_start=std::chrono::steady_clock::now();
+            auto optimization_end=optimiation_start+std::chrono::milliseconds((long)desired_optimization_msec);
             while (!node_to_search_idx.empty()) {
                 std::vector<size_t> deferred_nodes_out;
                 adjust_all(tree);
                 fprintf(stderr, "Main sent tree_optimizing\n");
                 optimize_tree_main_thread(
                     node_to_search_idx, tree, optimization_radius, ignored_file,
-                    false, 1, deferred_nodes_out, distributed, std::chrono::steady_clock::time_point::max(), true,
+                    false, 1, deferred_nodes_out, distributed, optimization_end, true,
                     true, true);
                 node_to_search_idx.clear();
                 auto dfs = tree.depth_first_expansion();
@@ -99,12 +106,23 @@ void leader_thread_optimization(MAT::Tree& tree,std::vector<mutated_t>& position
                 }
                 distributed = false;
                 auto new_parsimony_score=tree.get_parsimony_score();
-                if(new_parsimony_score>last_parsimony_score){
+                fprintf(stderr, "Last parsimony score %lu\n",new_parsimony_score);
+                if(new_parsimony_score>last_parsimony_score
+                    || std::chrono::steady_clock::now()>optimization_end){
                     break;
                 }
                 last_parsimony_score=new_parsimony_score;
-                fprintf(stderr, "Last parsimony score %d\n",last_parsimony_score);
             }
+            auto finish_time=std::chrono::steady_clock::now();
+            int next_optimization_radius;
+            if (finish_time>optimization_end) {
+                next_optimization_radius=optimization_radius-1;
+            }else {
+                float actual_msec=std::chrono::duration_cast<std::chrono::milliseconds>(finish_time-optimiation_start).count();
+                float time_ratio=sqrt(desired_optimization_msec/actual_msec);
+                next_optimization_radius=(optimization_radius*time_ratio)-1;
+            }
+            optimization_radius=std::max(next_optimization_radius,2);
             auto dfs = tree.depth_first_expansion();
             for (auto node : dfs) {
                 if(node->is_leaf()){
@@ -118,10 +136,10 @@ void leader_thread_optimization(MAT::Tree& tree,std::vector<mutated_t>& position
 }
 
 static int leader_thread(
-    int optimization_radius,
     int batch_size_per_process,
     Leader_Thread_Options& options
     ){
+    int optimization_radius=options.initial_optimization_radius;
     boost::filesystem::path path(options.out_options.outdir);
     if (!boost::filesystem::exists(path)) {
         fprintf(stderr, "Creating output directory.\n\n");
@@ -230,11 +248,14 @@ static int leader_thread(
                             placement_stats_file,
                             options.max_parsimony, options.max_uncertainty,
                             low_confidence_samples, samples_clade,sample_start_idx,idx_map_ptr);
-        if (curr_idx > samples_to_place.size()) {
+        bool is_last=false;
+        if (curr_idx >= samples_to_place.size()) {
             curr_idx.store(samples_to_place.size());
+            is_last=true;
+            optimization_radius=options.last_optimization_radius;
         }
-        if (optimization_radius > 0) {
-            leader_thread_optimization(tree, position_wise_out, curr_idx, optimization_radius, sample_start_idx, ignored_file);
+        if (options.initial_optimization_radius > 0) {
+            leader_thread_optimization(tree, position_wise_out, curr_idx, optimization_radius, sample_start_idx, ignored_file,options.desired_optimization_msec,is_last);
         }
         if (curr_idx<samples_to_place.size()) {
             int to_board_cast=0;
@@ -267,10 +288,10 @@ int main(int argc, char **argv) {
     MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &ignored);
     MPI_Comm_size(MPI_COMM_WORLD, &process_count);
     MPI_Comm_rank(MPI_COMM_WORLD, &this_rank);
-    int optimization_radius;
     int batch_size_per_process;
     Leader_Thread_Options options;
     po::options_description desc{"Options"};
+    int optimiation_minutes;
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
     std::string num_threads_message = "Number of threads to use when possible "
                                       "[DEFAULT uses all available cores, " +
@@ -315,10 +336,16 @@ int main(int argc, char **argv) {
     ("threads,T",po::value<uint32_t>(&num_threads)->default_value(num_cores),num_threads_message.c_str())("version", "Print version number")("help,h", "Print help messages")
     ("version", "Print version number")
     ("help,h", "Print help messages")
-    ("optimization_radius,R", po::value(&optimization_radius)->default_value(16),
+    ("optimization_radius,R", po::value(&options.initial_optimization_radius)->default_value(4),
         "The search radius for optimization when parsimony score increase exceeds the threshold"
         "Set to 0 to disable optimiation"
         "Only newly placed samples and nodes within this radius will be searched")
+    ("optimization_minutes,M", po::value(&optimiation_minutes)->default_value(5),
+        "Optimization time of each iterations in minutes"
+        "Set to 0 to disable optimiation"
+        "Only newly placed samples and nodes within this radius will be searched")
+    ("last_optimization_radius,LR", po::value(&options.last_optimization_radius)->default_value(16),
+        "Optimization radius for the last round")
     ("batch_size_per_process,n",po::value(&batch_size_per_process)->default_value(2),
         "The number of samples each process search simultaneously")
         ("parsimony_threshold,P",po::value(&options.parsimony_threshold)->default_value(1000000),
@@ -346,9 +373,10 @@ int main(int argc, char **argv) {
                 return 1;
         }
     }
-    if (optimization_radius<=0) {
+    if (options.initial_optimization_radius<=0) {
         options.parsimony_threshold=INT_MAX;
     }
+    options.desired_optimization_msec=optimiation_minutes*60000;
     fprintf(stderr, "Num threads %d\n",num_threads);
     if (this_rank==0) {
     tbb::task_scheduler_init init(num_threads);
@@ -356,8 +384,7 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Multi-host parallelization of multiple placement is not supported\n");
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
-    return leader_thread(
-        optimization_radius, batch_size_per_process,options);
+    return leader_thread(batch_size_per_process,options);
     } else {
         tbb::task_scheduler_init init(num_threads - 1);
         MAT::Tree tree;
@@ -389,7 +416,10 @@ int main(int argc, char **argv) {
                 #endif
             }
             follower_place_sample(tree,batch_size_per_process,false);
-            if (optimization_radius>0) {
+            if (options.initial_optimization_radius>0) {
+            int optimization_radius;
+            MPI_Bcast(&optimization_radius, 1, MPI_INT, 0, MPI_COMM_WORLD);
+            fprintf(stderr, "Optimizing with radius %d\n",optimization_radius);
             fprintf(stderr, "follower recieving trees\n");
             MPI_reassign_states(tree, position_wise_mutations, start_idx);
             //tree.delete_nodes();

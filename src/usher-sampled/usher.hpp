@@ -125,6 +125,9 @@ struct Leader_Thread_Options{
     size_t keep_n_tree;
     bool collapse_tree;
     output_options out_options;
+    float desired_optimization_msec;
+    int initial_optimization_radius;
+    int last_optimization_radius;
     std::string vcf_filename;
 };
 int set_descendant_count(MAT::Node* root);
