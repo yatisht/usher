@@ -18,9 +18,9 @@ message(STATUS "${usher_VERSION}")
 
 configure_file(src/version.hpp.in version.hpp)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -std=c++17 -Wall -pipe -g -Wno-unused-function -rdynamic  -Wno-deprecated-declarations") 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -std=c++17 -Wall -pipe -g -ggdb3 -Wno-unused-function -rdynamic  -Wno-deprecated-declarations") 
 #-DDEBUG_PARSIMONY_SCORE_CHANGE_CORRECT -fsanitize=address -DCHECK_PAR_MAIN  -DEASY_DEBUG -DSTOP_ON_ERROR  -DDETAILED_MERGER_CHECK -O0
-set(CMAKE_CXX_FLAGS_DEBUG " -ggdb3 -fno-eliminate-unused-debug-symbols  -Og")
+set(CMAKE_CXX_FLAGS_DEBUG "  -fno-eliminate-unused-debug-symbols  -Og")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-DNDEBUG ")
 set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O3 ")
 set(CMAKE_INCLUDE_CURRENT_DIR ON) 
@@ -53,7 +53,7 @@ AUX_SOURCE_DIRECTORY(src/matOptimize/apply_move patch_tree)
 AUX_SOURCE_DIRECTORY(src/check_samples_place check_samples_place) 
 file(GLOB MATUTIL_SRCS "src/matUtils/*.cpp" "src/matUtils/*.hpp")
 file(GLOB RIPPLES_SRCS "src/ripples/*.cpp" "src/ripples/*.hpp")
-file(GLOB USHER_SAMPLED_SRCS "src/usher-sampled/*.cpp" "src/usher-sampled/*.hpp")
+file(GLOB USHER_SAMPLED_SRCS "src/usher-sampled/*.cpp" "src/usher-sampled/*.hpp" "src/usher-sampled/static_tree_mapper/*")
 file(GLOB RIPPLES_FAST_SRCS "src/ripples/ripples_fast/*.cpp" "src/ripples/ripples_fast/*.hpp")
 
 set_source_files_properties(src/mutation_annotated_tree.cpp PROPERTIES COMPILE_FLAGS -O3)

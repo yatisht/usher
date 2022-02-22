@@ -7,7 +7,7 @@
 #define PLACEMENT_WORK_REQ_TAG 12
 #define PLACEMENT_WORK_RES_TAG 13
 typedef std::tuple<std::vector<Main_Tree_Target>, Sample_Muts*,bool> move_type;
-
+#pragma once
 struct update_main_tree_output{
     MAT::Node* splitted_node;
     MAT::Node* deleted_nodes;

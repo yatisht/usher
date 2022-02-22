@@ -14,6 +14,7 @@
 #define SIZE_MULT 8
 #define POSITION_TAG 30
 #define FS_RESULT_TAG 31
+#pragma once
 namespace MAT = Mutation_Annotated_Tree;
 //#define MPI_TRACE
 #ifdef MPI_TRACE
@@ -96,7 +97,8 @@ void place_sample_leader(std::vector<Sample_Muts> &sample_to_place,
                          int max_parsimony,size_t max_uncertainty,
                          std::vector<std::string>& low_confidence_samples,
                          std::vector<Clade_info>& samples_clade,
-                         size_t sample_start_idx,std::vector<size_t>* idx_map
+                         size_t sample_start_idx,std::vector<size_t>* idx_map,
+                         bool do_print=false
                          ) ;
 void fix_parent(Mutation_Annotated_Tree::Tree &tree);
 void convert_mut_type(const std::vector<MAT::Mutation> &in,
@@ -129,6 +131,7 @@ struct Leader_Thread_Options{
     int initial_optimization_radius;
     int last_optimization_radius;
     std::string vcf_filename;
+    bool no_add;
 };
 int set_descendant_count(MAT::Node* root);
 void discretize_mutations(const std::vector<To_Place_Sample_Mutation> &in,
@@ -143,3 +146,7 @@ void place_sample_multiple_tree(
 void distribute_positions(std::vector<mutated_t>& output);
 void reassign_state_local(MAT::Tree& tree,const std::vector<mutated_t>& mutations,bool initial=false);
 void remove_absent_leaves(MAT::Tree& tree,std::unordered_set<std::string>& present);
+void print_annotation(const MAT::Tree &T, const output_options &options,
+               const std::vector<Clade_info> &assigned_clades,
+               size_t sample_start_idx, size_t sample_end_idx,
+               size_t num_annotations);

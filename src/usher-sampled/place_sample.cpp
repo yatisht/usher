@@ -4,6 +4,7 @@
 #include "src/matOptimize/tree_rearrangement_internal.hpp"
 #include <algorithm>
 #include <atomic>
+#include <bits/types/FILE.h>
 #include <cassert>
 #include <chrono>
 #include <climits>
@@ -23,6 +24,7 @@
 #include <utility>
 #include <vector>
 #include <mpi.h>
+#include "src/usher-sampled/static_tree_mapper/index.hpp"
 std::atomic_size_t backlog;
 enum Status{OK,DONE,NOTHING};
 //std::atomic_size_t backlog_prep;
@@ -218,61 +220,40 @@ struct print_format{
     int parsimony_score;
     move_type* placement_info;
 };
-
-struct Print_Thread{
-    MAT::Tree& tree;
-    FILE* placement_stats_file;
-    int max_parsimony;
-    size_t max_uncertainty;
-    size_t& node_count;
-    std::vector<std::string>& low_confidence_samples;
-    //std::vector<Sample_Muts*>& rejected_samples;
-    std::vector<Clade_info>& samples_clade;
-    size_t start_idx;
-    void operator()(const print_format& in){
-        auto sample_idx=std::get<1>(*in.placement_info)->sample_idx;
-        auto sample_name = tree.get_node_name(sample_idx);
-        auto sample_vec_idx=sample_idx-start_idx;
-        const auto& search_result=std::get<0>(*in.placement_info);
-        auto num_epps=search_result.size();
-        fprintf(stderr,
-                "Current tree size (#nodes): %zu\tSample name: %s\tParsimony "
-                "score: %d\tNumber of parsimony-optimal placements: %zu\n",
-                sample_idx, sample_name.c_str(), in.parsimony_score,
-                num_epps);
-        if (placement_stats_file) {
-            fprintf(placement_stats_file, "%s\t%d\t%zu\t", sample_name.c_str(),
-                    in.parsimony_score, num_epps);
-        }
-        if (num_epps > 1) {
-            low_confidence_samples.emplace_back(sample_name);
-            if (num_epps > max_uncertainty) {
-                fprintf(
-                    stderr,
-                    "WARNING: Number of parsimony-optimal placements exceeds "
-                    "maximum allowed value (%zu). Ignoring sample %s.\n",
-                    max_uncertainty, sample_name.c_str());
-                //rejected_samples.push_back(std::get<1>(*in.placement_info));
-                delete in.placement_info;
-                return;
-            } else if (in.parsimony_score <= max_parsimony) {
-                fprintf(stderr,
-                        "WARNING: Multiple parsimony-optimal placements found. "
-                        "Placement done without high confidence.\n");
+static void enum_imputed_positions(const MAT::Mutations_Collection &muts,
+                                   FILE *placement_stats_file) {
+    bool is_first = true;
+    for (const auto &mut : muts) {
+        if (__builtin_popcount(mut.get_mut_one_hot()) != 1) {
+            if (is_first) {
+                fprintf(stderr, "Imputed mutations:\t");
+                is_first = false;
+            } else {
+                fputc(';', stderr);
+                if (placement_stats_file) {
+                    fputc(';', placement_stats_file);
+                }
+            }
+            auto imputed_nuc = mut.get_par_one_hot() & mut.get_mut_one_hot();
+            if (!imputed_nuc) {
+                imputed_nuc = 1 << (__builtin_ctz(mut.get_mut_one_hot()));
+            }
+            fprintf(stderr, "%i:%c", mut.get_position(),
+                    MAT::get_nuc(imputed_nuc));
+            if (placement_stats_file) {
+                fprintf(placement_stats_file, "%i:%c;", mut.get_position(),
+                        MAT::get_nuc(imputed_nuc));
             }
         }
-        if (in.parsimony_score > max_parsimony) {
-            fprintf(
-                stderr,
-                "WARNING: Parsimony score of the most parsimonious placement "
-                "exceeds the maximum allowed value (%u). Ignoring sample %s.\n",
-                max_parsimony, sample_name.c_str());
-            //rejected_samples.push_back(std::get<1>(*in.placement_info));
-            delete in.placement_info;
-            return;
-        }
-        node_count++;
-        auto& this_sample_clade=samples_clade[sample_vec_idx];
+    }
+    if(!is_first){
+        fprintf(stderr, "\n");
+    }
+    if (placement_stats_file) {
+        fputc('\n', placement_stats_file);
+    }
+}
+static void assign_clade(Clade_info& this_sample_clade,MAT::Tree& tree,const std::vector<Main_Tree_Target> & search_result){
         this_sample_clade.valid=true;
         this_sample_clade.clade_assignments.clear();
         this_sample_clade.clade_assignments.resize(tree.get_num_annotations());
@@ -291,36 +272,80 @@ struct Print_Thread{
             }
             std::sort(this_sample_clade.clade_assignments[c].begin(), this_sample_clade.clade_assignments[c].end());
         }
-
-        bool is_first=true;
-        auto sample_node=tree.get_node(sample_idx);
-        for (const auto& mut : sample_node->mutations) {
-            if (__builtin_popcount(mut.get_mut_one_hot())!=1) {
-                if(is_first){
-                    fprintf (stderr, "Imputed mutations:\t");
-                    is_first=false;
-                }else {
-                    fputc(';', stderr);
-                    if(placement_stats_file){
-                        fputc(';', placement_stats_file);
-                    }
-                }
-                auto imputed_nuc=mut.get_par_one_hot()&mut.get_mut_one_hot();
-                if (!imputed_nuc) {
-                    imputed_nuc=1<<(__builtin_ctz(mut.get_mut_one_hot()));
-                }
-                fprintf (stderr, "%i:%c", mut.get_position(), MAT::get_nuc(imputed_nuc));
-                if (placement_stats_file) {
-                    fprintf (placement_stats_file, "%i:%c;", mut.get_position(), MAT::get_nuc(imputed_nuc));
-                }
-
+}
+static bool filter_placement(const print_format &in,
+                             std::vector<std::string> &low_confidence_samples,
+                             int num_epps, const std::string &sample_name,
+                             int max_uncertainty, int max_parsimony) {
+    if (num_epps > 1) {
+        low_confidence_samples.emplace_back(sample_name);
+        if (num_epps > max_uncertainty) {
+            fprintf(stderr,
+                    "WARNING: Number of parsimony-optimal placements exceeds "
+                    "maximum allowed value (%zu). Ignoring sample %s.\n",
+                    max_uncertainty, sample_name.c_str());
+            // rejected_samples.push_back(std::get<1>(*in.placement_info));
+            delete in.placement_info;
+            return true;
+        } else if (in.parsimony_score <= max_parsimony) {
+            fprintf(stderr,
+                    "WARNING: Multiple parsimony-optimal placements found. "
+                    "Placement done without high confidence.\n");
+        }
+    }
+    if (in.parsimony_score > max_parsimony) {
+        fprintf(stderr,
+                "WARNING: Parsimony score of the most parsimonious placement "
+                "exceeds the maximum allowed value (%u). Ignoring sample %s.\n",
+                max_parsimony, sample_name.c_str());
+        // rejected_samples.push_back(std::get<1>(*in.placement_info));
+        delete in.placement_info;
+        return true;
+    }
+    return false;
+}
+struct Print_Thread{
+    MAT::Tree& tree;
+    FILE* placement_stats_file;
+    int max_parsimony;
+    size_t max_uncertainty;
+    size_t& node_count;
+    std::vector<std::string>& low_confidence_samples;
+    //std::vector<Sample_Muts*>& rejected_samples;
+    std::vector<Clade_info>& samples_clade;
+    size_t start_idx;
+    bool dry_run;
+    void operator()(const print_format& in){
+        auto sample_idx=std::get<1>(*in.placement_info)->sample_idx;
+        auto sample_name = tree.get_node_name(sample_idx);
+        auto sample_vec_idx=sample_idx-start_idx;
+        const auto& search_result=std::get<0>(*in.placement_info);
+        auto num_epps=search_result.size();
+        fprintf(stderr,
+                "Current tree size (#nodes): %zu\tSample name: %s\tParsimony "
+                "score: %d\tNumber of parsimony-optimal placements: %zu\n",
+                sample_idx, sample_name.c_str(), in.parsimony_score,
+                num_epps);
+        if (placement_stats_file) {
+            fprintf(placement_stats_file, "%s\t%d\t%zu\t", sample_name.c_str(),
+                    in.parsimony_score, num_epps);
+        }
+        if (!dry_run) {
+            if (filter_placement(in, low_confidence_samples, num_epps, sample_name, max_uncertainty, max_parsimony)) {
+                return;
             }
         }
-        if(!is_first){
-            fprintf(stderr, "\n");
-        }
-        if (placement_stats_file) {
-            fputc('\n', placement_stats_file);
+        node_count++;
+        assign_clade(samples_clade[sample_vec_idx], tree, search_result);
+        if (dry_run) {
+            MAT::Mutations_Collection sample_mutations;
+            const auto& target=std::get<0>(*in.placement_info)[0];
+            discretize_mutations(target.sample_mutations, target.shared_mutations,
+                             target.parent_node, sample_mutations);
+            enum_imputed_positions(sample_mutations, placement_stats_file);
+        }else {
+            auto sample_node=tree.get_node(sample_idx);
+            enum_imputed_positions(sample_node->mutations, placement_stats_file);
         }
         delete in.placement_info;
         return;
@@ -343,7 +368,7 @@ static void place_sample_thread( MAT::Tree &main_tree,std::vector<MAT::Node *> &
     Placed_move_sended_state& send_queue,found_place_t& found_place_queue,Pusher_Node_T& retry_queue
     ,int all_size,std::atomic_bool& stop,std::atomic_size_t& curr_idx, 
     const int parsimony_increase_threshold, size_t sample_start_idx,bool dry_run,
-    int max_parsimony,size_t max_uncertainty,bool multi_processing,Printer_Node_t& printer_node){
+    int max_parsimony,size_t max_uncertainty,bool multi_processing,Printer_Node_t& printer_node,bool do_print){
     int redo=0;
     int total=0;
     int parsimony_increase=0;
@@ -362,7 +387,26 @@ static void place_sample_thread( MAT::Tree &main_tree,std::vector<MAT::Node *> &
                 retry_queue.try_put(nullptr);
             }
             total++;
-            delete in;
+            if (do_print) {
+                int best_levaves_cout=0;
+                int best_bfs_idx=INT_MAX;
+                int best_idx=0;
+                for (size_t idx=0; idx<search_result.size(); idx++) {
+                    auto this_leaves_count=search_result[idx].target_node->children.size();
+                    auto this_bfs_idx=search_result[idx].target_node->bfs_index;
+                    if (this_leaves_count>best_levaves_cout||
+                    (this_leaves_count==best_levaves_cout&&
+                        this_bfs_idx>best_bfs_idx)) {
+                            best_idx=idx;
+                            best_levaves_cout=this_leaves_count;
+                            best_bfs_idx=this_bfs_idx;
+                    }
+                }
+                std::swap(search_result[0],search_result[best_idx]);
+                printer_node.try_put(print_format{std::get<1>(*in)->sorting_key1,in});
+            }else {
+                delete in;
+            }
             continue;
         }
         for (const auto &placement : search_result) {
@@ -564,6 +608,18 @@ struct Finder{
         found_queue.push(res);
     }
 };
+struct Fixed_Tree_Finder{
+    MAT::Tree& tree;
+    found_place_t& found_queue;
+    const Traversal_Info &in;
+    const std::vector<MAT::Node *> &dfs_ordered_nodes;
+    void operator()(Sample_Muts* to_search) const{
+        auto res=place_sample_fixed_idx(in, to_search, dfs_ordered_nodes);
+        std::get<2>(*res)=true;
+            //fprintf(stderr, "self in\n");
+        found_queue.push(res);
+    }
+};
 void place_sample_leader(std::vector<Sample_Muts> &sample_to_place,
                          MAT::Tree &main_tree, int batch_size,
                          std::atomic_size_t &curr_idx,
@@ -572,23 +628,34 @@ void place_sample_leader(std::vector<Sample_Muts> &sample_to_place,
                          int max_parsimony,size_t max_uncertainty,
                          std::vector<std::string>& low_confidence_samples,
                          std::vector<Clade_info>& samples_clade,
-                         size_t sample_start_idx,std::vector<size_t>* idx_map
+                         size_t sample_start_idx,std::vector<size_t>* idx_map,
+                         bool do_print
                          ) {
     std::vector<MAT::Node *> deleted_nodes;
     size_t node_count=main_tree.depth_first_expansion().size();
     deleted_nodes.reserve(sample_to_place.size());
     std::thread *mpi_thread=nullptr;
+    Traversal_Info traversal_info;
+    std::vector<MAT::Node*> dfs_ordered_nodes;
     tbb::concurrent_bounded_queue<Preped_Sample_To_Place*> send_queue;
     {   
         std::atomic_bool stop(false);
         tbb::flow::graph g;
         found_place_t found_queue;
         Pusher_Node_T init(g, tbb::flow::serial, Pusher{curr_idx, sample_to_place,stop});
-        tbb::flow::function_node<
-            Sample_Muts*>
-            searcher(g, tbb::flow::unlimited,
-                     Finder{main_tree,found_queue});
-        tbb::flow::make_edge(std::get<0>(init.output_ports()),searcher);
+        tbb::flow::function_node<Sample_Muts *> *searcher;
+        if (dry_run) {
+            traversal_info = build_idx(main_tree);
+            dfs_ordered_nodes = main_tree.depth_first_expansion();
+            searcher = new tbb::flow::function_node<Sample_Muts *>(
+                g, tbb::flow::unlimited,
+                Fixed_Tree_Finder{main_tree, found_queue, traversal_info,
+                                  dfs_ordered_nodes});
+        } else {
+            searcher = new tbb::flow::function_node<Sample_Muts *>(
+                g, tbb::flow::unlimited, Finder{main_tree, found_queue});
+        }
+        tbb::flow::make_edge(std::get<0>(init.output_ports()),*searcher);
         Printer_Node_t printer_node(g,tbb::flow::serial,
             Print_Thread{main_tree,placement_stats_file,max_parsimony,
             max_uncertainty,node_count,low_confidence_samples,samples_clade,sample_start_idx});
@@ -607,8 +674,9 @@ void place_sample_leader(std::vector<Sample_Muts> &sample_to_place,
         place_sample_thread(main_tree, deleted_nodes, send_queue, found_queue,
                             init, sample_to_place.size(), stop, curr_idx,
                             parsimony_increase_threshold,
-                            sample_start_idx, dry_run,max_parsimony,max_uncertainty,process_count>1,printer_node);
+                            sample_start_idx, dry_run,max_parsimony,max_uncertainty,process_count>1,printer_node,do_print);
         g.wait_for_all();
+        delete searcher;
         //placer_thread.join();
     }
      	send_queue.push(nullptr);

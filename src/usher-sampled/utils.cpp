@@ -456,8 +456,8 @@ void check_leaves(const MAT::Tree& T){
 }
 void print_annotation(const MAT::Tree &T, const output_options &options,
                const std::vector<Clade_info> &assigned_clades,
-               size_t &sample_start_idx, size_t &sample_end_idx,
-               size_t &num_annotations) {
+               size_t sample_start_idx, size_t sample_end_idx,
+               size_t num_annotations) {
     auto annotations_filename = options.outdir + "/clades.txt";
 
     FILE *annotations_file = fopen(annotations_filename.c_str(), "w");
@@ -709,9 +709,6 @@ bool sort_samples(const Leader_Thread_Options& options,std::vector<Sample_Muts>&
                                 true, nullptr, options.max_parsimony,
                                 options.max_uncertainty, low_confidence_samples,
                                 samples_clade,sample_start_idx,nullptr);
-                for (const auto& to_place : samples_to_place) {
-        fprintf(stderr, "sample %zu,par %d\t",to_place.sample_idx,to_place.sorting_key1);
-    }
     fputc('\n', stderr);
             //check_repeats(samples_to_place, sample_start_idx);
             // Sort samples order in indexes based on parsimony scores

@@ -10,7 +10,7 @@
 #include <thread>
 #include <mpi.h>
 #include <tuple>
-#include <type_traits>
+#include "src/usher-sampled/static_tree_mapper/index.hpp"
 void check_parent(MAT::Node* root,MAT::Tree& tree){
     if (root!=tree.get_node(root->node_id)) {
         fprintf(stderr, "dict mismatch at node %zu\n",root->node_id);
@@ -205,8 +205,16 @@ struct Fetcher {
 };
 struct Finder{
     MAT::Tree& tree;
+    const Traversal_Info &in;
+    const std::vector<MAT::Node *> &dfs_ordered_nodes;
+    bool fix_tree;
     void operator()(Sample_Muts* to_search)const{
-        auto buffer = serialize_move(find_place(tree, to_search),tree);
+        std::string buffer;
+        if (fix_tree) {
+            buffer = serialize_move(place_sample_fixed_idx(in, to_search, dfs_ordered_nodes),tree);
+        }else {    
+            buffer = serialize_move(find_place(tree, to_search),tree);
+        }
         //fprintf(stderr, "follower sent placement \n");
         MPI_Send(buffer.c_str(), buffer.size(), MPI_BYTE, 0, PROPOSED_PLACE,
                  MPI_COMM_WORLD);
@@ -214,6 +222,12 @@ struct Finder{
     }
 };
 void follower_place_sample(MAT::Tree &main_tree,int batch_size,bool dry_run){
+    Traversal_Info traversal_info;
+    std::vector<MAT::Node *> dfs_ordered_nodes;
+    if (dry_run) {
+        traversal_info = build_idx(main_tree);
+        dfs_ordered_nodes = main_tree.depth_first_expansion();
+    }
     check_parent(main_tree.root, main_tree);
     std::vector<MAT::Node *> deleted_nodes;
     bool is_first=true;
@@ -221,7 +235,7 @@ void follower_place_sample(MAT::Tree &main_tree,int batch_size,bool dry_run){
     tbb::parallel_pipeline(batch_size,
         tbb::make_filter<void,Sample_Muts*>(tbb::filter::serial,Fetcher{is_first})&
         tbb::make_filter<Sample_Muts*,void>(
-            tbb::filter::parallel,Finder{main_tree}));
+            tbb::filter::parallel,Finder{main_tree,traversal_info,dfs_ordered_nodes,dry_run}));
     for (auto node : deleted_nodes) {
         delete node;
     }

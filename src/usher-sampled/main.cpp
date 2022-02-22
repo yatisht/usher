@@ -207,6 +207,15 @@ static int leader_thread(
         temp.valid=false;
     }
     fprintf(stderr, "Found %zu missing samples.\n\n", samples_to_place.size());
+    std::string placement_stats_filename = options.out_options.outdir + "/placement_stats.tsv";
+    FILE *placement_stats_file = fopen(placement_stats_filename.c_str(), "w");
+    if (options.no_add) {
+        std::atomic_size_t curr_idx(0); 
+        assign_descendant_muts(tree);
+        place_sample_leader(samples_to_place, tree, 100, curr_idx, INT_MAX, true, placement_stats_file, INT_MAX, INT_MAX, low_confidence_samples, samples_clade, sample_start_idx, nullptr);
+        print_annotation(tree, options.out_options,samples_clade,
+                sample_start_idx, sample_end_idx,tree.get_num_annotations());
+    }
     auto reordered=sort_samples(options, samples_to_place, tree,sample_start_idx);
     fprintf(stderr, "sorting done\n");
     std::vector<size_t> idx_map;
@@ -222,8 +231,6 @@ static int leader_thread(
     FILE* ignored_file=fopen("/dev/null", "w");
     use_bound=true;
     //samples_to_place.resize(1000);
-    std::string placement_stats_filename = options.out_options.outdir + "/placement_stats.tsv";
-    FILE *placement_stats_file = fopen(placement_stats_filename.c_str(), "w");
     options.out_options.only_one_tree=options.keep_n_tree==1;
     if(options.keep_n_tree>1){
         std::vector<MAT::Tree> trees{tree};
@@ -330,7 +337,7 @@ int main(int argc, char **argv) {
      "Create a new tree up to this limit for each possibility of parsimony-optimal placement")
     ("retain-input-branch-lengths,l", po::bool_switch(&options.out_options.retain_original_branch_len)->default_value(false), \
      "Retain the branch lengths from the input tree in out newick files instead of using number of mutations for the branch lengths.")
-    //("no-add,n", po::bool_switch(&options.no_add), \
+    ("no-add,n", po::bool_switch(&options.no_add), \
      "Do not add new samples to the tree")
     ("detailed-clades,D", po::bool_switch(&options.out_options.detailed_clades), \
      "In clades.txt, write a histogram of annotated clades and counts across all equally parsimonious placements")
@@ -398,11 +405,14 @@ int main(int argc, char **argv) {
             start_idx=follower_recieve_positions(position_wise_mutations);
             fprintf(stderr, "follwer finished recieving position again\n");
         }
-        if (options.sort_before_placement_1||options.sort_before_placement_2) {
+        if (options.sort_before_placement_1||options.sort_before_placement_2||options.no_add) {
             tree.MPI_receive_tree();
             assign_levels(tree.root);
             set_descendant_count(tree.root);
             follower_place_sample(tree,100,true);        
+        }
+        if (options.no_add) {
+            return 0;
         }
         while (true) {
             fprintf(stderr, "follwer recieving tree\n");

@@ -6,7 +6,7 @@ RUN apt-get update && apt-get install -yq --no-install-recommends \
     git wget \
     ca-certificates \
 wget cmake  libboost-filesystem-dev libboost-program-options-dev libboost-iostreams-dev libboost-date-time-dev \
- libprotoc-dev libprotoc-dev protobuf-compiler openssl openssh-client vim \
+ libprotoc-dev protobuf-compiler openssl openssh-client vim \
  mafft rsync g++ openmpi-bin libopenmpi-dev automake libtool autoconf make nasm gdb && apt clean
 
 RUN mkdir ISAL&& \

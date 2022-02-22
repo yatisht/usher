@@ -1,5 +1,6 @@
 #include "usher.hpp"
 #include <vector>
+#pragma once
 template <typename Target_Type> struct Output {
     std::mutex mutex;
     int best_par_score;
