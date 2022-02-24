@@ -42,21 +42,21 @@ int update_idx(int& idx, int dfs_idx,int dfs_end_idx, const std::vector<index_el
     if (idx==INDEX_END_POSITION) {
         return INDEX_END_POSITION;
     }
-    int seek_distance=0;
+    //int seek_distance=0;
     for (; dfs_elem[idx].dfs_idx_end<dfs_idx;idx++) {
-        seek_distance++;
+        //seek_distance++;
     }
-    if (seek_distance>8) {
+    /*if (seek_distance>100) {
         fprintf(stderr, "Seek distance %d\n",seek_distance);
-    }
+    }*/
     if (dfs_elem[idx].dfs_idx>dfs_end_idx) {
         return INDEX_END_POSITION;
     }
     if (dfs_elem[idx].dfs_idx<dfs_idx) {
-        if (dfs_elem[idx].dfs_idx_end<dfs_end_idx) {
+        /*if (dfs_elem[idx].dfs_idx_end<dfs_end_idx) {
             fprintf(stderr, "Not covering\n");
             raise(SIGTRAP);
-        }
+        }*/
         if (dfs_elem[idx].children_idx==-1) {
             return INDEX_END_POSITION;
         }else {
@@ -75,9 +75,9 @@ struct Output_No_Lock{
 };
 void register_target(Main_Tree_Target &target, int this_score,Output_No_Lock &output
     ,int dfs_idx,const std::vector<MAT::Node*>& dfs_ordered_nodes) {
-    if ((dfs_idx==0)&&target.shared_mutations.empty()) {
+    /*if ((dfs_idx==0)||target.shared_mutations.empty()) {
         return;
-    }
+    }*/
     if (output.best_par_score > this_score) {
         output.best_par_score = this_score;
         output.targets.clear();
@@ -235,6 +235,10 @@ static int merge_mutations(std::vector<fixed_tree_search_mutation>& parent,const
     ,const std::vector<MAT::Node*>& dfs_ordered_nodes,int last_lower_bound
 ){
     Main_Tree_Target sibling_out;
+    descendant_output.reserve(parent.size()+node_mut_count);
+    sibling_out.sample_mutations.reserve(parent.size());
+    sibling_out.splited_mutations.reserve(node_mut_count);
+    sibling_out.shared_mutations.reserve(node_mut_count);
     int lower_bound=0;
     int parsimony_score=0; 
     auto iter=parent.begin();
@@ -405,9 +409,29 @@ move_type* place_sample_fixed_idx(const Traversal_Info &in,
         stack.back().dfs_end_idx=curr_node.dfs_end_idx;
 
 
-        stack.back().lower_bound=merge_mutations(stack[stack.size()-2].last_mut, curr_node.mutation_start,
+        auto lower_bound=merge_mutations(stack[stack.size()-2].last_mut, curr_node.mutation_start,
             curr_node.mutation_size, stack.back().last_mut, cur_idx, 
             curr_node.dfs_end_idx, in, output,dfs_ordered_nodes,stack[stack.size()-2].lower_bound);
+        stack.back().lower_bound=lower_bound;
+        if (lower_bound>output.best_par_score) {
+            
+            auto ast=dfs_ordered_nodes[cur_idx];
+            auto next_par=dfs_ordered_nodes[curr_node.dfs_end_idx+1]->parent;
+            bool found=false;
+            while (ast) {
+                if (ast==next_par) {
+                    found=true;
+                    break;
+                }
+                ast=ast->parent;
+            }
+            if (!found) {
+                raise(SIGTRAP);
+            }
+            cur_idx=curr_node.dfs_end_idx;
+            
+        }
+        
     }
     for(const auto& result:std::get<0>(*res)){
         check_output(result, to_search->muts);

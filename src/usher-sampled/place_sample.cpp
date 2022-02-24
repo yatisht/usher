@@ -224,21 +224,25 @@ static void enum_imputed_positions(const MAT::Mutations_Collection &muts,
                                    FILE *placement_stats_file) {
     bool is_first = true;
     for (const auto &mut : muts) {
-        if (__builtin_popcount(mut.get_mut_one_hot()) != 1) {
+        auto mut_nuc=mut.get_mut_one_hot();
+        if(mut_nuc==0xf){
+            continue;
+        }
+        if (mut_nuc&(mut_nuc-1)) {
             if (is_first) {
-                fprintf(stderr, "Imputed mutations:\t");
+                fprintf(stdout, "Imputed mutations:\t");
                 is_first = false;
             } else {
-                fputc(';', stderr);
+                fputc(';', stdout);
                 if (placement_stats_file) {
                     fputc(';', placement_stats_file);
                 }
             }
-            auto imputed_nuc = mut.get_par_one_hot() & mut.get_mut_one_hot();
+            auto imputed_nuc = mut.get_par_one_hot() & mut_nuc;
             if (!imputed_nuc) {
-                imputed_nuc = 1 << (__builtin_ctz(mut.get_mut_one_hot()));
+                imputed_nuc = 1 << (__builtin_ctz(mut_nuc));
             }
-            fprintf(stderr, "%i:%c", mut.get_position(),
+            fprintf(stdout, "%i:%c", mut.get_position(),
                     MAT::get_nuc(imputed_nuc));
             if (placement_stats_file) {
                 fprintf(placement_stats_file, "%i:%c;", mut.get_position(),
@@ -247,7 +251,7 @@ static void enum_imputed_positions(const MAT::Mutations_Collection &muts,
         }
     }
     if(!is_first){
-        fprintf(stderr, "\n");
+        fprintf(stdout, "\n");
     }
     if (placement_stats_file) {
         fputc('\n', placement_stats_file);
@@ -280,7 +284,7 @@ static bool filter_placement(const print_format &in,
     if (num_epps > 1) {
         low_confidence_samples.emplace_back(sample_name);
         if (num_epps > max_uncertainty) {
-            fprintf(stderr,
+            fprintf(stdout,
                     "WARNING: Number of parsimony-optimal placements exceeds "
                     "maximum allowed value (%zu). Ignoring sample %s.\n",
                     max_uncertainty, sample_name.c_str());
@@ -288,13 +292,13 @@ static bool filter_placement(const print_format &in,
             delete in.placement_info;
             return true;
         } else if (in.parsimony_score <= max_parsimony) {
-            fprintf(stderr,
+            fprintf(stdout,
                     "WARNING: Multiple parsimony-optimal placements found. "
                     "Placement done without high confidence.\n");
         }
     }
     if (in.parsimony_score > max_parsimony) {
-        fprintf(stderr,
+        fprintf(stdout,
                 "WARNING: Parsimony score of the most parsimonious placement "
                 "exceeds the maximum allowed value (%u). Ignoring sample %s.\n",
                 max_parsimony, sample_name.c_str());
@@ -321,7 +325,7 @@ struct Print_Thread{
         auto sample_vec_idx=sample_idx-start_idx;
         const auto& search_result=std::get<0>(*in.placement_info);
         auto num_epps=search_result.size();
-        fprintf(stderr,
+        fprintf(stdout,
                 "Current tree size (#nodes): %zu\tSample name: %s\tParsimony "
                 "score: %d\tNumber of parsimony-optimal placements: %zu\n",
                 sample_idx, sample_name.c_str(), in.parsimony_score,
@@ -382,7 +386,6 @@ static void place_sample_thread( MAT::Tree &main_tree,std::vector<MAT::Node *> &
         if (dry_run) {
             std::get<1>(*in)->sorting_key1=count_mutation(search_result[0].sample_mutations);
             std::get<1>(*in)->sorting_key2=search_result.size();
-            fprintf(stderr, "Sample %zu, mutation count %d,curr_count %d, total %d\n",std::get<1>(*in)->sample_idx,std::get<1>(*in)->sorting_key1,total,stop_count);
             if (std::get<2>(*in)) {
                 retry_queue.try_put(nullptr);
             }
@@ -405,6 +408,7 @@ static void place_sample_thread( MAT::Tree &main_tree,std::vector<MAT::Node *> &
                 std::swap(search_result[0],search_result[best_idx]);
                 printer_node.try_put(print_format{std::get<1>(*in)->sorting_key1,in});
             }else {
+                fprintf(stderr, "Sample %zu, mutation count %d,curr_count %d, total %d\n",std::get<1>(*in)->sample_idx,std::get<1>(*in)->sorting_key1,total,stop_count);
                 delete in;
             }
             continue;
@@ -658,7 +662,7 @@ void place_sample_leader(std::vector<Sample_Muts> &sample_to_place,
         tbb::flow::make_edge(std::get<0>(init.output_ports()),*searcher);
         Printer_Node_t printer_node(g,tbb::flow::serial,
             Print_Thread{main_tree,placement_stats_file,max_parsimony,
-            max_uncertainty,node_count,low_confidence_samples,samples_clade,sample_start_idx});
+            max_uncertainty,node_count,low_confidence_samples,samples_clade,sample_start_idx,dry_run});
         if (process_count>1) {
             mpi_thread=new std::thread(mpi_loop,
             Dist_sample_state{curr_idx,sample_to_place,process_count-1,stop},

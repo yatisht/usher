@@ -212,9 +212,14 @@ static int leader_thread(
     if (options.no_add) {
         std::atomic_size_t curr_idx(0); 
         assign_descendant_muts(tree);
-        place_sample_leader(samples_to_place, tree, 100, curr_idx, INT_MAX, true, placement_stats_file, INT_MAX, INT_MAX, low_confidence_samples, samples_clade, sample_start_idx, nullptr);
-        print_annotation(tree, options.out_options,samples_clade,
-                sample_start_idx, sample_end_idx,tree.get_num_annotations());
+        place_sample_leader(samples_to_place, tree, 100, curr_idx, INT_MAX,
+                            true, placement_stats_file, INT_MAX, INT_MAX,
+                            low_confidence_samples, samples_clade,
+                            sample_start_idx, nullptr, true);
+        print_annotation(tree, options.out_options, samples_clade,
+                         sample_start_idx, sample_end_idx,
+                         tree.get_num_annotations());
+        return 0;
     }
     auto reordered=sort_samples(options, samples_to_place, tree,sample_start_idx);
     fprintf(stderr, "sorting done\n");

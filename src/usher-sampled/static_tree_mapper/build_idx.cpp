@@ -62,6 +62,10 @@ static void check_node(const Temp_Idx_Tree_Node* to_check){
     }
 
 }
+static void set_idx(Temp_Idx_Tree_Node* to_set){
+    to_set->dfs_start_idx=to_set->children.front()->dfs_start_idx;
+    to_set->dfs_end_idx=to_set->children.back()->dfs_end_idx;
+}
 static void bulid_idx_tree(Temp_Tree_Node_Coll_t& in,std::vector<index_ele>& output){
     if (in.empty()) {
         output.push_back(index_ele{INT_MAX,INT_MAX,-1});
@@ -80,35 +84,70 @@ static void bulid_idx_tree(Temp_Tree_Node_Coll_t& in,std::vector<index_ele>& out
         std::vector<Temp_Idx_Tree_Node*> children;
         while ((!in.empty())&&in.front()->covering_node==curr->covering_node) {
             auto front=in.front();
+            children.push_back(front);        
             if (front->is_self) {
                 if (front->dfs_start_idx==front->covering_node->dfs_index) {
                     fprintf(stderr, "Mult self node\n");
                     raise(SIGTRAP);
                 }
-                children.push_back(front);        
-            }else {
-                children.insert(children.end(),front->children.begin(),front->children.end());        
             }
             std::pop_heap(in.begin(),in.end(),temp_tree_build_comp());
             in.pop_back();
         }
         auto par_node=curr->covering_node->parent;
-        curr->children.insert(curr->children.end(),children.begin(),children.end());
-        std::sort(curr->children.begin(),curr->children.end(),[](Temp_Idx_Tree_Node* first,Temp_Idx_Tree_Node* second){
+        if (!par_node) {
+            par_node=curr->covering_node;
+        }
+        bool is_curr_self=curr->is_self &&
+            curr->dfs_start_idx == curr->covering_node->dfs_index;
+        if (is_curr_self) {
+            if (!curr->children.empty()) {
+                Temp_Idx_Tree_Node *temp_node = new Temp_Idx_Tree_Node;
+                temp_node->is_self = false;
+                temp_node->children = std::move(curr->children);
+                set_idx(temp_node);
+                children.push_back(temp_node);
+            }
+        } else {
+            children.push_back(curr);
+        }
+        std::vector<Temp_Idx_Tree_Node *> children_expanded;
+        children_expanded.reserve(children.size());
+        std::sort(children.begin(), children.end(),
+                  [](Temp_Idx_Tree_Node *first, Temp_Idx_Tree_Node *second) {
+                      return first->children.size() < second->children.size();
+                  });
+        int count = children.size();
+        for (const auto& child : children) {
+            if (child->is_self) {
+                children_expanded.push_back(child);
+            }else if (child->children.size()==1) {
+                children_expanded.push_back(child->children[0]);
+                delete child;
+            }else if ((child->children.size()-1)+count<8) {
+                children_expanded.insert(children_expanded.end(),child->children.begin(),child->children.end());
+                count+=(child->children.size()-1);
+                delete child;
+            }else {
+                children_expanded.push_back(child);
+            }
+        }
+        std::sort(children_expanded.begin(),children_expanded.end(),[](Temp_Idx_Tree_Node* first,Temp_Idx_Tree_Node* second){
             return first->dfs_start_idx<second->dfs_start_idx;
         });
-        if (curr->is_self||(curr->children.size()>4&&par_node)) {
+        if (is_curr_self) {
+            curr->children=std::move(children_expanded);
             auto old_curr=curr;
             check_node(old_curr);
-            curr=new Temp_Idx_Tree_Node{curr->covering_node->parent,(int)par_node->dfs_index,(int)par_node->dfs_end_index,false};
+            curr=new Temp_Idx_Tree_Node{curr->covering_node->parent,old_curr->dfs_start_idx,old_curr->dfs_end_idx,false};
             node_count++;
             curr->children.push_back(old_curr);
         }else {
-            if (par_node) {
-                curr->covering_node=par_node;
-                curr->dfs_start_idx=par_node->dfs_index;
-                curr->dfs_end_idx=par_node->dfs_end_index;
-            }
+            curr=new Temp_Idx_Tree_Node;
+            curr->children=std::move(children_expanded);
+            curr->covering_node=par_node;
+            curr->is_self=false;
+            set_idx(curr);
         }
         check_node(curr);
         in.push_back(curr);
