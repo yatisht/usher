@@ -85,6 +85,11 @@ struct line_align{
             prev.alloc_start=line.first;
             prev_end=line.second;    
             in.pop(line);
+            if (line.first==nullptr) {
+                out=prev;
+                prev.start=nullptr;
+                return true;
+            }
         }
         auto start_ptr=strchr(line.first, '\n');
         if (*start_ptr!='\n') {
@@ -132,7 +137,7 @@ struct gzip_input_source{
         get_c_ptr=getc_buf;
     }
     void unalloc(){
-        munmap(map_start, alloc_size);
+        munmap(map_start, mapped_size);
     }
     bool decompress_to_buffer(unsigned char* buffer, size_t buffer_size) const{
         if (!state->avail_in) {
@@ -399,6 +404,7 @@ static void process(MAT::Tree& tree,infile_t& fd){
     read_size=first_approx_size*single_line_size;
     alloc_size=(first_approx_size+2)*single_line_size;
     tbb::concurrent_bounded_queue<std::pair<char*,uint8_t*>> queue;
+    queue.set_capacity(10);
     tbb::flow::source_node<line_start_later> line(input_graph,line_align(queue));
     tbb::flow::make_edge(line,parser);
     fd(queue);

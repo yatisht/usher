@@ -86,6 +86,8 @@ class Node {
     Node* parent;
     std::vector<Node*> children;
     std::vector<Mutation> mutations;
+    size_t dfs_idx;
+    size_t dfs_end_idx;
 
     bool is_leaf();
     bool is_root();
