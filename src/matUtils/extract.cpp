@@ -41,6 +41,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
      "Use to limit random samples chosen with -z or -w to below the most recent common ancestor of all other samples.")
     ("get-internal-descendents,I", po::value<std::string>()->default_value(""),
      "Select the set of samples descended from the indicated internal node.")
+    ("from-mrca,V", po::bool_switch(),
+    "Select all samples which are descended from the most recent common ancestor of the indicated set of samples. Applied before filling background with random samples.")
     ("get-representative,r", po::value<size_t>()->default_value(0),
      "Automatically select the indicated number of representative samples per clade in the tree after other selection steps and prune all other samples (minimum 2).")
     ("prune,p", po::bool_switch(),
@@ -143,6 +145,7 @@ void extract_main (po::parsed_options parsed) {
     int max_path = vm["max-path-length"].as<int>();
     size_t max_epps = vm["max-epps"].as<size_t>();
     bool prune_samples = vm["prune"].as<bool>();
+    bool mrca = vm["from-mrca"].as<bool>();
     size_t get_representative = vm["get-representative"].as<size_t>();
     bool resolve_polytomies = vm["resolve-polytomies"].as<bool>();
     bool retain_branch = vm["retain-branch-length"].as<bool>();
@@ -368,6 +371,12 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
             fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
             exit(1);
         }
+    }
+    if (mrca) {
+        //get all descendents from the most recent common ancestor of the current samples.
+        //there's no reason to check if the set is empty because this set is always a minimum what's passed in (its additive only)
+        //perform this step before filling in background with random samples
+        samples = get_mrca_samples(&T, samples);
     }
     std::set<std::string> not_nearest;
     if (select_nearest > 0) {

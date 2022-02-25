@@ -428,3 +428,10 @@ std::vector<std::string> fill_random_samples(MAT::Tree* T, std::vector<std::stri
     }
     return filled_samples;
 }
+
+std::vector<std::string> get_mrca_samples(MAT::Tree* T, std::vector<std::string> current_samples) {
+    //get the subtree, get its root, get all descendents from that node id in the original tree (node ids are retained until storage in a pb). 
+    auto mrca = MAT::get_subtree(*T, current_samples).root->identifier;
+    std::vector<std::string> mrca_samples = T->get_leaves_ids(mrca);
+    return mrca_samples;
+}
