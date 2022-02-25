@@ -75,9 +75,9 @@ struct Output_No_Lock{
 };
 void register_target(Main_Tree_Target &target, int this_score,Output_No_Lock &output
     ,int dfs_idx,const std::vector<MAT::Node*>& dfs_ordered_nodes) {
-    /*if ((dfs_idx==0)||target.shared_mutations.empty()) {
+    if ((dfs_idx!=0)&&target.shared_mutations.empty()) {
         return;
-    }*/
+    }
     if (output.best_par_score > this_score) {
         output.best_par_score = this_score;
         output.targets.clear();
@@ -103,7 +103,7 @@ add_existing_mut(std::vector<fixed_tree_search_mutation>::iterator &iter,
         iter++;
         return 0;
     }
-    To_Place_Sample_Mutation mut(iter->position,iter->chrom,iter->mut_nuc,par_nuc);
+    To_Place_Sample_Mutation mut(iter->position,iter->chrom,iter->mut_nuc,(iter->mut_nuc&par_nuc)?par_nuc:iter->par_nuc);
     sibling_out.sample_mutations.push_back(mut);    
     if (check_more_bit_set(iter->mut_nuc)) {
         bool not_found=!(iter->mut_nuc&par_nuc);
@@ -285,7 +285,9 @@ static int merge_mutations(std::vector<fixed_tree_search_mutation>& parent,const
                         raise(SIGTRAP);
                     }
                 }else {
-                    parsimony_score++;
+                    if (!(iter->par_nuc&iter->mut_nuc)) {
+                        parsimony_score++;                
+                    }
                     sibling_out.splited_mutations.push_back(this_mut);
                 }
                 lower_bound+=add_existing_mut(iter, descendant_output, dfs_idx, dfs_end_idx, in, this_mut.get_mut_one_hot(),sibling_out);

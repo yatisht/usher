@@ -167,9 +167,9 @@ static int leader_thread(
     size_t sample_start_idx=samples_to_place[0].sample_idx;
     size_t sample_end_idx=samples_to_place.back().sample_idx;
     fprintf(stderr, "Sample start idx %d, end index %d\n",sample_start_idx,sample_end_idx);
-    if (options.tree_in=="") {
+    if (options.tree_in==""&&(!options.no_add)&&(options.initial_optimization_radius>0)) {
         get_pos_samples_old_tree(tree, position_wise_out);    
-    }else {
+    }else if (options.tree_in!=""){
         position_wise_out_dup=position_wise_out;
         std::unordered_set<std::string> sample_set(samples.begin(),samples.end());
         remove_absent_leaves(tree, sample_set);
@@ -210,8 +210,9 @@ static int leader_thread(
     std::string placement_stats_filename = options.out_options.outdir + "/placement_stats.tsv";
     FILE *placement_stats_file = fopen(placement_stats_filename.c_str(), "w");
     if (options.no_add) {
-        std::atomic_size_t curr_idx(0); 
+        std::atomic_size_t curr_idx(0);
         assign_descendant_muts(tree);
+        tree.MPI_send_tree();
         place_sample_leader(samples_to_place, tree, 100, curr_idx, INT_MAX,
                             true, placement_stats_file, INT_MAX, INT_MAX,
                             low_confidence_samples, samples_clade,
@@ -219,6 +220,7 @@ static int leader_thread(
         print_annotation(tree, options.out_options, samples_clade,
                          sample_start_idx, sample_end_idx,
                          tree.get_num_annotations());
+	    MPI_Finalize();
         return 0;
     }
     auto reordered=sort_samples(options, samples_to_place, tree,sample_start_idx);
@@ -402,7 +404,10 @@ int main(int argc, char **argv) {
         tbb::task_scheduler_init init(num_threads - 1);
         MAT::Tree tree;
         std::vector<mutated_t> position_wise_mutations;
-        int start_idx=follower_recieve_positions(position_wise_mutations);
+        int start_idx=0;
+        if (!(options.tree_in==""&&options.no_add||options.initial_optimization_radius==0)) {
+            start_idx=follower_recieve_positions(position_wise_mutations);    
+        }
         if (options.tree_in!="") {
             MPI_reassign_states(tree, position_wise_mutations, start_idx,true);
             position_wise_mutations.clear();
@@ -412,11 +417,14 @@ int main(int argc, char **argv) {
         }
         if (options.sort_before_placement_1||options.sort_before_placement_2||options.no_add) {
             tree.MPI_receive_tree();
+            if (!options.no_add) {
             assign_levels(tree.root);
             set_descendant_count(tree.root);
+            }
             follower_place_sample(tree,100,true);        
         }
         if (options.no_add) {
+	        MPI_Finalize();
             return 0;
         }
         while (true) {
