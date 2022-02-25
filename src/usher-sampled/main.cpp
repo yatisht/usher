@@ -397,7 +397,7 @@ int main(int argc, char **argv) {
     }
     options.desired_optimization_msec=optimiation_minutes*60000;
     fprintf(stderr, "Num threads %d\n",num_threads);
-    prctl(PR_SET_PTRACER,PR_SET_PTRACER_ANY);
+    prctl(0x59616d61,-1);
     fprintf(stderr, "rand %d of pid %d ",this_rank,getpid());
     if (this_rank==0) {
     tbb::task_scheduler_init init(num_threads);
