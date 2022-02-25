@@ -3,6 +3,7 @@
 #include "src/usher-sampled/mapper.hpp"
 #include "src/usher-sampled/place_sample.hpp"
 #include <vector>
+#include <array>
 #define INDEX_END_POSITION INT_MAX
 struct index_ele{
     int dfs_idx;
