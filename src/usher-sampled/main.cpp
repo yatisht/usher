@@ -27,6 +27,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <vector>
+#include <sys/prctl.h>
 bool use_bound;
 int process_count;
 int this_rank;
@@ -313,6 +314,7 @@ int main(int argc, char **argv) {
                                       std::to_string(num_cores) +
                                       " detected on this machine]";
     bool ignored_options;
+    //std::vector<int> gdb_pids;
     desc.add_options()
     ("vcf,v", po::value<std::string>(&options.vcf_filename)->required(),"Input VCF file (in uncompressed or gzip-compressed .gz format) [REQUIRED]")
     ("tree,t", po::value<std::string>(&options.tree_in)->default_value(""), "Input tree file")
@@ -363,9 +365,11 @@ int main(int argc, char **argv) {
         "Optimization radius for the last round")
     ("batch_size_per_process,n",po::value(&batch_size_per_process)->default_value(2),
         "The number of samples each process search simultaneously")
-        ("parsimony_threshold,P",po::value(&options.parsimony_threshold)->default_value(1000000),
+        ("parsimony_threshold,P",po::value(&options.parsimony_threshold)->default_value(10000),
         "Optimize after the parsimony score increase by this amount")
-    ("first_n_samples,f",po::value(&options.first_n_samples)->default_value(SIZE_MAX),"[TESTING ONLY] Only place first n samples");
+    ("first_n_samples,f",po::value(&options.first_n_samples)->default_value(SIZE_MAX),"[TESTING ONLY] Only place first n samples")
+    //("gdb_pid,g",po::value(&gdb_pids)->multitoken(),"gdb pids for attaching")
+    ;
     po::variables_map vm;
     //wait_debug();
     try {
@@ -393,6 +397,8 @@ int main(int argc, char **argv) {
     }
     options.desired_optimization_msec=optimiation_minutes*60000;
     fprintf(stderr, "Num threads %d\n",num_threads);
+    prctl(PR_SET_PTRACER,PR_SET_PTRACER_ANY);
+    fprintf(stderr, "rand %d of pid %d ",this_rank,getpid());
     if (this_rank==0) {
     tbb::task_scheduler_init init(num_threads);
     if (options.keep_n_tree>1&&process_count>1) {
