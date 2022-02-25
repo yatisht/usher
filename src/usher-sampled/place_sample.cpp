@@ -4,7 +4,6 @@
 #include "src/matOptimize/tree_rearrangement_internal.hpp"
 #include <algorithm>
 #include <atomic>
-#include <bits/types/FILE.h>
 #include <cassert>
 #include <chrono>
 #include <climits>
