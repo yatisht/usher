@@ -77,6 +77,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
      "Title of MAT to display in Taxodium or Auspice (used with --write-taxodium or -j).")
     ("description,D", po::value<std::string>()->default_value(""),
      "Description of MAT to display in Taxodium (used with --write-taxodium).")
+    ("include-nt,J", po::bool_switch(),
+     "Include nucleotide mutations in addition to protein mutations (used with --write-taxodium)")
     ("extra-fields,F", po::value<std::string>()->default_value(""),
      "Comma-separated list of additional metadata column names beyond the defaults of: strain, genbank_accession, country, date, pangolin_lineage (used with --write-taxodium).")
     ("retain-branch-length,E", po::bool_switch(),
@@ -156,6 +158,7 @@ void extract_main (po::parsed_options parsed) {
     size_t add_random = vm["add-random"].as<size_t>();
     size_t select_nearest = vm["select-nearest"].as<size_t>();
     float x_scale = vm["x-scale"].as<float>();
+    bool include_nt = vm["include-nt"].as<bool>();
 
     boost::filesystem::path path(dir_prefix);
     if (!boost::filesystem::exists(path)) {
@@ -753,7 +756,7 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         if (!resolve_polytomies) {
             subtree.condense_leaves();
         }
-        save_taxodium_tree(subtree, output_tax_filename, metav, gtf_filename, fasta_filename, tax_title, tax_description, additional_meta_fields, x_scale);
+        save_taxodium_tree(subtree, output_tax_filename, metav, gtf_filename, fasta_filename, tax_title, tax_description, additional_meta_fields, x_scale, include_nt);
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
     if (dump_metadata != dir_prefix) {
