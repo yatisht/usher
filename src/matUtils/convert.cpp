@@ -912,7 +912,7 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
 
     return metadata;
 }
-void save_taxodium_tree (MAT::Tree &tree, std::string out_filename, std::vector<std::string> meta_filenames, std::string gtf_filename, std::string fasta_filename, std::string title, std::string description, std::vector<std::string> additional_meta_fields, float x_scale) {
+void save_taxodium_tree (MAT::Tree &tree, std::string out_filename, std::vector<std::string> meta_filenames, std::string gtf_filename, std::string fasta_filename, std::string title, std::string description, std::vector<std::string> additional_meta_fields, float x_scale, bool include_nt) {
 
     // These are the taxodium pb objects
     Taxodium::AllNodeData *node_data = new Taxodium::AllNodeData();
@@ -934,7 +934,7 @@ void save_taxodium_tree (MAT::Tree &tree, std::string out_filename, std::vector<
     TIMEIT();
 
     // Fill in the taxodium data while doing aa translations
-    translate_and_populate_node_data(&tree, gtf_filename, fasta_filename, node_data, &all_data, metadata, columns, generic_metadata, x_scale);
+    translate_and_populate_node_data(&tree, gtf_filename, fasta_filename, node_data, &all_data, metadata, columns, generic_metadata, x_scale, include_nt);
     all_data.set_allocated_node_data(node_data);
 
     // Boost library used to stream the contents to the output protobuf file in
