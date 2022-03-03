@@ -687,6 +687,7 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
 
         timer.Start();
         std::vector<std::string> closest_relatives;
+    
         for (std::string sample : samples) {
             std::pair<std::vector<std::string>, size_t> closest_relatives_pair = get_closest_samples(&T, sample);
             std::vector<std::string> closest_relatives = closest_relatives_pair.first;

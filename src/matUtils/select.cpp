@@ -529,7 +529,7 @@ std::pair<std::vector<std::string>, size_t> get_closest_samples(MAT::Tree* T, st
                 min_dist = child_branch_length;
                 closest_samples.first.clear();
                 closest_samples.first.push_back(child->identifier);
-                closest_samples.second = min_dist;
+                closest_samples.second = min_dist + target->branch_length;
 
             } else if (child_branch_length == min_dist) {
                 closest_samples.first.push_back(child->identifier);
