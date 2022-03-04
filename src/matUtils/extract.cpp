@@ -205,7 +205,7 @@ void extract_main (po::parsed_options parsed) {
     return f != dir_prefix;
 }) &&
 usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
-        if (nearest_k_batch_file == "" && closest_relatives_filename == "") {
+        if (nearest_k_batch_file == "" && closest_relatives_filename == dir_prefix) {
             fprintf(stderr, "ERROR: No output files requested!\n");
             exit(1);
         }
@@ -681,7 +681,7 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         }, ap) ;
         fprintf(stderr, "%ld batch sample jsons written in %ld msec.\n\n", batch_samples.size(), timer.Stop());
     }
-    if (closest_relatives_filename != "") {
+    if (closest_relatives_filename != dir_prefix) {
         fprintf(stderr, "Per-sample closest relative(s) requested. Computing...\n");
         if (break_ties) {
             fprintf(stderr, "Storing one closest relative per sample.\n");

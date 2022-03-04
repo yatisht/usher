@@ -430,34 +430,15 @@ std::vector<std::string> fill_random_samples(MAT::Tree* T, std::vector<std::stri
 }
 
 
-size_t adjusted_branch_length(MAT::Node *target, MAT::Node *other) {
-    // Returns the branch length of target node excluding mutations present in other node.
-    size_t branch_length = 0;
-    for (auto target_mut : target->mutations) {
-        bool cont = false;
-        for (auto other_mut : other->mutations) {
-            if (target_mut.position == other_mut.position && target_mut.mut_nuc == other_mut.mut_nuc) {
-                cont = true;
-            }
-        }
-        if (cont) {
-            continue;
-        }
-        branch_length += 1;
-    }
-    return branch_length;
-    
-}
-
 void closest_samples_dfs(MAT::Node *node, MAT::Node *target, size_t path_length, size_t max_path_length, std::vector<std::pair<MAT::Node *, size_t>> &leaves) {
     if (path_length > max_path_length) {
         return;
     }
     for (auto child : node->children) {
         if (child->is_leaf()) {
-            leaves.push_back(std::make_pair(child, path_length + adjusted_branch_length(child, target)));
+            leaves.push_back(std::make_pair(child, path_length + child->branch_length));
         } else {
-            closest_samples_dfs(child, target, path_length + adjusted_branch_length(child, target), max_path_length, leaves);
+            closest_samples_dfs(child, target, path_length + child->branch_length, max_path_length, leaves);
         }
     }
 }
@@ -478,9 +459,9 @@ std::pair<std::vector<std::string>, size_t> get_closest_samples(MAT::Tree* T, st
     size_t dist_to_orig_parent = 0; // cumulative distance to the parent of the initial target
 
     bool go_up = true;
-
     while (go_up && parent) {
-        size_t parent_branch_length = adjusted_branch_length(parent, target) + dist_to_orig_parent;
+
+        size_t parent_branch_length = parent->branch_length + dist_to_orig_parent;
         // make a vector of siblings of the current target.
         // for siblings that are internal nodes, add leaves in the descendant subtree
         // as pseudo-children if they are close enough
@@ -492,13 +473,12 @@ std::pair<std::vector<std::string>, size_t> get_closest_samples(MAT::Tree* T, st
                 if (child->identifier == curr_target->identifier) {
                     continue; // skip the target node
                 }
-                size_t child_branch_length = adjusted_branch_length(child, target);
+                size_t child_branch_length = child->branch_length;
                 if (child_branch_length < min_of_sibling_leaves) {
                     min_of_sibling_leaves = child_branch_length;
                 }
             }
         }
-
         for (auto child : parent->children) {
             if (child->identifier == curr_target->identifier) {
                 continue; // skip the target node
@@ -508,11 +488,11 @@ std::pair<std::vector<std::string>, size_t> get_closest_samples(MAT::Tree* T, st
                 // for internal nodes, descend the tree, adding leaves as they are
                 // encountered, restricting path lengths to less than the minimum of
                 // the sibling leaves at the current level
-                size_t dist_so_far = adjusted_branch_length(child, target);
+                size_t dist_so_far = child->branch_length;
                 closest_samples_dfs(child, target, dist_so_far, min_of_sibling_leaves, children_and_distances);
 
             } else { // leaf node
-                children_and_distances.push_back(std::make_pair(child, dist_to_orig_parent + adjusted_branch_length(child, target)));
+                children_and_distances.push_back(std::make_pair(child, dist_to_orig_parent + child->branch_length));
             }
         }
 
@@ -520,8 +500,7 @@ std::pair<std::vector<std::string>, size_t> get_closest_samples(MAT::Tree* T, st
             // for the siblings of the target node, if any branch lengths
             // are shorter than the path up a level, we can stop
             MAT::Node *child = child_and_dist.first;
-            size_t child_branch_length = child_and_dist.second;
-
+            size_t child_branch_length = child_and_dist.second + dist_to_orig_parent;
             if (child_branch_length < parent_branch_length) {
                 go_up = false;
             }
