@@ -266,7 +266,13 @@ static void assign_clade(Clade_info& this_sample_clade,MAT::Tree& tree,const std
             this_sample_clade.clade_assignments[c].resize(search_result.size());
             //TODO: can be parallelized
             for (size_t k=0; k < search_result.size(); k++) {
-                bool include_self = !search_result[k].target_node->is_leaf() && !search_result[k].splited_mutations.empty();
+                bool have_unique=false;
+                for (const auto& split_mut : search_result[k].splited_mutations) {
+                    if (!(split_mut.get_par_one_hot()&split_mut.get_mut_one_hot())) {
+                        have_unique=true;
+                    }
+                }
+                bool include_self = !search_result[k].target_node->is_leaf() && !have_unique;
                 auto clade_assignment = tree.get_clade_assignment(search_result[k].target_node, c, include_self);
                 this_sample_clade.clade_assignments[c][k] = clade_assignment;
                 if (k==0) {
@@ -316,14 +322,30 @@ struct Print_Thread{
     std::vector<std::string>& low_confidence_samples;
     //std::vector<Sample_Muts*>& rejected_samples;
     std::vector<Clade_info>& samples_clade;
+    const std::vector<int>& descendant_count;
     size_t start_idx;
     bool dry_run;
     void operator()(const print_format& in){
         auto sample_idx=std::get<1>(*in.placement_info)->sample_idx;
         auto sample_name = tree.get_node_name(sample_idx);
         auto sample_vec_idx=sample_idx-start_idx;
-        const auto& search_result=std::get<0>(*in.placement_info);
+        auto& search_result=std::get<0>(*in.placement_info);
         auto num_epps=search_result.size();
+        int best_levaves_cout=0;
+        int best_bfs_idx=INT_MAX;
+        int best_idx=0;
+        for (size_t idx=0; idx<search_result.size(); idx++) {
+            auto this_leaves_count=descendant_count[search_result[idx].target_node->dfs_index];
+            auto this_bfs_idx=search_result[idx].target_node->bfs_index;
+            if (this_leaves_count>best_levaves_cout||
+            (this_leaves_count==best_levaves_cout&&
+                this_bfs_idx>best_bfs_idx)) {
+                    best_idx=idx;
+                    best_levaves_cout=this_leaves_count;
+                    best_bfs_idx=this_bfs_idx;
+            }
+        }
+        std::swap(search_result[0],search_result[best_idx]);
         fprintf(stdout,
                 "Current tree size (#nodes): %zu\tSample name: %s\tParsimony "
                 "score: %d\tNumber of parsimony-optimal placements: %zu\n",
@@ -390,21 +412,6 @@ static void place_sample_thread( MAT::Tree &main_tree,std::vector<MAT::Node *> &
             }
             total++;
             if (do_print) {
-                int best_levaves_cout=0;
-                int best_bfs_idx=INT_MAX;
-                int best_idx=0;
-                for (size_t idx=0; idx<search_result.size(); idx++) {
-                    auto this_leaves_count=search_result[idx].target_node->children.size();
-                    auto this_bfs_idx=search_result[idx].target_node->bfs_index;
-                    if (this_leaves_count>best_levaves_cout||
-                    (this_leaves_count==best_levaves_cout&&
-                        this_bfs_idx>best_bfs_idx)) {
-                            best_idx=idx;
-                            best_levaves_cout=this_leaves_count;
-                            best_bfs_idx=this_bfs_idx;
-                    }
-                }
-                std::swap(search_result[0],search_result[best_idx]);
                 printer_node.try_put(print_format{std::get<1>(*in)->sorting_key1,in});
             }else {
                 fprintf(stderr, "Sample %zu, mutation count %d,curr_count %d, total %d\n",std::get<1>(*in)->sample_idx,std::get<1>(*in)->sorting_key1,total,stop_count);
@@ -645,6 +652,7 @@ void place_sample_leader(std::vector<Sample_Muts> &sample_to_place,
         std::atomic_bool stop(false);
         tbb::flow::graph g;
         found_place_t found_queue;
+        std::vector<int> descendant_count;
         Pusher_Node_T init(g, tbb::flow::serial, Pusher{curr_idx, sample_to_place,stop});
         tbb::flow::function_node<Sample_Muts *> *searcher;
         if (dry_run) {
@@ -654,6 +662,18 @@ void place_sample_leader(std::vector<Sample_Muts> &sample_to_place,
                 g, tbb::flow::unlimited,
                 Fixed_Tree_Finder{main_tree, found_queue, traversal_info,
                                   dfs_ordered_nodes});
+            if (do_print) {
+                descendant_count.resize(dfs_ordered_nodes.size());
+                for (int idx=dfs_ordered_nodes.size()-1; idx>0; idx--) {
+                    auto this_node=dfs_ordered_nodes[idx];
+                    if (this_node->is_leaf()) {
+                        descendant_count[idx]=1;
+                    }
+                    for (const auto child : this_node->children) {
+                        descendant_count[idx]+=descendant_count[child->dfs_index];
+                    }
+                }
+            }
         } else {
             searcher = new tbb::flow::function_node<Sample_Muts *>(
                 g, tbb::flow::unlimited, Finder{main_tree, found_queue});
@@ -661,7 +681,7 @@ void place_sample_leader(std::vector<Sample_Muts> &sample_to_place,
         tbb::flow::make_edge(std::get<0>(init.output_ports()),*searcher);
         Printer_Node_t printer_node(g,tbb::flow::serial,
             Print_Thread{main_tree,placement_stats_file,max_parsimony,
-            max_uncertainty,node_count,low_confidence_samples,samples_clade,sample_start_idx,dry_run});
+            max_uncertainty,node_count,low_confidence_samples,samples_clade,descendant_count,sample_start_idx,dry_run});
         if (process_count>1) {
             mpi_thread=new std::thread(mpi_loop,
             Dist_sample_state{curr_idx,sample_to_place,process_count-1,stop},

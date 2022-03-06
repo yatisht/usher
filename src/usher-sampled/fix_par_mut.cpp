@@ -8,6 +8,7 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+void clean_up_internal_nodes(MAT::Node* this_node,MAT::Tree& tree,std::unordered_set<size_t>& changed_nodes_local,std::unordered_set<size_t>& node_with_inconsistent_state);
 //add mutation m to parent_mutations, which represent the mutation of a node relative to root,
 //or update major allele if already present
 static void ins_mut(Mutation_Set &parent_mutations,Mutation_Annotated_Tree::Mutation &m) {
@@ -74,4 +75,9 @@ void fix_parent(Mutation_Annotated_Tree::Tree &tree) {
         #endif
     }
     fprintf(stderr, "main dfs size %zu\n",dfs.size());
+    {
+        std::unordered_set<size_t> ignored1;
+        std::unordered_set<size_t> ignored2;
+        clean_up_internal_nodes(tree.root,tree,ignored1,ignored2);
+    }
 }
