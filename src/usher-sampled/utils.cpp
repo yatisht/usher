@@ -1,6 +1,7 @@
 #include "src/matOptimize/mutation_annotated_tree.hpp"
 #include "usher.hpp"
 #include <atomic>
+#include <climits>
 #include <csignal>
 #include <cstddef>
 #include <cstdint>
@@ -11,6 +12,7 @@
 #include <tbb/concurrent_hash_map.h>
 #include <tbb/concurrent_unordered_map.h>
 #include <tbb/concurrent_unordered_set.h>
+#include <tbb/enumerable_thread_specific.h>
 #include <tbb/flow_graph.h>
 #include <tbb/parallel_for.h>
 #include <tbb/pipeline.h>
@@ -24,6 +26,8 @@
 #include "mutation_detailed.pb.h"
 #include <fstream>
 #include <sstream>
+void Min_Back_Fitch_Sankoff(MAT::Node* root_node,const MAT::Mutation& mut_template,
+    std::vector<std::vector<MAT::Mutation>>& mutation_output,mutated_t& positions,size_t dfs_size);
 int set_descendant_count(MAT::Node* root){
     size_t child_count=0;
     for (auto child : root->children) {
@@ -181,8 +185,8 @@ void distribute_positions(std::vector<mutated_t>& output){
     output.resize(start_idx);
 }
 void clean_up_internal_nodes(MAT::Node* this_node,MAT::Tree& tree,std::unordered_set<size_t>& changed_nodes_local,std::unordered_set<size_t>& node_with_inconsistent_state);
-template<typename ACC_type>
-static void acc_mutations(FS_result_per_thread_t& FS_result,ACC_type& accumulator){
+template<typename ACC_type,typename result_t>
+static void acc_mutations(result_t& FS_result,ACC_type& accumulator){
     int total_size=0;
     for (auto& one_t_result : FS_result) {
         for (size_t idx=0;idx<one_t_result.output.size();idx++ ) {
@@ -198,8 +202,9 @@ static void acc_mutations(FS_result_per_thread_t& FS_result,ACC_type& accumulato
             }
         });
 }
+template<typename result_t>
 struct Parse_result{
-    FS_result_per_thread_t& FS_result;
+    result_t& FS_result;
     size_t nodes_size;
     void operator()(std::pair<char* ,size_t> in){
         Mutation_Detailed::mutation_collection parsed;
@@ -246,7 +251,7 @@ static void reassign_state_kernel(MAT::Tree& tree,const std::vector<mutated_t>& 
                 continue;
             }
             mutated_t translated;
-            translated.reserve(mutations[idx].size());
+            translated.reserve(mutations[idx].size()+1);
             for (auto& node_p :mutations[idx] ) {
                 auto node=tree.get_node(node_p.first);
                 if (!node) {
@@ -264,7 +269,51 @@ static void reassign_state_kernel(MAT::Tree& tree,const std::vector<mutated_t>& 
         }
     });
 }
-static void output_mutations(std::vector<MAT::Node*>& bfs_ordered_nodes,FS_result_per_thread_t& FS_result){
+
+struct mutated_t_inorder_comparator {
+    bool operator()(const std::pair<long, nuc_one_hot>& lhs,const std::pair<long, nuc_one_hot>& rhs) const {
+        return lhs.first<rhs.first;
+    }
+};
+struct Min_Back_FS_Result_Container{
+    std::vector<std::vector<Mutation_Annotated_Tree::Mutation>> output;
+};
+typedef tbb::enumerable_thread_specific<Min_Back_FS_Result_Container> Min_Back_FS_result;
+static void min_backreassign_state_kernel(MAT::Tree& tree,const std::vector<mutated_t>& mutations,int start_position,std::vector<MAT::Node*>& dfs,Min_Back_FS_result& FS_result){
+    //get mutation vector
+    fprintf(stderr, "rank %d min back assigning %zu nuc\n",this_rank,mutations.size());
+    auto dfs_size=dfs.size();
+    tbb::parallel_for(
+        tbb::blocked_range<size_t>(0,mutations.size()),
+    [&FS_result,&mutations,&tree,start_position,dfs_size](const tbb::blocked_range<size_t>& in) {
+        auto& this_result=FS_result.local().output;
+        this_result.resize(dfs_size);
+        for (size_t idx=in.begin(); idx<in.end(); idx++) {
+            if (mutations[idx].empty()) {
+                //fprintf(stderr, "rank %d skipping empty position %zu \n",this_rank,idx);
+                continue;
+            }
+            mutated_t translated;
+            translated.reserve(mutations[idx].size()+1);
+            for (auto& node_p :mutations[idx] ) {
+                auto node=tree.get_node(node_p.first);
+                if (!node) {
+                    //fprintf(stderr, "%zu node not found from rank %d\n",node_p.first,this_rank);
+                    continue;
+                }
+                translated.emplace_back(node->dfs_index,node_p.second);
+            }
+            std::sort(translated.begin(),translated.end(),mutated_t_inorder_comparator());
+            translated.emplace_back(INT_MAX,0xf);
+            MAT::Mutation temp(0,idx+start_position,0,0);
+            Min_Back_Fitch_Sankoff(tree.root, temp, this_result, translated, dfs_size);
+        }
+    });
+}
+
+
+template<typename result_t>
+static void output_mutations(std::vector<MAT::Node*>& bfs_ordered_nodes,result_t& FS_result){
     tbb::parallel_for(tbb::blocked_range<size_t>(0,bfs_ordered_nodes.size()),[&FS_result,&bfs_ordered_nodes](tbb::blocked_range<size_t> range){
             for (auto & temp : FS_result) {
                 for (size_t idx=range.begin(); idx<range.end(); idx++) {
@@ -287,96 +336,142 @@ void reassign_state_local(MAT::Tree& tree,const std::vector<mutated_t>& mutation
     reassign_state_kernel(tree, mutations, 0, bfs_ordered_nodes, FS_result);
     output_mutations(bfs_ordered_nodes, FS_result);
  }
-void MPI_reassign_states(MAT::Tree& tree,const std::vector<mutated_t>& mutations,int start_position,bool initial){
-    if (this_rank==0) {
-        if (!initial) {
-            reassign_state_preprocessing(tree);    
-        }
-        tree.MPI_send_tree();
-    }else {
-        tree.delete_nodes();
-        tree.MPI_receive_tree();
-    }
-    auto bfs_ordered_nodes = tree.breadth_first_expansion();
-    FS_result_per_thread_t FS_result;
-    reassign_state_kernel(tree, mutations, start_position, bfs_ordered_nodes, FS_result);
-    if (this_rank==0) {
-        tbb::flow::graph g;
-        int processes_left=process_count-1;
-        tbb::flow::function_node<std::pair<char*, size_t>> proc(g,tbb::flow::unlimited,Parse_result{FS_result,bfs_ordered_nodes.size()});
-        bool is_first=true;
-        char ignore;
-        fprintf(stderr, "Start recieving assignment message\n");
-        size_t before_recieving_count=0;
-        for (const auto& res : FS_result) {
-            for (const auto& temp : res.output) {
-                before_recieving_count+=temp.size();
-            }
-        }
-        fprintf(stderr, "%zu mutations before recieving\n",before_recieving_count);
-        while (processes_left) {
-            int count;
-            MPI_Status status;
-            MPI_Probe(MPI_ANY_SOURCE, FS_RESULT_TAG, MPI_COMM_WORLD, &status);
-            MPI_Get_count(&status, MPI_BYTE, &count);
-            //fprintf(stderr, "recieved message of size %d from %d, status %d\n",count,status.MPI_SOURCE,status.MPI_ERROR);
-            if (count==0) {
-                if (!is_first) {
-                    processes_left--;
-                }
-                MPI_Recv(&ignore, count, MPI_BYTE, status.MPI_SOURCE, FS_RESULT_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                continue;
-            }
-            is_first=false;
-            auto buffer=new char[count];
-            MPI_Recv(buffer, count, MPI_BYTE, status.MPI_SOURCE, FS_RESULT_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            proc.try_put(std::make_pair(buffer, count));
-        }
-        fprintf(stderr, "Recieved last assignment message\n");
-        g.wait_for_all();
-        fprintf(stderr, "Finished parsing assignment messages\n");
-        size_t after_recieving_count=0;
-        for (const auto& res : FS_result) {
-            for (const auto& temp : res.output) {
-                after_recieving_count+=temp.size();            
-            }
-        }
-        fprintf(stderr, "%zu mutations after recieving\n",after_recieving_count);
-        output_mutations(bfs_ordered_nodes, FS_result);
-        fprintf(stderr, "Finished filling mutations\n");
-        tree.populate_ignored_range();
-        fprintf(stderr, "parsiomony score %zu\n",tree.get_parsimony_score());
-        tree.MPI_send_tree();
-    }else {
-        std::vector<Mutation_Detailed::mutation_collection> mutation_collection_to_serialize(bfs_ordered_nodes.size());
-        struct {
-            std::vector<Mutation_Detailed::mutation_collection>& mutation_collection_to_serialize;
-            void operator()(std::vector<MAT::Mutation>& to_output, size_t idx){
-                for (const auto& mut : to_output) {
-                        mutation_collection_to_serialize[idx].add_positions(mut.get_position());
-                        mutation_collection_to_serialize[idx].add_other_fields(*((int*)&mut+1));
-                    }
-            }
-        } other_T_acc{mutation_collection_to_serialize};
-        acc_mutations(FS_result, other_T_acc);
-        fprintf(stderr, "Start sending assignment messages\n");
-        for (size_t idx=0; idx<bfs_ordered_nodes.size(); idx++) {
-            if (mutation_collection_to_serialize[idx].positions_size()!=0) {
-                mutation_collection_to_serialize[idx].set_node_idx(idx);
-                auto serialized=mutation_collection_to_serialize[idx].SerializeAsString();
-                //fprintf(stderr, "sending assigned of size %zu\n",serialized.size());
-                if (serialized.size()==0) {
-                    fprintf(stderr, "Sending assignment message of size 0\n");
-                    raise(SIGTRAP);
-                }
-                MPI_Send(serialized.c_str(), serialized.size(), MPI_BYTE, 0, FS_RESULT_TAG, MPI_COMM_WORLD);
-            }
-        }
-        MPI_Send(&this_rank, 0, MPI_BYTE, 0, FS_RESULT_TAG, MPI_COMM_WORLD);
-        fprintf(stderr, "Finish sending assignment messages\n");
-        tree.delete_nodes();
-        tree.MPI_receive_tree();
-    }
+void min_back_reassign_state_local(MAT::Tree& tree,const std::vector<mutated_t>& mutations){
+    reassign_state_preprocessing(tree);
+    auto dfs_ordered_nodes = tree.depth_first_expansion();
+    Min_Back_FS_result FS_result;
+    min_backreassign_state_kernel(tree, mutations, 0, dfs_ordered_nodes, FS_result);
+    output_mutations(dfs_ordered_nodes, FS_result);
+ }
+
+template <typename result_t>
+ void FS_gather_mut(MAT::Tree &tree,
+                std::vector<Mutation_Annotated_Tree::Node *> &bfs_ordered_nodes,
+                result_t &FS_result) {
+     if (this_rank == 0) {
+         tbb::flow::graph g;
+         int processes_left = process_count - 1;
+         tbb::flow::function_node<std::pair<char *, size_t>> proc(
+             g, tbb::flow::unlimited,
+             Parse_result<result_t>{FS_result, bfs_ordered_nodes.size()});
+         bool is_first = true;
+         char ignore;
+         fprintf(stderr, "Start recieving assignment message\n");
+         size_t before_recieving_count = 0;
+         for (const auto &res : FS_result) {
+             for (const auto &temp : res.output) {
+                 before_recieving_count += temp.size();
+             }
+         }
+         fprintf(stderr, "%zu mutations before recieving\n",
+                 before_recieving_count);
+         while (processes_left) {
+             int count;
+             MPI_Status status;
+             MPI_Probe(MPI_ANY_SOURCE, FS_RESULT_TAG, MPI_COMM_WORLD, &status);
+             MPI_Get_count(&status, MPI_BYTE, &count);
+             // fprintf(stderr, "recieved message of size %d from %d, status
+             // %d\n",count,status.MPI_SOURCE,status.MPI_ERROR);
+             if (count == 0) {
+                 if (!is_first) {
+                     processes_left--;
+                 }
+                 MPI_Recv(&ignore, count, MPI_BYTE, status.MPI_SOURCE,
+                          FS_RESULT_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                 continue;
+             }
+             is_first = false;
+             auto buffer = new char[count];
+             MPI_Recv(buffer, count, MPI_BYTE, status.MPI_SOURCE, FS_RESULT_TAG,
+                      MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+             proc.try_put(std::make_pair(buffer, count));
+         }
+         fprintf(stderr, "Recieved last assignment message\n");
+         g.wait_for_all();
+         fprintf(stderr, "Finished parsing assignment messages\n");
+         size_t after_recieving_count = 0;
+         for (const auto &res : FS_result) {
+             for (const auto &temp : res.output) {
+                 after_recieving_count += temp.size();
+             }
+         }
+         fprintf(stderr, "%zu mutations after recieving\n",
+                 after_recieving_count);
+         output_mutations(bfs_ordered_nodes, FS_result);
+         fprintf(stderr, "Finished filling mutations\n");
+         tree.populate_ignored_range();
+         fprintf(stderr, "parsiomony score %zu\n", tree.get_parsimony_score());
+         tree.MPI_send_tree();
+     } else {
+         std::vector<Mutation_Detailed::mutation_collection>
+             mutation_collection_to_serialize(bfs_ordered_nodes.size());
+         struct {
+             std::vector<Mutation_Detailed::mutation_collection>
+                 &mutation_collection_to_serialize;
+             void operator()(std::vector<MAT::Mutation> &to_output,
+                             size_t idx) {
+                 for (const auto &mut : to_output) {
+                     mutation_collection_to_serialize[idx].add_positions(
+                         mut.get_position());
+                     mutation_collection_to_serialize[idx].add_other_fields(
+                         *((int *)&mut + 1));
+                 }
+             }
+         } other_T_acc{mutation_collection_to_serialize};
+         acc_mutations(FS_result, other_T_acc);
+         fprintf(stderr, "Start sending assignment messages\n");
+         for (size_t idx = 0; idx < bfs_ordered_nodes.size(); idx++) {
+             if (mutation_collection_to_serialize[idx].positions_size() != 0) {
+                 mutation_collection_to_serialize[idx].set_node_idx(idx);
+                 auto serialized =
+                     mutation_collection_to_serialize[idx].SerializeAsString();
+                 // fprintf(stderr, "sending assigned of size
+                 // %zu\n",serialized.size());
+                 if (serialized.size() == 0) {
+                     fprintf(stderr, "Sending assignment message of size 0\n");
+                     raise(SIGTRAP);
+                 }
+                 MPI_Send(serialized.c_str(), serialized.size(), MPI_BYTE, 0,
+                          FS_RESULT_TAG, MPI_COMM_WORLD);
+             }
+         }
+         MPI_Send(&this_rank, 0, MPI_BYTE, 0, FS_RESULT_TAG, MPI_COMM_WORLD);
+         fprintf(stderr, "Finish sending assignment messages\n");
+         tree.delete_nodes();
+         tree.MPI_receive_tree();
+     }
+ }
+ void FS_scatter_tree(MAT::Tree &tree, bool initial) {
+     if (this_rank == 0) {
+         if (!initial) {
+             reassign_state_preprocessing(tree);
+         }
+         tree.MPI_send_tree();
+     } else {
+         tree.delete_nodes();
+         tree.MPI_receive_tree();
+     }
+ }
+void MPI_reassign_states(MAT::Tree &tree,
+                          const std::vector<mutated_t> &mutations,
+                          int start_position, bool initial) {
+     FS_scatter_tree(tree, initial);
+     auto bfs_ordered_nodes = tree.breadth_first_expansion();
+     FS_result_per_thread_t FS_result;
+     reassign_state_kernel(tree, mutations, start_position, bfs_ordered_nodes,
+                           FS_result);
+     FS_gather_mut(tree, bfs_ordered_nodes, FS_result);
+}
+
+void MPI_min_back_reassign_states(MAT::Tree &tree,
+                          const std::vector<mutated_t> &mutations,
+                          int start_position) {
+     FS_scatter_tree(tree, false);
+     auto dfs_ordered_nodes = tree.depth_first_expansion();
+     Min_Back_FS_result FS_result;
+     min_backreassign_state_kernel(tree, mutations, start_position, dfs_ordered_nodes,
+                           FS_result);
+     FS_gather_mut(tree, dfs_ordered_nodes, FS_result);
 }
 static void remove_node_helper(MAT::Node* to_remove,MAT::Tree& tree){
     tree.erase_node(to_remove->node_id);
@@ -514,10 +609,21 @@ void print_annotation(const MAT::Tree &T, const output_options &options,
 void final_output(MAT::Tree &T, const output_options &options, int t_idx,
                   std::vector<Clade_info> &assigned_clades,
                   size_t sample_start_idx, size_t sample_end_idx,
-                  std::vector<std::string> &low_confidence_samples) {
+                  std::vector<std::string> &low_confidence_samples,std::vector<mutated_t>& position_wise_out) {
     // If user need uncondensed tree output, write uncondensed tree(s) to
     // file(s)
     {
+    if (options.redo_FS_Min_Back_Mutations) {
+        fprintf(stderr, "Parsimony score before %zu\n",T.get_parsimony_score());
+        fprintf(stderr, "Back mutation count before %d\n",count_back_mutation(T));
+        if (process_count>1) {
+            MPI_min_back_reassign_states(T, position_wise_out, 0);
+        }else {
+            min_back_reassign_state_local(T, position_wise_out);        
+        }
+        fprintf(stderr, "Parsimony score after %zu\n",T.get_parsimony_score());
+        fprintf(stderr, "Back mutation count after %d\n",count_back_mutation(T));
+    }
     std::unordered_set<size_t> ignored1;
     std::unordered_set<size_t> ignored2;
     clean_up_internal_nodes(T.root,T,ignored1,ignored2);

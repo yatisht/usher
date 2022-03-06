@@ -120,10 +120,10 @@ struct check_samples_worker:public tbb::task {
                     } else {
                         if ((m.get_all_major_allele())!=m_iter->get_all_major_allele()) {
                             fprintf(stderr,
-                                    "Mut Nuc Mismatch at \t %d of sample \t %s "
+                                    "Mut Nuc Mismatch at \t %d, address %lx, of sample \t %s "
                                     "at bfs_index \t %zu: original \t %d , "
                                     "altered :\t %d \n",
-                                    m.get_position(),
+                                    m.get_position(),root,
                                     tree.get_node_name(root->node_id).c_str(),
                                     root->bfs_index,
                                     (int)m_iter->get_all_major_allele(),

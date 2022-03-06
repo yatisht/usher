@@ -27,7 +27,9 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <vector>
+#ifdef __linux
 #include <sys/prctl.h>
+#endif
 bool use_bound;
 int process_count;
 int this_rank;
@@ -246,7 +248,7 @@ static int leader_thread(
         for (int t_idx=0; t_idx<trees.size(); t_idx++) {
             std::vector<Clade_info> assigned_clades;
             std::vector<std::string> low_confidence_samples;
-            final_output(trees[t_idx], options.out_options, t_idx, assigned_clades, sample_start_idx, sample_end_idx,low_confidence_samples);
+            final_output(trees[t_idx], options.out_options, t_idx, assigned_clades, sample_start_idx, sample_end_idx,low_confidence_samples,position_wise_out);
         }
         return 0;
     }
@@ -290,7 +292,7 @@ static int leader_thread(
     auto dfs=tree.depth_first_expansion();
     clean_up_leaf(dfs);
     final_output(
-        tree, options.out_options, 0, samples_clade, sample_start_idx, sample_end_idx, low_confidence_samples);
+        tree, options.out_options, 0, samples_clade, sample_start_idx, sample_end_idx, low_confidence_samples,position_wise_out);
     auto duration=std::chrono::steady_clock::now()-start_time;
     fprintf(stderr, "Took %ld msec\n",std::chrono::duration_cast<std::chrono::milliseconds>(duration).count());
     MPI_Finalize();
@@ -351,6 +353,8 @@ int main(int argc, char **argv) {
     ("detailed-clades,D", po::bool_switch(&options.out_options.detailed_clades), \
      "In clades.txt, write a histogram of annotated clades and counts across all equally parsimonious placements")
     ("threads,T",po::value<uint32_t>(&num_threads)->default_value(num_cores),num_threads_message.c_str())("version", "Print version number")("help,h", "Print help messages")
+    ("reduce-back-mutation,B",po::bool_switch(&options.out_options.redo_FS_Min_Back_Mutations)->default_value(false), 
+        "Reassign states of internal nodes to reduce back mutation count.")
     ("version", "Print version number")
     ("help,h", "Print help messages")
     ("optimization_radius,R", po::value(&options.initial_optimization_radius)->default_value(4),
@@ -365,7 +369,7 @@ int main(int argc, char **argv) {
         "Optimization radius for the last round")
     ("batch_size_per_process,n",po::value(&batch_size_per_process)->default_value(2),
         "The number of samples each process search simultaneously")
-        ("parsimony_threshold,P",po::value(&options.parsimony_threshold)->default_value(10000),
+        ("parsimony_threshold,P",po::value(&options.parsimony_threshold)->default_value(100000),
         "Optimize after the parsimony score increase by this amount")
     ("first_n_samples,f",po::value(&options.first_n_samples)->default_value(SIZE_MAX),"[TESTING ONLY] Only place first n samples")
     //("gdb_pid,g",po::value(&gdb_pids)->multitoken(),"gdb pids for attaching")
@@ -397,8 +401,10 @@ int main(int argc, char **argv) {
     }
     options.desired_optimization_msec=optimiation_minutes*60000;
     fprintf(stderr, "Num threads %d\n",num_threads);
+    #ifdef __linux
     prctl(0x59616d61,-1);
     fprintf(stderr, "rand %d of pid %d ",this_rank,getpid());
+    #endif
     if (this_rank==0) {
     tbb::task_scheduler_init init(num_threads);
     if (options.keep_n_tree>1&&process_count>1) {
@@ -462,6 +468,9 @@ int main(int argc, char **argv) {
             int stop;
             MPI_Bcast(&stop, 1, MPI_INT, 0, MPI_COMM_WORLD);
             if (stop) {
+                if (options.out_options.redo_FS_Min_Back_Mutations) {
+                    MPI_min_back_reassign_states(tree, position_wise_mutations, start_idx);
+                }
                 break;
             }
             tree.delete_nodes();

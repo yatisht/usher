@@ -86,9 +86,10 @@ struct output_options{
     size_t print_subtrees_size;
     std::string dout_filename;
     bool detailed_clades;
+    bool redo_FS_Min_Back_Mutations;
 };
 void final_output(MAT::Tree& T,const output_options& options,int t_idx,std::vector<Clade_info>& assigned_clades,
-    size_t sample_start_idx,size_t sample_end_idx,std::vector<std::string>& low_confidence_samples);
+    size_t sample_start_idx,size_t sample_end_idx,std::vector<std::string>& low_confidence_samples,std::vector<mutated_t>& position_wise_out);
 void place_sample_leader(std::vector<Sample_Muts> &sample_to_place,
                          MAT::Tree &main_tree, int batch_size,
                          std::atomic_size_t &curr_idx,
@@ -150,3 +151,6 @@ void print_annotation(const MAT::Tree &T, const output_options &options,
                const std::vector<Clade_info> &assigned_clades,
                size_t sample_start_idx, size_t sample_end_idx,
                size_t num_annotations);
+void min_back_reassign_state_local(MAT::Tree& tree,const std::vector<mutated_t>& mutations);
+void MPI_min_back_reassign_states(MAT::Tree &tree,const std::vector<mutated_t> &mutations,int start_position);
+int count_back_mutation(const MAT::Tree& tree);
