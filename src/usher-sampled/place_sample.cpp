@@ -667,7 +667,12 @@ void place_sample_leader(std::vector<Sample_Muts> &sample_to_place,
                 for (int idx=dfs_ordered_nodes.size()-1; idx>0; idx--) {
                     auto this_node=dfs_ordered_nodes[idx];
                     if (this_node->is_leaf()) {
-                        descendant_count[idx]=1;
+                        auto iter=main_tree.condensed_nodes.find(this_node->node_id);
+                        if (iter!=main_tree.condensed_nodes.end()) {
+                            descendant_count[idx]=iter->second.size();
+                        }else {
+                            descendant_count[idx]=1;                    
+                        }
                     }
                     for (const auto child : this_node->children) {
                         descendant_count[idx]+=descendant_count[child->dfs_index];
