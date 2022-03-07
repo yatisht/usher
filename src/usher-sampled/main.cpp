@@ -124,7 +124,8 @@ void leader_thread_optimization(MAT::Tree& tree,std::vector<mutated_t>& position
             }else {
                 float actual_msec=std::chrono::duration_cast<std::chrono::milliseconds>(finish_time-optimiation_start).count();
                 float time_ratio=sqrt(desired_optimization_msec/actual_msec);
-                next_optimization_radius=(optimization_radius*time_ratio)-1;
+                next_optimization_radius=(optimization_radius*time_ratio);
+		fprintf(stderr,"Next radius %d, ratio %f",next_optimization_radius,time_ratio);
             }
             optimization_radius=std::max(next_optimization_radius,2);
             auto dfs = tree.depth_first_expansion();

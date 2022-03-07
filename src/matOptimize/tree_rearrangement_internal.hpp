@@ -41,7 +41,7 @@ struct Profitable_Moves {
         }
     }
     void populate_involved_nodes() {
-        involved_nodes.reserve(2+2*LCA->level-src->level-dst->level);
+        involved_nodes.reserve(2+src->level+dst->level-2*LCA->level);
         involved_nodes.insert(LCA);
         auto src_ancestor=src;
         auto dst_ancestor=dst;
