@@ -214,10 +214,10 @@ static int leader_thread(
     FILE *placement_stats_file = fopen(placement_stats_filename.c_str(), "w");
     if (options.no_add) {
         std::atomic_size_t curr_idx(0);
+        assign_descendant_muts(tree);
         if (process_count>1) {
             tree.MPI_send_tree();        
         }
-        assign_descendant_muts(tree);
         tree.breadth_first_expansion();
         place_sample_leader(samples_to_place, tree, 100, curr_idx, INT_MAX,
                             true, placement_stats_file, INT_MAX, INT_MAX,
