@@ -331,6 +331,7 @@ struct Print_Thread{
         auto sample_vec_idx=sample_idx-start_idx;
         auto& search_result=std::get<0>(*in.placement_info);
         auto num_epps=search_result.size();
+	if(dry_run){
         int best_levaves_cout=0;
         int best_bfs_idx=INT_MAX;
         int best_idx=0;
@@ -346,6 +347,7 @@ struct Print_Thread{
             }
         }
         std::swap(search_result[0],search_result[best_idx]);
+	}
         fprintf(stdout,
                 "Current tree size (#nodes): %zu\tSample name: %s\tParsimony "
                 "score: %d\tNumber of parsimony-optimal placements: %zu\n",
