@@ -255,25 +255,25 @@ static int merge_mutations(std::vector<fixed_tree_search_mutation>& parent,const
             continue;
         }
         if (iter->position==this_mut.get_position()) {
-            if (iter->mut_nuc==0xf) {
+            /*if (iter->mut_nuc==0xf) {
                 raise(SIGTRAP);
-            }
+            }*/
             if (iter->mut_nuc==this_mut.get_mut_one_hot()) {
                 sibling_out.shared_mutations.push_back(this_mut);
-                if (check_more_bit_set(iter->mut_nuc)) {
+                /*if (check_more_bit_set(iter->mut_nuc)) {
                     fprintf(stderr, "Mult bit set\n");
                     raise(SIGTRAP);
                 }
                 if (iter->index_tree_idx==INDEX_END_POSITION) {
                     fprintf(stderr, "pos %d bound,idx %zu \n",iter->position,node_mut+idx);
                     raise(SIGTRAP);
-                }
+                }*/
                 iter++;
                 continue;
             }else {
                 if (iter->mut_nuc&this_mut.get_mut_one_hot()) {
                     sibling_out.shared_mutations.push_back(this_mut);
-                    auto coinciding_two_bit=one_hot_to_two_bit(iter->mut_nuc&this_mut.get_mut_one_hot());
+                    /*auto coinciding_two_bit=one_hot_to_two_bit(iter->mut_nuc&this_mut.get_mut_one_hot());
                     auto trap=false;
                     if (coinciding_two_bit==0) {
                         trap=iter->index_tree_idx==INDEX_END_POSITION;
@@ -283,7 +283,7 @@ static int merge_mutations(std::vector<fixed_tree_search_mutation>& parent,const
                     if (trap) {
                         fprintf(stderr, "pos %d bound, idx %zu, co2bit %d \n",iter->position,node_mut+idx,coinciding_two_bit);
                         raise(SIGTRAP);
-                    }
+                    }*/
                 }else {
                     if (!(iter->par_nuc&iter->mut_nuc)) {
                         parsimony_score++;                
@@ -316,10 +316,10 @@ static int merge_mutations(std::vector<fixed_tree_search_mutation>& parent,const
         }
         lower_bound+=add_existing_mut(iter, descendant_output, dfs_idx, dfs_end_idx, in, iter->par_nuc,sibling_out);
     }
-    if (parsimony_score<last_lower_bound) {
+    /*if (parsimony_score<last_lower_bound) {
         fprintf(stderr, "Bound par %d bound %d\n",parsimony_score,last_lower_bound);
         raise(SIGTRAP);
-    }
+    }*/
     //check_descendant(descendant_output, ref, dfs_ordered_nodes[dfs_idx]);
     register_target(sibling_out, parsimony_score, to_out,dfs_idx,dfs_ordered_nodes);
     return lower_bound;
@@ -417,7 +417,7 @@ move_type* place_sample_fixed_idx(const Traversal_Info &in,
         stack.back().lower_bound=lower_bound;
         if (lower_bound>output.best_par_score) {
             
-            auto ast=dfs_ordered_nodes[cur_idx];
+            /*auto ast=dfs_ordered_nodes[cur_idx];
             auto next_par=dfs_ordered_nodes[curr_node.dfs_end_idx+1]->parent;
             bool found=false;
             while (ast) {
@@ -429,14 +429,14 @@ move_type* place_sample_fixed_idx(const Traversal_Info &in,
             }
             if (!found) {
                 raise(SIGTRAP);
-            }
+            }*/
             cur_idx=curr_node.dfs_end_idx;
             
         }
         
     }
-    for(const auto& result:std::get<0>(*res)){
+    /*for(const auto& result:std::get<0>(*res)){
         check_output(result, to_search->muts);
-    }
+    }*/
     return res;
 }
