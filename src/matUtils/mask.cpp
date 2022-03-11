@@ -366,7 +366,7 @@ void moveNodes (std::string node_filename, MAT::Tree* T) {
     // Takes the path to a two-column tsv containing the names of nodes to be moved and the parents to move them to.
     std::ifstream infile(node_filename);
     if (!infile) {
-        fprintf(stderr, "ERROR: Could not open the renaming file: %s!\n", node_filename.c_str());
+        fprintf(stderr, "ERROR: Could not open the moving file: %s!\n", node_filename.c_str());
         exit(1);
     }
     std::string line;
@@ -374,7 +374,7 @@ void moveNodes (std::string node_filename, MAT::Tree* T) {
         std::vector<std::string> words;
         MAT::string_split(line, words);
         if (words.size() != 2) {
-            fprintf(stderr, "ERROR: Incorrect format for the renaming file: %s!\n", node_filename.c_str());
+            fprintf(stderr, "ERROR: Incorrect format for the moving file: %s!\n", node_filename.c_str());
             exit(1);
         }
 
