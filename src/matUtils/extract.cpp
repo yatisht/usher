@@ -41,7 +41,7 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
      "Use to limit random samples chosen with -z or -w to below the most recent common ancestor of all other samples.")
     ("get-internal-descendents,I", po::value<std::string>()->default_value(""),
      "Select the set of samples descended from the indicated internal node.")
-    ("from-mrca,V", po::bool_switch(),
+    ("from-mrca,U", po::bool_switch(),
     "Select all samples which are descended from the most recent common ancestor of the indicated set of samples. Applied before filling background with random samples.")
     ("get-representative,r", po::value<size_t>()->default_value(0),
      "Automatically select the indicated number of representative samples per clade in the tree after other selection steps and prune all other samples (minimum 2).")
@@ -79,6 +79,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
      "Title of MAT to display in Taxodium or Auspice (used with --write-taxodium or -j).")
     ("description,D", po::value<std::string>()->default_value(""),
      "Description of MAT to display in Taxodium (used with --write-taxodium).")
+    ("include-nt,J", po::bool_switch(),
+     "Include nucleotide mutations in addition to protein mutations (used with --write-taxodium)")
     ("extra-fields,F", po::value<std::string>()->default_value(""),
      "Comma-separated list of additional metadata column names beyond the defaults of: strain, genbank_accession, country, date, pangolin_lineage (used with --write-taxodium).")
     ("retain-branch-length,E", po::bool_switch(),
@@ -97,6 +99,10 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
      "Add exactly W samples at random to your selection. Affected by -Z and overridden by -z.")
     ("select-nearest,Y", po::value<size_t>()->default_value(0),
      "Set to add to the sample selection the y nearest samples to each of your samples, without duplicates.")
+     ("closest-relatives,V", po::value<std::string>()->default_value(""),
+     "Write a tsv file of the closest relative(s) (in mutations) of each selected sample to the indicated file. All equidistant closest samples are included unless --break-ties is set.")
+     ("break-ties,q", po::bool_switch(),
+     "Only output one closest relative per sample (used only with --closest-relatives). If multiple closest relatives are equidistant, the lexicographically smallest sample ID is chosen.")
     ("dump-metadata,Q", po::value<std::string>()->default_value(""),
      "Set to write all final stored metadata to a tsv.")
     ("whitelist,L", po::value<std::string>()->default_value(""),
@@ -159,6 +165,8 @@ void extract_main (po::parsed_options parsed) {
     size_t add_random = vm["add-random"].as<size_t>();
     size_t select_nearest = vm["select-nearest"].as<size_t>();
     float x_scale = vm["x-scale"].as<float>();
+    bool break_ties = vm["break-ties"].as<bool>();
+    bool include_nt = vm["include-nt"].as<bool>();
 
     boost::filesystem::path path(dir_prefix);
     if (!boost::filesystem::exists(path)) {
@@ -172,6 +180,7 @@ void extract_main (po::parsed_options parsed) {
     std::string sample_path_filename = dir_prefix + vm["sample-paths"].as<std::string>();
     std::string clade_path_filename = dir_prefix + vm["clade-paths"].as<std::string>();
     std::string all_path_filename = dir_prefix + vm["all-paths"].as<std::string>();
+    std::string closest_relatives_filename = dir_prefix + vm["closest-relatives"].as<std::string>();
     std::string tree_filename = dir_prefix + vm["write-tree"].as<std::string>();
     std::string vcf_filename = dir_prefix + vm["write-vcf"].as<std::string>();
     std::string output_mat_filename = dir_prefix + vm["write-mat"].as<std::string>();
@@ -184,6 +193,7 @@ void extract_main (po::parsed_options parsed) {
     std::string gtf_filename = dir_prefix + vm["input-gtf"].as<std::string>();
     std::string fasta_filename = dir_prefix + vm["input-fasta"].as<std::string>();
     std::string dump_metadata = dir_prefix + vm["dump-metadata"].as<std::string>();
+    
 
     std::vector<std::string> additional_meta_fields;
     MAT::string_split(raw_meta_fields, ',', additional_meta_fields);
@@ -198,7 +208,7 @@ void extract_main (po::parsed_options parsed) {
     return f != dir_prefix;
 }) &&
 usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
-        if (nearest_k_batch_file == "") {
+        if (nearest_k_batch_file == "" && closest_relatives_filename == dir_prefix) {
             fprintf(stderr, "ERROR: No output files requested!\n");
             exit(1);
         }
@@ -680,6 +690,45 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         }, ap) ;
         fprintf(stderr, "%ld batch sample jsons written in %ld msec.\n\n", batch_samples.size(), timer.Stop());
     }
+    if (closest_relatives_filename != dir_prefix) {
+        fprintf(stderr, "Per-sample closest relative(s) requested. Computing...\n");
+        if (break_ties) {
+            fprintf(stderr, "Storing one closest relative per sample.\n");
+        }
+        std::ofstream out(closest_relatives_filename);
+
+        timer.Start();
+        std::vector<std::string> closest_relatives;
+    
+        for (std::string sample : samples) {
+            std::pair<std::vector<std::string>, size_t> closest_relatives_pair = get_closest_samples(&T, sample);
+            std::vector<std::string> closest_relatives = closest_relatives_pair.first;
+            size_t dist = closest_relatives_pair.second;
+            if (closest_relatives.size() > 0) {
+                closest_relatives = closest_relatives_pair.first;
+                std::string s = "";
+                s += sample + '\t';
+                std::string lex_smallest_sample = closest_relatives[0];
+                for (std::string relative : closest_relatives) {
+                    if (break_ties) {
+                        if (relative < lex_smallest_sample) {
+                            lex_smallest_sample = relative;
+                        }
+                    } else {
+                        s += relative + ',';
+                    }
+                }
+                if (break_ties) {
+                    s += lex_smallest_sample;
+                } else {
+                    s = s.substr(0, s.size() - 1);
+                }
+                s += '\t' + std::to_string(dist);
+                out << s << "\n";
+            }
+        }
+        fprintf(stderr, "TSV of closest relative written to %s in %ld msec.\n\n", closest_relatives_filename.c_str(), timer.Stop());
+    }
     //if json output AND sample context is requested, add an additional metadata column which simply indicates the focal sample versus context
     if ((json_filename != "") && (nearest_k != "")) {
         std::unordered_map<std::string,std::string> conmap;
@@ -710,6 +759,7 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         submet["selected_for"] = ranmap;
         catmeta.emplace_back(submet);
     }
+    
     //last step is to convert the subtree to other file formats
     if (vcf_filename != dir_prefix) {
         fprintf(stderr, "Generating VCF of final tree\n");
@@ -762,7 +812,7 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         if (!resolve_polytomies) {
             subtree.condense_leaves();
         }
-        save_taxodium_tree(subtree, output_tax_filename, metav, gtf_filename, fasta_filename, tax_title, tax_description, additional_meta_fields, x_scale);
+        save_taxodium_tree(subtree, output_tax_filename, metav, gtf_filename, fasta_filename, tax_title, tax_description, additional_meta_fields, x_scale, include_nt);
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
     if (dump_metadata != dir_prefix) {
