@@ -169,7 +169,7 @@ static int leader_thread(
     Sample_Input(options.vcf_filename.c_str(),samples_to_place,tree,position_wise_out,options.override_mutations,samples);
     samples_to_place.resize(std::min(samples_to_place.size(),options.first_n_samples));
     size_t sample_start_idx=samples_to_place[0].sample_idx;
-    size_t sample_end_idx=samples_to_place.back().sample_idx;
+    size_t sample_end_idx=samples_to_place.back().sample_idx+1;
     fprintf(stderr, "Sample start idx %d, end index %d\n",sample_start_idx,sample_end_idx);
     if (options.tree_in==""&&(!options.no_add)&&(options.initial_optimization_radius>0)) {
         get_pos_samples_old_tree(tree, position_wise_out);    
@@ -196,6 +196,7 @@ static int leader_thread(
     tree.condense_leaves();
     fix_parent(tree);
     tree.check_leaves();
+    fprintf(stderr, "%zu\n",tree.get_node("France/ARA-HCL021043521401/2021|EPI_ISL_1313590|2021-03-07")->parent->node_id);
     if (options.tree_in!="") {
         for (auto& pos : position_wise_out_dup) {
             pos.erase(std::remove_if(pos.begin(), pos.end(), [sample_start_idx](const std::pair<long, nuc_one_hot>& in){
