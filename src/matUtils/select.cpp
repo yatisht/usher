@@ -434,6 +434,7 @@ std::vector<std::string> get_mrca_samples(MAT::Tree* T, std::vector<std::string>
     auto mrca = MAT::get_subtree(*T, current_samples).root->identifier;
     std::vector<std::string> mrca_samples = T->get_leaves_ids(mrca);
     return mrca_samples;
+}
 
 void closest_samples_dfs(MAT::Node *node, MAT::Node *target, size_t path_length, size_t max_path_length, std::vector<std::pair<MAT::Node *, size_t>> &leaves) {
     if (path_length > max_path_length) {
@@ -447,6 +448,7 @@ void closest_samples_dfs(MAT::Node *node, MAT::Node *target, size_t path_length,
         }
     }
 }
+
 std::pair<std::vector<std::string>, size_t> get_closest_samples(MAT::Tree* T, std::string nid) {
     // Returns a pair with (1) a vector of closest nodes to a target and (2) the distance from the target node
     std::pair<std::vector<std::string>, size_t> closest_samples;
