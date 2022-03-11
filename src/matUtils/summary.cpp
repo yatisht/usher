@@ -252,7 +252,7 @@ void write_sample_clades_table (MAT::Tree* T, std::string sample_clades) {
     std::ofstream scfile;
     scfile.open(sample_clades);
     scfile << "sample\tannotation_1\tannotation_2\n";
-    for (auto n: T->depth_first_expansion()) {
+    for (auto n: T->get_leaves()) {
         std::string ann_1 = "None";
         std::string ann_2 = "None";
         for (auto a: T->rsearch(n->identifier, false)) {
