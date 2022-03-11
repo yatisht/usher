@@ -133,10 +133,17 @@ void Mutation_Annotated_Tree::Tree::condense_leaves(std::vector<std::string> mis
         sample_names.reserve(condensed.size());
         for (auto old_ids : condensed) {
             auto iter=node_names.find(old_ids);
+	    if(iter==node_names.end()){
+		    fprintf(stderr,"old node id %zu not found, condensed vector addr %lx \n",old_ids,&condensed); 
+		    raise(SIGTRAP);
+		    continue;
+	    }
             sample_names.push_back(iter->second);
             auto back_iter=node_name_to_idx_map.find(iter->second);
             node_names.erase(iter);
-            node_name_to_idx_map.erase(back_iter);
+	    if(back_iter!=node_name_to_idx_map.end()){
+		    node_name_to_idx_map.erase(back_iter);
+	    }
         }
         for (size_t idx=1; idx<condensed.size(); idx++) {
             all_nodes[condensed[idx]]=nullptr;

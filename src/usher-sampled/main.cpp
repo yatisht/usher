@@ -195,6 +195,7 @@ static int leader_thread(
     }
     tree.condense_leaves();
     fix_parent(tree);
+    tree.check_leaves();
     if (options.tree_in!="") {
         for (auto& pos : position_wise_out_dup) {
             pos.erase(std::remove_if(pos.begin(), pos.end(), [sample_start_idx](const std::pair<long, nuc_one_hot>& in){
@@ -271,6 +272,7 @@ static int leader_thread(
                             options.max_parsimony, options.max_uncertainty,
                             low_confidence_samples, samples_clade,sample_start_idx,idx_map_ptr);
         bool is_last=false;
+	tree.check_leaves();
         if (curr_idx >= samples_to_place.size()) {
             curr_idx.store(samples_to_place.size());
             is_last=true;
@@ -278,6 +280,7 @@ static int leader_thread(
         }
         if (options.initial_optimization_radius > 0) {
             leader_thread_optimization(tree, position_wise_out, curr_idx, optimization_radius, sample_start_idx, ignored_file,options.desired_optimization_msec,is_last);
+	    tree.check_leaves();
         }
         if (curr_idx<samples_to_place.size()) {
             int to_board_cast=0;
@@ -369,9 +372,9 @@ int main(int argc, char **argv) {
         "Optimization time of each iterations in minutes"
         "Set to 0 to disable optimiation"
         "Only newly placed samples and nodes within this radius will be searched")
-    ("last_optimization_radius,LR", po::value(&options.last_optimization_radius)->default_value(16),
+    ("last_optimization_radius", po::value(&options.last_optimization_radius)->default_value(16),
         "Optimization radius for the last round")
-    ("batch_size_per_process,n",po::value(&batch_size_per_process)->default_value(2),
+    ("batch_size_per_process",po::value(&batch_size_per_process)->default_value(2),
         "The number of samples each process search simultaneously")
         ("parsimony_threshold,P",po::value(&options.parsimony_threshold)->default_value(100000),
         "Optimize after the parsimony score increase by this amount")

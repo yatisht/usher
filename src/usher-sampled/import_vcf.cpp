@@ -405,7 +405,14 @@ static void process(infile_t &fd, std::vector<Sample_Muts> &sample_mutations,
     Sampled_Tree_Mutations_t tree_mutations;
     std::vector<long> sample_idx(fields.size(), LONG_MAX);
     sample_mutations.reserve(fields.size());
+    std::unordered_map<std::string,size_t> vcf_samples;
+    vcf_samples.reserve(fields.size());
     for (size_t field_idx = 9; field_idx < fields.size(); field_idx++) {
+	auto ins_result=vcf_samples.emplace(fields[field_idx],field_idx);
+	if(!ins_result.second){
+		fprintf(stderr,"sample %s on both column %zu and %zu, taking first column\n",fields[field_idx].c_str(),ins_result.first->second,field_idx);
+		continue;
+	}
         auto node=tree.get_node(fields[field_idx]);
         if (node != nullptr) {
             if (override) {

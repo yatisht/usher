@@ -518,6 +518,7 @@ class Tree {
         node_names.emplace(node->node_id,name);
         node_name_to_idx_map.emplace(name,node->node_id);
     }
+    void check_leaves();
     size_t node_name_to_node_idx(const std::string& in) const{
         auto iter=node_name_to_idx_map.find(in);
         if (iter==node_name_to_idx_map.end()) {

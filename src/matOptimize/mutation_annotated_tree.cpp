@@ -112,6 +112,16 @@ size_t Mutation_Annotated_Tree::Tree::get_max_level() {
     max_level=level_helper(root);
     return max_level;
 }
+void Mutation_Annotated_Tree::Tree::check_leaves() {
+    fprintf(stderr,"===================Node ID so far %zu ===================",node_idx);
+    for (const auto node: get_leaves()){
+	auto iter=node_names.find(node->node_id);
+	if(iter==node_names.end()){
+		fprintf(stderr,"Node ID %zu name not found",node->node_id);
+		raise(SIGTRAP);
+	}
+    }
+}
 void Mutation_Annotated_Tree::Tree::uncondense_leaves() {
     for (auto cn = condensed_nodes.begin(); cn != condensed_nodes.end(); cn++) {
 
