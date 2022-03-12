@@ -375,7 +375,7 @@ int main(int argc, char **argv) {
         "Only newly placed samples and nodes within this radius will be searched")
     ("last_optimization_radius", po::value(&options.last_optimization_radius)->default_value(16),
         "Optimization radius for the last round")
-    ("batch_size_per_process",po::value(&batch_size_per_process)->default_value(2),
+    ("batch_size_per_process",po::value(&batch_size_per_process)->default_value(5),
         "The number of samples each process search simultaneously")
         ("parsimony_threshold,P",po::value(&options.parsimony_threshold)->default_value(100000),
         "Optimize after the parsimony score increase by this amount")
@@ -413,15 +413,14 @@ int main(int argc, char **argv) {
     prctl(0x59616d61,-1);
     fprintf(stderr, "rand %d of pid %d ",this_rank,getpid());
     #endif
-    if (this_rank==0) {
     tbb::task_scheduler_init init(num_threads);
+    if (this_rank==0) {
     if (options.keep_n_tree>1&&process_count>1) {
         fprintf(stderr, "Multi-host parallelization of multiple placement is not supported\n");
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
     return leader_thread(batch_size_per_process,options);
     } else {
-        tbb::task_scheduler_init init(num_threads - 1);
         MAT::Tree tree;
         std::vector<mutated_t> position_wise_mutations;
         int start_idx=0;
@@ -459,8 +458,12 @@ int main(int argc, char **argv) {
                 node->children.reserve(SIZE_MULT*node->children.size());
                 #endif
             }
+	    init.terminate();
+	    init.initialize(num_threads-1);
             follower_place_sample(tree,batch_size_per_process,false);
-            if (options.initial_optimization_radius>0) {
+	    init.terminate();
+	    init.initialize(num_threads);
+	    if (options.initial_optimization_radius>0) {
             int optimization_radius;
             MPI_Bcast(&optimization_radius, 1, MPI_INT, 0, MPI_COMM_WORLD);
             fprintf(stderr, "Optimizing with radius %d\n",optimization_radius);
