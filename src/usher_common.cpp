@@ -610,7 +610,7 @@ int usher_common(std::string dout_filename, std::string outdir, uint32_t max_tre
                                 bool include_self = !bfs[best_j_vec[k]]->is_leaf() && !node_has_unique[k];
                                 auto clade_assignment = T->get_clade_assignment(bfs[best_j_vec[k]], c, include_self);
                                 missing_samples[s].clade_assignments[c][k] = clade_assignment;
-                                if (k==0) {
+                                if (bfs[best_j_vec[k]]==best_node) {
                                     missing_samples[s].best_clade_assignment[c] = clade_assignment;
                                 }
                             }
