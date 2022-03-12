@@ -60,7 +60,7 @@ char Conflict_Resolver::operator()(std::vector<Profitable_Moves_ptr_t>* candidat
     char ret=0;
     Profitable_Moves_ptr_t selected_move=nullptr;
     if (defered_nodes) {
-        defered_nodes->push_back(candidate_move[0]->src->identifier);
+        defered_nodes->push_back(candidate_move[0]->src->node_id);
     }
     for (Profitable_Moves_ptr_t& move : candidate_move) {
         move->populate_involved_nodes();
@@ -76,7 +76,7 @@ char Conflict_Resolver::operator()(std::vector<Profitable_Moves_ptr_t>* candidat
 
     if(!selected_move&&(!candidate_move.empty())) {
         for (Profitable_Moves_ptr_t move : candidate_move) {
-            deferred_moves.emplace_back(move->src->identifier,move->dst->identifier);
+            deferred_moves.emplace_back(move->src->node_id,move->dst->node_id);
         }
     }
     delete candidate_move_ptr;

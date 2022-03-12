@@ -3,6 +3,7 @@
 #include <climits>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <mpi.h>
 #include <sys/mman.h>
@@ -30,7 +31,14 @@ load_meta(MAT::Tree *tree, const uint8_t *start, int length) {
     Mutation_Detailed::meta meta;
     meta.ParseFromCodedStream(&inputi);
     load_chrom_vector(meta);
-    tree->curr_internal_node = meta.internal_nodes_count();
+    tree->node_idx = meta.nodes_idx_next();
+    tree->node_names.reserve(meta.node_idx_map_size());
+    tree->node_name_to_idx_map.reserve(meta.node_idx_map_size());
+    for (int i=0; i<meta.node_idx_map_size(); i++) {
+        auto pair=meta.node_idx_map(i);
+        tree->node_names.emplace(pair.node_id(),pair.node_name());
+        tree->node_name_to_idx_map.emplace(pair.node_name(),pair.node_id());
+    }
     return std::make_pair(meta.root_offset(), meta.root_length());
 }
 static MAT::Mutation get_mutation(Mutation_Detailed::node &to_load,
@@ -159,7 +167,7 @@ struct deserialize_condensed_nodes {
             for (int i = 0; i < condensed_node_size; i++) {
                 this_node_condensed.push_back(node.condensed_nodes(i));
             }
-            condensed_nodes.emplace(out->identifier,
+            condensed_nodes.emplace(out->node_id,
                                     std::move(this_node_condensed));
         }
     }
@@ -192,13 +200,12 @@ struct Load_Subtree_pararllel : public tbb::task {
           length(length), out(out), condensed_nodes(condensed_nodes),
           parent_mutations(parent_mutations) {}
     tbb::task *execute() override {
-        out = new MAT::Node();
-        out->parent = parent;
         google::protobuf::io::CodedInputStream inputi(file_start + start_offset,
                 length);
         Mutation_Detailed::node node;
         node.ParseFromCodedStream(&inputi);
-        out->identifier = node.identifier();
+        out = new MAT::Node(node.node_id());
+        out->parent = parent;
         out->changed=node.changed();
         // deserialize ignored range
         size_t ignore_range_size = node.ignored_range_end_size();
@@ -305,7 +312,7 @@ static void receive_MPI(decompressor_node_t& decompressor,size_t& uncompressed_s
         size_t msg_size;
         //fprintf(stderr,"====Waiting segment length\n");
         MPI_Bcast(&msg_size, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
-        //fprintf(stderr,"====Receiving segmane tof length %zu \n", msg_size );
+        fprintf(stderr,"====Receiving segmane tof length %zu \n", msg_size );
         if (msg_size==UINT64_MAX) {
             MPI_Bcast(&uncompressed_size, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
             return;
@@ -319,9 +326,11 @@ static void receive_MPI(decompressor_node_t& decompressor,size_t& uncompressed_s
 }
 static std::pair<uint8_t *, uint8_t *>
 receive_mpi_uncompress() {
-    size_t max_memory;
-    MPI_Bcast(&max_memory, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
-    //fprintf(stderr, "received memory requirement of %zu \n",max_memory);
+    size_t max_memory=0;
+    while (max_memory==0) {
+        MPI_Bcast(&max_memory, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
+    }
+    fprintf(stderr, "received memory requirement of %zu \n",max_memory);
     uint8_t *uncompressed_buffer = (uint8_t *)malloc(max_memory<<10);
     size_t uncompressed_size;
     tbb::flow::graph g;
@@ -350,8 +359,9 @@ static void deserialize_common(std::pair<uint8_t*,uint8_t*> uncompressed,MAT::Tr
             tree->condensed_nodes, root_muts));
     free(uncompressed.first);
     std::vector<MAT::Node *> dfs_nodes = tree->depth_first_expansion();
+    fprintf(stderr, "follower dfs size %zu\n",dfs_nodes.size());
     for (auto node : dfs_nodes) {
-        tree->all_nodes.emplace(node->identifier, node);
+        tree->register_node_serial(node);
     }
 }
 // main load function
@@ -368,4 +378,5 @@ void Mutation_Annotated_Tree::Tree::MPI_receive_tree() {
     auto uncompressed = receive_mpi_uncompress();
     deserialize_common<no_deserialize_condensed_nodes>(uncompressed, this);
     fputs("Finished loading intermediate protobuf\n", stderr);
+    fprintf(stderr, "node list zize %zu\n",all_nodes.size());
 }

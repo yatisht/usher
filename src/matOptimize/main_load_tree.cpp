@@ -1,5 +1,7 @@
 #include "mutation_annotated_tree.hpp"
 #include "Fitch_Sankoff.hpp"
+#include <chrono>
+#include <cstddef>
 #include <cstdio>
 #include <iostream>
 #include <string>
@@ -33,7 +35,7 @@ static bool no_valid_mut(MAT::Node* node) {
  * @param[out] changed_nodes nodes with their children set changed, need fitch sankoff backward pass
  * @param[out] node_with_inconsistent_state nodes with parent state change, need forward pass
  */
-static void clean_up_internal_nodes(MAT::Node* this_node,MAT::Tree& tree,std::unordered_set<std::string>& changed_nodes_local,std::unordered_set<std::string>& node_with_inconsistent_state) {
+void clean_up_internal_nodes(MAT::Node* this_node,MAT::Tree& tree,std::unordered_set<size_t>& changed_nodes_local,std::unordered_set<size_t>& node_with_inconsistent_state) {
 
     std::vector<MAT::Node *> &parent_children = this_node->parent->children;
     std::vector<MAT::Node *> this_node_ori_children = this_node->children;
@@ -44,11 +46,11 @@ static void clean_up_internal_nodes(MAT::Node* this_node,MAT::Tree& tree,std::un
                               this_node);
         assert(iter != parent_children.end());
         parent_children.erase(iter);
-        changed_nodes_local.erase(this_node->identifier);
-        node_with_inconsistent_state.erase(this_node->identifier);
+        changed_nodes_local.erase(this_node->node_id);
+        node_with_inconsistent_state.erase(this_node->node_id);
         //its parent have changed children set
-        changed_nodes_local.insert(this_node->parent->identifier);
-        tree.all_nodes.erase(this_node->identifier);
+        changed_nodes_local.insert(this_node->parent->node_id);
+        //tree.all_nodes.erase(this_node->identifier);
         //promote all its children, no need to change their mutation vector, as this_node assumed to have no valid mutations
         for (MAT::Node *child : this_node_ori_children) {
             child->set_self_changed();
@@ -56,7 +58,8 @@ static void clean_up_internal_nodes(MAT::Node* this_node,MAT::Tree& tree,std::un
             child->parent = this_node->parent;
             parent_children.push_back(child);
         }
-        tree.all_nodes.erase(this_node->identifier);
+        //tree.all_nodes.erase(this_node->identifier);
+        tree.erase_node(this_node->node_id);
         delete this_node;
     }
 
@@ -67,8 +70,8 @@ static void clean_up_internal_nodes(MAT::Node* this_node,MAT::Tree& tree,std::un
 }
 //For removing nodes with no valid mutations between rounds
 void clean_tree(MAT::Tree& t) {
-    std::unordered_set<std::string> changed_nodes;
-    std::unordered_set<std::string> node_with_inconsistent_states;
+    std::unordered_set<size_t> changed_nodes;
+    std::unordered_set<size_t> node_with_inconsistent_states;
     clean_up_internal_nodes(t.root, t, changed_nodes,node_with_inconsistent_states);
 #ifdef CHECK_STATE_REASSIGN
     MAT::Tree new_tree=reassign_state_full(t);
@@ -109,8 +112,8 @@ void clean_tree(MAT::Tree& t) {
     }
 }
 
-void populate_mutated_pos(const Original_State_t& origin_state) {
-    tbb::parallel_for_each(origin_state.begin(),origin_state.end(),[](const std::pair<std::string, Mutation_Set>& sample_mutations) {
+void populate_mutated_pos(const Original_State_t& origin_state,MAT::Tree& tree) {
+    tbb::parallel_for_each(origin_state.begin(),origin_state.end(),[&](const std::pair<size_t, Mutation_Set>& sample_mutations) {
         for (const MAT::Mutation &m : sample_mutations.second) {
             //reader lock to find this position if it is already inserted
             auto iter=mutated_positions.find(m);
@@ -127,20 +130,20 @@ void populate_mutated_pos(const Original_State_t& origin_state) {
                 samples=iter->second;
             }
             //add sample to mutation mapping
-            samples->emplace(sample_mutations.first,
+            samples->emplace(tree.get_node_name(sample_mutations.first),
                              m.get_all_major_allele());
         }
     });
     //clean up all mutexes
 }
 //Use Full fitch sankoff to reassign state from scratch
-static void reassign_states(MAT::Tree& t, Original_State_t& origin_states) {
+void reassign_states(MAT::Tree& t, Original_State_t& origin_states) {
     auto bfs_ordered_nodes = t.breadth_first_expansion();
-
+    auto start_time=std::chrono::steady_clock::now();
     check_samples(t.root, origin_states, &t);
     {
-        std::unordered_set<std::string> ignored;
-        std::unordered_set<std::string> ignored2;
+        std::unordered_set<size_t> ignored;
+        std::unordered_set<size_t> ignored2;
         clean_up_internal_nodes(t.root,t,ignored,ignored2);
         //populate_mutated_pos(origin_states);
     }
@@ -149,13 +152,16 @@ static void reassign_states(MAT::Tree& t, Original_State_t& origin_states) {
     std::vector<backward_pass_range> child_idx_range;
     std::vector<forward_pass_range> parent_idx;
     std::vector<std::pair<MAT::Mutation,tbb::concurrent_vector<std::pair<size_t,char>>>> pos_mutated(MAT::Mutation::refs.size());
-    tbb::parallel_for_each(origin_states.begin(),origin_states.end(),[&pos_mutated,t](const std::pair<std::string, Mutation_Set>& sample_mutations) {
+    tbb::parallel_for_each(origin_states.begin(),origin_states.end(),[&pos_mutated,t](const std::pair<size_t, Mutation_Set>& sample_mutations) {
         for (const MAT::Mutation &m : sample_mutations.second) {
             pos_mutated[m.get_position()].first=m;
             pos_mutated[m.get_position()].second.emplace_back(t.get_node(sample_mutations.first)->bfs_index,m.get_all_major_allele());
         }
     });
     Fitch_Sankoff_prep(bfs_ordered_nodes,child_idx_range, parent_idx);
+    auto prep_end=std::chrono::steady_clock::now();
+    auto prep_dur=std::chrono::duration_cast<std::chrono::milliseconds>(prep_end-start_time).count();
+    fprintf(stderr, "Preparation took %zu\n",prep_dur);
     FS_result_per_thread_t FS_result;
     tbb::parallel_for(
         tbb::blocked_range<size_t>(0,pos_mutated.size()),
@@ -174,6 +180,9 @@ static void reassign_states(MAT::Tree& t, Original_State_t& origin_states) {
 
         }
     });
+    auto FS_end=std::chrono::steady_clock::now();
+    auto FS_dur=std::chrono::duration_cast<std::chrono::milliseconds>(FS_end-prep_end).count();
+    fprintf(stderr, "FS took %zu, ratio %f\n",FS_dur,(float)FS_dur/(float)prep_dur);
     fill_muts(FS_result, bfs_ordered_nodes);
     size_t total_mutation_size=0;
     for(const auto node:bfs_ordered_nodes) {

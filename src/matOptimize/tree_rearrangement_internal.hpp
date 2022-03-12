@@ -41,7 +41,7 @@ struct Profitable_Moves {
         }
     }
     void populate_involved_nodes() {
-        involved_nodes.reserve(2+2*LCA->level-src->level-dst->level);
+        involved_nodes.reserve(2+src->level+dst->level-2*LCA->level);
         involved_nodes.insert(LCA);
         auto src_ancestor=src;
         auto dst_ancestor=dst;
@@ -89,8 +89,8 @@ void VCF_input(const char * name,MAT::Tree& tree);
 
 void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
                                MAT::Tree &t,int radius,FILE* log,bool allow_drift,int iteration,
-                               std::vector<MAT::Node*>& deferred_nodes_out,bool MPI_involved,std::chrono::steady_clock::time_point end_time,bool do_continue,bool search_all_dir,bool isfirst_this_iter
-#ifndef NDEBUG
+                               std::vector<size_t>& deferred_nodes_out,bool MPI_involved,std::chrono::steady_clock::time_point end_time,bool do_continue,bool search_all_dir,bool isfirst_this_iter
+#ifdef CHECK_STATE_REASSIGN
                                , Original_State_t& origin_states
 #endif
                               );
@@ -99,7 +99,7 @@ void optimize_tree_worker_thread(MAT::Tree &t,int radius,bool do_drift,bool sear
 void save_final_tree(MAT::Tree &t,const std::string &output_path);
 //For removing nodes with no valid mutations between rounds
 void clean_tree(MAT::Tree& t);
-void populate_mutated_pos(const Original_State_t& origin_state);
+void populate_mutated_pos(const Original_State_t& origin_state,MAT::Tree& tree);
 void add_ambuiguous_mutations(const char* path,Original_State_t& to_patch,Mutation_Annotated_Tree::Tree& tree);
 void recondense_tree(MAT::Tree& t);
 void add_ambiguous_mutation(const char *input_path,MAT::Tree& tree);
@@ -107,7 +107,7 @@ struct TlRng:public std::mt19937_64 {
     TlRng():std::mt19937_64(std::chrono::steady_clock::now().time_since_epoch().count()*std::hash<std::thread::id>()(std::this_thread::get_id())) {}
 };
 extern thread_local TlRng rng;
-
+void reassign_states(MAT::Tree& t, Original_State_t& origin_states);
 void adjust_all(MAT::Tree &tree) ;
 size_t get_memory();
 #ifdef CHECK_BOUND
