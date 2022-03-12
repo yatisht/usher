@@ -5,7 +5,7 @@
 void Pruned_Sample::add_mutation(MAT::Mutation mut) {
     // If not reversal to reference allele
     if ((mut.ref_nuc != mut.mut_nuc) &&
-        (positions.find(mut.position) == positions.end())) {
+            (positions.find(mut.position) == positions.end())) {
         auto iter = std::lower_bound(sample_mutations.begin(),
                                      sample_mutations.end(), mut);
         auto m = mut.copy();
@@ -31,12 +31,12 @@ combine_intervals(std::vector<Recomb_Interval> pair_list) {
             // check everything except first interval is same and first interval
             // of pairs[i] ends where it starts for pairs[j]
             if ((pairs[i].d.node->identifier == pairs[j].d.node->identifier) &&
-                (pairs[i].a.node->identifier == pairs[j].a.node->identifier) &&
-                (pairs[i].start_range_low == pairs[j].start_range_low) &&
-                (pairs[i].start_range_high == pairs[j].start_range_high) &&
-                (pairs[i].end_range_high == pairs[j].end_range_low) &&
-                ((pairs[i].d.parsimony + pairs[i].a.parsimony) ==
-                 (pairs[j].d.parsimony + pairs[j].a.parsimony))) {
+                    (pairs[i].a.node->identifier == pairs[j].a.node->identifier) &&
+                    (pairs[i].start_range_low == pairs[j].start_range_low) &&
+                    (pairs[i].start_range_high == pairs[j].start_range_high) &&
+                    (pairs[i].end_range_high == pairs[j].end_range_low) &&
+                    ((pairs[i].d.parsimony + pairs[i].a.parsimony) ==
+                     (pairs[j].d.parsimony + pairs[j].a.parsimony))) {
                 pairs[i].end_range_high = pairs[j].end_range_high;
                 pairs.erase(pairs.begin() + j); // remove the combined element
                 j--;
@@ -50,12 +50,12 @@ combine_intervals(std::vector<Recomb_Interval> pair_list) {
             // check everything except second interval is same and second
             // interval of pairs[i] ends where it starts for pairs[j]
             if ((pairs[i].d.node->identifier == pairs[j].d.node->identifier) &&
-                (pairs[i].a.node->identifier == pairs[j].a.node->identifier) &&
-                (pairs[i].end_range_low == pairs[j].end_range_low) &&
-                (pairs[i].end_range_high == pairs[j].end_range_high) &&
-                (pairs[i].start_range_high == pairs[j].start_range_low) &&
-                ((pairs[i].d.parsimony + pairs[i].a.parsimony) ==
-                 (pairs[j].d.parsimony + pairs[j].a.parsimony))) {
+                    (pairs[i].a.node->identifier == pairs[j].a.node->identifier) &&
+                    (pairs[i].end_range_low == pairs[j].end_range_low) &&
+                    (pairs[i].end_range_high == pairs[j].end_range_high) &&
+                    (pairs[i].start_range_high == pairs[j].start_range_low) &&
+                    ((pairs[i].d.parsimony + pairs[i].a.parsimony) ==
+                     (pairs[j].d.parsimony + pairs[j].a.parsimony))) {
                 pairs[i].start_range_high = pairs[j].start_range_high;
                 pairs.erase(pairs.begin() + j);
                 j--;
@@ -72,7 +72,7 @@ po::variables_map check_options(int argc, char **argv) {
                                       " detected on this machine]";
 
     po::options_description desc("optimize options");
-    desc.add_options()    
+    desc.add_options()
     ("input-mat,i", po::value<std::string>()->required(),
      "Input mutation-annotated tree file to optimize [REQUIRED].")
     ("branch-length,l", po::value<uint32_t>()->default_value(3), \
@@ -101,9 +101,9 @@ po::variables_map check_options(int argc, char **argv) {
     po::variables_map vm;
     try {
         po::store(po::command_line_parser(argc, argv)
-                      .options(all_options)
-                      .positional(p)
-                      .run(),
+                  .options(all_options)
+                  .positional(p)
+                  .run(),
                   vm);
         po::notify(vm);
     } catch (std::exception &e) {
@@ -119,7 +119,7 @@ po::variables_map check_options(int argc, char **argv) {
 }
 size_t check_parallelizable(const MAT::Node *root,
                             std::vector<bool> &do_parallel,
-                            size_t parallel_threshold, 
+                            size_t parallel_threshold,
                             size_t check_threshold,
                             unsigned short& tree_height,
                             std::vector<Mapper_Info>& traversal_track,unsigned short level) {
@@ -133,7 +133,7 @@ size_t check_parallelizable(const MAT::Node *root,
                         UINT32_MAX, level, root->children.empty()});
         for (const auto child : root->children) {
             child_counted_size += check_parallelizable(
-                child, do_parallel, parallel_threshold, check_threshold,tree_height,traversal_track,level+1);
+                                      child, do_parallel, parallel_threshold, check_threshold,tree_height,traversal_track,level+1);
         }
         if (child_counted_size > parallel_threshold) {
             do_parallel[root->dfs_idx] = true;

@@ -2027,10 +2027,9 @@ void Mutation_Annotated_Tree::read_vcf(Mutation_Annotated_Tree::Tree* T, std::st
         }, true );
         tbb::flow::make_edge(reader, mapper);
         mapper_graph.wait_for_all();
-    }
-    else {
+    } else {
         // Read vcf with existing mat
-        
+
         fprintf(stderr, "Loading VCF file\n");
         // Boost library used to stream the contents of the input VCF file in
         // uncompressed or compressed .gz format

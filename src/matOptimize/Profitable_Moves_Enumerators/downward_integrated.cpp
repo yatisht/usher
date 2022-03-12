@@ -389,7 +389,7 @@ static void search_subtree_bounded_internal(MAT::Node *node, const src_side_info
                 child_reachable.always_search=true;
             }
         }
-        
+
         search_subtree_bounded(child, src_side, radius_left-1, muts, child_specific_lower_bound,tag,child_reachable
 #ifdef CHECK_BOUND
                                ,do_continue

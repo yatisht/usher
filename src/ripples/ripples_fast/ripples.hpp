@@ -5,7 +5,7 @@
 
 namespace po = boost::program_options;
 namespace MAT = Mutation_Annotated_Tree;
-struct Mapper_Info{
+struct Mapper_Info {
     const MAT::Mutation* begin;
     const MAT::Mutation* end;
     unsigned int sibling_start_idx;
@@ -19,7 +19,9 @@ struct Ripples_Mapper_Mut {
     unsigned short mut_idx;
     char curr_mut;
     char dest_mut;
-    inline bool valid() const { return curr_mut != dest_mut; }
+    inline bool valid() const {
+        return curr_mut != dest_mut;
+    }
     Ripples_Mapper_Mut()
         : position(INT_MAX), mut_idx(NULL_MUT_IDX), curr_mut(0), dest_mut(0) {}
     Ripples_Mapper_Mut(const MAT::Mutation &mut, size_t idx)
@@ -43,8 +45,12 @@ class Mut_Count_t {
     void set(unsigned short count_before_exclusive, bool is_self) {
         internal = (is_self << 15) | count_before_exclusive;
     }
-    unsigned short count_before_exclusive() const { return internal & 0x7fff; }
-    unsigned short is_self_counted() const { return (internal >> 15); }
+    unsigned short count_before_exclusive() const {
+        return internal & 0x7fff;
+    }
+    unsigned short is_self_counted() const {
+        return (internal >> 15);
+    }
     unsigned short count_before_inclusive() const {
         return count_before_exclusive() + is_self_counted();
     }
@@ -65,7 +71,7 @@ struct Pruned_Sample {
 
     // Assumes mutations are added in reverse chrono order
     void add_mutation(MAT::Mutation mut);
-    Pruned_Sample(){}
+    Pruned_Sample() {}
 
     Pruned_Sample(MAT::Node* name);
 };
@@ -84,8 +90,8 @@ struct Recomb_Node {
         : node(node), node_parsimony(np), parsimony(p), is_sibling(s) {}
     inline bool operator<(const Recomb_Node &n) const {
         return (
-            ((*this).parsimony < n.parsimony) ||
-            ((this->node->identifier < n.node->identifier) && ((*this).parsimony == n.parsimony)));
+                   ((*this).parsimony < n.parsimony) ||
+                   ((this->node->identifier < n.node->identifier) && ((*this).parsimony == n.parsimony)));
     }
 };
 
@@ -135,7 +141,7 @@ void ripplrs_merger(const Pruned_Sample &pruned_sample,
                     int max_range) ;
 size_t check_parallelizable(const MAT::Node *root,
                             std::vector<bool> &do_parallel,
-                            size_t parallel_threshold, 
+                            size_t parallel_threshold,
                             size_t check_threshold,
                             unsigned short& tree_height,
                             std::vector<Mapper_Info>& traversal_track,unsigned short level);

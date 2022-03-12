@@ -139,7 +139,7 @@ int main(int argc, char** argv) {
             exit(1);
         }
         T = &tmp_T;
-        
+
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 
         MAT::read_vcf(T, vcf_filename, missing_samples, true);
@@ -163,9 +163,9 @@ int main(int argc, char** argv) {
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 
         timer.Start();
-        
+
         MAT::read_vcf(T, vcf_filename, missing_samples, false);
-        
+
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     } else {
         fprintf(stderr, "Error! No input tree or assignment file provided!\n");

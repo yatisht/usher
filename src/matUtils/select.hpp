@@ -13,3 +13,5 @@ std::vector<std::string> get_short_paths(MAT::Tree* T, std::vector<std::string> 
 std::unordered_map<std::string,std::unordered_map<std::string,std::string>> read_metafile(std::string metainf, std::set<std::string> samples_to_use);
 std::vector<std::string> get_sample_match(MAT::Tree* T, std::vector<std::string> samples_to_check, std::string substring);
 std::vector<std::string> fill_random_samples(MAT::Tree* T, std::vector<std::string> current_samples, size_t target_size, bool lca_limit = false);
+std::vector<std::string> get_mrca_samples(MAT::Tree* T, std::vector<std::string> current_samples);
+std::pair<std::vector<std::string>, size_t> get_closest_samples(MAT::Tree* T, std::string nid);
