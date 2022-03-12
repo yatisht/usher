@@ -810,7 +810,7 @@ std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std
                     }
                 }
             }
-            
+
             // fills out empty columns
             while(metadata[key].size() < header.size()) {
                 metadata[key].push_back("");

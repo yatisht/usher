@@ -44,7 +44,7 @@ std::unordered_map<int, std::vector<std::shared_ptr<Codon>>> build_codon_map(std
     std::string gtf_line;
     std::vector<std::string> gtf_lines;
     std::vector<std::string> done;
-    
+
     while (std::getline(gtf_file, gtf_line)) {
         gtf_lines.push_back(gtf_line);
     }
@@ -350,17 +350,17 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
         }
         branch_length_map[node->identifier] = curr_x_value;
 
-		// First collect (syn and nonsyn) nucleotide mutations with a fake gene called nt
-		std::string mutation_result = "";
-		if (include_nt) {
-			for (auto m : node->mutations) {
-				mutation_result += "nt:";
+        // First collect (syn and nonsyn) nucleotide mutations with a fake gene called nt
+        std::string mutation_result = "";
+        if (include_nt) {
+            for (auto m : node->mutations) {
+                mutation_result += "nt:";
                 mutation_result += MAT::get_nuc(m.par_nuc);
                 mutation_result +=  "_" + std::to_string(m.position) + "_";
                 mutation_result += MAT::get_nuc(m.mut_nuc);
                 mutation_result +=  ";";
-			}	
-		}
+            }
+        }
         // Do mutations
         Taxodium::MutationList *mutation_list = node_data->add_mutations();
 
@@ -369,7 +369,7 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
         // e.g. S:K_200_V;ORF1a:G_240_N
         mutation_result += do_mutations(node->mutations, codon_map, true);
 
-	
+
         if (node->is_root()) {
             // For the root node, modify mutation_result with "fake" mutations,
             // to enable correct coloring by amino acid in Taxodium
@@ -531,7 +531,7 @@ std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::unordered_m
                 // store a string representing the original and new codons in nucleotides
                 // this may incorporate multiple nucleotide mutations, just accounting for the original and end states.
                 std::string changestring = original_codon + ">" + codon_ptr->nucleotides;
-                codon_to_changestring_map.insert({codon_id, changestring}); 
+                codon_to_changestring_map.insert({codon_id, changestring});
                 // Build a map of codons and their associated nt mutations
                 auto to_nt_it = codon_to_nt_map.find(codon_id);
                 if (to_nt_it == codon_to_nt_map.end()) {

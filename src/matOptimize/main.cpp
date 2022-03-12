@@ -316,10 +316,10 @@ int main(int argc, char **argv) {
             if (isfirst||allow_drift) {
                 search_all_nodes=true;
                 search_all_dir=true;
-            }else if (radius<0&&radius>=-2*(int)t.max_level) {
+            } else if (radius<0&&radius>=-2*(int)t.max_level) {
                 radius*=2;
                 search_all_nodes=true;
-                search_all_dir=true;            
+                search_all_dir=true;
             }
             find_nodes_to_move(bfs_ordered_nodes, nodes_to_search,search_all_nodes,search_all_dir,radius,t);
             if (search_proportion<1) {
@@ -347,7 +347,7 @@ int main(int argc, char **argv) {
                     if (allow_drift) {
                         radius_to_boardcast|=DRIFT_MASK;
                     }
-                    if(search_all_dir){
+                    if(search_all_dir) {
                         radius_to_boardcast|=ALL_DIR_MASK;
                         fprintf(stderr, "Search all directions\n");
                     }

@@ -406,8 +406,8 @@ void moveNodes (std::string node_filename, MAT::Tree* T) {
                     continue;
                 }
                 MAT::Mutation mut_opposite = mut.copy();
-                //we check for whether this mutation is going to negate with something in the set 
-                //by identifying its opposite and checking whether the opposite is already present on the traversal. 
+                //we check for whether this mutation is going to negate with something in the set
+                //by identifying its opposite and checking whether the opposite is already present on the traversal.
                 mut_opposite.par_nuc = mut.mut_nuc;
                 mut_opposite.mut_nuc = mut.par_nuc;
                 auto cml = curr_mutations.find(mut_opposite.get_string());
@@ -433,7 +433,7 @@ void moveNodes (std::string node_filename, MAT::Tree* T) {
                     new_mutations.insert(mut.get_string());
                 }
             }
-        }   
+        }
         if (curr_mutations != new_mutations) {
             fprintf(stderr, "ERROR: The current and new placement paths do not involve the same set of mutations. Exiting\n");
             exit(1);

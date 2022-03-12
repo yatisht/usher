@@ -42,7 +42,7 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
     ("get-internal-descendents,I", po::value<std::string>()->default_value(""),
      "Select the set of samples descended from the indicated internal node.")
     ("from-mrca,U", po::bool_switch(),
-    "Select all samples which are descended from the most recent common ancestor of the indicated set of samples. Applied before filling background with random samples.")
+     "Select all samples which are descended from the most recent common ancestor of the indicated set of samples. Applied before filling background with random samples.")
     ("get-representative,r", po::value<size_t>()->default_value(0),
      "Automatically select the indicated number of representative samples per clade in the tree after other selection steps and prune all other samples (minimum 2).")
     ("prune,p", po::bool_switch(),
@@ -99,9 +99,9 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
      "Add exactly W samples at random to your selection. Affected by -Z and overridden by -z.")
     ("select-nearest,Y", po::value<size_t>()->default_value(0),
      "Set to add to the sample selection the y nearest samples to each of your samples, without duplicates.")
-     ("closest-relatives,V", po::value<std::string>()->default_value(""),
+    ("closest-relatives,V", po::value<std::string>()->default_value(""),
      "Write a tsv file of the closest relative(s) (in mutations) of each selected sample to the indicated file. All equidistant closest samples are included unless --break-ties is set.")
-     ("break-ties,q", po::bool_switch(),
+    ("break-ties,q", po::bool_switch(),
      "Only output one closest relative per sample (used only with --closest-relatives). If multiple closest relatives are equidistant, the lexicographically smallest sample ID is chosen.")
     ("dump-metadata,Q", po::value<std::string>()->default_value(""),
      "Set to write all final stored metadata to a tsv.")
@@ -193,7 +193,7 @@ void extract_main (po::parsed_options parsed) {
     std::string gtf_filename = dir_prefix + vm["input-gtf"].as<std::string>();
     std::string fasta_filename = dir_prefix + vm["input-fasta"].as<std::string>();
     std::string dump_metadata = dir_prefix + vm["dump-metadata"].as<std::string>();
-    
+
 
     std::vector<std::string> additional_meta_fields;
     MAT::string_split(raw_meta_fields, ',', additional_meta_fields);
@@ -234,7 +234,7 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
     //if any sample selection arguments are set.
     //each of the sample selection arguments is run sequentially
     //so that you can choose, for example, "from among this clade, take samples with EPPs = 1..."
-    //explicit setting goes first, then they are calculated in rough order of time to compute, with EPPs at the end, so that 
+    //explicit setting goes first, then they are calculated in rough order of time to compute, with EPPs at the end, so that
     //expensive computation isn't performed on samples that are going to be removed anyways.
     timer.Start();
     fprintf(stderr, "Checking for and applying sample selection arguments\n");
@@ -699,7 +699,7 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
 
         timer.Start();
         std::vector<std::string> closest_relatives;
-    
+
         for (std::string sample : samples) {
             std::pair<std::vector<std::string>, size_t> closest_relatives_pair = get_closest_samples(&T, sample);
             std::vector<std::string> closest_relatives = closest_relatives_pair.first;
@@ -759,7 +759,7 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         submet["selected_for"] = ranmap;
         catmeta.emplace_back(submet);
     }
-    
+
     //last step is to convert the subtree to other file formats
     if (vcf_filename != dir_prefix) {
         fprintf(stderr, "Generating VCF of final tree\n");

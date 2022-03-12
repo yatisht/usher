@@ -31,16 +31,16 @@ size_t alloc_size;
 //Decouple parsing (slow) and decompression, segment file into blocks for parallelized parsing
 typedef tbb::flow::source_node<char*> decompressor_node_t;
 std::condition_variable progress_bar_cv;
-struct raw_input_source{
+struct raw_input_source {
     FILE* fh;
-    raw_input_source(const char* fname){
+    raw_input_source(const char* fname) {
         fh=fopen(fname, "r");
     }
-    int getc(){
+    int getc() {
         return fgetc(fh);
     }
-    void operator()(tbb::concurrent_bounded_queue<std::pair<char*,uint8_t*>>& out) const{
-        while(!feof(fh)){
+    void operator()(tbb::concurrent_bounded_queue<std::pair<char*,uint8_t*>>& out) const {
+        while(!feof(fh)) {
             auto line_out=new char[alloc_size];
             auto bytes_read=fread(line_out, 1, read_size, fh);
             if (bytes_read==0) {
@@ -52,19 +52,19 @@ struct raw_input_source{
         out.emplace(nullptr,nullptr);
         out.emplace(nullptr,nullptr);
     }
-    void unalloc(){
+    void unalloc() {
         fclose(fh);
     }
 };
-struct line_start_later{
+struct line_start_later {
     char* start;
     char* alloc_start;
 };
-struct line_align{
+struct line_align {
     mutable line_start_later prev;
     mutable uint8_t* prev_end;
     tbb::concurrent_bounded_queue<std::pair<char*,uint8_t*>>& in;
-    line_align(tbb::concurrent_bounded_queue<std::pair<char*,uint8_t*>>& out):in(out){
+    line_align(tbb::concurrent_bounded_queue<std::pair<char*,uint8_t*>>& out):in(out) {
         prev.start=nullptr;
     }
     bool operator()(line_start_later& out) const {
@@ -76,14 +76,14 @@ struct line_align{
                 prev.start=nullptr;
                 prev_end[0]=0;
                 return true;
-            }else {
+            } else {
                 return false;
             }
         }
         if (!prev.start) {
             prev.start=line.first;
             prev.alloc_start=line.first;
-            prev_end=line.second;    
+            prev_end=line.second;
             in.pop(line);
             if (line.first==nullptr) {
                 out=prev;
@@ -96,17 +96,17 @@ struct line_align{
             raise(SIGTRAP);
         }
         start_ptr++;
-            auto cpy_siz=start_ptr-line.first;
-            memcpy(prev_end, line.first, cpy_siz);
-            prev_end[cpy_siz]=0;
-            out=prev;
+        auto cpy_siz=start_ptr-line.first;
+        memcpy(prev_end, line.first, cpy_siz);
+        prev_end[cpy_siz]=0;
+        out=prev;
         prev.start=start_ptr;
         prev.alloc_start=line.first;
         prev_end=line.second;
         return true;
     }
 };
-struct gzip_input_source{
+struct gzip_input_source {
     unsigned char* map_start;
     //char* read_curr;
     size_t mapped_size;
@@ -114,7 +114,7 @@ struct gzip_input_source{
     mutable unsigned char* getc_buf;
     mutable unsigned char* get_c_ptr;
     struct inflate_state* state;
-    gzip_input_source(const char* fname){
+    gzip_input_source(const char* fname) {
         struct stat stat_buf;
         stat(fname, &stat_buf);
         mapped_size=stat_buf.st_size;
@@ -126,7 +126,7 @@ struct gzip_input_source{
         getc_buf=new unsigned char[BUFSIZ];
         get_c_ptr=0;
 
-	    isal_inflate_init(state);
+        isal_inflate_init(state);
         state->next_in=map_start;
         state->avail_in=mapped_size;
         state->crc_flag=IGZIP_GZIP;
@@ -136,10 +136,10 @@ struct gzip_input_source{
         decompress_to_buffer(getc_buf, BUFSIZ);
         get_c_ptr=getc_buf;
     }
-    void unalloc(){
+    void unalloc() {
         munmap(map_start, mapped_size);
     }
-    bool decompress_to_buffer(unsigned char* buffer, size_t buffer_size) const{
+    bool decompress_to_buffer(unsigned char* buffer, size_t buffer_size) const {
         if (!state->avail_in) {
             return false;
         }
@@ -147,7 +147,7 @@ struct gzip_input_source{
         state->avail_out=buffer_size;
         auto out=ISAL_DECOMP_OK;
         //while (out==ISAL_DECOMP_OK&&state->avail_out>0&&state->avail_in>0&&state->block_state!=ISAL_BLOCK_FINISH) {
-            out=isal_inflate(state);
+        out=isal_inflate(state);
         //}
         if (out!=ISAL_DECOMP_OK) {
             fprintf(stderr, "decompress error %d\n",out);
@@ -156,37 +156,37 @@ struct gzip_input_source{
         while (state->avail_out>0&&state->avail_in>0&&state->next_in[0] == 31) {
             //fprintf(stderr,"continuing\n");
             if (state->avail_in > 1 && state->next_in[1] != 139)
-			    break;
+                break;
             isal_inflate_reset(state);
             //while (out==ISAL_DECOMP_OK&&state->avail_out>0&&state->avail_in>0&&state->block_state!=ISAL_BLOCK_FINISH) {
-                out=isal_inflate(state);
+            out=isal_inflate(state);
             //}
-        if (out!=ISAL_DECOMP_OK) {
-            fprintf(stderr, "restart error %d\n",out);
-        }
+            if (out!=ISAL_DECOMP_OK) {
+                fprintf(stderr, "restart error %d\n",out);
+            }
         }
         return state->avail_out<buffer_size;
     }
-    int getc(){
+    int getc() {
         if (get_c_ptr==state->next_out) {
             get_c_ptr=getc_buf;
-            if(!decompress_to_buffer(getc_buf, BUFSIZ)){
+            if(!decompress_to_buffer(getc_buf, BUFSIZ)) {
                 return -1;
             }
         }
-        return *(get_c_ptr++);    
+        return *(get_c_ptr++);
     }
 
-    void operator()(tbb::concurrent_bounded_queue<std::pair<char*,uint8_t*>>& out) const{
+    void operator()(tbb::concurrent_bounded_queue<std::pair<char*,uint8_t*>>& out) const {
         char* line_out=new char[alloc_size];
         //if (getc_buf) {
-            auto load_size=getc_buf+BUFSIZ-get_c_ptr;
-            memcpy(line_out, get_c_ptr, load_size);
-            decompress_to_buffer((unsigned char*)line_out+load_size, read_size-load_size);
-            delete[](getc_buf);
-            getc_buf=nullptr;
-            fprintf(stderr,"getc_buff_deallocated\n");
-            out.emplace(line_out,state->next_out);
+        auto load_size=getc_buf+BUFSIZ-get_c_ptr;
+        memcpy(line_out, get_c_ptr, load_size);
+        decompress_to_buffer((unsigned char*)line_out+load_size, read_size-load_size);
+        delete[](getc_buf);
+        getc_buf=nullptr;
+        fprintf(stderr,"getc_buff_deallocated\n");
+        out.emplace(line_out,state->next_out);
         //}
         line_out=new char[alloc_size];
         while (decompress_to_buffer((unsigned char*)line_out, read_size)) {
@@ -221,7 +221,7 @@ struct line_parser {
                 pos=pos*10+(*line_in-'0');
                 line_in++;
             }
-            if(pos<=0){
+            if(pos<=0) {
                 raise(SIGTRAP);
             }
             line_in++;
@@ -366,7 +366,7 @@ static line_start_later try_get_first_line(infile_t& f,size_t& size ) {
 #define CHUNK_SIZ 200ul
 #define ONE_GB 0x4ffffffful
 template<typename infile_t>
-static void process(MAT::Tree& tree,infile_t& fd){
+static void process(MAT::Tree& tree,infile_t& fd) {
     std::vector<std::string> fields;
     read_header(fd, fields);
     std::unordered_set<std::string> inserted_samples;
@@ -428,7 +428,7 @@ void VCF_input(const char * name,MAT::Tree& tree) {
     if (vcf_filename.find(".gz\0") != std::string::npos) {
         gzip_input_source fd(name);
         process(tree, fd);
-    }else {
+    } else {
         raw_input_source fd(name);
         process(tree, fd);
     }

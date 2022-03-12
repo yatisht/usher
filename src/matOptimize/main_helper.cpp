@@ -44,14 +44,14 @@ void fix_condensed_nodes(MAT::Tree *tree) {
     }
 }
 
-static void mark_changed_neighbor_descendent(int radius_left,MAT::Node* root,bool all_node_reachable){
+static void mark_changed_neighbor_descendent(int radius_left,MAT::Node* root,bool all_node_reachable) {
     for (auto child : root->children) {
         child->set_ancestor_changed();
         if (radius_left>0
-            &&(!child->get_self_changed())
-            /*&&(!(all_node_reachable&&child->get_ancestor_changed()))*/
-            ) {
-            mark_changed_neighbor_descendent(radius_left-1, child,all_node_reachable);        
+                &&(!child->get_self_changed())
+                /*&&(!(all_node_reachable&&child->get_ancestor_changed()))*/
+           ) {
+            mark_changed_neighbor_descendent(radius_left-1, child,all_node_reachable);
         }
     }
 }
@@ -62,7 +62,7 @@ static void mark_changed_neighbor_self(int radius, MAT::Node* root,bool all_node
     root->set_ancestor_changed();
     root->set_descendent_changed();
     mark_changed_neighbor_descendent(radius, root,all_node_reachable);
-    for (int radius_left=radius;radius_left>0;radius_left--){
+    for (int radius_left=radius; radius_left>0; radius_left--) {
         root=root->parent;
         if (!root) {
             return;
@@ -116,9 +116,9 @@ void find_nodes_to_move(const std::vector<MAT::Node *> &bfs_ordered_nodes,
         auto downward=node->get_descendent_changed();
         if (upward&&downward) {
             both_count++;
-        }else if (upward) {
+        } else if (upward) {
             upward_only_count++;
-        }else if (downward) {
+        } else if (downward) {
             downward_only_count++;
         }
     }
@@ -130,7 +130,7 @@ void find_nodes_to_move(const std::vector<MAT::Node *> &bfs_ordered_nodes,
         if (all_node_reachable) {
             output=bfs_ordered_nodes;
             fprintf(stderr, "Search all nodes\n");
-        }else {
+        } else {
             output.reserve(bfs_ordered_nodes.size());
             for(auto node:bfs_ordered_nodes) {
                 if (node->have_change_in_neighbor()) {

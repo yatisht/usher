@@ -71,7 +71,7 @@ std::vector<std::string> get_mutation_samples (MAT::Tree* T, std::string mutatio
         //first, check if this specific sample has the mutation
         //"having the mutation" specifically means that it mutated to this base at this location
         //at the most recent time this location mutated
-        for (auto m: node->mutations) {        
+        for (auto m: node->mutations) {
             if (mutobj->position == m.position) {
                 if (mutobj->mut_nuc == m.mut_nuc) {
                     good_samples.push_back(node->identifier);
@@ -430,7 +430,7 @@ std::vector<std::string> fill_random_samples(MAT::Tree* T, std::vector<std::stri
 }
 
 std::vector<std::string> get_mrca_samples(MAT::Tree* T, std::vector<std::string> current_samples) {
-    //get the subtree, get its root, get all descendents from that node id in the original tree (node ids are retained until storage in a pb). 
+    //get the subtree, get its root, get all descendents from that node id in the original tree (node ids are retained until storage in a pb).
     auto mrca = MAT::get_subtree(*T, current_samples).root->identifier;
     std::vector<std::string> mrca_samples = T->get_leaves_ids(mrca);
     return mrca_samples;
@@ -452,7 +452,7 @@ void closest_samples_dfs(MAT::Node *node, MAT::Node *target, size_t path_length,
 std::pair<std::vector<std::string>, size_t> get_closest_samples(MAT::Tree* T, std::string nid) {
     // Returns a pair with (1) a vector of closest nodes to a target and (2) the distance from the target node
     std::pair<std::vector<std::string>, size_t> closest_samples;
-    
+
     MAT::Node *target = T->get_node(nid);
     MAT::Node *curr_target = T->get_node(nid);
 
@@ -490,7 +490,7 @@ std::pair<std::vector<std::string>, size_t> get_closest_samples(MAT::Tree* T, st
             if (child->identifier == curr_target->identifier) {
                 continue; // skip the target node
             }
-            
+
             if (!child->is_leaf()) {
                 // for internal nodes, descend the tree, adding leaves as they are
                 // encountered, restricting path lengths to less than the minimum of

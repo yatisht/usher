@@ -247,7 +247,7 @@ struct fetcher {
         return true;
     }
 };
-Reachable set_reachable(int radius,MAT::Tree& t,bool search_all_dir){
+Reachable set_reachable(int radius,MAT::Tree& t,bool search_all_dir) {
     //auto height=t.get_max_level();
     Reachable reachable;
     reachable.always_search=search_all_dir;
