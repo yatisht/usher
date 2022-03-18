@@ -1,6 +1,7 @@
 #include "mutation_annotated_tree.hpp"
 #include "Fitch_Sankoff.hpp"
 #include <chrono>
+#include <csignal>
 #include <cstddef>
 #include <cstdio>
 #include <iostream>

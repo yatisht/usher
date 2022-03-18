@@ -374,8 +374,11 @@ int main(int argc, char **argv) {
                 isfirst_this_iter=false;
                 fprintf(stderr, "Defered %zu nodes\n",defered_nodes.size());
                 nodes_to_search.reserve(defered_nodes.size());
+                nodes_to_search.clear();
                 for (auto idx : defered_nodes) {
-                    nodes_to_search.push_back(t.get_node(idx));
+                    if (t.get_node(idx)) {
+                        nodes_to_search.push_back(t.get_node(idx));                
+                    }
                 }
                 new_score=t.get_parsimony_score();
                 fprintf(stderr, "parsimony score after optimizing: %zu,with radius %d, second from start %ld \n\n",

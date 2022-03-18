@@ -545,9 +545,7 @@ class Tree {
         return all_nodes[idx];
     }
     void erase_node(size_t node_idx){
-        if (node_idx<all_nodes.size()) {
-            all_nodes[node_idx]=nullptr;
-        }
+        all_nodes[node_idx]=nullptr;
         auto iter=node_names.find(node_idx);
         if (iter!=node_names.end()) {
             node_name_to_idx_map.erase(iter->second);

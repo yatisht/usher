@@ -89,6 +89,12 @@ struct line_align {
             prev.alloc_start = line.first;
             prev_end = line.second;
             in.pop(line);
+            if (line.first==nullptr) {
+                out=prev;
+                prev.start=nullptr;
+                *prev_end=0;
+                return true;
+            }
         }
         auto start_ptr = strchr(line.first, '\n');
         if (*start_ptr != '\n') {

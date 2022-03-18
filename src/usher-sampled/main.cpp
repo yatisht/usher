@@ -211,6 +211,10 @@ static int leader_thread(
     for (auto& temp : samples_clade) {
         temp.valid=false;
     }
+    if (samples_to_place.empty()) {
+        fprintf(stderr, "Found no new samples\n");
+        MPI_Abort(MPI_COMM_WORLD, 1);
+    }
     fprintf(stderr, "Found %zu missing samples.\n\n", samples_to_place.size());
     std::string placement_stats_filename = options.out_options.outdir + "/placement_stats.tsv";
     FILE *placement_stats_file = fopen(placement_stats_filename.c_str(), "w");
