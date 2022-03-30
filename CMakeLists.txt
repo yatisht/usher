@@ -128,6 +128,14 @@ if(DEFINED Protobuf_PATH)
         src/matOptimize/transpose_vcf/transposed_vcf_to_vcf.cpp
         src/matOptimize/mutation_annotated_tree_nuc_util.cpp
         )
+    add_executable(transposed_vcf_to_fa
+    src/matOptimize/mutation_annotated_tree_nuc_util.cpp
+    src/matOptimize/transpose_vcf/transposed_vcf_to_fa.cpp
+    )
+    add_executable(transposed_vcf_print_name
+    src/matOptimize/transpose_vcf/transposed_vcf_print_name.cpp
+    src/matOptimize/mutation_annotated_tree_nuc_util.cpp
+    )
     if(USHER_SERVER)
         add_executable(usher_server
             src/mutation_annotated_tree.cpp
@@ -173,7 +181,7 @@ if(DEFINED Protobuf_PATH)
     protobuf_generate(
         LANGUAGE cpp
         TARGET output_final_protobuf
-        PROTOS mutation_detailed.proto)
+        PROTOS parsimony.proto)
     protobuf_generate(
         LANGUAGE cpp
         TARGET output_final_protobuf
