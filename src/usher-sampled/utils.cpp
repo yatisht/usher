@@ -170,7 +170,9 @@ void get_pos_samples_old_tree(MAT::Tree& tree,std::vector<mutated_t>& output){
     for (size_t idx=0; idx<MAT::Mutation::refs.size(); idx++) {
         output[idx].insert(output[idx].end(),pos_mutated[idx].begin(),pos_mutated[idx].end());
     }
-    distribute_positions(output);
+    if (process_count>1) {
+        distribute_positions(output);
+    }
 }
 void distribute_positions(std::vector<mutated_t>& output){
     auto positions_per_process=(output.size()/process_count)+1;
@@ -737,121 +739,3 @@ void final_output(MAT::Tree &T, const output_options &options, int t_idx,
         }
     }
 }*/
-bool sort_samples(const Leader_Thread_Options& options,std::vector<Sample_Muts>& samples_to_place, MAT::Tree& tree,size_t sample_start_idx){
-    bool reordered=false;
-    if (options.sort_by_ambiguous_bases) {
-        fprintf(stderr, "Sorting missing samples based on the number of ambiguous bases \n");
-        tbb::parallel_for(tbb::blocked_range<size_t>(0,samples_to_place.size()),
-            [&samples_to_place](tbb::blocked_range<size_t> range){
-                for (size_t idx=range.begin(); idx<range.end(); idx++) {
-                    int ambiguous_count=0;
-                    for(const auto& mut:samples_to_place[idx].muts){
-                        if (mut.mut_nuc==0xf) {
-                            ambiguous_count+=mut.range;
-                        }else if (__builtin_popcount(mut.mut_nuc)!=1) {
-                            ambiguous_count++;
-                        }
-                    }
-                    samples_to_place[idx].sorting_key1=ambiguous_count;
-                }
-            });
-        if (options.reverse_sort) {
-            fprintf(stderr, "Reverse sort \n");
-            std::sort(samples_to_place.begin(), samples_to_place.end(),
-                [](const auto& samp1,const auto& samp2){return samp1.sorting_key1>samp2.sorting_key1;});
-        }else {
-            std::sort(samples_to_place.begin(), samples_to_place.end(),
-                [](const auto& samp1,const auto& samp2){return samp1.sorting_key1<samp2.sorting_key1;});
-
-        }        // Reverse sorted order if specified
-        //fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
-        reordered=true;
-    }
-    if (options.collapse_tree) {
-        //timer.Start();
-
-        fprintf(stderr, "Collapsing input tree.\n");
-
-        auto condensed_tree_filename = options.out_options.outdir + "/condensed-tree.nh";
-        fprintf(stderr, "Writing condensed input tree to file %s\n", condensed_tree_filename.c_str());
-
-        FILE* condensed_tree_file = fopen(condensed_tree_filename.c_str(), "w");
-        fprintf(condensed_tree_file, "%s\n",tree.get_newick_string(true,true,options.out_options.retain_original_branch_len).c_str());
-        fclose(condensed_tree_file);
-
-        //fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
-    }
-    std::vector<std::string> low_confidence_samples;
-    std::vector<Clade_info> samples_clade;
-    if (options.print_parsimony_scores) {
-        // timer.Start();
-        auto current_tree_filename = options.out_options.outdir + "/current-tree.nh";
-
-        fprintf(
-            stderr,
-            "Writing current tree with internal nodes labelled to file %s \n",
-            current_tree_filename.c_str());
-        FILE *current_tree_file = fopen(current_tree_filename.c_str(), "w");
-        fprintf(current_tree_file, "%s\n",
-                tree.get_newick_string(true, true, options.out_options.retain_original_branch_len)
-                    .c_str());
-        fclose(current_tree_file);
-
-        // fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
-    } else {
-        if ((options.sort_before_placement_1 || options.sort_before_placement_2) &&
-            (samples_to_place.size() > 1)) {
-            // timer.Start();
-            fprintf(stderr, "Computing parsimony scores and number of "
-                            "parsimony-optimal placements for new samples and "
-                            "using them to sort the samples.\n");
-            assign_descendant_muts(tree);
-            assign_levels(tree.root);
-            set_descendant_count(tree.root);
-            if (process_count>1) {
-                fprintf(stderr, "Main sending tree\n");
-                tree.MPI_send_tree();
-            }
-            std::atomic_size_t curr_idx(0);
-            place_sample_leader(samples_to_place, tree, 100, curr_idx, INT_MAX,
-                                true, nullptr, options.max_parsimony,
-                                options.max_uncertainty, low_confidence_samples,
-                                samples_clade,sample_start_idx,nullptr);
-    fputc('\n', stderr);
-            //check_repeats(samples_to_place, sample_start_idx);
-            // Sort samples order in indexes based on parsimony scores
-            // and number of parsimony-optimal placements
-            if (options.sort_before_placement_1) {
-                std::sort(samples_to_place.begin(), samples_to_place.end(),
-                          [&options](const auto &samp1, const auto &samp2) {
-                              if (samp1.sorting_key1 < samp2.sorting_key1) {
-                                  return options.reverse_sort;
-                              }
-                              if (samp1.sorting_key1 == samp2.sorting_key1 &&
-                                  samp1.sorting_key2 < samp2.sorting_key2) {
-                                  return options.reverse_sort;
-                              }
-                              return !options.reverse_sort;
-                          });
-            } else if (options.sort_before_placement_2) {
-                std::sort(samples_to_place.begin(), samples_to_place.end(),
-                          [&options](const auto &samp1, const auto &samp2) {
-                              if (samp1.sorting_key2 < samp2.sorting_key2) {
-                                  return options.reverse_sort;
-                              }
-                              if (samp1.sorting_key2 == samp2.sorting_key2 &&
-                                  samp1.sorting_key1 < samp2.sorting_key1) {
-                                  return options.reverse_sort;
-                              }
-                              return !options.reverse_sort;
-                          });
-            }
-            // fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
-            reordered=true;
-        }
-        //check_repeats(samples_to_place, sample_start_idx);
-
-        fprintf(stderr, "Adding missing samples to the tree.\n");
-    }
-    return reordered;
-}

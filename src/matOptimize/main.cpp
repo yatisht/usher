@@ -34,6 +34,12 @@
 #include <vector>
 #include <iostream>
 #include <sys/resource.h>
+int count_back_mutation(const MAT::Tree& tree);
+void get_pos_samples_old_tree(MAT::Tree& tree,std::vector<mutated_t>& output);
+int follower_recieve_positions( std::vector<mutated_t>& to_recieve);
+void MPI_min_back_reassign_states(MAT::Tree &tree,const std::vector<mutated_t> &mutations,
+    int start_position);
+void min_back_reassign_state_local(MAT::Tree& tree,const std::vector<mutated_t>& mutations);
 thread_local TlRng rng;
 std::atomic_bool interrupted(false);
 bool use_bound;
@@ -430,6 +436,16 @@ int main(int argc, char **argv) {
         int temp=0;
         MPI_Request req;
         MPI_Ibcast(&temp, 1, MPI_INT, 0, MPI_COMM_WORLD,&req);
+        fprintf(stderr, "Parsimony score before %zu\n",t.get_parsimony_score());
+        fprintf(stderr, "Back mutation count before %d\n",count_back_mutation(t));
+        std::vector<mutated_t> output(MAT::Mutation::refs.size());
+        get_pos_samples_old_tree(t, output);
+        if (process_count==1) {
+            min_back_reassign_state_local(t,output);
+        }else {
+            MPI_min_back_reassign_states(t, output, 0);        
+        }
+        fprintf(stderr, "Back mutation count after %d\n",count_back_mutation(t));
         fprintf(stderr, "Final Parsimony score %zu\n",t.get_parsimony_score());
         fclose(movalbe_src_log);
         save_final_tree(t, output_path);
@@ -465,6 +481,9 @@ int main(int argc, char **argv) {
             optimize_tree_worker_thread(t, radius,do_drift,search_all_dir);
             t.delete_nodes();
         }
+        std::vector<mutated_t> to_recieve;
+        int pos= follower_recieve_positions(to_recieve);
+        MPI_min_back_reassign_states(t, to_recieve, pos);
     }
     for(auto& pos:mutated_positions) {
         delete pos.second;
