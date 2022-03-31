@@ -81,12 +81,17 @@ if(DEFINED Protobuf_PATH)
         src/usher_mapper.cpp
         ${RIPPLES_SRCS}
         )
-
+    add_executable(ripples-fast
+        src/mutation_annotated_tree.cpp
+        src/usher_mapper.cpp
+        ${RIPPLES_FAST_SRCS}
+        )
     add_executable(matOptimize
         src/matOptimize/mutation_annotated_tree.cpp
         src/matOptimize/mutation_annotated_tree_node.cpp
         src/matOptimize/mutation_annotated_tree_load_store.cpp
-        src/matOptimize/detailed_mutations_load_store.cpp
+        src/matOptimize/detailed_mutations_store.cpp
+        src/matOptimize/detailed_mutations_load.cpp
         src/matOptimize/mutation_annotated_tree_nuc_util.cpp
         src/matOptimize/main.cpp
         src/matOptimize/optimize_tree.cpp
@@ -98,9 +103,9 @@ if(DEFINED Protobuf_PATH)
         src/matOptimize/Mutation_Collection.cpp
         src/matOptimize/Fitch_Sankoff.cpp
         src/matOptimize/check_samples.cpp
-        src/matOptimize/transpose_vcf/transposed_vcf_patch.cpp
         #src/matOptimize/priority_conflict_resolver_cross_only.cpp
         src/matOptimize/priority_conflict_resolver.cpp
+        src/matOptimize/transpose_vcf/transposed_vcf_patch.cpp
         ${patch_tree}
         ${New_Profitable_Moves_Enumerators}
         )
@@ -150,7 +155,10 @@ if(DEFINED Protobuf_PATH)
         TARGET ripples 
         PROTOS parsimony.proto)
 
-
+    protobuf_generate(
+        LANGUAGE cpp
+        TARGET ripples-fast 
+        PROTOS parsimony.proto)
     protobuf_generate(
         LANGUAGE cpp
         TARGET compareVCF 
