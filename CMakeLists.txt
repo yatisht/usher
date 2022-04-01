@@ -81,12 +81,17 @@ if(DEFINED Protobuf_PATH)
         src/usher_mapper.cpp
         ${RIPPLES_SRCS}
         )
-
+    add_executable(ripples-fast
+        src/mutation_annotated_tree.cpp
+        src/usher_mapper.cpp
+        ${RIPPLES_FAST_SRCS}
+        )
     add_executable(matOptimize
         src/matOptimize/mutation_annotated_tree.cpp
         src/matOptimize/mutation_annotated_tree_node.cpp
         src/matOptimize/mutation_annotated_tree_load_store.cpp
-        src/matOptimize/detailed_mutations_load_store.cpp
+        src/matOptimize/detailed_mutations_store.cpp
+        src/matOptimize/detailed_mutations_load.cpp
         src/matOptimize/mutation_annotated_tree_nuc_util.cpp
         src/matOptimize/main.cpp
         src/matOptimize/optimize_tree.cpp
@@ -98,9 +103,9 @@ if(DEFINED Protobuf_PATH)
         src/matOptimize/Mutation_Collection.cpp
         src/matOptimize/Fitch_Sankoff.cpp
         src/matOptimize/check_samples.cpp
-        src/matOptimize/transpose_vcf/transposed_vcf_patch.cpp
         #src/matOptimize/priority_conflict_resolver_cross_only.cpp
         src/matOptimize/priority_conflict_resolver.cpp
+        src/matOptimize/transpose_vcf/transposed_vcf_patch.cpp
         ${patch_tree}
         ${New_Profitable_Moves_Enumerators}
         )
@@ -110,7 +115,16 @@ if(DEFINED Protobuf_PATH)
         src/usher_mapper.cpp
         )
 
-
+    add_executable(output_final_protobuf
+        src/matOptimize/mutation_annotated_tree.cpp
+        src/matOptimize/mutation_annotated_tree_node.cpp
+        src/matOptimize/detailed_mutations_load.cpp
+        src/matOptimize/mutation_annotated_tree_load_store.cpp
+        src/matOptimize/main_helper.cpp
+        src/matOptimize/Mutation_Collection.cpp
+        src/matOptimize/mutation_annotated_tree_nuc_util.cpp
+        src/matOptimize/output_final_protobuf.cpp
+    )
     add_executable(transpose_vcf
         src/matOptimize/transpose_vcf/transpose_vcf_encode.cpp
         src/matOptimize/mutation_annotated_tree_nuc_util.cpp
@@ -119,6 +133,14 @@ if(DEFINED Protobuf_PATH)
         src/matOptimize/transpose_vcf/transposed_vcf_to_vcf.cpp
         src/matOptimize/mutation_annotated_tree_nuc_util.cpp
         )
+    add_executable(transposed_vcf_to_fa
+    src/matOptimize/mutation_annotated_tree_nuc_util.cpp
+    src/matOptimize/transpose_vcf/transposed_vcf_to_fa.cpp
+    )
+    add_executable(transposed_vcf_print_name
+    src/matOptimize/transpose_vcf/transposed_vcf_print_name.cpp
+    src/matOptimize/mutation_annotated_tree_nuc_util.cpp
+    )
     if(USHER_SERVER)
         add_executable(usher_server
             src/mutation_annotated_tree.cpp
@@ -133,7 +155,10 @@ if(DEFINED Protobuf_PATH)
         TARGET ripples 
         PROTOS parsimony.proto)
 
-
+    protobuf_generate(
+        LANGUAGE cpp
+        TARGET ripples-fast 
+        PROTOS parsimony.proto)
     protobuf_generate(
         LANGUAGE cpp
         TARGET compareVCF 
@@ -161,7 +186,14 @@ if(DEFINED Protobuf_PATH)
         LANGUAGE cpp
         TARGET matOptimize
         PROTOS mutation_detailed.proto)
-   
+    protobuf_generate(
+        LANGUAGE cpp
+        TARGET output_final_protobuf
+        PROTOS parsimony.proto)
+    protobuf_generate(
+        LANGUAGE cpp
+        TARGET output_final_protobuf
+        PROTOS mutation_detailed.proto)
     protobuf_generate(
         LANGUAGE cpp
         TARGET matUtils
@@ -288,28 +320,6 @@ else()
         src/matOptimize/transpose_vcf/transposed_vcf_print_name.cpp
         src/matOptimize/mutation_annotated_tree_nuc_util.cpp
         )
-        #[[add_executable(serialize_test
-        src/matOptimize/mutation_annotated_tree.cpp
-        src/matOptimize/mutation_annotated_tree_node.cpp
-        src/matOptimize/serializer_test.cpp
-        src/matOptimize/detailed_mutations_store.cpp
-        src/matOptimize/mutation_annotated_tree_load_store.cpp
-        src/matOptimize/detailed_mutations_load.cpp
-        src/matOptimize/mutation_annotated_tree_nuc_util.cpp
-        src/matOptimize/import_vcf_fast.cpp
-        src/matOptimize/condense.cpp
-        src/matOptimize/VCF_load_tree.cpp
-        src/matOptimize/main_load_tree.cpp
-        src/matOptimize/main_helper.cpp
-        src/matOptimize/Mutation_Collection.cpp
-        src/matOptimize/Fitch_Sankoff.cpp
-        src/matOptimize/check_samples.cpp
-        ${PROTO_SRCS}
-        ${PROTO_HDRS}
-        ${patch_tree}
-        ${DETAILED_MUTATIONS_PROTO_SRCS}
-        ${DETAILED_MUTATIONS_PROTO_HDRS}
-        )]]
     if(USHER_SERVER)
         add_executable(usher_server
             src/mutation_annotated_tree.cpp
@@ -345,7 +355,6 @@ TARGET_LINK_LIBRARIES(transpose_vcf PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMP
 TARGET_LINK_LIBRARIES(transposed_vcf_to_vcf PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(transposed_vcf_to_fa PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(transposed_vcf_print_name PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
-#TARGET_LINK_LIBRARIES(serialize_test PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 
 TARGET_LINK_LIBRARIES(usher PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 target_include_directories(usher PUBLIC "${PROJECT_BINARY_DIR}")
