@@ -433,34 +433,34 @@ class Node {
     bool add_mutation(Mutation& mut) {
         return mutations.insert(mut,Mutations_Collection::KEEP_OTHER);
     }
-    void set_self_changed(){
+    void set_self_changed() {
         changed|=SELF_CHANGED_MASK;
     }
-    void set_ancestor_changed(){
+    void set_ancestor_changed() {
         changed|=ANCESTOR_CHANGED_MASK;
     }
-    void set_descendent_changed(){
+    void set_descendent_changed() {
         changed|=DESCENDENT_CHANGED_MASK;
     }
-    void set_self_moved(){
+    void set_self_moved() {
         changed|=SELF_MOVED_MASK;
     }
-    void clear_changed(){
+    void clear_changed() {
         changed=0;
     }
-    bool get_self_changed() const{
+    bool get_self_changed() const {
         return (changed&SELF_CHANGED_MASK);
     }
-    bool get_ancestor_changed() const{
+    bool get_ancestor_changed() const {
         return (changed&ANCESTOR_CHANGED_MASK);
     }
     bool get_descendent_changed()const {
         return (changed&DESCENDENT_CHANGED_MASK);
     }
-    bool get_self_moved()const{
+    bool get_self_moved()const {
         return changed&SELF_MOVED_MASK;
     }
-    bool have_change_in_neighbor()const{
+    bool have_change_in_neighbor()const {
         return changed;
     }
     void clear_mutations() {
@@ -545,9 +545,7 @@ class Tree {
         return all_nodes[idx];
     }
     void erase_node(size_t node_idx){
-        if (node_idx<all_nodes.size()) {
-            all_nodes[node_idx]=nullptr;
-        }
+        all_nodes[node_idx]=nullptr;
         auto iter=node_names.find(node_idx);
         if (iter!=node_names.end()) {
             node_name_to_idx_map.erase(iter->second);

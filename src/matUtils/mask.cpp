@@ -24,6 +24,8 @@ po::variables_map parse_mask_command(po::parsed_options parsed) {
      "Name of a TSV or CSV containing mutations to be masked in the first column and locations to mask downstream from in the second. If only one column is passed, all instances of that mutation on the tree are masked.")
     ("condense-tree,c", po::bool_switch(),
      "Use to recondense the tree before saving.")
+    ("move-nodes,M", po::value<std::string>()->default_value(""),
+     "Name of the TSV file containing names of the nodes to be moved and their new parents. Use to move nodes around the tree between paths containing identical sets of mutations.")
     ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
     ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
@@ -54,6 +56,7 @@ void mask_main(po::parsed_options parsed) {
     std::string output_mat_filename = vm["output-mat"].as<std::string>();
     std::string samples_filename = vm["restricted-samples"].as<std::string>();
     std::string mutations_filename = vm["mask-mutations"].as<std::string>();
+    std::string move_nodes_filename = vm["move-nodes"].as<std::string>();
     bool recondense = vm["condense-tree"].as<bool>();
     bool simplify = vm["simplify"].as<bool>();
     std::string rename_filename = vm["rename-samples"].as<std::string>();
@@ -92,6 +95,10 @@ void mask_main(po::parsed_options parsed) {
     if (rename_filename != "") {
         fprintf(stderr, "Performing Renaming\n");
         renameSamples(rename_filename, T);
+    }
+
+    if (move_nodes_filename != "") {
+        moveNodes(move_nodes_filename, &T);
     }
 
     // Store final MAT to output file
@@ -353,4 +360,87 @@ void restrictSamples (std::string samples_filename, MAT::Tree& T) {
     }
 }
 
+void moveNodes (std::string node_filename, MAT::Tree* T) {
+    // Function to move nodes between two identical placement paths. That is, move the target node so that is a child of the indicated new parent node,
+    // but the current placement and new placement must involve exactly the same set of mutations for the move to be allowed.
+    // Takes the path to a two-column tsv containing the names of nodes to be moved and the parents to move them to.
+    std::ifstream infile(node_filename);
+    if (!infile) {
+        fprintf(stderr, "ERROR: Could not open the moving file: %s!\n", node_filename.c_str());
+        exit(1);
+    }
+    std::string line;
+    while (std::getline(infile, line)) {
+        std::vector<std::string> words;
+        MAT::string_split(line, words);
+        if (words.size() != 2) {
+            fprintf(stderr, "ERROR: Incorrect format for the moving file: %s!\n", node_filename.c_str());
+            exit(1);
+        }
 
+        MAT::Node* mn = T->get_node(words[0]);
+        MAT::Node* np = T->get_node(words[1]);
+        if (mn == NULL) {
+            fprintf(stderr, "ERROR: Node %s does not exist in the tree. Exiting\n", words[0].c_str());
+            exit(1);
+        }
+        if (np == NULL) {
+            fprintf(stderr, "ERROR: Node %s does not exist in the tree. Exiting\n", words[1].c_str());
+            exit(1);
+        }
+        if (np->is_leaf()) {
+            fprintf(stderr, "ERROR: Node %s is a leaf and therefore cannot be a parent. Exiting\n", words[1].c_str());
+            exit(1);
+        }
+        if (mn->parent == np) {
+            fprintf(stderr, "ERROR: Node %s is already a child of %s. Exiting\n", words[0].c_str(), words[1].c_str());
+            exit(1);
+        }
+        //accumulate the set of mutations belonging to the current and the new placement
+        //not counting mutations belonging to the target, but counting ones to the putative new parent.
+        std::unordered_set<std::string> curr_mutations;
+        std::unordered_set<std::string> new_mutations;
+        for (auto an: T->rsearch(mn->identifier, false)) {
+            for (auto mut: an->mutations) {
+                if (mut.is_masked()) {
+                    continue;
+                }
+                MAT::Mutation mut_opposite = mut.copy();
+                //we check for whether this mutation is going to negate with something in the set
+                //by identifying its opposite and checking whether the opposite is already present on the traversal.
+                mut_opposite.par_nuc = mut.mut_nuc;
+                mut_opposite.mut_nuc = mut.par_nuc;
+                auto cml = curr_mutations.find(mut_opposite.get_string());
+                if (cml != curr_mutations.end()) {
+                    curr_mutations.erase(cml);
+                } else {
+                    curr_mutations.insert(mut.get_string());
+                }
+            }
+        }
+        for (auto an: T->rsearch(np->identifier, true)) {
+            for (auto mut: an->mutations) {
+                if (mut.is_masked()) {
+                    continue;
+                }
+                MAT::Mutation mut_opposite = mut.copy();
+                mut_opposite.par_nuc = mut.mut_nuc;
+                mut_opposite.mut_nuc = mut.par_nuc;
+                auto cml = new_mutations.find(mut_opposite.get_string());
+                if (cml != new_mutations.end()) {
+                    new_mutations.erase(cml);
+                } else {
+                    new_mutations.insert(mut.get_string());
+                }
+            }
+        }
+        if (curr_mutations != new_mutations) {
+            fprintf(stderr, "ERROR: The current and new placement paths do not involve the same set of mutations. Exiting\n");
+            exit(1);
+        }
+        //we can now proceed with the move.
+        T->move_node(mn->identifier, np->identifier);
+        fprintf(stderr, "Move of node %s to node %s successful.\n", words[0].c_str(), words[1].c_str());
+    }
+    fprintf(stderr, "All requested moves complete.\n");
+}

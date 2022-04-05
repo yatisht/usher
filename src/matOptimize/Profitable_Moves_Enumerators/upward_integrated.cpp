@@ -69,11 +69,11 @@ static void search_subtree_first_level(MAT::Node *node, MAT::Node *to_exclude,
             }
         }
         search_subtree_bounded(child, src_side, radius_left - 1, either,
-                                   src_side.src_par_score_lower_bound,ignored_range,reachable_child
+                               src_side.src_par_score_lower_bound,ignored_range,reachable_child
 #ifdef CHECK_BOUND
-                                   ,true
+                               ,true
 #endif
-                                  ); 
+                              );
     }
 }
 static void allele_count_reserve(
@@ -342,7 +342,7 @@ void __find_moves_bounded(MAT::Node *&src, int &search_radius,
             if (src_side.LCA->get_self_changed()&&reachable.reachable_change) {
                 reachable.always_search=true;
             }
-            if(!src_side.LCA->get_ancestor_changed()){
+            if(!src_side.LCA->get_ancestor_changed()) {
                 break;
             }
         }

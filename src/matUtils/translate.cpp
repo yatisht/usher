@@ -44,7 +44,7 @@ std::unordered_map<int, std::vector<std::shared_ptr<Codon>>> build_codon_map(std
     std::string gtf_line;
     std::vector<std::string> gtf_lines;
     std::vector<std::string> done;
-    
+
     while (std::getline(gtf_file, gtf_line)) {
         gtf_lines.push_back(gtf_line);
     }
@@ -260,7 +260,7 @@ void translate_main(MAT::Tree *T, std::string output_filename, std::string gtf_f
 
     std::string reference = build_reference(fasta_file);
 
-    output_file << "node_id\taa_mutations\tnt_mutations\tleaves_sharing_mutations" << '\n';
+    output_file << "node_id\taa_mutations\tnt_mutations\tcodon_changes\tleaves_sharing_mutations" << '\n';
 
     // This maps each position in the reference to a vector of codons.
     // Some positions may be associated with multiple codons (frame shifts).
@@ -292,7 +292,7 @@ void translate_main(MAT::Tree *T, std::string output_filename, std::string gtf_f
 }
 
 // This is used for taxodium output. It translates each node and saves metadata to node_data along the way
-void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, std::string fasta_filename, Taxodium::AllNodeData *node_data, Taxodium::AllData *all_data, std::unordered_map<std::string, std::vector<std::string>> &metadata, MetaColumns fixed_columns, std::vector<GenericMetadata> &generic_metadata, float x_scale) {
+void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, std::string fasta_filename, Taxodium::AllNodeData *node_data, Taxodium::AllData *all_data, std::unordered_map<std::string, std::vector<std::string>> &metadata, MetaColumns fixed_columns, std::vector<GenericMetadata> &generic_metadata, float x_scale, bool include_nt) {
     std::ifstream fasta_file(fasta_filename);
     if (!fasta_file) {
         fprintf(stderr, "ERROR: Could not open the fasta file: %s!\n", fasta_filename.c_str());
@@ -350,14 +350,24 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
         }
         branch_length_map[node->identifier] = curr_x_value;
 
+        // First collect (syn and nonsyn) nucleotide mutations with a fake gene called nt
+        std::string mutation_result = "";
+        if (include_nt) {
+            for (auto m : node->mutations) {
+                mutation_result += "nt:";
+                mutation_result += MAT::get_nuc(m.par_nuc);
+                mutation_result +=  "_" + std::to_string(m.position) + "_";
+                mutation_result += MAT::get_nuc(m.mut_nuc);
+                mutation_result +=  ";";
+            }
+        }
         // Do mutations
         Taxodium::MutationList *mutation_list = node_data->add_mutations();
-        std::string mutation_result = "";
 
         // This string is a semicolon separated list of mutations in format
         // [orf]:[orig aa]_[orf num]_[new aa]
         // e.g. S:K_200_V;ORF1a:G_240_N
-        mutation_result = do_mutations(node->mutations, codon_map, true);
+        mutation_result += do_mutations(node->mutations, codon_map, true);
 
 
         if (node->is_root()) {
@@ -488,13 +498,16 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
 std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::unordered_map<int, std::vector<std::shared_ptr<Codon>>> &codon_map, bool taxodium_format) {
     std::string prot_string = "";
     std::string nuc_string = "";
+    std::string cchange_string = "";
     std::sort(mutations.begin(), mutations.end());
     std::unordered_map<std::string, std::set<MAT::Mutation>> codon_to_nt_map;
+    std::unordered_map<std::string, std::string> codon_to_changestring_map;
     std::unordered_map<std::string, char> orig_proteins;
     std::vector<std::shared_ptr<Codon>> affected_codons;
 
     for (auto &m : mutations) {
         char mutated_nuc = MAT::get_nuc(m.mut_nuc);
+        char par_nuc = MAT::get_nuc(m.par_nuc);
         int pos = m.position - 1;
         auto codon_map_it = codon_map.find(pos);
         if (codon_map_it == codon_map.end()) {
@@ -503,6 +516,8 @@ std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::unordered_m
             // Mutate each codon associated with this position
             for (auto codon_ptr : codon_map_it->second) {
                 std::string codon_id = codon_ptr->orf_name + ':' + std::to_string(codon_ptr->codon_number+1);
+                //first, update the codon to match the parent state instead of the reference state as part of the codon output
+                codon_ptr->mutate(pos, par_nuc);
                 auto orig_it = orig_proteins.find(codon_id);
                 if (orig_it == orig_proteins.end()) {
                     orig_proteins.insert({codon_id, codon_ptr->protein});
@@ -510,7 +525,13 @@ std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::unordered_m
                 if (std::find(affected_codons.begin(), affected_codons.end(), codon_ptr) == affected_codons.end()) {
                     affected_codons.push_back(codon_ptr);
                 }
+                std::string original_codon = codon_ptr->nucleotides;
+                //then update it again to match the mutated state
                 codon_ptr->mutate(pos, mutated_nuc);
+                // store a string representing the original and new codons in nucleotides
+                // this may incorporate multiple nucleotide mutations, just accounting for the original and end states.
+                std::string changestring = original_codon + ">" + codon_ptr->nucleotides;
+                codon_to_changestring_map.insert({codon_id, changestring});
                 // Build a map of codons and their associated nt mutations
                 auto to_nt_it = codon_to_nt_map.find(codon_id);
                 if (to_nt_it == codon_to_nt_map.end()) {
@@ -542,6 +563,8 @@ std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::unordered_m
             nuc_string.resize(nuc_string.length() - 1); // remove trailing ','
             nuc_string += ';';
         }
+        std::string changestring = codon_to_changestring_map.find(codon_id)->second;
+        cchange_string += changestring + ";";
     }
 
     if (!nuc_string.empty() && nuc_string.back() == ';') {
@@ -550,12 +573,15 @@ std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::unordered_m
     if (!prot_string.empty() && prot_string.back() == ';') {
         prot_string.resize(prot_string.length() - 1); //remove trailing ';'
     }
-    if (nuc_string.empty() || prot_string.empty()) {
+    if (!cchange_string.empty() && cchange_string.back() == ';') {
+        cchange_string.resize(cchange_string.length() - 1); //remove trailing ';'
+    }
+    if (nuc_string.empty() || prot_string.empty() || cchange_string.empty()) {
         return "";
     } else if(taxodium_format) { // format string for taxodium pb
         return prot_string;
     } else { // format string for TSV output
-        return prot_string + '\t' + nuc_string;
+        return prot_string + '\t' + nuc_string + '\t' + cchange_string;
     }
 }
 

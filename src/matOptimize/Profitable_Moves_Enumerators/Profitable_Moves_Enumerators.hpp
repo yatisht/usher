@@ -143,7 +143,7 @@ template <typename value_type> class range {
         return end-curr;
     }
 };
-struct Reachable{
+struct Reachable {
     bool reachable_change;
     bool always_search;
 };

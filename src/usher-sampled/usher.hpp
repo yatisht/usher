@@ -130,7 +130,7 @@ struct Leader_Thread_Options{
     output_options out_options;
     float desired_optimization_msec;
     int initial_optimization_radius;
-    int last_optimization_radius;
+    int last_optimization_minutes;
     std::string vcf_filename;
     bool no_add;
 };

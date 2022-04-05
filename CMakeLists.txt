@@ -275,6 +275,8 @@ else()
         #src/matOptimize/priority_conflict_resolver_cross_only.cpp
         src/matOptimize/priority_conflict_resolver.cpp
         src/matOptimize/transpose_vcf/transposed_vcf_patch.cpp
+        src/usher-sampled/utils.cpp
+        src/usher-sampled/Min_back_FS.cpp
         ${patch_tree}
         ${New_Profitable_Moves_Enumerators}
         ${PROTO_SRCS}

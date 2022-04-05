@@ -67,16 +67,31 @@ static void clean_up_leaf(std::vector<MAT::Node*>& dfs){
 }
 void leader_thread_optimization(MAT::Tree& tree,std::vector<mutated_t>& position_wise_out,
     std::atomic_size_t& curr_idx,int& optimization_radius, size_t start_idx,FILE* ignored_file,float desired_optimization_msec,bool is_last){
+            int last_parsimony_score=INT_MAX;
+            std::default_random_engine g;
+            auto optimiation_start=std::chrono::steady_clock::now();
+            auto optimization_end=optimiation_start+std::chrono::milliseconds((long)desired_optimization_msec);
+            bool timeout=false;
             if (is_last) {
-                desired_optimization_msec=3600000;
+                optimization_radius=-4;
             }
+            bool is_first=true;
+            do  {
+            bool distributed = process_count > 1;
             fprintf(stderr, "Main sent optimization prep\n");
             if (process_count == 1) {
                 reassign_state_local(tree,position_wise_out);
-                tree.MPI_send_tree();
             } else {
                 MPI_Bcast(&optimization_radius, 1, MPI_INT, 0, MPI_COMM_WORLD);
-                MPI_reassign_states(tree, position_wise_out, 0);
+                if (is_first) {
+                    MPI_reassign_states(tree, position_wise_out, 0);            
+                }else {
+                    tree.MPI_send_tree();            
+                }
+            }
+            is_first=false;
+            if (is_last) {
+                optimization_radius=-optimization_radius;
             }
             fprintf(stderr, "Main parsimony score %zu",tree.get_parsimony_score());
             fprintf(stderr, "Main sent optimization prep done\n");
@@ -85,12 +100,8 @@ void leader_thread_optimization(MAT::Tree& tree,std::vector<mutated_t>& position
                                       start_idx, tree,
                                       curr_idx.load(), node_to_search_idx);
             fprintf(stderr, "Main found nodes to move\n");
-            bool distributed = process_count > 1;
-            int last_parsimony_score=INT_MAX;
-            std::default_random_engine g;
             std::shuffle(node_to_search_idx.begin(),node_to_search_idx.end(),g);
-            auto optimiation_start=std::chrono::steady_clock::now();
-            auto optimization_end=optimiation_start+std::chrono::milliseconds((long)desired_optimization_msec);
+
             while (!node_to_search_idx.empty()) {
                 std::vector<size_t> deferred_nodes_out;
                 adjust_all(tree);
@@ -113,9 +124,18 @@ void leader_thread_optimization(MAT::Tree& tree,std::vector<mutated_t>& position
                 fprintf(stderr, "Last parsimony score %lu\n",new_parsimony_score);
                 if(new_parsimony_score>last_parsimony_score
                     || std::chrono::steady_clock::now()>optimization_end){
+                    timeout=true;
                     break;
                 }
                 last_parsimony_score=new_parsimony_score;
+            }
+            if (is_last) {
+                optimization_radius=-2*optimization_radius;
+            }
+            }while(is_last&&!timeout);
+            if (is_last) {
+                int to_send=0;
+                MPI_Bcast(&to_send, 1, MPI_INT, 0, MPI_COMM_WORLD);
             }
             auto finish_time=std::chrono::steady_clock::now();
             int next_optimization_radius;
@@ -196,7 +216,6 @@ static int leader_thread(
     tree.condense_leaves();
     fix_parent(tree);
     tree.check_leaves();
-    fprintf(stderr, "%zu\n",tree.get_node("France/ARA-HCL021043521401/2021|EPI_ISL_1313590|2021-03-07")->parent->node_id);
     if (options.tree_in!="") {
         for (auto& pos : position_wise_out_dup) {
             pos.erase(std::remove_if(pos.begin(), pos.end(), [sample_start_idx](const std::pair<long, nuc_one_hot>& in){
@@ -211,6 +230,10 @@ static int leader_thread(
     std::vector<Clade_info> samples_clade(samples_to_place.size());
     for (auto& temp : samples_clade) {
         temp.valid=false;
+    }
+    if (samples_to_place.empty()) {
+        fprintf(stderr, "Found no new samples\n");
+        MPI_Abort(MPI_COMM_WORLD, 1);
     }
     fprintf(stderr, "Found %zu missing samples.\n\n", samples_to_place.size());
     std::string placement_stats_filename = options.out_options.outdir + "/placement_stats.tsv";
@@ -277,10 +300,10 @@ static int leader_thread(
         if (curr_idx >= samples_to_place.size()) {
             curr_idx.store(samples_to_place.size());
             is_last=true;
-            optimization_radius=options.last_optimization_radius;
         }
         if (options.initial_optimization_radius > 0) {
-            leader_thread_optimization(tree, position_wise_out, curr_idx, optimization_radius, sample_start_idx, ignored_file,options.desired_optimization_msec,is_last);
+            leader_thread_optimization(tree, position_wise_out, curr_idx, optimization_radius,
+             sample_start_idx, ignored_file,is_last?60000*options.last_optimization_minutes:options.desired_optimization_msec,is_last);
 	    tree.check_leaves();
         }
         if (curr_idx<samples_to_place.size()) {
@@ -365,21 +388,21 @@ int main(int argc, char **argv) {
         "Reassign states of internal nodes to reduce back mutation count.")
     ("version", "Print version number")
     ("help,h", "Print help messages")
-    ("optimization_radius,R", po::value(&options.initial_optimization_radius)->default_value(4),
+    ("optimization_radius", po::value(&options.initial_optimization_radius)->default_value(4),
         "The search radius for optimization when parsimony score increase exceeds the threshold"
         "Set to 0 to disable optimiation"
         "Only newly placed samples and nodes within this radius will be searched")
-    ("optimization_minutes,M", po::value(&optimiation_minutes)->default_value(5),
+    ("optimization_minutes", po::value(&optimiation_minutes)->default_value(5),
         "Optimization time of each iterations in minutes"
         "Set to 0 to disable optimiation"
         "Only newly placed samples and nodes within this radius will be searched")
-    ("last_optimization_radius", po::value(&options.last_optimization_radius)->default_value(16),
+    ("last_optimization_minutes", po::value(&options.last_optimization_minutes)->default_value(120),
         "Optimization radius for the last round")
     ("batch_size_per_process",po::value(&batch_size_per_process)->default_value(5),
         "The number of samples each process search simultaneously")
-        ("parsimony_threshold,P",po::value(&options.parsimony_threshold)->default_value(100000),
+    ("parsimony_threshold",po::value(&options.parsimony_threshold)->default_value(100000),
         "Optimize after the parsimony score increase by this amount")
-    ("first_n_samples,f",po::value(&options.first_n_samples)->default_value(SIZE_MAX),"[TESTING ONLY] Only place first n samples")
+    ("first_n_samples",po::value(&options.first_n_samples)->default_value(SIZE_MAX),"[TESTING ONLY] Only place first n samples")
     //("gdb_pid,g",po::value(&gdb_pids)->multitoken(),"gdb pids for attaching")
     ;
     po::variables_map vm;
@@ -463,22 +486,40 @@ int main(int argc, char **argv) {
             follower_place_sample(tree,batch_size_per_process,false);
 	    init.terminate();
 	    init.initialize(num_threads);
+        bool done=false;
 	    if (options.initial_optimization_radius>0) {
+            bool is_last=false;
+            do{
             int optimization_radius;
             MPI_Bcast(&optimization_radius, 1, MPI_INT, 0, MPI_COMM_WORLD);
+            if (optimization_radius==0) {
+                done=true;
+                break;
+            }
             fprintf(stderr, "Optimizing with radius %d\n",optimization_radius);
             fprintf(stderr, "follower recieving trees\n");
-            MPI_reassign_states(tree, position_wise_mutations, start_idx);
+            if (is_last) {
+                tree.delete_nodes();
+                tree.MPI_receive_tree();
+            }else {
+                MPI_reassign_states(tree, position_wise_mutations, start_idx);        
+            }
+            is_last=optimization_radius<0;
+            if (is_last) {
+                optimization_radius=-optimization_radius;
+            }
             //tree.delete_nodes();
             //tree.MPI_receive_tree();
             adjust_all(tree);
             use_bound=true;
             fprintf(stderr, "follower start optimizing\n");
             optimize_tree_worker_thread(tree, optimization_radius, false, true);
+            }while (is_last);
             }
             int stop;
             MPI_Bcast(&stop, 1, MPI_INT, 0, MPI_COMM_WORLD);
-            if (stop) {
+            if (stop||done) {
+                fprintf(stderr, "follower stoping %s\n", stop?"recieved stop":"last done");
                 if (options.out_options.redo_FS_Min_Back_Mutations) {
                     MPI_min_back_reassign_states(tree, position_wise_mutations, start_idx);
                 }
@@ -488,4 +529,122 @@ int main(int argc, char **argv) {
         }
 	    MPI_Finalize();
     }
+}
+bool sort_samples(const Leader_Thread_Options& options,std::vector<Sample_Muts>& samples_to_place, MAT::Tree& tree,size_t sample_start_idx){
+    bool reordered=false;
+    if (options.sort_by_ambiguous_bases) {
+        fprintf(stderr, "Sorting missing samples based on the number of ambiguous bases \n");
+        tbb::parallel_for(tbb::blocked_range<size_t>(0,samples_to_place.size()),
+            [&samples_to_place](tbb::blocked_range<size_t> range){
+                for (size_t idx=range.begin(); idx<range.end(); idx++) {
+                    int ambiguous_count=0;
+                    for(const auto& mut:samples_to_place[idx].muts){
+                        if (mut.mut_nuc==0xf) {
+                            ambiguous_count+=mut.range;
+                        }else if (__builtin_popcount(mut.mut_nuc)!=1) {
+                            ambiguous_count++;
+                        }
+                    }
+                    samples_to_place[idx].sorting_key1=ambiguous_count;
+                }
+            });
+        if (options.reverse_sort) {
+            fprintf(stderr, "Reverse sort \n");
+            std::sort(samples_to_place.begin(), samples_to_place.end(),
+                [](const auto& samp1,const auto& samp2){return samp1.sorting_key1>samp2.sorting_key1;});
+        }else {
+            std::sort(samples_to_place.begin(), samples_to_place.end(),
+                [](const auto& samp1,const auto& samp2){return samp1.sorting_key1<samp2.sorting_key1;});
+
+        }        // Reverse sorted order if specified
+        //fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+        reordered=true;
+    }
+    if (options.collapse_tree) {
+        //timer.Start();
+
+        fprintf(stderr, "Collapsing input tree.\n");
+
+        auto condensed_tree_filename = options.out_options.outdir + "/condensed-tree.nh";
+        fprintf(stderr, "Writing condensed input tree to file %s\n", condensed_tree_filename.c_str());
+
+        FILE* condensed_tree_file = fopen(condensed_tree_filename.c_str(), "w");
+        fprintf(condensed_tree_file, "%s\n",tree.get_newick_string(true,true,options.out_options.retain_original_branch_len).c_str());
+        fclose(condensed_tree_file);
+
+        //fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+    }
+    std::vector<std::string> low_confidence_samples;
+    std::vector<Clade_info> samples_clade;
+    if (options.print_parsimony_scores) {
+        // timer.Start();
+        auto current_tree_filename = options.out_options.outdir + "/current-tree.nh";
+
+        fprintf(
+            stderr,
+            "Writing current tree with internal nodes labelled to file %s \n",
+            current_tree_filename.c_str());
+        FILE *current_tree_file = fopen(current_tree_filename.c_str(), "w");
+        fprintf(current_tree_file, "%s\n",
+                tree.get_newick_string(true, true, options.out_options.retain_original_branch_len)
+                    .c_str());
+        fclose(current_tree_file);
+
+        // fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+    } else {
+        if ((options.sort_before_placement_1 || options.sort_before_placement_2) &&
+            (samples_to_place.size() > 1)) {
+            // timer.Start();
+            fprintf(stderr, "Computing parsimony scores and number of "
+                            "parsimony-optimal placements for new samples and "
+                            "using them to sort the samples.\n");
+            assign_descendant_muts(tree);
+            assign_levels(tree.root);
+            set_descendant_count(tree.root);
+            if (process_count>1) {
+                fprintf(stderr, "Main sending tree\n");
+                tree.MPI_send_tree();
+            }
+            std::atomic_size_t curr_idx(0);
+            place_sample_leader(samples_to_place, tree, 100, curr_idx, INT_MAX,
+                                true, nullptr, options.max_parsimony,
+                                options.max_uncertainty, low_confidence_samples,
+                                samples_clade,sample_start_idx,nullptr);
+    fputc('\n', stderr);
+            //check_repeats(samples_to_place, sample_start_idx);
+            // Sort samples order in indexes based on parsimony scores
+            // and number of parsimony-optimal placements
+            if (options.sort_before_placement_1) {
+                std::sort(samples_to_place.begin(), samples_to_place.end(),
+                          [&options](const auto &samp1, const auto &samp2) {
+                              if (samp1.sorting_key1 < samp2.sorting_key1) {
+                                  return options.reverse_sort;
+                              }
+                              if (samp1.sorting_key1 == samp2.sorting_key1 &&
+                                  samp1.sorting_key2 < samp2.sorting_key2) {
+                                  return options.reverse_sort;
+                              }
+                              return !options.reverse_sort;
+                          });
+            } else if (options.sort_before_placement_2) {
+                std::sort(samples_to_place.begin(), samples_to_place.end(),
+                          [&options](const auto &samp1, const auto &samp2) {
+                              if (samp1.sorting_key2 < samp2.sorting_key2) {
+                                  return options.reverse_sort;
+                              }
+                              if (samp1.sorting_key2 == samp2.sorting_key2 &&
+                                  samp1.sorting_key1 < samp2.sorting_key1) {
+                                  return options.reverse_sort;
+                              }
+                              return !options.reverse_sort;
+                          });
+            }
+            // fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+            reordered=true;
+        }
+        //check_repeats(samples_to_place, sample_start_idx);
+
+        fprintf(stderr, "Adding missing samples to the tree.\n");
+    }
+    return reordered;
 }
