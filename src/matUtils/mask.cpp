@@ -211,6 +211,7 @@ void restrictMutationsLocally (std::string mutations_filename, MAT::Tree* T, boo
     if (mutations_filename.find(".csv\0") != std::string::npos) {
         delim = ',';
     }
+    std::map<std::string,std::string> mutlmap;
     std::string rootid = T->root->identifier;
     while (std::getline(infile, line)) {
         std::vector<std::string> words;
@@ -218,21 +219,23 @@ void restrictMutationsLocally (std::string mutations_filename, MAT::Tree* T, boo
             line = line.substr(0, line.size()-1);
         }
         MAT::string_split(line, delim, words);
-        std::string target_node;
-        std::string target_mutation;
         if ((words.size() == 1) || (global)) {
             //std::cerr << "Masking mutations globally.\n";
-            target_mutation = words[0];
-            target_node = rootid;
+            mutlmap[words[0]] = rootid;
         } else {
-            target_mutation = words[0];
-            target_node = words[1];
+            mutlmap[words[0]] = words[1];
         }
-        MAT::Mutation* mutobj = MAT::mutation_from_string(target_mutation);
+    }
+    infile.close();
+    //now that we have a map of mutations to mask plus the locations to mask downstream from, we proceed accordingly.
+    //very simple loop. For each mutation-location pair, depth first from that point and mask all instances of that mutation.
+    //then return the tree.
+    for (auto ml: mutlmap) {
+        MAT::Mutation* mutobj = MAT::mutation_from_string(ml.first);
         size_t instances_masked = 0;
-        MAT::Node* rn = T->get_node(target_node);
+        MAT::Node* rn = T->get_node(ml.second);
         if (rn == NULL) {
-            fprintf(stderr, "ERROR: Internal node %s requested for masking does not exist in the tree. Exiting\n", target_node.c_str());
+            fprintf(stderr, "ERROR: Internal node %s requested for masking does not exist in the tree. Exiting\n", ml.second.c_str());
             exit(1);
         }
         // fprintf(stderr, "Masking mutation %s below node %s\n", ml.first.c_str(), ml.second.c_str());
@@ -247,8 +250,8 @@ void restrictMutationsLocally (std::string mutations_filename, MAT::Tree* T, boo
             }
             n->mutations = nmuts;
         }
+        // std::cerr << instances_masked << " mutations masked.\n";
     }
-    infile.close();
     T->collapse_tree();
 }
 

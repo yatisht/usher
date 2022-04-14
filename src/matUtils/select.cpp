@@ -17,12 +17,9 @@ std::vector<std::string> read_sample_names (std::string sample_filename) {
     while (std::getline(infile, line)) {
         std::vector<std::string> words;
         MAT::string_split(line, words);
-        if (words.size() > 1 && !warned) {
+        if (words.size() != 1 && !warned) {
             fprintf(stderr, "WARNING: Input file %s contains excess columns; ignoring\n", sample_filename.c_str());
             warned = true;
-        } else if (words.size() == 0) {
-            fprintf(stderr, "WARNING: Empty line in input file %s; ignoring\n", sample_filename.c_str());
-            continue;
         }
         //remove carriage returns from the input to handle windows os
         auto sname = words[0];
