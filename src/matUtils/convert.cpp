@@ -478,7 +478,7 @@ void write_json_from_mat(MAT::Tree* T, std::string output_filename, std::vector<
         {
             "meta", {
                 {"title",title},
-                {"filters",json::array({"country"})},
+                {"filters",json::array({"country","userOrOld"})},
                 {"panels",json::array({"tree"})},
                 {"colorings",{ {{"key","country"},{"title","Country"},{"type","categorical"}} }},
                 {"display_defaults",lm},
