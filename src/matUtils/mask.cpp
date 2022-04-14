@@ -199,7 +199,6 @@ bool match_mutations(MAT::Mutation* target, MAT::Mutation* query) {
     }
     return true;
 }
-
 void restrictMutationsLocally (std::string mutations_filename, MAT::Tree* T, bool global) {
     std::ifstream infile(mutations_filename);
     if (!infile) {
