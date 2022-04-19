@@ -607,7 +607,7 @@ int usher_common(std::string dout_filename, std::string outdir, uint32_t max_tre
                             missing_samples[s].clade_assignments[c].resize(best_j_vec.size());
                             //TODO: can be parallelized
                             for (size_t k=0; k < best_j_vec.size(); k++) {
-                                bool include_self = !bfs[best_j_vec[k]]->is_leaf() && !node_has_unique[k];
+                                bool include_self = !bfs[best_j_vec[k]]->is_leaf() && !node_has_unique[best_j_vec[k]];
                                 auto clade_assignment = T->get_clade_assignment(bfs[best_j_vec[k]], c, include_self);
                                 missing_samples[s].clade_assignments[c][k] = clade_assignment;
                                 if (bfs[best_j_vec[k]]==best_node) {
