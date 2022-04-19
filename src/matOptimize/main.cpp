@@ -386,7 +386,11 @@ int main(int argc, char **argv) {
                         nodes_to_search.push_back(t.get_node(idx));                
                     }
                 }
-                new_score=t.get_parsimony_score();
+                auto curr_score=t.get_parsimony_score();
+		if(curr_score>=new_score){
+			nodes_to_search.clear();
+		}
+		new_score=curr_score;
                 fprintf(stderr, "parsimony score after optimizing: %zu,with radius %d, second from start %ld \n\n",
                         new_score,std::abs(radius),std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now()-start_time).count());
                 if(!no_write_intermediate) {
