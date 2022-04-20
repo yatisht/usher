@@ -166,6 +166,9 @@ int main(int argc, char **argv) {
     }else {
         reduce_back_mutations=true;
     }
+    if (drift_iterations) {
+        min_improvement=0.000000001;
+    }
     if (max_optimize_hours) {
         search_end_time=std::chrono::steady_clock::now()+std::chrono::hours(max_optimize_hours)-std::chrono::minutes(30);
         fprintf(stderr, "Set max opt time, will stop in %zu minutes\n",std::chrono::duration_cast<std::chrono::minutes>(search_end_time-std::chrono::steady_clock::now()).count());
