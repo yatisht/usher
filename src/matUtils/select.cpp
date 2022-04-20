@@ -17,9 +17,12 @@ std::vector<std::string> read_sample_names (std::string sample_filename) {
     while (std::getline(infile, line)) {
         std::vector<std::string> words;
         MAT::string_split(line, words);
-        if (words.size() != 1 && !warned) {
+        if (words.size() > 1 && !warned) {
             fprintf(stderr, "WARNING: Input file %s contains excess columns; ignoring\n", sample_filename.c_str());
             warned = true;
+        } else if (words.size() == 0) {
+            fprintf(stderr, "WARNING: Empty line in input file %s; ignoring\n", sample_filename.c_str());
+            continue;
         }
         //remove carriage returns from the input to handle windows os
         auto sname = words[0];
@@ -357,7 +360,9 @@ std::unordered_map<std::string,std::unordered_map<std::string,std::string>> read
             first = false;
         } else {
             for (size_t i=1; i < words.size(); i++) {
-                metamap[keys[i]][words[0]] = words[i];
+                if (samples_to_use.find(words[0]) != samples_to_use.end()) {
+                    metamap[keys[i]][words[0]] = words[i];
+                }
             }
         }
     }

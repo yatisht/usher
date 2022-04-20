@@ -99,3 +99,5 @@ void translate_and_populate_node_data(MAT::Tree *T, std::string gtf_filename, st
 void cleanup_codon_map(std::unordered_map<int, std::vector<std::shared_ptr<Codon>>> &codon_map);
 void undo_mutations(std::vector<MAT::Mutation> &mutations, std::unordered_map<int, std::vector<std::shared_ptr<Codon>>> &codon_map);
 char complement(char nt);
+void save_taxodium_tree (MAT::Tree &tree, std::string out_filename, std::vector<std::string> meta_filenames, std::string gtf_filename, std::string fasta_filename, std::string title, std::string description, std::vector<std::string> additional_meta_fields, float x_scale, bool include_nt);
+std::unordered_map<std::string, std::vector<std::string>> read_metafiles_tax(std::vector<std::string> filenames, Taxodium::AllData &all_data, Taxodium::AllNodeData *node_data, MetaColumns &columns, std::vector<GenericMetadata> &generic_metadata, std::vector<std::string> additional_meta_fields);
