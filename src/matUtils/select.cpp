@@ -361,7 +361,7 @@ std::unordered_map<std::string,std::unordered_map<std::string,std::string>> read
         } else {
             for (size_t i=1; i < words.size(); i++) {
                 if (samples_to_use.find(words[0]) != samples_to_use.end()) {
-                    metamap[words[0]][keys[i]] = words[i];
+                    metamap[keys[i]][words[0]] = words[i];
                 }
             }
         }
