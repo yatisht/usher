@@ -360,7 +360,9 @@ std::unordered_map<std::string,std::unordered_map<std::string,std::string>> read
             first = false;
         } else {
             for (size_t i=1; i < words.size(); i++) {
-                metamap[keys[i]][words[0]] = words[i];
+                if (samples_to_use.find(words[0]) != samples_to_use.end()) {
+                    metamap[keys[i]][words[0]] = words[i];
+                }
             }
         }
     }
