@@ -236,8 +236,7 @@ std::unordered_map<int, std::vector<std::shared_ptr<Codon>>> build_codon_map(std
     }
     return codon_map;
 }
-
-void translate_main(MAT::Tree *T, std::string output_filename, std::string gtf_filename, std::string fasta_filename) {
+std::vector<std::pair<std::string,std::string>> do_translation(MAT::Tree *T, std::string gtf_filename, std::string fasta_filename) {
     std::ifstream fasta_file(fasta_filename);
     if (!fasta_file) {
         fprintf(stderr, "ERROR: Could not open the fasta file: %s!\n", fasta_filename.c_str());
@@ -248,23 +247,12 @@ void translate_main(MAT::Tree *T, std::string output_filename, std::string gtf_f
         fprintf(stderr, "ERROR: Could not open the gtf file: %s!\n", gtf_filename.c_str());
         exit(1);
     }
-    std::ofstream output_file(output_filename);
-    if (!output_file) {
-        fprintf(stderr, "ERROR: Could not open file for writing: %s!\n", output_filename.c_str());
-        exit(1);
-    }
-
-    if (T->condensed_nodes.size() > 0) {
-        T->uncondense_leaves();
-    }
-
     std::string reference = build_reference(fasta_file);
-
-    output_file << "node_id\taa_mutations\tnt_mutations\tcodon_changes\tleaves_sharing_mutations" << '\n';
 
     // This maps each position in the reference to a vector of codons.
     // Some positions may be associated with multiple codons (frame shifts).
     // The Codons in the map are updated as the tree is traversed
+    std::vector<std::pair<std::string,std::string>> results;
     std::unordered_map<int, std::vector<std::shared_ptr<Codon>>> codon_map = build_codon_map(gtf_file, reference);
 
     // Traverse the tree in depth-first order. As we descend the tree, mutations at
@@ -273,7 +261,7 @@ void translate_main(MAT::Tree *T, std::string output_filename, std::string gtf_f
     MAT::Node *last_visited = nullptr;
     for (auto &node: dfs) {
         std::string mutation_result = "";
-        if(last_visited != node->parent) {
+        if (last_visited != node->parent) {
             // Jumping across a branch, so we need to revert codon mutations up to
             // the LCA of this node and the last visited node
             MAT::Node *last_common_ancestor = MAT::LCA(*T, node->identifier, last_visited->identifier);
@@ -285,9 +273,30 @@ void translate_main(MAT::Tree *T, std::string output_filename, std::string gtf_f
         } // If we are visiting a child, we can continue mutating
         mutation_result = do_mutations(node->mutations, codon_map, false);
         if (mutation_result != "") {
-            output_file << node->identifier << '\t' << mutation_result << '\t' << T->get_leaves(node->identifier).size() << '\n';
+            std::pair<std::string,std::string> result = std::make_pair(node->identifier, mutation_result);
+            results.push_back(result);
         }
         last_visited = node;
+    }
+    return results;
+}
+
+void translate_main(MAT::Tree *T, std::string output_filename, std::string gtf_filename, std::string fasta_filename) {
+   
+    std::ofstream output_file(output_filename);
+    if (!output_file) {
+        fprintf(stderr, "ERROR: Could not open file for writing: %s!\n", output_filename.c_str());
+        exit(1);
+    }
+
+    if (T->condensed_nodes.size() > 0) {
+        T->uncondense_leaves();
+    }
+
+    output_file << "node_id\taa_mutations\tnt_mutations\tcodon_changes\tleaves_sharing_mutations" << '\n';
+    std::vector<std::pair<std::string,std::string>> results = do_translation(T, gtf_filename, fasta_filename);
+    for (auto r: results){
+        output_file << r.first << '\t' << r.second << '\t' << T->get_leaves(r.first).size() << '\n';
     }
 }
 
