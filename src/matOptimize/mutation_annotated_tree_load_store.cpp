@@ -367,7 +367,9 @@ void Mutation_Annotated_Tree::save_mutation_annotated_tree (const Mutation_Annot
             mut->set_ref_nuc(-1);
         }
         for (auto m: dfs[idx]->mutations) {
-
+            if (m.get_par_one_hot()==m.get_mut_one_hot()) {
+                continue;
+            }
             auto mut = mutation_list->add_mutation();
             mut->set_chromosome(m.get_chromosome());
             mut->set_position(m.get_position());
