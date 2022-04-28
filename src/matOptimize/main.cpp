@@ -415,8 +415,7 @@ int main(int argc, char **argv) {
                     fprintf(stderr, "Took %ldsecond to save intermediate protobuf\n",std::chrono::duration_cast<std::chrono::seconds>(last_save_time-save_start).count());
                 }
                 if(allow_drift){
-                    std::fstream nwk_out(intermediate_nwk_out+std::to_string(iteration)+".nwk",std::ios::out);
-                    nwk_out<<t.get_newick_string(false,false);
+                    MAT::save_mutation_annotated_tree(t, intermediate_nwk_out+std::to_string(iteration)+".pb.gz");
                 }
                 if (std::chrono::steady_clock::now()>=search_end_time) {
                     break;
