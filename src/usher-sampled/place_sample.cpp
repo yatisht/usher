@@ -50,6 +50,9 @@ void discretize_mutations(const std::vector<To_Place_Sample_Mutation> &in,
                                  const MAT::Mutations_Collection &shared_mutations,
                                  MAT::Node *parent_node,
                                  MAT::Mutations_Collection &out) {
+    if (in.empty()) {
+        return;
+    }
     out.reserve(in.size());
     std::unordered_map<int, int> par_nuc_idx;
     assert(in.back().position==INT_MAX);

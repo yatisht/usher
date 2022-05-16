@@ -90,8 +90,8 @@ static void insert_line(int position,std::vector<int8_t>& variants,int file_idx)
         for (size_t i=0; i<other.size(); i++) {
             if (!(other[i]&variants[i])) {
                 std::lock_guard<std::mutex> lock(print_lock);
-                printf("At %d , sample %s , %c in file %s, %c in file %s\n",position,samples[i].c_str(),MAT::get_nuc(other[i]),filenames[!file_idx].c_str(),MAT::get_nuc(variants[i]),filenames[file_idx].c_str());
-                printf("At %d , sample %s , %d in file %s, %d in file %s\n",position,samples[i].c_str(),other[i],filenames[!file_idx].c_str(),variants[i],filenames[file_idx].c_str());
+                fprintf(stderr,"At %d , sample %s , %c in file %s, %c in file %s\n",position,samples[i].c_str(),MAT::get_nuc(other[i]),filenames[!file_idx].c_str(),MAT::get_nuc(variants[i]),filenames[file_idx].c_str());
+                fprintf(stderr, "At %d , sample %s , %d in file %s, %d in file %s\n",position,samples[i].c_str(),other[i],filenames[!file_idx].c_str(),variants[i],filenames[file_idx].c_str());
             }
         }
     }
