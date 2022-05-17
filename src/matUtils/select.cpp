@@ -203,6 +203,20 @@ std::vector<std::string> sample_intersect (std::vector<std::string> samples, std
     return inter_samples;
 }
 
+std::vector<std::string> sample_intersect (std::unordered_set<std::string> samples, std::vector<std::string> nsamples) {
+    //helper function to get the intersection of two a sample identifier set and vector
+    //used when chaining together other select functions
+    assert (samples.size() > 0);
+    assert (nsamples.size() > 0);
+    std::vector<std::string> inter_samples;
+    for (auto s: nsamples) {
+      if (samples.find(s) != samples.end()) {
+            inter_samples.push_back(s);
+        }
+    }
+    return inter_samples;
+}
+
 std::vector<std::string> get_nearby (MAT::Tree* T, std::string sample_id, int number_to_get) {
     //get the nearest X neighbors to sample_id and return them as a vector
     //the simple indexing method is not guaranteed to get the very closest neighbors when the query sample is out near the edge of a large clade
@@ -307,7 +321,7 @@ std::vector<std::string> get_short_steppers(MAT::Tree* T, std::vector<std::strin
 }
 
 std::vector<std::string> get_short_paths (MAT::Tree* T, std::vector<std::string> samples_to_check, int max_path) {
-    std::vector<std::string> good_samples;
+    std::unordered_set<std::string> good_samples;
     if (samples_to_check.size() == 0) {
         //if nothing is passed in, then check the whole tree.
         samples_to_check = T->get_leaves_ids();
@@ -325,11 +339,11 @@ std::vector<std::string> get_short_paths (MAT::Tree* T, std::vector<std::string>
         } else {
             //if its not an internal node, check to see if the length to its parent plus the length to the leaf is under the maximum.
             if (path_lengths[n->parent->identifier] + n->mutations.size() <= max_path) {
-                good_samples.push_back(n->identifier);
+                good_samples.insert(n->identifier);
             }
         }
     }
-    return good_samples;
+    return sample_intersect(good_samples, samples_to_check);
 }
 
 std::unordered_map<std::string,std::unordered_map<std::string,std::string>> read_metafile(std::string metainf, std::set<std::string> samples_to_use) {
