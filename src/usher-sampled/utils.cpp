@@ -486,7 +486,7 @@ static void remove_absent_leaves(MAT::Node* node,MAT::Tree& tree,std::unordered_
     if (node->children.empty()) {
         auto this_name=tree.get_node_name(node->node_id);
         auto iter=present.find(this_name);
-        if (iter==present.end()) {
+        if (iter==present.end()&&(!node->is_root())) {
             fprintf(stderr,"sample %s absent in VCF,removed\n", this_name.c_str());
             //absent
             remove_node_helper(node, tree);
@@ -497,6 +497,9 @@ static void remove_absent_leaves(MAT::Node* node,MAT::Tree& tree,std::unordered_
     auto old_children=node->children;
     for (auto child : old_children) {
         remove_absent_leaves(child, tree, present);
+    }
+    if (node->is_root()) {
+        return;
     }
     if (node->children.empty()) {
         remove_node_helper(node, tree);

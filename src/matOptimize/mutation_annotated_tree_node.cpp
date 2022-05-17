@@ -60,7 +60,14 @@ Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Tree::create_node () {
 Node* Mutation_Annotated_Tree::Tree::get_node_c_str (const char* identifier) const {
     return get_node(std::string(identifier));
 }
-
+int Mutation_Annotated_Tree::Tree::get_node_id_c_str (const char* identifier) const {
+    auto iter=node_name_to_idx_map.find(identifier);
+    if (iter==node_name_to_idx_map.end()) {
+        return -1;
+    }else {
+        return iter->second;
+    }
+}
 void Mutation_Annotated_Tree::Tree::rename_node(size_t old_nid, std::string new_nid) {
     if (new_nid=="") {
         auto iter=node_names.find(old_nid);

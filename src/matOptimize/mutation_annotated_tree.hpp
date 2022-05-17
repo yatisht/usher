@@ -530,7 +530,7 @@ class Tree {
         return all_nodes.size();
     }
     Node* get_node(size_t idx)const{
-        if (idx>all_nodes.size()) {
+        if (idx>=all_nodes.size()) {
             /*if (warn) {
                 fprintf(stderr, "%zu node out of range, total size %zu \n",idx,all_nodes.size());
                 raise(SIGTRAP);
@@ -589,6 +589,7 @@ class Tree {
         return NULL;
     }
     Node* get_node_c_str (const char* identifier) const;
+    int get_node_id_c_str (const char* identifier) const;
     std::vector<Node*> breadth_first_expansion(std::string nid="");
     std::vector<Node*> depth_first_expansion(Node* node=NULL) const;
 

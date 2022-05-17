@@ -122,7 +122,7 @@ void leader_thread_optimization(MAT::Tree& tree,std::vector<mutated_t>& position
                 distributed = false;
                 auto new_parsimony_score=tree.get_parsimony_score();
                 fprintf(stderr, "Last parsimony score %lu\n",new_parsimony_score);
-                if(new_parsimony_score>last_parsimony_score
+                if(new_parsimony_score>=last_parsimony_score
                     || std::chrono::steady_clock::now()>optimization_end){
                     timeout=true;
                     break;
@@ -238,6 +238,7 @@ static int leader_thread(
     fprintf(stderr, "Found %zu missing samples.\n\n", samples_to_place.size());
     std::string placement_stats_filename = options.out_options.outdir + "/placement_stats.tsv";
     FILE *placement_stats_file = fopen(placement_stats_filename.c_str(), "w");
+    
     if (options.no_add) {
         std::atomic_size_t curr_idx(0);
         assign_descendant_muts(tree);
@@ -283,6 +284,13 @@ static int leader_thread(
     }
     while (true) {
         fprintf(stderr, "Parsimony score %zu\n",tree.get_parsimony_score());
+        if (!tree.root->mutations.empty()) {
+            auto node=tree.create_node();
+            auto ori_root=tree.root;
+            node->children.push_back(ori_root);
+            ori_root->parent=node;
+            tree.root=node;
+        }
         assign_descendant_muts(tree);
         assign_levels(tree.root);
         set_descendant_count(tree.root);
