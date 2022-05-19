@@ -251,25 +251,37 @@ void write_sample_clades_table (MAT::Tree* T, std::string sample_clades) {
     fprintf(stderr, "Writing clade associations for all samples to output %s\n", sample_clades.c_str());
     std::ofstream scfile;
     scfile.open(sample_clades);
-    scfile << "sample\tannotation_1\tannotation_2\n";
+    size_t num_annotations = T->get_num_annotations();
+    scfile << "sample";
+    for (size_t i = 1;  i <= num_annotations;  i++) {
+        scfile << "\tannotation_" << i;
+    }
+    scfile << "\n";
     for (auto n: T->get_leaves()) {
-        std::string ann_1 = "None";
-        std::string ann_2 = "None";
+        std::vector<std::string> annotations_found (num_annotations, "None");
         for (auto a: T->rsearch(n->identifier, false)) {
             std::vector<std::string> canns = a->clade_annotations;
-            for (size_t i = 0; i < canns.size(); i++) {
-                if ((i == 0) && (canns[i] != "") && (ann_1 == "None")) {
-                    ann_1 = canns[i];
+            for (size_t i = 0; i < num_annotations; i++) {
+                if (canns[i] != "" && annotations_found[i] == "None") {
+                    annotations_found[i] = canns[i];
                 }
-                if ((i == 1) && (canns[i] != "") && (ann_2 == "None")) {
-                    ann_2 = canns[i];
-                }
-                if ((ann_1 != "None") && (ann_2 != "None")) {
+            }
+            bool all_found = true;
+            for (size_t i = 0;  i < num_annotations;  i++) {
+                if (annotations_found[i] == "None") {
+                    all_found = false;
                     break;
                 }
             }
+            if (all_found) {
+                break;
+            }
         }
-        scfile << n->identifier << "\t" << ann_1 << "\t" << ann_2 << "\n";
+        scfile << n->identifier;
+        for (size_t i = 0;  i < num_annotations;  i++) {
+            scfile << "\t" << annotations_found[i];
+        }
+        scfile << "\n";
     }
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     scfile.close();
