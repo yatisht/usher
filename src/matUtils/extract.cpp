@@ -261,7 +261,8 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         if (samples.size() == 0) {
             samples = nk_samples;
         } else {
-            samples = sample_intersect(samples, nk_samples);
+            std::unordered_set<std::string> nk_samples_set(nk_samples.begin(), nk_samples.end());
+            samples = sample_intersect(nk_samples_set, samples);
         }
     }
     if (internal_choice != "") {
@@ -269,7 +270,8 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         if (samples.size() == 0) {
             samples = ic_samples;
         } else {
-            samples = sample_intersect(samples, ic_samples);
+            std::unordered_set<std::string> ic_samples_set(ic_samples.begin(), ic_samples.end());
+            samples = sample_intersect(ic_samples_set, samples);
         }
     }
     if (clade_choice != "") {
