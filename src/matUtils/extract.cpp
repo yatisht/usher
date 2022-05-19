@@ -284,7 +284,7 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         //this has a bit different setup from the rest of selection because these are OR logic
         //e.g. if I pass 20B,19D I want samples that belong to one OR the other
         //so I create a vector which represents all samples in both, then intersect that vector with the samples selected otherwise
-        std::vector<std::string> samples_in_clade;
+        std::unordered_set<std::string> samples_in_clade;
         for (auto cname: clades) {
             fprintf(stderr, "Getting member samples of clade %s\n", cname.c_str());
             auto csamples = get_clade_samples(&T, cname);
@@ -293,17 +293,13 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
                 //itll error down the line if this was the only one they passed in and it leaves them with no samples
                 fprintf(stderr, "WARNING: Clade %s is not detected in the input tree!\n", cname.c_str());
             }
-            samples_in_clade.insert(samples_in_clade.end(), csamples.begin(), csamples.end());
+            samples_in_clade.insert(csamples.begin(), csamples.end());
         }
-        //remove duplicate samples
-        std::set<std::string> tset(samples_in_clade.begin(), samples_in_clade.end());
-        samples_in_clade.assign(tset.begin(),tset.end());
-
         //proceed to the normal intersection code
         if (samples.size() == 0) {
-            samples = samples_in_clade;
+            samples.assign(samples_in_clade.begin(),samples_in_clade.end());
         } else {
-            samples = sample_intersect(samples, samples_in_clade);
+            samples = sample_intersect(samples_in_clade, samples);
         }
         if (samples.size() == 0) {
             fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
