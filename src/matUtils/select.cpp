@@ -189,20 +189,6 @@ std::vector<std::string> get_clade_representatives(MAT::Tree* T, size_t samples_
     return rep_sample_vec;
 }
 
-std::vector<std::string> sample_intersect (std::vector<std::string> samples, std::vector<std::string> nsamples) {
-    //helper function to get the intersection of two sample identifier vectors
-    //used when chaining together other select functions
-    assert (samples.size() > 0);
-    assert (nsamples.size() > 0);
-    std::vector<std::string> inter_samples;
-    for (auto s: samples) {
-        if (std::find(nsamples.begin(), nsamples.end(), s) != nsamples.end()) {
-            inter_samples.push_back(s);
-        }
-    }
-    return inter_samples;
-}
-
 std::vector<std::string> sample_intersect (std::unordered_set<std::string> samples, std::vector<std::string> nsamples) {
     //helper function to get the intersection of two a sample identifier set and vector
     //used when chaining together other select functions
