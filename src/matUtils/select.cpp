@@ -320,11 +320,11 @@ std::vector<std::string> get_short_steppers(MAT::Tree* T, std::vector<std::strin
     return good_samples;
 }
 
-std::vector<std::string> get_short_paths (MAT::Tree* T, std::vector<std::string> samples_to_check, int max_path) {
+std::unordered_set<std::string> get_short_paths (MAT::Tree* T, std::vector<std::string> samples_to_check, int max_path) {
     std::unordered_set<std::string> good_samples;
-    if (samples_to_check.size() == 0) {
-        //if nothing is passed in, then check the whole tree.
-        samples_to_check = T->get_leaves_ids();
+    std::unordered_set<std::string> sampleset;
+    if (samples_to_check.size() != 0) {
+        sampleset.insert(samples_to_check.begin(), samples_to_check.end());
     }
     std::unordered_map<std::string, size_t> path_lengths;
     for (auto n: T->depth_first_expansion()) {
@@ -339,11 +339,13 @@ std::vector<std::string> get_short_paths (MAT::Tree* T, std::vector<std::string>
         } else {
             //if its not an internal node, check to see if the length to its parent plus the length to the leaf is under the maximum.
             if (path_lengths[n->parent->identifier] + n->mutations.size() <= max_path) {
-                good_samples.insert(n->identifier);
+                if (samples_to_check.size() == 0 || sampleset.find(n->identifier) != sampleset.end()) {
+                    good_samples.insert(n->identifier);
+                }
             }
         }
     }
-    return sample_intersect(good_samples, samples_to_check);
+    return good_samples;
 }
 
 std::unordered_map<std::string,std::unordered_map<std::string,std::string>> read_metafile(std::string metainf, std::set<std::string> samples_to_use) {

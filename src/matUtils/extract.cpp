@@ -320,23 +320,20 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         }
         assert (mutations.size() > 0);
 
-        std::vector<std::string> samples_with_mutation;
+        std::unordered_set<std::string> samples_with_mutation;
         for (auto mname: mutations) {
             fprintf(stderr, "Getting samples with mutation %s\n", mname.c_str());
             auto msamples = get_mutation_samples(&T, mname);
             if (msamples.size() == 0) {
                 fprintf(stderr, "WARNING: No samples with mutation %s found in tree!\n", mname.c_str());
             }
-            samples_with_mutation.insert(samples_with_mutation.end(), msamples.begin(), msamples.end());
+            samples_with_mutation.insert(msamples.begin(), msamples.end());
         }
-        //remove duplicate samples
-        std::set<std::string> tset(samples_with_mutation.begin(), samples_with_mutation.end());
-        samples_with_mutation.assign(tset.begin(),tset.end());
 
         if (samples.size() == 0) {
-            samples = samples_with_mutation;
+            samples.assign(samples_with_mutation.begin(),samples_with_mutation.end());
         } else {
-            samples = sample_intersect(samples, samples_with_mutation);
+            samples = sample_intersect(samples_with_mutation, samples);
         }
         if (samples.size() == 0) {
             fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
@@ -365,7 +362,8 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         }
     }
     if (max_path >= 0) {
-        samples = get_short_paths(&T, samples, max_path);
+        auto ss = get_short_paths(&T, samples, max_path);
+        samples.assign(ss.begin(),ss.end());
         if (samples.size() == 0) {
             fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
             exit(1);
@@ -394,7 +392,7 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         //store the reason they were included as a map to add to metadata later.
         //in this case, just store the original list.
         not_nearest.insert(samples.begin(), samples.end());
-        std::set<std::string> nsamples;
+        std::unordered_set<std::string> nsamples;
         for (auto s: samples) {
             auto nearest = get_nearby(&T, s, select_nearest);
             nsamples.insert(nearest.begin(), nearest.end());
