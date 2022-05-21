@@ -306,8 +306,8 @@ std::vector<std::string> get_short_steppers(MAT::Tree* T, std::vector<std::strin
     return good_samples;
 }
 
-std::unordered_set<std::string> get_short_paths (MAT::Tree* T, std::vector<std::string> samples_to_check, int max_path) {
-    std::unordered_set<std::string> good_samples;
+std::vector<std::string> get_short_paths (MAT::Tree* T, std::vector<std::string> samples_to_check, int max_path) {
+    std::vector<std::string> good_samples;
     std::unordered_set<std::string> sampleset;
     if (samples_to_check.size() != 0) {
         sampleset.insert(samples_to_check.begin(), samples_to_check.end());
@@ -326,7 +326,7 @@ std::unordered_set<std::string> get_short_paths (MAT::Tree* T, std::vector<std::
             //if its not an internal node, check to see if the length to its parent plus the length to the leaf is under the maximum.
             if (path_lengths[n->parent->identifier] + n->mutations.size() <= max_path) {
                 if (samples_to_check.size() == 0 || sampleset.find(n->identifier) != sampleset.end()) {
-                    good_samples.insert(n->identifier);
+                    good_samples.push_back(n->identifier);
                 }
             }
         }

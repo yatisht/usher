@@ -360,8 +360,7 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         }
     }
     if (max_path >= 0) {
-        auto ss = get_short_paths(&T, samples, max_path);
-        samples.assign(ss.begin(),ss.end());
+        samples = get_short_paths(&T, samples, max_path);
         if (samples.size() == 0) {
             fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
             exit(1);
