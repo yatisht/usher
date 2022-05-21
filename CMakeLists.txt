@@ -53,9 +53,8 @@ AUX_SOURCE_DIRECTORY(src/matOptimize/apply_move patch_tree)
 AUX_SOURCE_DIRECTORY(src/check_samples_place check_samples_place) 
 file(GLOB MATUTIL_SRCS "src/matUtils/*.cpp" "src/matUtils/*.hpp")
 file(GLOB RIPPLES_SRCS "src/ripples/*.cpp" "src/ripples/*.hpp")
-file(GLOB USHER_SAMPLED_SRCS "src/usher-sampled/*.cpp" "src/usher-sampled/*.hpp" "src/usher-sampled/static_tree_mapper/*")
+file(GLOB USHER_SAMPLED_SRCS "src/usher-sampled/static_tree_mapper/*" "src/usher-sampled/*.cpp" "src/usher-sampled/*.hpp")
 file(GLOB RIPPLES_FAST_SRCS "src/ripples/ripples_fast/*.cpp" "src/ripples/ripples_fast/*.hpp")
-
 set_source_files_properties(src/mutation_annotated_tree.cpp PROPERTIES COMPILE_FLAGS -O3)
 set_source_files_properties(src/usher-sampled/wait_debug.cpp PROPERTIES COMPILE_FLAGS -O0)
 #set_source_files_properties(src/matOptimize/Profitable_Moves_Enumerators/range_tree.cpp PROPERTIES COMPILE_FLAGS -O0)
@@ -276,9 +275,34 @@ else()
         src/matOptimize/Fitch_Sankoff.cpp
         src/matOptimize/main_load_tree.cpp
         src/matOptimize/priority_conflict_resolver.cpp
+        src/usher-sampled/driver/main.cpp
         ${patch_tree}
         ${New_Profitable_Moves_Enumerators}
     )
+    add_executable(usher-sampled-server
+    ${USHER_SAMPLED_SRCS}
+    ${PROTO_SRCS}
+    ${PROTO_HDRS}
+    ${DETAILED_MUTATIONS_PROTO_SRCS}
+    ${DETAILED_MUTATIONS_PROTO_HDRS}
+    src/matOptimize/main_helper.cpp
+    src/matOptimize/detailed_mutations_store.cpp
+    src/matOptimize/detailed_mutations_load.cpp
+    src/matOptimize/mutation_annotated_tree.cpp
+    src/matOptimize/mutation_annotated_tree_node.cpp
+    src/matOptimize/mutation_annotated_tree_load_store.cpp
+    src/matOptimize/mutation_annotated_tree_nuc_util.cpp
+    src/matOptimize/Mutation_Collection.cpp
+    src/matOptimize/check_samples.cpp
+    src/matOptimize/optimize_tree.cpp
+    src/matOptimize/condense.cpp
+    src/matOptimize/Fitch_Sankoff.cpp
+    src/matOptimize/main_load_tree.cpp
+    src/matOptimize/priority_conflict_resolver.cpp
+    src/usher-sampled/driver/socket.cpp
+    ${patch_tree}
+    ${New_Profitable_Moves_Enumerators}
+)
     add_executable(compareVCF
         src/mutation_annotated_tree.cpp
         src/compareVCF.cpp
@@ -392,6 +416,7 @@ TARGET_LINK_LIBRARIES(compareVCF PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORT
 TARGET_LINK_LIBRARIES(check_samples_place PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB  ${MPI_CXX_LIBRARIES} ${MPI_CXX_LINK_FLAGS} ${ISAL_LIB} ) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(matOptimize PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB  ${MPI_CXX_LIBRARIES} ${MPI_CXX_LINK_FLAGS} ${ISAL_LIB} ) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(usher-sampled PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB  ${MPI_CXX_LIBRARIES} ${MPI_CXX_LINK_FLAGS} ${ISAL_LIB} ) # OpenMP::OpenMP_CXX)
+TARGET_LINK_LIBRARIES(usher-sampled-server PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB  ${MPI_CXX_LIBRARIES} ${MPI_CXX_LINK_FLAGS} ${ISAL_LIB} ) # OpenMP::OpenMP_CXX)
 #TARGET_LINK_LIBRARIES(output_final_protobuf PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB  ${MPI_CXX_LIBRARIES} ${MPI_CXX_LINK_FLAGS} ) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(transpose_vcf PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(transposed_vcf_to_vcf PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)

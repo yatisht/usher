@@ -123,7 +123,7 @@ struct check_samples_worker:public tbb::task {
                                     "Mut Nuc Mismatch at \t %d, address %lx, of sample \t %s "
                                     "at bfs_index \t %zu: original \t %d , "
                                     "altered :\t %d \n",
-                                    m.get_position(),root,
+                                    m.get_position(),(unsigned long)root,
                                     tree.get_node_name(root->node_id).c_str(),
                                     root->bfs_index,
                                     (int)m_iter->get_all_major_allele(),

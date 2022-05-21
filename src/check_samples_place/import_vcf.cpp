@@ -285,7 +285,7 @@ struct line_parser {
                     line_in++;
                 }
                 auto output_idx = sample_idx[field_idx];
-                if (output_idx != -1) {
+                if (output_idx != SIZE_MAX) {
                     // output prototype of mutation, and a map from sample to
                     // non-ref allele
                     MAT::Mutation this_mut(mut_template);
@@ -379,7 +379,7 @@ static void process(infile_t &fd, Original_State_t& ori_state,
     read_header(fd, fields);
     tbb::flow::graph input_graph;
     Sampled_Tree_Mutations_t tree_mutations;
-    std::vector<size_t> sample_idx(fields.size(), -1);
+    std::vector<size_t> sample_idx(fields.size(), SIZE_MAX);
     std::vector<std::string> sample_names;
     sample_names.reserve(fields.size());
     int curr_sample_idx = 0;

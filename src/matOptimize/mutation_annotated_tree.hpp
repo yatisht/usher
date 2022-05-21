@@ -645,7 +645,7 @@ void get_random_sample_subtrees(const Mutation_Annotated_Tree::Tree &T,
                                 std::string outdir, size_t subtree_size,
                                 size_t tree_idx = 0, bool use_tree_idx = false,
                                 bool retain_original_branch_len = false);
-Tree load_mutation_annotated_tree(std::string filename);
+bool load_mutation_annotated_tree (std::string filename,Tree& tree);
 void save_mutation_annotated_tree (const Tree& tree, std::string filename);
 void get_sample_mutation_paths (Mutation_Annotated_Tree::Tree* T, std::vector<Node*> samples, std::string mutation_paths_filename);
 }

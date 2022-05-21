@@ -72,7 +72,9 @@ struct Clade_info{
     Clade_info():valid(false){}
 };
 void Sample_Input(const char *name, std::vector<Sample_Muts> &sample_mutations,
-                  MAT::Tree &tree,std::vector<mutated_t>&,bool,std::vector<std::string>& fields);
+                  MAT::Tree &tree,std::vector<mutated_t>&,bool,
+                  std::vector<std::string>& fields
+                  ,const std::unordered_set<std::string>& samples_in_condensed_nodes);
 #ifndef NDEBUG
 Mutation_Set get_mutations(const MAT::Node *main_tree_node);
 void check_descendant_nuc(const MAT::Node* node);
@@ -154,3 +156,11 @@ void print_annotation(const MAT::Tree &T, const output_options &options,
 void min_back_reassign_state_local(MAT::Tree& tree,const std::vector<mutated_t>& mutations);
 void MPI_min_back_reassign_states(MAT::Tree &tree,const std::vector<mutated_t> &mutations,int start_position);
 int count_back_mutation(const MAT::Tree& tree);
+void place_sample_sequential(
+    std::vector<Sample_Muts> &sample_to_place, MAT::Tree &main_tree,
+    bool dry_run, FILE *placement_stats_file, int max_parsimony,
+    size_t max_uncertainty, std::vector<std::string> &low_confidence_samples,
+    std::vector<Clade_info> &samples_clade, size_t sample_start_idx,
+     bool do_print, FILE *printer_out);
+void clean_up_leaf(std::vector<MAT::Node*>& dfs);
+void prep_tree(MAT::Tree &tree);

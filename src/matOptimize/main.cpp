@@ -265,13 +265,17 @@ int main(int argc, char **argv) {
                                 input_nh_path);
                         //fprintf(stderr, "Input tree have %zu nodes\n",t.all_nodes.size());
                     } else {
-                        t = MAT::load_mutation_annotated_tree(input_pb_path);
+                        if(!MAT::load_mutation_annotated_tree(input_pb_path,t)){
+                            exit(EXIT_FAILURE);
+                        }
                         t.uncondense_leaves();
                     }
                     fputs("Finished loading input tree, start reading VCF and assigning states \n",stderr);
                     load_vcf_nh_directly(t, input_vcf_path, origin_states);
                 } else if(transposed_vcf_path!="") {
-                    t=MAT::load_mutation_annotated_tree(input_pb_path);
+                    if(!MAT::load_mutation_annotated_tree(input_pb_path,t)){
+                        exit(EXIT_FAILURE);
+                    }
 #ifdef PROFILE_HEAP
                     raise(SIGUSR1);
 #endif

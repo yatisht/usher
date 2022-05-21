@@ -12,7 +12,8 @@ int main (int argc,char** argv){
         ignore_missings=true;
         fprintf(stderr, "Ignoring missing samples\n");
     }
-    MAT::Tree new_tree=MAT::load_mutation_annotated_tree(argv[3]);
+    MAT::Tree new_tree;
+    MAT::load_mutation_annotated_tree(argv[3],new_tree);
     std::unordered_set<std::string> claimed_leaves;
     for (const auto leaf:new_tree.get_leaves()){
 	auto name=new_tree.get_node_name(leaf->node_id);
@@ -30,7 +31,8 @@ int main (int argc,char** argv){
 		fprintf(stderr,"%s duplicated\n", name.c_str());
 	}
     }
-    MAT::Tree ori_tree=MAT::load_mutation_annotated_tree(argv[1]);
+    MAT::Tree ori_tree;
+    MAT::load_mutation_annotated_tree(argv[1],ori_tree);
     ori_tree.uncondense_leaves();
     Original_State_t ori_state;
     check_samples(ori_tree.root, ori_state, &ori_tree);

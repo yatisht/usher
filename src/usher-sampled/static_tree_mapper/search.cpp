@@ -210,7 +210,7 @@ static void check_output(const Main_Tree_Target& to_check,const std::vector<To_P
 static void check_descendant(const std::vector<fixed_tree_search_mutation>& to_check,const std::vector<To_Place_Sample_Mutation>& ref,const MAT::Node* node){
         std::unordered_map<int, uint8_t> pos;
     pos.reserve(ref.size());
-    for (int idx=0;idx<to_check.size();idx++) {
+    for (size_t idx=0;idx<to_check.size();idx++) {
         const auto& mut=to_check[idx];
         if (mut.mut_nuc==0xf) {
             for (int idx=mut.position; idx<=mut.get_end_range(); idx++) {
@@ -243,7 +243,7 @@ static int merge_mutations(std::vector<fixed_tree_search_mutation>& parent,const
     int parsimony_score=0; 
     auto iter=parent.begin();
     auto end=parent.end();
-    for (int idx=0; idx<node_mut_count; idx++) {
+    for (size_t idx=0; idx<node_mut_count; idx++) {
         const auto& this_mut=node_mut[idx];
         while (iter->get_end_range()<this_mut.get_position()) {
             if (!(iter->mut_nuc==0xf||(iter->mut_nuc&iter->par_nuc))) {

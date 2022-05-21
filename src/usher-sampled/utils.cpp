@@ -617,7 +617,7 @@ void final_output(MAT::Tree &T, const output_options &options, int t_idx,
                   std::vector<std::string> &low_confidence_samples,std::vector<mutated_t>& position_wise_out) {
     // If user need uncondensed tree output, write uncondensed tree(s) to
     // file(s)
-    check_leaves(T);
+    //check_leaves(T);
     {
     if (options.redo_FS_Min_Back_Mutations) {
         fprintf(stderr, "Parsimony score before %zu\n",T.get_parsimony_score());
@@ -635,7 +635,7 @@ void final_output(MAT::Tree &T, const output_options &options, int t_idx,
     clean_up_internal_nodes(T.root,T,ignored1,ignored2);
     }
     fix_condensed_nodes(&T);
-    check_leaves(T);
+    //check_leaves(T);
     MAT::save_mutation_annotated_tree(T, "before_post_processing.pb");
     output_newick(T, options,t_idx);
     // For each final tree write the path of mutations from tree root to the
@@ -666,7 +666,7 @@ void final_output(MAT::Tree &T, const output_options &options, int t_idx,
     // For each final tree write the annotations for each sample
 
     size_t num_annotations = T.get_num_annotations();
-    check_leaves(T);
+    //check_leaves(T);
 
     if (num_annotations > 0&&options.only_one_tree) {
         // timer.Start();
@@ -676,7 +676,7 @@ void final_output(MAT::Tree &T, const output_options &options, int t_idx,
 
         // fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
-    check_leaves(T);
+    //check_leaves(T);
     if ((options.print_subtrees_single > 1) ) {
         fprintf(stderr, "Computing the single subtree for added samples with %zu random leaves. \n\n", options.print_subtrees_single);
         //timer.Start();
@@ -685,7 +685,7 @@ void final_output(MAT::Tree &T, const output_options &options, int t_idx,
         MAT::get_random_single_subtree(T, targets, options.outdir, options.print_subtrees_single, t_idx, use_tree_idx, options.retain_original_branch_len);
         //fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
-    check_leaves(T);
+    //check_leaves(T);
     if ((options.print_subtrees_size > 1)) {
         fprintf(stderr, "Computing subtrees for added samples. \n\n");
 

@@ -38,7 +38,7 @@ struct temp_tree_build_comp {
 };
 static void check_node(const Temp_Idx_Tree_Node* to_check){
     //check sorting
-    auto idx=to_check->covering_node->dfs_index;
+    int idx=to_check->covering_node->dfs_index;
     if (idx>to_check->dfs_start_idx) {
         fprintf(stderr, "Not covered\n");
         raise(SIGTRAP);
@@ -56,7 +56,7 @@ static void check_node(const Temp_Idx_Tree_Node* to_check){
         raise(SIGTRAP);
     }
     idx=to_check->dfs_end_idx;
-    if (idx>to_check->covering_node->dfs_end_index) {
+    if (idx>(int)to_check->covering_node->dfs_end_index) {
         fprintf(stderr, "Not covered end\n");
         raise(SIGTRAP);
     }
@@ -86,7 +86,7 @@ static void bulid_idx_tree(Temp_Tree_Node_Coll_t& in,std::vector<index_ele>& out
             auto front=in.front();
             children.push_back(front);        
             if (front->is_self) {
-                if (front->dfs_start_idx==front->covering_node->dfs_index) {
+                if (front->dfs_start_idx==(int)front->covering_node->dfs_index) {
                     fprintf(stderr, "Mult self node\n");
                     raise(SIGTRAP);
                 }
@@ -99,7 +99,7 @@ static void bulid_idx_tree(Temp_Tree_Node_Coll_t& in,std::vector<index_ele>& out
             par_node=curr->covering_node;
         }
         bool is_curr_self=curr->is_self &&
-            curr->dfs_start_idx == curr->covering_node->dfs_index;
+            curr->dfs_start_idx == (int)curr->covering_node->dfs_index;
         if (is_curr_self) {
             if (!curr->children.empty()) {
                 Temp_Idx_Tree_Node *temp_node = new Temp_Idx_Tree_Node;

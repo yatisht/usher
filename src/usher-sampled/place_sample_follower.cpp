@@ -136,7 +136,7 @@ static void recv_and_place_follower(MAT::Tree &tree,
         auto out = update_main_tree(
             sample_mutations, splitted_mutations, shared_mutations,
             target_node,
-            parsed_target.sample_id(), tree, parsed_target.split_node_id());
+            parsed_target.sample_id(), tree, parsed_target.split_node_id(),true);
         /*if (out.splitted_node) {
             if (out.splitted_node->node_id!=parsed_target.split_node_id()) {
                 fprintf(stderr, "split node id mismatch\n");

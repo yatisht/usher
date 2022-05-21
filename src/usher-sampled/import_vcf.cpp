@@ -224,12 +224,12 @@ static void add_mutation(long output_idx, const MAT::Mutation &mut_template,
                          std::vector<std::vector<MAT::Mutation>> &this_blk,
                          mut_container_t &mutations_out,
                          size_t offset,uint8_t mut_nuc) {
-    if (mutations_out.size()<mut_template.get_position()+1) {
+    if (mutations_out.size()<mut_template.get_position()+1ul) {
         std::lock_guard<std::mutex> lk(mutation_mutex);
         mutations_out.resize(std::max(mutations_out.size(),(size_t)(mut_template.get_position()+1)));
     }
     if (output_idx >= 0) {
-        if (output_idx>=this_blk.size()) {
+        if (output_idx>=(long)this_blk.size()) {
             raise(SIGTRAP);
         }
         MAT::Mutation this_mut(mut_template);
@@ -398,6 +398,7 @@ static line_start_later try_get_first_line(infile_t &f, size_t &size) {
 }
 #define CHUNK_SIZ 200ul
 #define ONE_GB 0x4ffffffful
+#define ONE_MB 0xffffful
 static void map_names(MAT::Tree &tree,std::vector<Sample_Muts> &sample_mutations,std::vector<std::string>& sample_names){
     for (size_t idx=0;idx<sample_names.size();idx++) {
         sample_mutations[idx].sample_idx=tree.map_samp_name_only(sample_names[idx]);
@@ -405,7 +406,9 @@ static void map_names(MAT::Tree &tree,std::vector<Sample_Muts> &sample_mutations
 }
 template <typename infile_t>
 static void process(infile_t &fd, std::vector<Sample_Muts> &sample_mutations,
-                    MAT::Tree &tree,mut_container_t& mutations_out,bool override,std::vector<std::string>& fields) {
+                    MAT::Tree &tree,mut_container_t& mutations_out,
+                    bool override,std::vector<std::string>& fields,
+                    const std::unordered_set<std::string>& samples_in_condensed_nodes) {
     read_header(fd, fields);
     tbb::flow::graph input_graph;
     Sampled_Tree_Mutations_t tree_mutations;
@@ -426,7 +429,10 @@ static void process(infile_t &fd, std::vector<Sample_Muts> &sample_mutations,
             }else {
                 fprintf(stderr, "WARNING: Sample %s already in the tree! Ignoring.\n\n", fields[field_idx].c_str());
             }
-        }else {
+        }else if (samples_in_condensed_nodes.find(fields[field_idx])!=samples_in_condensed_nodes.end()) {
+            fprintf(stderr, "WARNING: Sample %s already in the tree! (condensed node) Ignoring.\n\n", fields[field_idx].c_str());
+        }
+        else {
             auto new_samp_idx=tree.map_samp_name_only(fields[field_idx]);
             sample_idx[field_idx] = sample_mutations.size();
             sample_mutations.emplace_back();
@@ -445,7 +451,7 @@ static void process(infile_t &fd, std::vector<Sample_Muts> &sample_mutations,
     parser.try_put(try_get_first_line(fd, single_line_size));
     size_t first_approx_size =
         std::min(CHUNK_SIZ, ONE_GB / single_line_size) - 2;
-    read_size = first_approx_size * single_line_size;
+    read_size = std::max(ONE_MB, first_approx_size * single_line_size);
     alloc_size = (first_approx_size + 2) * single_line_size;
     tbb::concurrent_bounded_queue<std::pair<char *, uint8_t *>> queue;
     tbb::flow::source_node<line_start_later> line(input_graph,
@@ -475,7 +481,9 @@ static void process(infile_t &fd, std::vector<Sample_Muts> &sample_mutations,
         });
 }
 void Sample_Input(const char *name, std::vector<Sample_Muts> &sample_mutations,
-                  MAT::Tree &tree,mut_container_t& position_wise_out,bool override,std::vector<std::string>& fields) {
+                  MAT::Tree &tree,mut_container_t& position_wise_out
+                  ,bool override,std::vector<std::string>& fields
+                  ,const std::unordered_set<std::string>& samples_in_condensed_nodes) {
     assigned_count = 0;
     std::atomic<bool> done(false);
     std::mutex done_mutex;
@@ -484,10 +492,10 @@ void Sample_Input(const char *name, std::vector<Sample_Muts> &sample_mutations,
     std::string vcf_filename(name);
     if (vcf_filename.find(".gz\0") != std::string::npos) {
         gzip_input_source fd(name);
-        process(fd, sample_mutations, tree,position_wise_out,override,fields);
+        process(fd, sample_mutations, tree,position_wise_out,override,fields,samples_in_condensed_nodes);
     } else {
         raw_input_source fd(name);
-        process(fd, sample_mutations, tree,position_wise_out,override,fields);
+        process(fd, sample_mutations, tree,position_wise_out,override,fields,samples_in_condensed_nodes);
     }
     done = true;
     progress_bar_cv.notify_all();

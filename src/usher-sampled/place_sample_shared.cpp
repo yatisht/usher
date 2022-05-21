@@ -31,9 +31,9 @@ static void update_possible_descendant_alleles(
         node = node->parent;
     }
 }
-static MAT::Node* add_children(MAT::Node* target_node,MAT::Node* sample_node,MAT::Tree& tree){
+static MAT::Node* add_children(MAT::Node* target_node,MAT::Node* sample_node,MAT::Tree& tree,bool keep_old_node){
     MAT::Node* deleted_node=nullptr;
-    if ((target_node->children.size()+1)>=target_node->children.capacity()) {
+    if (keep_old_node&&((target_node->children.size()+1)>=target_node->children.capacity())) {
         MAT::Node* new_target_node=new MAT::Node(*target_node);
         tree.register_node_serial(new_target_node);
         if (!new_target_node->parent) {
@@ -66,7 +66,7 @@ update_main_tree_output update_main_tree(const MAT::Mutations_Collection& sample
                                     const MAT::Mutations_Collection& splitted_mutations,
                                     const MAT::Mutations_Collection& shared_mutations,
                                     MAT::Node* target_node,
-                                    size_t node_idx, MAT::Tree& tree,size_t split_node_idx) {
+                                    size_t node_idx, MAT::Tree& tree,size_t split_node_idx,bool keep_old_node) {
     // Split branch?
     MAT::Node* deleted_node=nullptr;
     MAT::Node *split_node=nullptr;
@@ -84,10 +84,10 @@ update_main_tree_output update_main_tree(const MAT::Mutations_Collection& sample
     }
     sample_node->branch_length = sample_node_mut_count;
     if (splitted_mutations.empty() && (!target_node->is_leaf())) {
-        deleted_node=add_children(target_node, sample_node,tree);
+        deleted_node=add_children(target_node, sample_node,tree,keep_old_node);
     } else if (shared_mutations.empty() &&
                (!target_node->is_leaf())) {
-        deleted_node=add_children(parent_node, sample_node,tree);
+        deleted_node=add_children(parent_node, sample_node,tree,keep_old_node);
     } else {
         /*if(!target_node->parent){
             fprintf(stderr, "spliting root?");

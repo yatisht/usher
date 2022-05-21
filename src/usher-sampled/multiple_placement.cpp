@@ -12,7 +12,7 @@ static void place_sample(MAT::Tree &main_tree, const Sample_Muts &samp,
                          target.parent_node, sample_mutations);
     auto out = update_main_tree(sample_mutations, target.splited_mutations,
                                 target.shared_mutations, target.target_node,
-                                samp.sample_idx, main_tree, 0);
+                                samp.sample_idx, main_tree, 0,true);
 
     if (out.deleted_nodes) {
         delete out.deleted_nodes;

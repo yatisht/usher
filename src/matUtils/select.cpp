@@ -324,7 +324,7 @@ std::vector<std::string> get_short_paths (MAT::Tree* T, std::vector<std::string>
             }
         } else {
             //if its not an internal node, check to see if the length to its parent plus the length to the leaf is under the maximum.
-            if (path_lengths[n->parent->identifier] + n->mutations.size() <= max_path) {
+            if ((int)path_lengths[n->parent->identifier] + n->mutations.size() <= max_path) {
                 good_samples.push_back(n->identifier);
             }
         }
