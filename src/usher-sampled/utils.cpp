@@ -6,8 +6,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <mpi.h>
 #include <string>
+#include <sys/wait.h>
 #include <tbb/blocked_range.h>
 #include <tbb/concurrent_hash_map.h>
 #include <tbb/concurrent_unordered_map.h>
@@ -17,6 +19,7 @@
 #include <tbb/parallel_for.h>
 #include <tbb/pipeline.h>
 #include <thread>
+#include <unistd.h>
 #include <unordered_set>
 #include "tbb/parallel_for_each.h"
 #include <utility>
@@ -516,7 +519,7 @@ static void remove_absent_leaves(MAT::Node* node,MAT::Tree& tree,std::unordered_
 void remove_absent_leaves(MAT::Tree& tree,std::unordered_set<std::string>& present){
     remove_absent_leaves(tree.root,tree,present);
 }
-static void output_newick(MAT::Tree& T,const output_options& options,int t_idx){
+static int output_newick(MAT::Tree& T,const output_options& options,int t_idx){
     std::string uncondensed_string=options.print_uncondensed_tree?"uncondensed":"";
     auto final_tree_filename = options.outdir + "/";
     if (options.print_uncondensed_tree) {
@@ -531,14 +534,18 @@ static void output_newick(MAT::Tree& T,const output_options& options,int t_idx){
         final_tree_filename += std::to_string(t_idx+1) + ".nh";
         fprintf(stderr, "Writing uncondensed final tree %d to file %s \n", (t_idx+1), final_tree_filename.c_str());
     }
-    auto parsimony_score = T.get_parsimony_score();
-    fprintf(stderr, "The parsimony score for this tree is: %zu \n", parsimony_score);
-    std::ofstream final_tree_file(final_tree_filename.c_str(), std::ofstream::out);
-    std::stringstream newick_ss;
-    T.write_newick_string(newick_ss,T.root, true, true, options.retain_original_branch_len,true);
-    final_tree_file << newick_ss.rdbuf();
-    final_tree_file.close();
-
+    //auto parsimony_score = T.get_parsimony_score();
+    //fprintf(stderr, "The parsimony score for this tree is: %zu \n", parsimony_score);
+    int pid=fork();
+    if (pid==0) {
+        std::ofstream final_tree_file(final_tree_filename.c_str(), std::ofstream::out);
+        T.write_newick_string(final_tree_file,T.root, true, true, options.retain_original_branch_len,true);
+        final_tree_file.close();
+        exit(EXIT_SUCCESS);
+    }else {
+        return pid;
+    }
+    
 }
 void check_leaves(const MAT::Tree& T){
     for (const auto node :T.depth_first_expansion() ) {
@@ -636,8 +643,8 @@ void final_output(MAT::Tree &T, const output_options &options, int t_idx,
     }
     fix_condensed_nodes(&T);
     //check_leaves(T);
-    MAT::save_mutation_annotated_tree(T, "before_post_processing.pb");
-    output_newick(T, options,t_idx);
+    //MAT::save_mutation_annotated_tree(T, "before_post_processing.pb");
+    int pid=output_newick(T, options,t_idx);
     // For each final tree write the path of mutations from tree root to the
     // sample for each newly placed sample
     bool use_tree_idx = !options.only_one_tree;
@@ -725,6 +732,8 @@ void final_output(MAT::Tree &T, const output_options &options, int t_idx,
 
         //fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
+    wait(&pid);
+
 }
 /*static void check_repeats(const std::vector<Sample_Muts>& samples_to_place,size_t sample_start_idx){
     std::vector<bool> encountered(samples_to_place.size());

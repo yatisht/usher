@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <mutex>
 #include <sys/types.h>
+#include <istream>
 #include <unordered_map>
 #include <string>
 #include <utility>
@@ -622,7 +623,7 @@ class Tree {
     void MPI_send_tree() const;
     void MPI_receive_tree();
     void delete_nodes();
-    void write_newick_string (std::stringstream& ss, Node* node, bool b1, bool b2, bool b3=false, bool b4=false) const;
+    void write_newick_string (std::iostream::basic_ostream& ss, Node* node, bool b1, bool b2, bool b3=false, bool b4=false) const;
     std::string get_newick_string(bool b1, bool b2, bool b3=false, bool b4=false) const ;
     std::string get_newick_string(Node* node, bool b1, bool b2, bool b3=false, bool b4=false) const;
     void rotate_for_display(bool reverse = false);

@@ -33,12 +33,18 @@ namespace po = boost::program_options;
 struct tree_info {
     MAT::Tree tree;
     std::unordered_set<std::string> condensed_nodes;
+    tree_info(const tree_info& )=delete;
+    tree_info()=default;
     ~tree_info(){
         fprintf(stderr, "deleting nodes\n");
         tree.delete_nodes();
     }
 };
-
+bool use_bound = true;
+int process_count = 1;
+int this_rank = 0;
+unsigned int num_threads;
+std::atomic_bool interrupted(false);
 bool prep_single_tree(std::string path, tree_info &out) {
     if (!MAT::load_mutation_annotated_tree(path, out.tree)) {
         return false;
@@ -54,15 +60,11 @@ bool prep_single_tree(std::string path, tree_info &out) {
 }
 
 typedef std::shared_ptr<std::vector<tree_info>> TreeCollectionPtr;
-void refresh_tree(TreeCollectionPtr &to_replace, std::fstream &tree_paths) {
-    auto next = new std::vector<tree_info>;
-    std::string buf;
-    while (std::getline(tree_paths, buf)) {
-        if (buf == "") {
-            break;
-        }
-        next->emplace_back();
-        if (!prep_single_tree(buf, next->back())) {
+void reload_trees(TreeCollectionPtr &to_replace, const std::vector<std::string>& paths){
+    tbb::task_scheduler_init init(num_threads);
+    auto next = new std::vector<tree_info>(paths.size());
+    for (size_t idx=0; idx<paths.size(); idx++) {
+        if(!prep_single_tree(paths[idx], (*next)[idx])){
             fprintf(stderr, "Not reloaded\n");
             delete next;
             return;
@@ -70,12 +72,17 @@ void refresh_tree(TreeCollectionPtr &to_replace, std::fstream &tree_paths) {
     }
     to_replace.reset(next);
 }
-
-bool use_bound = true;
-int process_count = 1;
-int this_rank = 0;
-unsigned int num_threads;
-std::atomic_bool interrupted(false);
+void refresh_tree(TreeCollectionPtr &to_replace, std::fstream &tree_paths) {
+    std::string buf;
+    std::vector<std::string> paths;
+    while (std::getline(tree_paths, buf)) {
+        if (buf == "") {
+            break;
+        }
+        paths.push_back(buf);        
+    }
+    reload_trees(to_replace,paths);
+}
 static void mgr_thread(TreeCollectionPtr &to_replace, std::string cmd_fifo_name,
                        std::string socket_name) {
     unlink(cmd_fifo_name.c_str());
@@ -184,6 +191,7 @@ size_t get_options(FILE *f, Leader_Thread_Options &options) {
     options.initial_optimization_radius = 0;
     // std::vector<int> gdb_pids;
     size_t mat_idx = 0;
+    options.print_parsimony_scores=false;
     desc.add_options()(
         "vcf,v", po::value<std::string>(&options.vcf_filename)->required(),
         "Input VCF file (in uncompressed or gzip-compressed .gz format) "
@@ -286,11 +294,14 @@ static void child_proc(int fd, TreeCollectionPtr &trees_ptr) {
     auto idx = get_options(f, options);
     if (idx >= trees_ptr->size()) {
         fprintf(f, "got idx %zu but only have %zu trees\n",idx,trees_ptr->size());
+        fputc(4, f);
+        fputc('\n', f);
         fclose(f);
         exit(EXIT_FAILURE);
     }
     MAT::Tree &tree = (*trees_ptr)[idx].tree;
     std::vector<Sample_Muts> samples_to_place;
+    tbb::task_scheduler_init init(num_threads);
     std::vector<mutated_t> position_wise_out;
     std::vector<mutated_t> position_wise_out_dup;
     std::vector<std::string> samples;
@@ -309,6 +320,8 @@ static void child_proc(int fd, TreeCollectionPtr &trees_ptr) {
     }
     if (samples_to_place.empty()) {
         fprintf(f, "Found no new samples\n");
+        fputc(4, f);
+        fputc('\n', f);
         fclose(f);
         exit(EXIT_FAILURE);
     }
@@ -325,6 +338,8 @@ static void child_proc(int fd, TreeCollectionPtr &trees_ptr) {
     clean_up_leaf(dfs);
     final_output(tree, options.out_options, 0, samples_clade, sample_start_idx,
                  sample_end_idx, low_confidence_samples, position_wise_out);
+    fputc(4, f);
+    fputc('\n', f);
     fclose(f);
     exit(EXIT_SUCCESS);
 }
@@ -361,11 +376,11 @@ int main(int argc, char** argv){
     po::options_description desc{"Options"};
     std::string mgr_fifo;
     std::string socket_path;
-    int num_thread=tbb::task_scheduler_init::default_num_threads();
+    num_threads=tbb::task_scheduler_init::default_num_threads();
     std::vector<std::string> init_pb_to_load;
     std::string num_threads_message = "Number of threads to use when possible "
                                       "[DEFAULT uses all available cores, " +
-                                      std::to_string(num_thread) +
+                                      std::to_string(num_threads) +
                                       " detected on this machine]";
     desc.add_options()("manager-fifo-path,m",po::value<std::string>(&mgr_fifo),
     "path to a fifo taking commands,existing file will be deleted currently support:\n"
@@ -377,7 +392,7 @@ int main(int argc, char** argv){
     "Expect usher cmd args separated by new line, terminated with an empty line"
     "then the server will reply with the output of usher\n"
     "")
-    ("threads-per-process,t",po::value<int>(&num_thread),num_threads_message.c_str())
+    ("threads-per-process,t",po::value<unsigned int>(&num_threads),num_threads_message.c_str())
     ("pb-to-load,l",po::value<std::vector<std::string>>(&init_pb_to_load)->multitoken()->composing(),"initial list of protobufs to load")
     ;
     po::variables_map vm;
@@ -399,14 +414,9 @@ int main(int argc, char** argv){
         exit(EXIT_FAILURE);
     }
     
-    TreeCollectionPtr trees(new std::vector<tree_info>);
-    for (auto & str : init_pb_to_load) {
-        trees->emplace_back();
-        if (!prep_single_tree(str, trees->back())) {
-            fprintf(stderr, "failed to load initial tree\n");
-            trees->clear();
-            break;
-        }
+    TreeCollectionPtr trees;
+    if (!init_pb_to_load.empty()) {
+        reload_trees(trees, init_pb_to_load);    
     }
     auto socket_fd=create_socket(socket_path);
     std::thread mgr(mgr_thread,std::ref(trees), mgr_fifo, socket_path);

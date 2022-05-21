@@ -8,6 +8,7 @@
 #include <iostream>
 #include <boost/iostreams/filter/gzip.hpp>
 #include "parsimony.pb.h"
+#include <istream>
 #include <stack>
 #include <fstream>
 #include <sstream>
@@ -23,7 +24,7 @@ std::vector<int8_t> Mutation_Annotated_Tree::get_nuc_vec_from_id (int8_t nuc_id)
 }
 
 static void print_node(
-    std::stringstream &ss, Mutation_Annotated_Tree::Node *n,
+    std::iostream::basic_ostream &ss, Mutation_Annotated_Tree::Node *n,
     bool print_branch_len, bool retain_original_branch_len,
     bool uncondense_leaves,
     const tbb::concurrent_unordered_map<size_t, std::vector<std::string>>
@@ -57,7 +58,7 @@ static void print_node(
 // internal node ids and branch lengths are printed. If last boolean argument is
 // set, branch lengths from input tree are retained, otherwise, branch length
 // for a branch is equal to the number of mutations annotated on that branch
-void Mutation_Annotated_Tree::Tree::write_newick_string (std::stringstream& ss, Mutation_Annotated_Tree::Node* node, 
+void Mutation_Annotated_Tree::Tree::write_newick_string (std::iostream::basic_ostream& ss, Mutation_Annotated_Tree::Node* node, 
     bool print_internal, bool print_branch_len, bool retain_original_branch_len, bool uncondense_leaves) const {
     TIMEIT();
 

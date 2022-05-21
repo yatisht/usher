@@ -40,11 +40,14 @@ static void send_args(FILE* f, int argc, char** argv){
 int main (int argc, char** argv){
     FILE* fh=make_f(argv[1]);
     char *cmd[] = { "ignored", "-v", argv[2], "-i", argv[3], "-d", "out",
-                "-k", "5", "-K", "5", "-u"};
-    send_args(fh, 12, cmd);
+                "-k", "5", "-K", "5", "-u","-o","test_out.pb.gz"};
+    send_args(fh, 14, cmd);
     char* line=NULL;
     size_t capacity=0;
     while (getline(&line, &capacity, fh)>0) {
+        if (line[0]==4) {
+            break;
+        }
         puts(line);
     }
     free(line);

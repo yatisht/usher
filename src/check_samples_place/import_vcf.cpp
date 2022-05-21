@@ -89,6 +89,12 @@ struct line_align {
             prev.alloc_start = line.first;
             prev_end = line.second;
             in.pop(line);
+            if (line.first==nullptr) {
+                out=prev;
+                prev.start=nullptr;
+                *prev_end=0;
+                return true;
+            }
         }
         auto start_ptr = strchr(line.first, '\n');
         if (*start_ptr != '\n') {
@@ -136,7 +142,9 @@ struct gzip_input_source {
         decompress_to_buffer(getc_buf, BUFSIZ);
         get_c_ptr = getc_buf;
     }
-    void unalloc() { munmap(map_start, alloc_size); }
+    void unalloc() {
+        munmap(map_start, mapped_size);
+    }
     bool decompress_to_buffer(unsigned char *buffer, size_t buffer_size) const {
         if (!state->avail_in) {
             return false;
