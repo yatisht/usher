@@ -1,7 +1,5 @@
 #include "src/matOptimize/mutation_annotated_tree.hpp"
 #include "src/usher-sampled/usher.hpp"
-#include <asm-generic/errno-base.h>
-#include <asm-generic/errno.h>
 #include <atomic>
 #include <bits/types/FILE.h>
 #include <boost/filesystem/operations.hpp>
@@ -186,8 +184,9 @@ static void collect_done(std::unordered_map<int, child_proc_info> &pid_to_fd_map
             if (errno == ECHILD || (!blocking && (errno == 0||errno==EAGAIN))) {
                 return;
             } else {
+                fprintf(stderr, "returning pid %d\n", done_pid);
                 perror("error waiting");
-                continue;
+                return;
             }
         }
         auto iter = pid_to_fd_map.find(done_pid);
