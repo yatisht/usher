@@ -46,7 +46,7 @@ struct tree_info {
 };
 struct child_proc_info{
     std::chrono::steady_clock::time_point start_time;
-    int fd;
+    //int fd;
     child_proc_info()=default;
     child_proc_info(int fd):start_time(std::chrono::steady_clock::now()){}
     bool is_time_out(long limit){
@@ -200,10 +200,10 @@ static void collect_done(std::unordered_map<int, child_proc_info> &pid_to_fd_map
                     done_pid);
         } else {
             //fprintf(stderr, "got process %d, closing %d\n",done_pid,iter->second.fd);
-            int ret=close(iter->second.fd);
-            if (ret!=0) {
+            //int ret=close(iter->second.fd);
+            /*if (ret!=0) {
                 perror("failed to close");
-            }
+            }*/
             pid_to_fd_map.erase(iter);
         }
     }
@@ -414,6 +414,7 @@ static void accept_fork_loop(int socket_fd, TreeCollectionPtr &trees_ptr,std::at
                 child_proc(conn_fd, trees_ptr);
             } else {
                 local_copy.reset();
+                close(conn_fd);
                 pid_to_fd_map.emplace(pid, child_proc_info(conn_fd));
             }
         }
