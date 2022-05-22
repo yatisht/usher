@@ -377,6 +377,9 @@ struct Print_Thread{
             enum_imputed_positions(sample_mutations, placement_stats_file,out_file);
         }else {
             auto sample_node=tree.get_node(sample_idx);
+            if (!sample_node) {
+                fprintf(stderr, "node of idx %lu not found\n",sample_idx);
+            }
             enum_imputed_positions(sample_node->mutations, placement_stats_file,out_file);
         }
         delete in.placement_info;
@@ -430,10 +433,10 @@ static void serial_proc_placed_sample( MAT::Tree &main_tree,move_type* in,bool d
         sample_mutations, target.splited_mutations, target.shared_mutations,
         target.target_node, std::get<1>(*in)->sample_idx, main_tree, 0, false);
     
+    printer_node(print_format{mut_size, in});
     if (out.deleted_nodes) {
         delete out.deleted_nodes;
     }
-    printer_node(print_format{mut_size, in});
 }
 typedef tbb::flow::function_node<Preped_Sample_To_Place *,size_t> placer_node_t;
 typedef tbb::concurrent_bounded_queue<Sample_Muts*> retry_place_t;

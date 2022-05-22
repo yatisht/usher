@@ -1,6 +1,7 @@
 #include "src/matOptimize/mutation_annotated_tree.hpp"
 #include "src/usher-sampled/usher.hpp"
 #include <asm-generic/errno-base.h>
+#include <asm-generic/errno.h>
 #include <atomic>
 #include <bits/types/FILE.h>
 #include <boost/filesystem/operations.hpp>
@@ -8,12 +9,15 @@
 #include <boost/program_options.hpp>
 #include <boost/program_options/value_semantic.hpp>
 #include <cerrno>
+#include <chrono>
+#include <csignal>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <functional>
+#include <iostream>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -22,12 +26,14 @@
 #include <sys/types.h>
 #include <sys/un.h>
 #include <sys/wait.h>
+#include <tbb/scalable_allocator.h>
 #include <tbb/task_scheduler_init.h>
 #include <thread>
 #include <unistd.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#include <sys/poll.h>
 namespace po = boost::program_options;
 
 struct tree_info {
@@ -38,6 +44,16 @@ struct tree_info {
     ~tree_info(){
         fprintf(stderr, "deleting nodes\n");
         tree.delete_nodes();
+    }
+};
+struct child_proc_info{
+    std::chrono::steady_clock::time_point start_time;
+    int fd;
+    child_proc_info()=default;
+    child_proc_info(int fd):start_time(std::chrono::steady_clock::now()){}
+    bool is_time_out(long limit){
+        auto duration=std::chrono::steady_clock::now()-start_time;
+        return std::chrono::duration_cast<std::chrono::milliseconds>(duration).count()>limit;
     }
 };
 bool use_bound = true;
@@ -71,6 +87,7 @@ void reload_trees(TreeCollectionPtr &to_replace, const std::vector<std::string>&
         }
     }
     to_replace.reset(next);
+    init.terminate();
 }
 void refresh_tree(TreeCollectionPtr &to_replace, std::fstream &tree_paths) {
     std::string buf;
@@ -82,9 +99,10 @@ void refresh_tree(TreeCollectionPtr &to_replace, std::fstream &tree_paths) {
         paths.push_back(buf);        
     }
     reload_trees(to_replace,paths);
+    scalable_allocation_command(TBBMALLOC_CLEAN_ALL_BUFFERS, 0);
 }
 static void mgr_thread(TreeCollectionPtr &to_replace, std::string cmd_fifo_name,
-                       std::string socket_name) {
+                       std::string socket_name,std::atomic_size_t& wait_miliseconds) {
     unlink(cmd_fifo_name.c_str());
     auto err=mkfifo(cmd_fifo_name.c_str(), S_IRWXU);
     if (err!=0) {
@@ -121,19 +139,28 @@ static void mgr_thread(TreeCollectionPtr &to_replace, std::string cmd_fifo_name,
                 fprintf(stderr, "setting thread count to %d\n",
                         new_thread_count);
                 num_threads = new_thread_count;
+            }else {
+                int new_time_out_second;
+                auto scaned = sscanf(buf.c_str(), "timeout %d", &new_time_out_second);
+                if (scaned) {
+                    fprintf(stderr, "setting new timeout to %d seconds\n",
+                        new_time_out_second);
+                    wait_miliseconds.store(new_time_out_second*1000);
+                }
             }
         }
     }
 }
 
 static int create_socket(std::string socket_name) {
-    auto sock_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    auto sock_fd = socket(AF_UNIX, SOCK_STREAM|SOCK_NONBLOCK, 0);
     if (sock_fd == -1) {
         perror("unable to create socket");
         exit(EXIT_FAILURE);
     }
     struct sockaddr_un addr;
     addr.sun_family = AF_UNIX;
+    unlink(socket_name.c_str());
     strncpy(addr.sun_path, socket_name.c_str(), socket_name.size()+1);
     auto bind_ret = bind(sock_fd, (struct sockaddr *)&addr, sizeof(addr));
     if (bind_ret != 0) {
@@ -144,13 +171,19 @@ static int create_socket(std::string socket_name) {
     return sock_fd;
 }
 
-static void collect_done(std::unordered_map<int, int> &pid_to_fd_map,
-                         bool blocking) {
+static void collect_done(std::unordered_map<int, child_proc_info> &pid_to_fd_map,
+                         bool blocking,int milisecond_time_out) {
+    for (auto & proc : pid_to_fd_map) {
+        if (proc.second.is_time_out(milisecond_time_out)) {
+            fprintf(stderr, "process %d timed out\n",proc.first);
+            kill(proc.first, SIGKILL);
+        }
+    }
     while (true) {
         int ignored;
         auto done_pid = waitpid(-1, &ignored, blocking ? 0 : WNOHANG);
         if (done_pid == -1||done_pid==0) {
-            if (errno == ECHILD || (!blocking && errno == 0)) {
+            if (errno == ECHILD || (!blocking && (errno == 0||errno==EAGAIN))) {
                 return;
             } else {
                 perror("error waiting");
@@ -162,7 +195,11 @@ static void collect_done(std::unordered_map<int, int> &pid_to_fd_map,
             fprintf(stderr, "Cannot find corresponding fd of proc %d\n",
                     done_pid);
         } else {
-            close(iter->second);
+            //fprintf(stderr, "got process %d, closing %d\n",done_pid,iter->second.fd);
+            int ret=close(iter->second.fd);
+            if (ret!=0) {
+                perror("failed to close");
+            }
             pid_to_fd_map.erase(iter);
         }
     }
@@ -182,7 +219,7 @@ size_t get_options(FILE *f, Leader_Thread_Options &options) {
             buf[char_read-1]=0;
             args.push_back(buf);
             fputs(buf,stderr);
-            fputc('\n', stderr);
+            fputc(' ', stderr);
         }
     }
     po::options_description desc{"Options"};
@@ -338,23 +375,32 @@ static void child_proc(int fd, TreeCollectionPtr &trees_ptr) {
     clean_up_leaf(dfs);
     final_output(tree, options.out_options, 0, samples_clade, sample_start_idx,
                  sample_end_idx, low_confidence_samples, position_wise_out);
+    fputc('\n', f);
     fputc(4, f);
     fputc('\n', f);
+    fprintf(stderr, "done\n");
     fclose(f);
     exit(EXIT_SUCCESS);
 }
-static void accept_fork_loop(int socket_fd, TreeCollectionPtr &trees_ptr) {
-    std::unordered_map<int, int> pid_to_fd_map;
+static void accept_fork_loop(int socket_fd, TreeCollectionPtr &trees_ptr,std::atomic_size_t& wait_miliseconds) {
+    std::unordered_map<int, child_proc_info> pid_to_fd_map;
+    struct pollfd fd_to_watch;
+    fd_to_watch.fd=socket_fd;
+    fd_to_watch.events=POLLIN;
     while (true) {
         if (interrupted) {
             break;
         }
+        collect_done(pid_to_fd_map, false,wait_miliseconds);
+        poll(&fd_to_watch, 1, wait_miliseconds);
         auto conn_fd = accept(socket_fd, NULL, 0);
         if (interrupted) {
             break;
         }
         if (conn_fd == -1) {
-            perror("cannot accept connection");
+            if (errno!=EAGAIN&&errno!=EWOULDBLOCK) {
+                perror("cannot accept connection");        
+            }
             continue;
         }
         {
@@ -364,12 +410,12 @@ static void accept_fork_loop(int socket_fd, TreeCollectionPtr &trees_ptr) {
                 child_proc(conn_fd, trees_ptr);
             } else {
                 local_copy.reset();
-                pid_to_fd_map.emplace(pid, conn_fd);
+                pid_to_fd_map.emplace(pid, child_proc_info(conn_fd));
             }
         }
-        collect_done(pid_to_fd_map, false);
     }
-    collect_done(pid_to_fd_map, true);
+    sleep(wait_miliseconds/1000);
+    collect_done(pid_to_fd_map, true,wait_miliseconds);
 }
 
 int main(int argc, char** argv){
@@ -378,21 +424,25 @@ int main(int argc, char** argv){
     std::string socket_path;
     num_threads=tbb::task_scheduler_init::default_num_threads();
     std::vector<std::string> init_pb_to_load;
+    int wait_second;
     std::string num_threads_message = "Number of threads to use when possible "
                                       "[DEFAULT uses all available cores, " +
                                       std::to_string(num_threads) +
                                       " detected on this machine]";
-    desc.add_options()("manager-fifo-path,m",po::value<std::string>(&mgr_fifo),
+    desc.add_options()("manager-fifo-path,m",po::value<std::string>(&mgr_fifo)->required(),
     "path to a fifo taking commands,existing file will be deleted currently support:\n"
     "stop: stop taking new connections and exit\n"
     "thread [int] : reset the number of threads for each job\n"
-    "reload : replace the cached trees, expecting one per line\n")
-    ("socket-patch,s",po::value<std::string>(&socket_path),
+    "reload [EXPERIMENTAL]: replace the cached trees, expecting one per line\n"
+    "timeout [int] : change timeout, in second\n"
+    )
+    ("socket-patch,s",po::value<std::string>(&socket_path)->required(),
     "path to socket,existing file will be deleted\n"
     "Expect usher cmd args separated by new line, terminated with an empty line"
     "then the server will reply with the output of usher\n"
     "")
-    ("threads-per-process,t",po::value<unsigned int>(&num_threads),num_threads_message.c_str())
+    ("threads-per-process,T",po::value<unsigned int>(&num_threads),num_threads_message.c_str())
+    ("timeout,t",po::value<int>(&wait_second)->default_value(180),"Timeout in seconds")
     ("pb-to-load,l",po::value<std::vector<std::string>>(&init_pb_to_load)->multitoken()->composing(),"initial list of protobufs to load")
     ;
     po::variables_map vm;
@@ -403,6 +453,7 @@ int main(int argc, char** argv){
                   vm);
         po::notify(vm);
     } catch (std::exception &e) {
+        std::cerr << desc << std::endl;
         return -1;
     }
     if (socket_path.length()>=107) {
@@ -413,14 +464,16 @@ int main(int argc, char** argv){
         fprintf(stderr, "socket path is empty\n");
         exit(EXIT_FAILURE);
     }
-    
+    fprintf(stderr, "Server PID: %d\n",getpid());
+    std::atomic_size_t wait_miliseconds(wait_second*1000);
     TreeCollectionPtr trees;
     if (!init_pb_to_load.empty()) {
         reload_trees(trees, init_pb_to_load);    
+        scalable_allocation_command(TBBMALLOC_CLEAN_ALL_BUFFERS, 0);
     }
     auto socket_fd=create_socket(socket_path);
-    std::thread mgr(mgr_thread,std::ref(trees), mgr_fifo, socket_path);
-    accept_fork_loop(socket_fd, trees);
+    std::thread mgr(mgr_thread,std::ref(trees), mgr_fifo, socket_path,std::ref(wait_miliseconds));
+    accept_fork_loop(socket_fd, trees,wait_miliseconds);
     mgr.join();
     return EXIT_SUCCESS;
 }

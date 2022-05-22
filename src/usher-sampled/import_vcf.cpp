@@ -451,7 +451,7 @@ static void process(infile_t &fd, std::vector<Sample_Muts> &sample_mutations,
     parser.try_put(try_get_first_line(fd, single_line_size));
     size_t first_approx_size =
         std::min(CHUNK_SIZ, ONE_GB / single_line_size) - 2;
-    read_size = std::max(ONE_MB, first_approx_size * single_line_size);
+    read_size = std::max(ONE_MB/single_line_size, first_approx_size * single_line_size);
     alloc_size = (first_approx_size + 2) * single_line_size;
     tbb::concurrent_bounded_queue<std::pair<char *, uint8_t *>> queue;
     tbb::flow::source_node<line_start_later> line(input_graph,
