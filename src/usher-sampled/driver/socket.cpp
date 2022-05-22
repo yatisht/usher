@@ -1,7 +1,6 @@
 #include "src/matOptimize/mutation_annotated_tree.hpp"
 #include "src/usher-sampled/usher.hpp"
 #include <atomic>
-#include <bits/types/FILE.h>
 #include <boost/filesystem/operations.hpp>
 #include <boost/filesystem/path.hpp>
 #include <boost/program_options.hpp>
