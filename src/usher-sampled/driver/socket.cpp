@@ -12,6 +12,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <fcntl.h>
 #include <fstream>
 #include <functional>
 #include <iostream>
@@ -150,7 +151,12 @@ static void mgr_thread(TreeCollectionPtr &to_replace, std::string cmd_fifo_name,
 }
 
 static int create_socket(std::string socket_name) {
+    #ifdef __linux
     auto sock_fd = socket(AF_UNIX, SOCK_STREAM|SOCK_NONBLOCK, 0);
+    #else
+    auto sock_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    fcntl(sock_fd, F_SETFL, O_NONBLOCK);
+    #endif
     if (sock_fd == -1) {
         perror("unable to create socket");
         exit(EXIT_FAILURE);
