@@ -328,6 +328,7 @@ size_t get_options(FILE *f, Leader_Thread_Options &options) {
     path = boost::filesystem::canonical(options.out_options.outdir);
     options.out_options.outdir = path.generic_string();
     options.override_mutations = false;
+    options.first_n_samples=INT_MAX;
     return mat_idx;
 }
 static void child_proc(int fd, TreeCollectionPtr &trees_ptr) {
@@ -353,7 +354,6 @@ static void child_proc(int fd, TreeCollectionPtr &trees_ptr) {
                  position_wise_out, false, samples, samples_in_condensed_nodes);
     samples_to_place.resize(
         std::min(samples_to_place.size(), options.first_n_samples));
-    options.first_n_samples=INT_MAX;
     size_t sample_start_idx = samples_to_place[0].sample_idx;
     size_t sample_end_idx = samples_to_place.back().sample_idx + 1;
     std::vector<std::string> low_confidence_samples;
