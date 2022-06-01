@@ -178,7 +178,7 @@ static int create_socket(std::string socket_name) {
 static void collect_done(std::unordered_map<int, child_proc_info> &pid_to_fd_map,
                          bool blocking,int milisecond_time_out) {
     for (auto & proc : pid_to_fd_map) {
-        if (proc.second.is_time_out(milisecond_time_out)) {
+        if (proc.second.is_time_out(milisecond_time_out)||blocking) {
             fprintf(stderr, "process %d timed out\n",proc.first);
             kill(proc.first, SIGKILL);
         }
@@ -421,7 +421,7 @@ static void accept_fork_loop(int socket_fd, TreeCollectionPtr &trees_ptr,std::at
             }
         }
     }
-    sleep(wait_miliseconds/1000);
+    //sleep(wait_miliseconds/1000);
     collect_done(pid_to_fd_map, true,wait_miliseconds);
 }
 
