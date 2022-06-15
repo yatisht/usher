@@ -362,6 +362,9 @@ struct Print_Thread{
         }
         if (!dry_run) {
             if (filter_placement(in, low_confidence_samples, num_epps, sample_name, max_uncertainty, max_parsimony)) {
+		if(placement_stats_file){
+			fputc('\n',placement_stats_file);
+		}
                 return;
             }
         }
