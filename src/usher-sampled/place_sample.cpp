@@ -297,7 +297,6 @@ static bool filter_placement(const print_format &in,
                     "maximum allowed value (%zu). Ignoring sample %s.\n",
                     max_uncertainty, sample_name.c_str());
             // rejected_samples.push_back(std::get<1>(*in.placement_info));
-            delete in.placement_info;
             return true;
         } else if (in.parsimony_score <= max_parsimony) {
             fprintf(stdout,
@@ -311,7 +310,6 @@ static bool filter_placement(const print_format &in,
                 "exceeds the maximum allowed value (%u). Ignoring sample %s.\n",
                 max_parsimony, sample_name.c_str());
         // rejected_samples.push_back(std::get<1>(*in.placement_info));
-        delete in.placement_info;
         return true;
     }
     return false;
@@ -367,6 +365,7 @@ struct Print_Thread{
 		    discretize_mutations(target.sample_mutations, target.shared_mutations,
                              target.parent_node, sample_mutations);
 		    enum_imputed_positions(sample_mutations, placement_stats_file);
+            delete in.placement_info;
 		    return;
             }
         }
