@@ -306,7 +306,7 @@ std::string write_mutations(MAT::Node *N) { // writes muts as a list, e.g. "A234
 //the goal is to load a nextstrain JSON into a MAT structure
 //which is compatible with various downstream tools.
 
-void create_node_from_json(MAT::Tree* T, json nodeinfo, MAT::Node* parent = NULL, size_t counter = 0, size_t* warning_counter = 0) {
+void create_node_from_json(MAT::Tree* T, json nodeinfo, MAT::Node* parent = NULL, size_t* counter = 0, size_t* warning_counter = 0) {
     //this function is recursive.
     //generate and save a node from the parent first
     //then for each child, run this function on them, with this node as the parent.
@@ -315,8 +315,8 @@ void create_node_from_json(MAT::Tree* T, json nodeinfo, MAT::Node* parent = NULL
         if (nodeinfo.contains("name")) {
             nid = nodeinfo["name"];
         } else {
-            nid = std::to_string(counter);
-            counter++;
+            nid = std::to_string(*counter);
+            *counter += 1;
         }
         MAT::Node* n;
         if (parent != NULL) {
@@ -388,7 +388,8 @@ MAT::Tree load_mat_from_json(std::string json_filename) {
     json j;
     json_in >> j;
     size_t wc = 0;
-    create_node_from_json(&T, j["tree"], NULL, 0, &wc);
+    size_t counter = 0;
+    create_node_from_json(&T, j["tree"], NULL, &counter, &wc);
     if (wc > 0) {
         fprintf(stderr, "WARNING: %ld mutations are removed for ambiguity\n", wc);
     }

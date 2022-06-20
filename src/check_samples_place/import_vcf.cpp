@@ -89,6 +89,12 @@ struct line_align {
             prev.alloc_start = line.first;
             prev_end = line.second;
             in.pop(line);
+            if (line.first==nullptr) {
+                out=prev;
+                prev.start=nullptr;
+                *prev_end=0;
+                return true;
+            }
         }
         auto start_ptr = strchr(line.first, '\n');
         if (*start_ptr != '\n') {
@@ -136,7 +142,9 @@ struct gzip_input_source {
         decompress_to_buffer(getc_buf, BUFSIZ);
         get_c_ptr = getc_buf;
     }
-    void unalloc() { munmap(map_start, alloc_size); }
+    void unalloc() {
+        munmap(map_start, mapped_size);
+    }
     bool decompress_to_buffer(unsigned char *buffer, size_t buffer_size) const {
         if (!state->avail_in) {
             return false;
@@ -285,7 +293,7 @@ struct line_parser {
                     line_in++;
                 }
                 auto output_idx = sample_idx[field_idx];
-                if (output_idx != -1) {
+                if (output_idx != SIZE_MAX) {
                     // output prototype of mutation, and a map from sample to
                     // non-ref allele
                     MAT::Mutation this_mut(mut_template);
@@ -379,7 +387,7 @@ static void process(infile_t &fd, Original_State_t& ori_state,
     read_header(fd, fields);
     tbb::flow::graph input_graph;
     Sampled_Tree_Mutations_t tree_mutations;
-    std::vector<size_t> sample_idx(fields.size(), -1);
+    std::vector<size_t> sample_idx(fields.size(), SIZE_MAX);
     std::vector<std::string> sample_names;
     sample_names.reserve(fields.size());
     int curr_sample_idx = 0;

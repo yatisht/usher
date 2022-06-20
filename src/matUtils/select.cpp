@@ -189,14 +189,14 @@ std::vector<std::string> get_clade_representatives(MAT::Tree* T, size_t samples_
     return rep_sample_vec;
 }
 
-std::vector<std::string> sample_intersect (std::vector<std::string> samples, std::vector<std::string> nsamples) {
-    //helper function to get the intersection of two sample identifier vectors
+std::vector<std::string> sample_intersect (std::unordered_set<std::string> samples, std::vector<std::string> nsamples) {
+    //helper function to get the intersection of two a sample identifier set and vector
     //used when chaining together other select functions
     assert (samples.size() > 0);
     assert (nsamples.size() > 0);
     std::vector<std::string> inter_samples;
-    for (auto s: samples) {
-        if (std::find(nsamples.begin(), nsamples.end(), s) != nsamples.end()) {
+    for (auto s: nsamples) {
+      if (samples.find(s) != samples.end()) {
             inter_samples.push_back(s);
         }
     }
@@ -308,9 +308,9 @@ std::vector<std::string> get_short_steppers(MAT::Tree* T, std::vector<std::strin
 
 std::vector<std::string> get_short_paths (MAT::Tree* T, std::vector<std::string> samples_to_check, int max_path) {
     std::vector<std::string> good_samples;
-    if (samples_to_check.size() == 0) {
-        //if nothing is passed in, then check the whole tree.
-        samples_to_check = T->get_leaves_ids();
+    std::unordered_set<std::string> sampleset;
+    if (samples_to_check.size() != 0) {
+        sampleset.insert(samples_to_check.begin(), samples_to_check.end());
     }
     std::unordered_map<std::string, size_t> path_lengths;
     for (auto n: T->depth_first_expansion()) {
@@ -325,7 +325,9 @@ std::vector<std::string> get_short_paths (MAT::Tree* T, std::vector<std::string>
         } else {
             //if its not an internal node, check to see if the length to its parent plus the length to the leaf is under the maximum.
             if (path_lengths[n->parent->identifier] + n->mutations.size() <= max_path) {
-                good_samples.push_back(n->identifier);
+                if (samples_to_check.size() == 0 || sampleset.find(n->identifier) != sampleset.end()) {
+                    good_samples.push_back(n->identifier);
+                }
             }
         }
     }

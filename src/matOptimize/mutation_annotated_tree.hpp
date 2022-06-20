@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <mutex>
 #include <sys/types.h>
+#include <istream>
 #include <unordered_map>
 #include <string>
 #include <utility>
@@ -622,7 +623,7 @@ class Tree {
     void MPI_send_tree() const;
     void MPI_receive_tree();
     void delete_nodes();
-    void write_newick_string (std::stringstream& ss, Node* node, bool b1, bool b2, bool b3=false, bool b4=false) const;
+    void write_newick_string (std::iostream::basic_ostream& ss, Node* node, bool b1, bool b2, bool b3=false, bool b4=false) const;
     std::string get_newick_string(bool b1, bool b2, bool b3=false, bool b4=false) const ;
     std::string get_newick_string(Node* node, bool b1, bool b2, bool b3=false, bool b4=false) const;
     void rotate_for_display(bool reverse = false);
@@ -645,7 +646,7 @@ void get_random_sample_subtrees(const Mutation_Annotated_Tree::Tree &T,
                                 std::string outdir, size_t subtree_size,
                                 size_t tree_idx = 0, bool use_tree_idx = false,
                                 bool retain_original_branch_len = false);
-Tree load_mutation_annotated_tree(std::string filename);
+bool load_mutation_annotated_tree (std::string filename,Tree& tree);
 void save_mutation_annotated_tree (const Tree& tree, std::string filename);
 void get_sample_mutation_paths (Mutation_Annotated_Tree::Tree* T, std::vector<Node*> samples, std::string mutation_paths_filename);
 }

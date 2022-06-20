@@ -6,7 +6,7 @@ std::vector<std::string> get_clade_samples (MAT::Tree* T, std::string clade_name
 std::vector<std::string> get_mutation_samples (MAT::Tree* T, std::string mutation_id);
 std::vector<std::string> get_parsimony_samples (MAT::Tree* T, std::vector<std::string> samples_to_check, int max_parsimony);
 std::vector<std::string> get_clade_representatives(MAT::Tree* T, size_t samples_per_clade);
-std::vector<std::string> sample_intersect (std::vector<std::string> samples, std::vector<std::string> nsamples);
+std::vector<std::string> sample_intersect (std::unordered_set<std::string> samples, std::vector<std::string> nsamples);
 std::vector<std::string> get_nearby (MAT::Tree* T, std::string sample_id, int number_to_get);
 std::vector<std::string> get_short_steppers(MAT::Tree* T, std::vector<std::string> samples_to_check, int max_mutations);
 std::vector<std::string> get_short_paths(MAT::Tree* T, std::vector<std::string> samples_to_check, int max_path);

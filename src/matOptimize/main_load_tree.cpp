@@ -4,6 +4,7 @@
 #include <csignal>
 #include <cstddef>
 #include <cstdio>
+#include <cstdlib>
 #include <iostream>
 #include <string>
 #include <tbb/blocked_range.h>
@@ -195,8 +196,10 @@ void reassign_states(MAT::Tree& t, Original_State_t& origin_states) {
 //load from usher compatible pb
 Mutation_Annotated_Tree::Tree load_tree(const std::string& path,Original_State_t& origin_states) {
     fputs("Start loading protobuf\n",stderr);
-    Mutation_Annotated_Tree::Tree t =
-        Mutation_Annotated_Tree::load_mutation_annotated_tree(path);
+    Mutation_Annotated_Tree::Tree t;
+    if(!Mutation_Annotated_Tree::load_mutation_annotated_tree(path,t)){
+        exit(EXIT_FAILURE);
+    }
     fputs("Finished loading protobuf, start reassigning states\n",stderr);
     reassign_states(t, origin_states);
     fputs("Finished reassigning states\n",stderr);

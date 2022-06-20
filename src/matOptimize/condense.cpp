@@ -134,7 +134,7 @@ void Mutation_Annotated_Tree::Tree::condense_leaves(std::vector<std::string> mis
         for (auto old_ids : condensed) {
             auto iter=node_names.find(old_ids);
 	    if(iter==node_names.end()){
-		    fprintf(stderr,"old node id %zu not found, condensed vector addr %lx \n",old_ids,&condensed); 
+		    fprintf(stderr,"old node id %zu not found, condensed vector addr %lx \n",old_ids,(unsigned long)&condensed); 
 		    raise(SIGTRAP);
 		    continue;
 	    }

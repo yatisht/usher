@@ -8,6 +8,7 @@
 #include <iostream>
 #include <boost/iostreams/filter/gzip.hpp>
 #include "parsimony.pb.h"
+#include <istream>
 #include <stack>
 #include <fstream>
 #include <sstream>
@@ -16,16 +17,14 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
-#include <google/protobuf/io/coded_stream.h>
 #include <string>
-#include <google/protobuf/io/zero_copy_stream_impl.h>
 #include <unordered_map>
 std::vector<int8_t> Mutation_Annotated_Tree::get_nuc_vec_from_id (int8_t nuc_id) {
     return get_nuc_vec(get_nuc(nuc_id));
 }
 
 static void print_node(
-    std::stringstream &ss, Mutation_Annotated_Tree::Node *n,
+    std::iostream::basic_ostream &ss, Mutation_Annotated_Tree::Node *n,
     bool print_branch_len, bool retain_original_branch_len,
     bool uncondense_leaves,
     const tbb::concurrent_unordered_map<size_t, std::vector<std::string>>
@@ -59,7 +58,7 @@ static void print_node(
 // internal node ids and branch lengths are printed. If last boolean argument is
 // set, branch lengths from input tree are retained, otherwise, branch length
 // for a branch is equal to the number of mutations annotated on that branch
-void Mutation_Annotated_Tree::Tree::write_newick_string (std::stringstream& ss, Mutation_Annotated_Tree::Node* node, 
+void Mutation_Annotated_Tree::Tree::write_newick_string (std::iostream::basic_ostream& ss, Mutation_Annotated_Tree::Node* node, 
     bool print_internal, bool print_branch_len, bool retain_original_branch_len, bool uncondense_leaves) const {
     TIMEIT();
 
@@ -266,19 +265,17 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::create_tree_from_newick (
     return create_tree_from_newick_string(newick_string);
 }
 
-Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_tree (std::string filename) {
+bool Mutation_Annotated_Tree::load_mutation_annotated_tree (std::string filename,Tree& tree) {
     TIMEIT();
-    Tree tree;
 
     Parsimony::data data;
-#define BIG_SIZE 2000000000l
     boost::iostreams::filtering_istream instream;
     std::ifstream inpfile(filename, std::ios::in | std::ios::binary);
+    if (!inpfile) {
+        fprintf(stderr, "ERROR: Could not load the mutation-annotated tree object from file: %s!\n", filename.c_str());
+        return false;
+    }
     if (filename.find(".gz\0") != std::string::npos) {
-        if (!inpfile) {
-            fprintf(stderr, "ERROR: Could not load the mutation-annotated tree object from file: %s!\n", filename.c_str());
-            exit(1);
-        }
         try {
             instream.push(boost::iostreams::gzip_decompressor());
             instream.push(inpfile);
@@ -288,10 +285,10 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
     } else {
         instream.push(inpfile);
     }
-    google::protobuf::io::IstreamInputStream stream(&instream);
-    google::protobuf::io::CodedInputStream input(&stream);
-//    input.SetTotalBytesLimit(BIG_SIZE, BIG_SIZE);
-    data.ParseFromCodedStream(&input);
+    if(!data.ParseFromIstream(&instream)){
+        fprintf(stderr, "ERROR: Failed to parse: %s!\n", filename.c_str());
+        return false;
+    }
     //check if the pb has a metadata field
     bool hasmeta = (data.metadata_size()>0);
     if (!hasmeta) {
@@ -344,7 +341,7 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
         }
     }, ap);
 
-    return tree;
+    return true;
 }
 
 void Mutation_Annotated_Tree::save_mutation_annotated_tree (const Mutation_Annotated_Tree::Tree& tree, std::string filename) {

@@ -89,7 +89,7 @@ backward_pass(MAT::Node *node, mutated_t::const_iterator &iter,
               uint8_t ref_nuc) {
     Min_Back_Mut_FS_Score_PerNode_T output;
     for (const auto child : node->children) {
-        auto child_idx=child->dfs_index;
+        long child_idx=child->dfs_index;
         auto& child_state_output=state_output[child->dfs_index];
         if (child->is_leaf()) {
             auto child_nuc=ref_nuc;
