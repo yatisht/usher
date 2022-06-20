@@ -388,16 +388,25 @@ void write_roho_table(MAT::Tree* T, std::string roho_file, bool get_dates) {
         for (auto ms: candidate_mutations) {
             //size_t non_c = 0;
             //size_t sum_non = 0;
+            //ignore mutations that don't have at least 5 descendents, filter the siblings in the same way
             std::vector<size_t> all_non;
             size_t sum_wit = 0;
             for (auto cs: child_increment) {
                 if (cs.first != ms.second) {
-                    all_non.push_back(cs.second);
+                    if (cs.second > 5) {
+                        all_non.push_back(cs.second);
+                    }
                     //sum_non += cs.second;
                     //non_c++;
                 } else {
-                    sum_wit += cs.second;
+                    if (cs.second > 5) {
+                        sum_wit += cs.second;
+                    }
+                    // sum_wit += cs.second;
                 }
+            }
+            if ((all_non.size() == 0) || (sum_wit == 0)) {
+                continue;
             }
             float med_non;
             std::sort(all_non.begin(), all_non.end());
