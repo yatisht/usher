@@ -18,6 +18,7 @@ cd isa-l-2.30.0
 make -j$(nproc)
 sudo -E make install
 cd ..
+
 #download and install TBB
 wget https://github.com/oneapi-src/oneTBB/archive/2019_U9.tar.gz 
 tar -xvzf 2019_U9.tar.gz
