@@ -111,6 +111,7 @@ int individual_move(MAT::Node* src,MAT::Node* dst,MAT::Node* LCA,output_t& out,b
                     ,MAT::Tree* tree
 #endif
                    ) {
+    Move_Found_Callback callback;
     MAT::Node *root = src->parent;
     Mutation_Count_Change_Collection mutations;
     init_mutation_change(src, mutations);
@@ -159,13 +160,13 @@ int individual_move(MAT::Node* src,MAT::Node* dst,MAT::Node* LCA,output_t& out,b
     }
     if (dst==LCA) {
         return check_move_profitable_LCA(src, LCA, mutations, root_mutations_altered,
-                                         parsimony_score_change,last_src_branch_node,out,1
+                                         parsimony_score_change,last_src_branch_node,out,1,callback
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
                                          ,debug,tree
 #endif
                                         );;
     } else {
-        return check_move_profitable_dst_not_LCA(src, dst, LCA, mutations, root_mutations_altered, parsimony_score_change,out,1
+        return check_move_profitable_dst_not_LCA(src, dst, LCA, mutations, root_mutations_altered, parsimony_score_change,out,1,callback
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
                 , debug,tree
 #endif

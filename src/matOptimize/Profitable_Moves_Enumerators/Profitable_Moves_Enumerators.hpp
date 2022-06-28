@@ -6,6 +6,11 @@
 #include <vector>
 #include <array>
 #include "../stack_allocator.hpp"
+struct Move_Found_Callback{
+    bool operator()(Profitable_Moves move){
+        return true;
+    }
+};
 typedef std::vector<std::array<std::vector<unsigned int>, 4>> mutated_node_dfs_idx_t;
 extern mutated_node_dfs_idx_t mutated_node_dfs_idx;
 namespace MAT = Mutation_Annotated_Tree;
@@ -147,7 +152,7 @@ struct Reachable {
     bool reachable_change;
     bool always_search;
 };
-void find_moves_bounded(MAT::Node* src,output_t& out,int search_radius,bool do_drift,Reachable
+void find_moves_bounded(MAT::Node* src,output_t& out,int search_radius,bool do_drift,Reachable,Move_Found_Callback& callback
 #ifdef CHECK_BOUND
                         ,counters& count
 #endif
@@ -180,7 +185,7 @@ struct range_tree {
     }
 };
 bool output_result(MAT::Node *src, MAT::Node *dst, MAT::Node *LCA,
-                   int parsimony_score_change, output_t &output,int radius_left);
+                   int parsimony_score_change, output_t &output,int radius_left,Move_Found_Callback& callback);
 extern std::vector<range_tree> addable_idxes;
 void check_parsimony_score_change_above_LCA(MAT::Node *start_node, int &parsimony_score_change,
         Mutation_Count_Change_Collection &parent_added,
@@ -199,7 +204,7 @@ int check_move_profitable_LCA(
     const Mutation_Count_Change_Collection &root_mutations_altered,
     int parsimony_score_change,
     const MAT::Node* last_src_branch_node_below_LCA,
-    output_t &output,int radius
+    output_t &output,int radius,Move_Found_Callback& callback
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
     ,
     const std::vector<Mutation_Count_Change_Collection> &debug_above_LCA,
@@ -210,11 +215,12 @@ int check_move_profitable_dst_not_LCA(
     MAT::Node *src, MAT::Node *dst, MAT::Node *LCA,
     const range<Mutation_Count_Change>  &mutations,
     const Mutation_Count_Change_Collection &root_mutations_altered,
-    int parsimony_score_change, output_t &output,int radius
+    int parsimony_score_change, output_t &output,int radius,Move_Found_Callback& callback
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
     ,
     const std::vector<Mutation_Count_Change_Collection> debug_from_src,
     const MAT::Tree* tree
 #endif
 );
+
 #endif
