@@ -20,7 +20,7 @@ static void check_LCA(MAT::Node* src, MAT::Node* dst,MAT::Node* LCA_to_check) {
 
 bool output_result(MAT::Node *src, MAT::Node *dst, MAT::Node *LCA,
                    int parsimony_score_change, output_t &output,int radius_left,Move_Found_Callback& callback) {
-    if (parsimony_score_change <= output.score_change&&callback(Profitable_Moves{parsimony_score_change,src,dst,LCA,radius_left})) {
+    if (callback(Profitable_Moves{parsimony_score_change,src,dst,LCA,radius_left},output.score_change)) {
         if (parsimony_score_change < output.score_change) {
             output.score_change = parsimony_score_change;
             output.moves->clear();

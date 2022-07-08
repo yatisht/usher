@@ -7,8 +7,8 @@
 #include <array>
 #include "../stack_allocator.hpp"
 struct Move_Found_Callback{
-    bool operator()(Profitable_Moves move){
-        return true;
+    bool operator()(Profitable_Moves move,int best_score_change){
+        return move.score_change <= best_score_change;
     }
 };
 typedef std::vector<std::array<std::vector<unsigned int>, 4>> mutated_node_dfs_idx_t;
