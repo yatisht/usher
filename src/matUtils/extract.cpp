@@ -103,6 +103,10 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
      "Write a tsv file of the closest relative(s) (in mutations) of each selected sample to the indicated file. All equidistant closest samples are included unless --break-ties is set.")
     ("break-ties,q", po::bool_switch(),
      "Only output one closest relative per sample (used only with --closest-relatives). If multiple closest relatives are equidistant, the lexicographically smallest sample ID is chosen.")
+    ("within-distance", po::value<std::string>()->default_value(""),
+    "Write a tsv file of the relatives within --distance-thresold mutations of each selected sample to the indicated file.")
+    ("distance-threshold", po::value<size_t>()->default_value(0),
+     "Specifies the distance threshold used in --within-distance.")
     ("dump-metadata,Q", po::value<std::string>()->default_value(""),
      "Set to write all final stored metadata to a tsv.")
     ("whitelist,L", po::value<std::string>()->default_value(""),
@@ -167,6 +171,7 @@ void extract_main (po::parsed_options parsed) {
     float x_scale = vm["x-scale"].as<float>();
     bool break_ties = vm["break-ties"].as<bool>();
     bool include_nt = vm["include-nt"].as<bool>();
+    size_t distance_threshold = vm["distance-threshold"].as<size_t>();
 
     boost::filesystem::path path(dir_prefix);
     if (!boost::filesystem::exists(path)) {
@@ -181,6 +186,7 @@ void extract_main (po::parsed_options parsed) {
     std::string clade_path_filename = dir_prefix + vm["clade-paths"].as<std::string>();
     std::string all_path_filename = dir_prefix + vm["all-paths"].as<std::string>();
     std::string closest_relatives_filename = dir_prefix + vm["closest-relatives"].as<std::string>();
+    std::string within_dist_filename = dir_prefix + vm["within-distance"].as<std::string>();
     std::string tree_filename = dir_prefix + vm["write-tree"].as<std::string>();
     std::string vcf_filename = dir_prefix + vm["write-vcf"].as<std::string>();
     std::string output_mat_filename = dir_prefix + vm["write-mat"].as<std::string>();
@@ -208,7 +214,7 @@ void extract_main (po::parsed_options parsed) {
     return f != dir_prefix;
 }) &&
 usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
-        if (nearest_k_batch_file == "" && closest_relatives_filename == dir_prefix) {
+        if (nearest_k_batch_file == "" && closest_relatives_filename == dir_prefix && within_dist_filename == dir_prefix) {
             fprintf(stderr, "ERROR: No output files requested!\n");
             exit(1);
         }
@@ -261,7 +267,8 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         if (samples.size() == 0) {
             samples = nk_samples;
         } else {
-            samples = sample_intersect(samples, nk_samples);
+            std::unordered_set<std::string> nk_samples_set(nk_samples.begin(), nk_samples.end());
+            samples = sample_intersect(nk_samples_set, samples);
         }
     }
     if (internal_choice != "") {
@@ -269,7 +276,8 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         if (samples.size() == 0) {
             samples = ic_samples;
         } else {
-            samples = sample_intersect(samples, ic_samples);
+            std::unordered_set<std::string> ic_samples_set(ic_samples.begin(), ic_samples.end());
+            samples = sample_intersect(ic_samples_set, samples);
         }
     }
     if (clade_choice != "") {
@@ -284,7 +292,7 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         //this has a bit different setup from the rest of selection because these are OR logic
         //e.g. if I pass 20B,19D I want samples that belong to one OR the other
         //so I create a vector which represents all samples in both, then intersect that vector with the samples selected otherwise
-        std::vector<std::string> samples_in_clade;
+        std::unordered_set<std::string> samples_in_clade;
         for (auto cname: clades) {
             fprintf(stderr, "Getting member samples of clade %s\n", cname.c_str());
             auto csamples = get_clade_samples(&T, cname);
@@ -293,17 +301,13 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
                 //itll error down the line if this was the only one they passed in and it leaves them with no samples
                 fprintf(stderr, "WARNING: Clade %s is not detected in the input tree!\n", cname.c_str());
             }
-            samples_in_clade.insert(samples_in_clade.end(), csamples.begin(), csamples.end());
+            samples_in_clade.insert(csamples.begin(), csamples.end());
         }
-        //remove duplicate samples
-        std::set<std::string> tset(samples_in_clade.begin(), samples_in_clade.end());
-        samples_in_clade.assign(tset.begin(),tset.end());
-
         //proceed to the normal intersection code
         if (samples.size() == 0) {
-            samples = samples_in_clade;
+            samples.assign(samples_in_clade.begin(),samples_in_clade.end());
         } else {
-            samples = sample_intersect(samples, samples_in_clade);
+            samples = sample_intersect(samples_in_clade, samples);
         }
         if (samples.size() == 0) {
             fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
@@ -320,23 +324,20 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         }
         assert (mutations.size() > 0);
 
-        std::vector<std::string> samples_with_mutation;
+        std::unordered_set<std::string> samples_with_mutation;
         for (auto mname: mutations) {
             fprintf(stderr, "Getting samples with mutation %s\n", mname.c_str());
             auto msamples = get_mutation_samples(&T, mname);
             if (msamples.size() == 0) {
                 fprintf(stderr, "WARNING: No samples with mutation %s found in tree!\n", mname.c_str());
             }
-            samples_with_mutation.insert(samples_with_mutation.end(), msamples.begin(), msamples.end());
+            samples_with_mutation.insert(msamples.begin(), msamples.end());
         }
-        //remove duplicate samples
-        std::set<std::string> tset(samples_with_mutation.begin(), samples_with_mutation.end());
-        samples_with_mutation.assign(tset.begin(),tset.end());
 
         if (samples.size() == 0) {
-            samples = samples_with_mutation;
+            samples.assign(samples_with_mutation.begin(),samples_with_mutation.end());
         } else {
-            samples = sample_intersect(samples, samples_with_mutation);
+            samples = sample_intersect(samples_with_mutation, samples);
         }
         if (samples.size() == 0) {
             fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
@@ -394,7 +395,7 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         //store the reason they were included as a map to add to metadata later.
         //in this case, just store the original list.
         not_nearest.insert(samples.begin(), samples.end());
-        std::set<std::string> nsamples;
+        std::unordered_set<std::string> nsamples;
         for (auto s: samples) {
             auto nearest = get_nearby(&T, s, select_nearest);
             nsamples.insert(nearest.begin(), nearest.end());
@@ -701,7 +702,7 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         std::vector<std::string> closest_relatives;
 
         for (std::string sample : samples) {
-            std::pair<std::vector<std::string>, size_t> closest_relatives_pair = get_closest_samples(&T, sample);
+            std::pair<std::vector<std::string>, size_t> closest_relatives_pair = get_closest_samples(&T, sample, false, 0);
             std::vector<std::string> closest_relatives = closest_relatives_pair.first;
             size_t dist = closest_relatives_pair.second;
             if (closest_relatives.size() > 0) {
@@ -728,6 +729,23 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
             }
         }
         fprintf(stderr, "TSV of closest relative written to %s in %ld msec.\n\n", closest_relatives_filename.c_str(), timer.Stop());
+    }
+    if (within_dist_filename != dir_prefix) {
+        fprintf(stderr, "Computing per-sample relatives within %ld mutations...", distance_threshold);
+        std::ofstream out(within_dist_filename);
+
+        for (std::string sample : samples) {
+            std::pair<std::vector<std::string>, size_t> relatives_pair = get_closest_samples(&T, sample, true, distance_threshold);
+            std::vector<std::string> relatives = relatives_pair.first;
+            std::string s = "";
+            s += sample + '\t';
+            for (std::string relative : relatives) {
+                s += relative + ',';
+            }
+            s = s.substr(0, s.size() - 1);
+            out << s << "\n";
+        }
+        fprintf(stderr, "TSV of relatives within threshold written to %s in %ld msec.\n\n", within_dist_filename.c_str(), timer.Stop());
     }
     //if json output AND sample context is requested, add an additional metadata column which simply indicates the focal sample versus context
     if ((json_filename != "") && (nearest_k != "")) {

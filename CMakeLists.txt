@@ -53,6 +53,7 @@ AUX_SOURCE_DIRECTORY(src/matOptimize/apply_move patch_tree)
 file(GLOB MATUTIL_SRCS "src/matUtils/*.cpp" "src/matUtils/*.hpp")
 file(GLOB RIPPLES_SRCS "src/ripples/*.cpp" "src/ripples/*.hpp")
 file(GLOB RIPPLES_FAST_SRCS "src/ripples/ripples_fast/*.cpp" "src/ripples/ripples_fast/*.hpp")
+file(GLOB RIPPLES_UTILS_SRCS "src/ripples/util/*.cpp" "src/ripples/util/*.hpp")
 
 set_source_files_properties(src/mutation_annotated_tree.cpp PROPERTIES COMPILE_FLAGS -O3)
 #set_source_files_properties(src/usher_mapper.cpp PROPERTIES COMPILE_FLAGS -O3)
@@ -164,9 +165,6 @@ if(DEFINED Protobuf_PATH)
         TARGET compareVCF 
         PROTOS parsimony.proto)
 
-
-
-
     protobuf_generate(
         LANGUAGE cpp
         TARGET usher 
@@ -251,6 +249,24 @@ else()
         src/mutation_annotated_tree.cpp
         src/usher_mapper.cpp
         ${RIPPLES_FAST_SRCS}
+        ${PROTO_SRCS}
+        ${PROTO_HDRS}
+        )
+
+    add_executable(ripplesUtils
+        src/mutation_annotated_tree.cpp
+        src/usher_mapper.cpp
+        src/matUtils/describe.cpp
+				${RIPPLES_UTILS_SRCS}
+        ${PROTO_SRCS}
+        ${PROTO_HDRS}
+        )
+
+    add_executable(ripplesInit
+        src/mutation_annotated_tree.cpp
+        src/usher_mapper.cpp
+        src/ripples/init/init_pipeline.cpp
+        src/ripples/init/main.cpp
         ${PROTO_SRCS}
         ${PROTO_HDRS}
         )
@@ -361,6 +377,9 @@ target_include_directories(usher PUBLIC "${PROJECT_BINARY_DIR}")
 
 TARGET_COMPILE_OPTIONS(matUtils PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
 TARGET_LINK_LIBRARIES(matUtils PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
+
+TARGET_LINK_LIBRARIES(ripplesUtils PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
+TARGET_LINK_LIBRARIES(ripplesInit PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
 
 TARGET_COMPILE_OPTIONS(ripples PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
 TARGET_LINK_LIBRARIES(ripples PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
