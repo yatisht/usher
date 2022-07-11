@@ -467,12 +467,7 @@ std::pair<std::vector<std::string>, size_t> get_closest_samples(MAT::Tree* T, st
     std::pair<std::vector<std::string>, size_t> closest_samples;
 
     MAT::Node *target = T->get_node(nid);
-    bool debug = false;
-    if(target->identifier == "EPI_ISL_11620985.SRR18563578.fasta") {
-        debug = false;
-    }
     MAT::Node *target_parent = target->parent;
-    
     MAT::Node *curr_target = T->get_node(nid);
 
     if (!target) {
