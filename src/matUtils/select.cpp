@@ -445,9 +445,7 @@ std::vector<std::string> get_mrca_samples(MAT::Tree* T, std::vector<std::string>
 
 void closest_samples_dfs(MAT::Node *node, MAT::Node *target, size_t path_length, size_t max_path_length, std::vector<std::pair<MAT::Node *, size_t>> &leaves, bool fixed_k) {
 
-
     if (path_length > max_path_length) {
-        
         return;
     }
     for (auto child : node->children) {
@@ -469,6 +467,10 @@ std::pair<std::vector<std::string>, size_t> get_closest_samples(MAT::Tree* T, st
     std::pair<std::vector<std::string>, size_t> closest_samples;
 
     MAT::Node *target = T->get_node(nid);
+    bool debug = false;
+    if(target->identifier == "EPI_ISL_11620985.SRR18563578.fasta") {
+        debug = false;
+    }
     MAT::Node *target_parent = target->parent;
     
     MAT::Node *curr_target = T->get_node(nid);
@@ -486,7 +488,6 @@ std::pair<std::vector<std::string>, size_t> get_closest_samples(MAT::Tree* T, st
     bool go_up = true;
     while (go_up && parent) {
         size_t parent_branch_length = parent->mutations.size() + dist_to_orig_parent;
-        
         // make a vector of siblings of the current target.
         // for siblings that are internal nodes, add leaves in the descendant subtree
         // as pseudo-children if they are close enough
@@ -504,7 +505,7 @@ std::pair<std::vector<std::string>, size_t> get_closest_samples(MAT::Tree* T, st
                     continue; // skip the target node
                 }
                 size_t child_branch_length = child->mutations.size();
-                
+           
                 if (child_branch_length < min_of_sibling_leaves) {
                     
                     min_of_sibling_leaves = child_branch_length;
@@ -513,33 +514,35 @@ std::pair<std::vector<std::string>, size_t> get_closest_samples(MAT::Tree* T, st
         }
         
         for (auto child : parent->children) {
-            
             if (child->identifier == curr_target->identifier) {
-                
                 continue; // skip the target node
             }
             if (child->identifier == target_parent->identifier) {
                 continue; // don't go back down path
             }
 
+            size_t dist_so_far = dist_to_orig_parent + target->mutations.size() + child->mutations.size();
             if (!child->is_leaf()) {
-                
                 // for internal nodes, descend the tree, adding leaves as they are
                 // encountered, restricting path lengths to less than the minimum of
                 // the sibling leaves at the current level
-                size_t dist_so_far = child->mutations.size() + dist_to_orig_parent;
                 if (fixed_k) {             
                   closest_samples_dfs(child, target, dist_so_far, k, children_and_distances_fixed_k, true);
                 } else {
-                    closest_samples_dfs(child, target, dist_so_far, min_of_sibling_leaves + dist_so_far, children_and_distances, false);
+                    size_t max_path;
+                    if (min_of_sibling_leaves == std::numeric_limits<size_t>::max()) {
+                        max_path = min_of_sibling_leaves;
+                    } else {
+                        max_path = min_of_sibling_leaves + dist_so_far;
+                    }
+                    closest_samples_dfs(child, target, dist_so_far, max_path, children_and_distances, false);
                 }
 
             } else { // leaf node
-                
-                if(fixed_k && dist_to_orig_parent + child->mutations.size() <= k) {
-                    children_and_distances_fixed_k.push_back(std::make_pair(child, dist_to_orig_parent + child->mutations.size()));
+                if(fixed_k && dist_so_far <= k) {
+                    children_and_distances_fixed_k.push_back(std::make_pair(child, dist_so_far));
                 } else if (!fixed_k) {
-                    children_and_distances.push_back(std::make_pair(child, dist_to_orig_parent + child->mutations.size()));
+                    children_and_distances.push_back(std::make_pair(child, dist_so_far));
                 }
             }
         }
@@ -557,21 +560,18 @@ std::pair<std::vector<std::string>, size_t> get_closest_samples(MAT::Tree* T, st
 
         } else {
             for (std::pair child_and_dist : children_and_distances) {
-                
                 // for the siblings of the target node, if any branch lengths
                 // are shorter than the path up a level, we can stop
                 MAT::Node *child = child_and_dist.first;
                 size_t child_branch_length = child_and_dist.second;
                 if (child_branch_length < parent_branch_length) {
-                    
                     go_up = false;
                 }
                 if (child_branch_length < min_dist) {
-                    
                     min_dist = child_branch_length;
                     closest_samples.first.clear();
                     closest_samples.first.push_back(child->identifier);
-                    closest_samples.second = min_dist + target->mutations.size();
+                    closest_samples.second = min_dist;
 
                 } else if (child_branch_length == min_dist) {
                     closest_samples.first.push_back(child->identifier);
