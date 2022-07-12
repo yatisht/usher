@@ -18,7 +18,9 @@ void output_LCA(
     int par_score_change, const src_side_info &src_side, int radius_left,Move_Found_Callback& callback) {
     Mutation_Count_Change_Collection parent_of_parent_added;
     std::vector<Node_With_Major_Allele_Set_Change> major_alllele_count_changes_hist(src_side.node_with_major_allele_set_change);
-    major_alllele_count_changes_hist.push_back(Node_With_Major_Allele_Set_Change{src_side.LCA,allele_count_change_from_splitting_LCA});
+    if (!allele_count_change_from_splitting_LCA.empty()) {
+        major_alllele_count_changes_hist.push_back(Node_With_Major_Allele_Set_Change{src_side.LCA,allele_count_change_from_splitting_LCA});
+    }
     parent_of_parent_added.reserve(
         allele_count_change_from_splitting_LCA.size());
     auto actual_LCA=src_side.LCA->parent;
@@ -325,7 +327,9 @@ upward_integrated(src_side_info &src_side,
 
     output_LCA(split_allele_count_change_out, par_score_change_split_LCA+next_src_par_score,
                src_side, radius_left,callback);
-    src_side.node_with_major_allele_set_change.emplace_back(Node_With_Major_Allele_Set_Change{node, Mutation_Count_Change_Collection{mut_out.begin(),mut_out.end()}});
+    if(!mut_out.empty()){
+        src_side.node_with_major_allele_set_change.emplace_back(Node_With_Major_Allele_Set_Change{node, Mutation_Count_Change_Collection{mut_out.begin(),mut_out.end()}});
+    }
     return true;
 }
 template<typename T>

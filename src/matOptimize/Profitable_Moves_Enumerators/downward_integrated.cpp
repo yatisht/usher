@@ -45,7 +45,9 @@ static bool output_not_LCA(Mutation_Count_Change_Collection &parent_added,
         get_intermediate_nodes_mutations(this_node,
                                          parent_added, parent_of_parent_added,
                                          parsimony_score_change);
-        major_alllele_count_changes_hist.push_back(Node_With_Major_Allele_Set_Change{this_node, parent_of_parent_added});
+        if (!parent_of_parent_added.empty()) {
+            major_alllele_count_changes_hist.push_back(Node_With_Major_Allele_Set_Change{this_node, parent_of_parent_added});        
+        }
         parent_added.swap(parent_of_parent_added);
         if (parent_added.empty()) {
             break;
@@ -64,7 +66,9 @@ static bool output_not_LCA(Mutation_Count_Change_Collection &parent_added,
                          src_side.allele_count_change_from_src,
                          parent_added, parent_of_parent_added,
                          parsimony_score_change);
-        major_alllele_count_changes_hist.push_back(Node_With_Major_Allele_Set_Change{src_side.LCA, parent_of_parent_added});
+        if (!parent_of_parent_added.empty()) {
+            major_alllele_count_changes_hist.push_back(Node_With_Major_Allele_Set_Change{src_side.LCA, parent_of_parent_added});
+        }
     }
     parent_added.swap(parent_of_parent_added);
     parent_of_parent_added.clear();

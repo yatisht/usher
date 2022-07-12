@@ -2,7 +2,9 @@
 #define PROFITABLE_MOVES_ENUMERATOR
 #include "../tree_rearrangement_internal.hpp"
 #include "src/matOptimize/mutation_annotated_tree.hpp"
+#include <csignal>
 #include <cstdint>
+#include <cstdio>
 #include <vector>
 #include <array>
 #include "../stack_allocator.hpp"
