@@ -1502,8 +1502,13 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_subtree (const Mutati
             if (subtree_parent == NULL) {
                 // for root node, need to size the annotations vector
                 Node* new_node = subtree.create_node(n->identifier, -1.0, num_annotations);
+                // but watch out for nodes that have fewer than expected annotations
+                size_t node_num_annotations = num_annotations;
+                if (node_num_annotations > n->clade_annotations.size()) {
+                    node_num_annotations = n->clade_annotations.size();
+                }
                 // need to assign any clade annotations which would belong to that root as well
-                for (size_t k = 0; k < n->clade_annotations.size(); k++) {
+                for (size_t k = 0; k < node_num_annotations; k++) {
                     if (n->clade_annotations[k] != "") {
                         new_node->clade_annotations[k] = n->clade_annotations[k];
                     }
@@ -1528,7 +1533,12 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_subtree (const Mutati
 
 
                 for (auto curr: par_to_node) {
-                    for (size_t k = 0; k < curr->clade_annotations.size(); k++) {
+                    // watch out for nodes that have fewer than expected annotations
+                    size_t node_num_annotations = num_annotations;
+                    if (node_num_annotations > curr->clade_annotations.size()) {
+                        node_num_annotations = curr->clade_annotations.size();
+                    }
+                    for (size_t k = 0; k < node_num_annotations; k++) {
                         if (curr->clade_annotations[k] != "") {
                             new_node->clade_annotations[k] = curr->clade_annotations[k];
                         }
