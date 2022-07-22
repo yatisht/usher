@@ -359,7 +359,7 @@ int main(int argc, char **argv) {
      "Do not add new samples to the tree")
     ("detailed-clades,D", po::bool_switch(&options.out_options.detailed_clades), \
      "In clades.txt, write a histogram of annotated clades and counts across all equally parsimonious placements")
-    ("threads,T",po::value<uint32_t>(&num_threads)->default_value(num_cores),num_threads_message.c_str())("version", "Print version number")("help,h", "Print help messages")
+    ("threads,T",po::value<uint32_t>(&num_threads)->default_value(num_cores),num_threads_message.c_str())
     ("reduce-back-mutation,B",po::bool_switch(&options.out_options.redo_FS_Min_Back_Mutations)->default_value(false), 
         "Reassign states of internal nodes to reduce back mutation count.")
     ("version", "Print version number")
