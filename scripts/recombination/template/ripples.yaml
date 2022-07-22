@@ -1,0 +1,21 @@
+# GCP credentials
+bucket_id: 
+project_id: 
+key_file: /tmp/keys/
+
+# GCP machine and Storage Bucket config
+instances: 
+boot_disk_size: 30
+machine_type: 
+logging: 
+
+# Ripples parameters config [REQURIED]
+version: 
+mat: 
+date: 
+results: 
+reference:
+raw_sequences: 
+
+# Ripples parameters [OPTIONAL]. Leave blank to use default values.
+num_descendants:
