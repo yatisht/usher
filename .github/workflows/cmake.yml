@@ -19,6 +19,8 @@ jobs:
     - name: test
       run: |
         ./build/usher --help
+        ./build/usher-sampled-server --help
+        ./build/matUtils --help
         ./build/matUtils --help
         mpirun -np 1 ./build/matOptimize --help
         ./build/ripples --help
@@ -33,6 +35,8 @@ jobs:
     - name: test
       run: |
         ./build/usher --help
+        ./build/usher-sampled-server --help
+        ./build/matUtils --help
         ./build/matUtils --help
         mpirun -np 1 ./build/matOptimize --help
         ./build/ripples --help
