@@ -23,6 +23,7 @@
 #include <mutex>
 #include <signal.h>
 #include <string>
+#include <unistd.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <thread>
