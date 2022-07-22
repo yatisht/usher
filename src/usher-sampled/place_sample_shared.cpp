@@ -16,7 +16,7 @@ static void update_possible_descendant_alleles(
             auto iter = alleles.find(mut.get_position());
             if (iter != alleles.end()) {
                 if ((mut.get_descendant_mut() & iter->second) ==
-                    iter->second) {
+                        iter->second) {
                     alleles.erase(iter);
                 } else {
                     mut.set_descendant_mut(mut.get_descendant_mut()|iter->second);
@@ -31,7 +31,7 @@ static void update_possible_descendant_alleles(
         node = node->parent;
     }
 }
-static MAT::Node* add_children(MAT::Node* target_node,MAT::Node* sample_node,MAT::Tree& tree,bool keep_old_node){
+static MAT::Node* add_children(MAT::Node* target_node,MAT::Node* sample_node,MAT::Tree& tree,bool keep_old_node) {
     MAT::Node* deleted_node=nullptr;
     if (keep_old_node&&((target_node->children.size()+1)>=target_node->children.capacity())) {
         MAT::Node* new_target_node=new MAT::Node(*target_node);
@@ -43,7 +43,7 @@ static MAT::Node* add_children(MAT::Node* target_node,MAT::Node* sample_node,MAT
             }*/
             tree.root=new_target_node;
         }
-        for(auto child:new_target_node->children){
+        for(auto child:new_target_node->children) {
             child->parent=new_target_node;
         }
         new_target_node->children.reserve(SIZE_MULT*new_target_node->children.size());
@@ -63,10 +63,10 @@ static MAT::Node* add_children(MAT::Node* target_node,MAT::Node* sample_node,MAT
 }
 
 update_main_tree_output update_main_tree(const MAT::Mutations_Collection& sample_mutations,
-                                    const MAT::Mutations_Collection& splitted_mutations,
-                                    const MAT::Mutations_Collection& shared_mutations,
-                                    MAT::Node* target_node,
-                                    size_t node_idx, MAT::Tree& tree,size_t split_node_idx,bool keep_old_node) {
+        const MAT::Mutations_Collection& splitted_mutations,
+        const MAT::Mutations_Collection& shared_mutations,
+        MAT::Node* target_node,
+        size_t node_idx, MAT::Tree& tree,size_t split_node_idx,bool keep_old_node) {
     // Split branch?
     MAT::Node* deleted_node=nullptr;
     MAT::Node *split_node=nullptr;
@@ -110,8 +110,8 @@ update_main_tree_output update_main_tree(const MAT::Mutations_Collection& sample
         }
         new_target_node->branch_length = target_node_mut_count;
         if (split_node_idx==0) {
-            split_node = tree.create_node();        
-        }else {
+            split_node = tree.create_node();
+        } else {
             split_node= new MAT::Node(split_node_idx);
             tree.register_node_serial(split_node);
         }
@@ -144,9 +144,9 @@ update_main_tree_output update_main_tree(const MAT::Mutations_Collection& sample
     #endif*/
     return update_main_tree_output{split_node, deleted_node};
 }
-bool check_overriden(MAT::Tree& tree,move_type* in){
+bool check_overriden(MAT::Tree& tree,move_type* in) {
     for (const auto& place_target : std::get<0>(*in)) {
-            if (place_target.target_node->parent!=place_target.parent_node) {
+        if (place_target.target_node->parent!=place_target.parent_node) {
             auto par_id= place_target.target_node->parent?  place_target.target_node->parent->node_id:0;
             fprintf(stderr, "parent Mismatch  ; from placement: %zu ; actual %zu \n", place_target.parent_node->node_id,par_id);
             return true;
@@ -158,13 +158,13 @@ bool check_overriden(MAT::Tree& tree,move_type* in){
     }
     return false;
 }
-move_type* find_place(MAT::Tree& tree,Sample_Muts* in){
-        auto output=new move_type;
-        std::get<1>(*output)= in;
-        const auto& condensed_muts =in->muts;
-        do{
+move_type* find_place(MAT::Tree& tree,Sample_Muts* in) {
+    auto output=new move_type;
+    std::get<1>(*output)= in;
+    const auto& condensed_muts =in->muts;
+    do {
         auto main_tree_out=place_main_tree(condensed_muts, tree);
         std::get<0>(*output)=std::move(std::get<0>(main_tree_out));
-        } while(check_overriden(tree, output));
-        return output;
+    } while(check_overriden(tree, output));
+    return output;
 }

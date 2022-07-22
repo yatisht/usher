@@ -35,8 +35,8 @@ struct fix_root_worker:public tbb::task {
     Mutation_Annotated_Tree::Node *root; //starting node whose subtree need to be processed
     Mutation_Set parent_mutations; //mutation of parent of "root" relative to the root of the entire tree
     fix_root_worker(Mutation_Annotated_Tree::Node *root,
-                          const Mutation_Set &parent_mutations)
-        : root(root), parent_mutations(parent_mutations){}
+                    const Mutation_Set &parent_mutations)
+        : root(root), parent_mutations(parent_mutations) {}
     tbb::task* execute() override {
         //add mutation of "root"
         for (Mutation_Annotated_Tree::Mutation &m : root->mutations) {
@@ -57,22 +57,22 @@ struct fix_root_worker:public tbb::task {
 };
 void fix_parent(Mutation_Annotated_Tree::Tree &tree) {
     Mutation_Set mutations;
-        tbb::task::spawn_root_and_wait(*new(tbb::task::allocate_root())
-                                       fix_root_worker(tree.root, mutations));
+    tbb::task::spawn_root_and_wait(*new(tbb::task::allocate_root())
+                                   fix_root_worker(tree.root, mutations));
     auto dfs=tree.depth_first_expansion();
-    tbb::parallel_for(tbb::blocked_range<size_t>(0,dfs.size()),[&dfs](tbb::blocked_range<size_t> r){
+    tbb::parallel_for(tbb::blocked_range<size_t>(0,dfs.size()),[&dfs](tbb::blocked_range<size_t> r) {
         for (size_t idx=r.begin(); idx<r.end(); idx++) {
             auto & mut=dfs[idx]->mutations.mutations;
-            mut.erase(std::remove_if(mut.begin(), mut.end(), [](const MAT::Mutation& mut){
+            mut.erase(std::remove_if(mut.begin(), mut.end(), [](const MAT::Mutation& mut) {
                 return mut.get_mut_one_hot()==mut.get_par_one_hot();
             }),mut.end());
         }
     });
     for (auto node : dfs) {
         node->branch_length=node->mutations.size();
-        #ifdef NDEBUG
+#ifdef NDEBUG
         node->children.reserve(SIZE_MULT*node->children.size());
-        #endif
+#endif
     }
     fprintf(stderr, "main dfs size %zu\n",dfs.size());
     {

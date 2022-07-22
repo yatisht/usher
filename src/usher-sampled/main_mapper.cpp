@@ -73,37 +73,37 @@ static void insert_split(const To_Place_Sample_Mutation &sample_mut,
     }
 }
 static void n_skiped_sibling(
-        MAT::Mutations_Collection &splitted_mutations,
+    MAT::Mutations_Collection &splitted_mutations,
     MAT::Mutations_Collection &shared_mutations,
     const MAT::Mutation &mut
-){
-        assert(mut.get_mut_one_hot() != mut.get_par_one_hot());
-        if(__builtin_popcount(mut.get_mut_one_hot())==1){
-            splitted_mutations.push_back(mut);
-            return;
-        }
-        auto concensus_mut=mut.get_mut_one_hot()&mut.get_par_one_hot();
-        if (!concensus_mut) {
-            concensus_mut=1<<__builtin_ctz(mut.get_mut_one_hot());
-            assert(shared_mutations.empty()||shared_mutations.back().get_position()<mut.get_position());
-            shared_mutations.push_back(MAT::Mutation(mut.get_chromIdx(),mut.get_position(),mut.get_par_one_hot(),concensus_mut));
-            shared_mutations.back().set_descendant_mut(mut.get_descendant_mut());
-            assert(shared_mutations.back().get_descendant_mut()&shared_mutations.back().get_mut_one_hot());
-        }
-        assert(splitted_mutations.empty()||splitted_mutations.back().get_position()<mut.get_position());
+) {
+    assert(mut.get_mut_one_hot() != mut.get_par_one_hot());
+    if(__builtin_popcount(mut.get_mut_one_hot())==1) {
         splitted_mutations.push_back(mut);
-        splitted_mutations.back().set_par_one_hot(concensus_mut);
+        return;
+    }
+    auto concensus_mut=mut.get_mut_one_hot()&mut.get_par_one_hot();
+    if (!concensus_mut) {
+        concensus_mut=1<<__builtin_ctz(mut.get_mut_one_hot());
+        assert(shared_mutations.empty()||shared_mutations.back().get_position()<mut.get_position());
+        shared_mutations.push_back(MAT::Mutation(mut.get_chromIdx(),mut.get_position(),mut.get_par_one_hot(),concensus_mut));
+        shared_mutations.back().set_descendant_mut(mut.get_descendant_mut());
+        assert(shared_mutations.back().get_descendant_mut()&shared_mutations.back().get_mut_one_hot());
+    }
+    assert(splitted_mutations.empty()||splitted_mutations.back().get_position()<mut.get_position());
+    splitted_mutations.push_back(mut);
+    splitted_mutations.back().set_par_one_hot(concensus_mut);
 }
 static void sample_check_mutation(
     const std::vector<To_Place_Sample_Mutation> &sample_mutations,
     const MAT::Mutations_Collection &splitted_mutations,
     const MAT::Mutations_Collection &shared_mutations,
     int position
-){
+) {
 #ifdef DETAILED_MERGER_CHECK
-        assert(shared_mutations.empty()||shared_mutations.mutations.back().get_position()<position);
-        assert(splitted_mutations.empty()||splitted_mutations.mutations.back().get_position()<position);
-        assert(sample_mutations.empty()||sample_mutations.back().position<position);
+    assert(shared_mutations.empty()||shared_mutations.mutations.back().get_position()<position);
+    assert(splitted_mutations.empty()||splitted_mutations.mutations.back().get_position()<position);
+    assert(sample_mutations.empty()||sample_mutations.back().position<position);
 #endif
 }
 static void sample_mut_check_mutation(
@@ -111,11 +111,11 @@ static void sample_mut_check_mutation(
     const MAT::Mutations_Collection &splitted_mutations,
     const MAT::Mutations_Collection &shared_mutations,
     const To_Place_Sample_Mutation& mut
-){
+) {
 #ifdef DETAILED_MERGER_CHECK
-        assert(shared_mutations.empty()||shared_mutations.mutations.back().get_position()<=mut.get_end_range());
-        assert(splitted_mutations.empty()||splitted_mutations.mutations.back().get_position()<=mut.get_end_range());
-        assert(sample_mutations.empty()||sample_mutations.back().position<mut.position);
+    assert(shared_mutations.empty()||shared_mutations.mutations.back().get_position()<=mut.get_end_range());
+    assert(splitted_mutations.empty()||splitted_mutations.mutations.back().get_position()<=mut.get_end_range());
+    assert(sample_mutations.empty()||sample_mutations.back().position<mut.position);
 #endif
 }
 struct Down_Sibling_Hook {
@@ -173,17 +173,16 @@ struct Down_Sibling_Hook {
                     if (!(sample_mut.mut_nuc&sample_mut.par_nuc)) {
                         parsimony_score++;
                     }
-                }
-                else {
+                } else {
                     insert_split(sample_mut, target_mut, sample_mutations,
-                             splitted_mutations, shared_mutations);
+                                 splitted_mutations, shared_mutations);
                 }
             } else {
                 sample_mutations.push_back(sample_mut);
                 splitted_mutations.push_back(target_mut);
-                    if (!(sample_mut.mut_nuc&sample_mut.par_nuc)) {
-                        parsimony_score++;
-                    }
+                if (!(sample_mut.mut_nuc&sample_mut.par_nuc)) {
+                    parsimony_score++;
+                }
             }
         } else {
             if (__builtin_popcount(target_mut.get_mut_one_hot())!=1) {
@@ -197,11 +196,11 @@ struct Down_Sibling_Hook {
                 sample_mutations.push_back(sample_mut);
                 sample_mutations.back().par_nuc=common;
                 if (!(sample_mut.mut_nuc&common)) {
-                        parsimony_score++;
+                    parsimony_score++;
                 }
                 splitted_mutations.push_back(target_mut);
                 splitted_mutations.back().set_par_one_hot(common);
-            }else {
+            } else {
                 shared_mutations.push_back(target_mut);
                 assert(shared_mutations.back().get_descendant_mut()&shared_mutations.back().get_mut_one_hot());
             }
@@ -224,10 +223,10 @@ struct Down_Decendant_Hook {
         assert(muts.empty()||muts.back().position<mut.position);
         muts.push_back(mut);
         if (mut.mut_nuc!=0xf) {
-        if (!(mut.descendent_possible_nuc&mut.mut_nuc)) {
-            assert(!(mut.par_nuc&mut.mut_nuc));
-            lower_bound++;
-        }            
+            if (!(mut.descendent_possible_nuc&mut.mut_nuc)) {
+                assert(!(mut.par_nuc&mut.mut_nuc));
+                lower_bound++;
+            }
         }
     }
     void target_N_skiped(const MAT::Mutation &mut) {
@@ -290,82 +289,84 @@ static void generic_merge(const MAT::Node *node,
         par_iter++;
     }
 }
-    void register_target(Main_Tree_Target &target, int this_score,Output<Main_Tree_Target> &output) {
-        #ifndef NDEBUG
-        int initial_par_score=0;
-        for (const auto & mut : target.target_node->mutations) {
-            if (!(mut.get_par_one_hot()&mut.get_mut_one_hot())) {
-                initial_par_score++;
-            }
-        }
-        for (const auto& mut : target.splited_mutations) {
-            if (!(mut.get_par_one_hot()&mut.get_mut_one_hot())) {
-                initial_par_score--;
-            }
-        }
-        initial_par_score-=target.shared_mutations.size();
-        assert(initial_par_score==0);
-        int sample_par_score=0;
-        for (const auto& mut : target.sample_mutations) {
-            if (mut.mut_nuc!=0xf&&!(mut.par_nuc&mut.mut_nuc)) {
-                sample_par_score++;
-            }
-        }
-        assert(sample_par_score==this_score);
-        #endif
-        if ((!target.target_node->is_root())&&target.shared_mutations.empty()) {
-            return;
-        }
-        if (output.best_par_score >= this_score) {
-            std::lock_guard<std::mutex> lk(output.mutex);
-            if (output.best_par_score > this_score) {
-                output.best_par_score = this_score;
-                output.targets.clear();
-            }
-            if (output.best_par_score == this_score) {
-                output.targets.push_back(std::move(target));
-            }
+void register_target(Main_Tree_Target &target, int this_score,Output<Main_Tree_Target> &output) {
+#ifndef NDEBUG
+    int initial_par_score=0;
+    for (const auto & mut : target.target_node->mutations) {
+        if (!(mut.get_par_one_hot()&mut.get_mut_one_hot())) {
+            initial_par_score++;
         }
     }
-static void search_serial(const MAT::Node* node,std::vector<To_Place_Sample_Mutation>& this_muts,Output<Main_Tree_Target> &output){
+    for (const auto& mut : target.splited_mutations) {
+        if (!(mut.get_par_one_hot()&mut.get_mut_one_hot())) {
+            initial_par_score--;
+        }
+    }
+    initial_par_score-=target.shared_mutations.size();
+    assert(initial_par_score==0);
+    int sample_par_score=0;
+    for (const auto& mut : target.sample_mutations) {
+        if (mut.mut_nuc!=0xf&&!(mut.par_nuc&mut.mut_nuc)) {
+            sample_par_score++;
+        }
+    }
+    assert(sample_par_score==this_score);
+#endif
+    if ((!target.target_node->is_root())&&target.shared_mutations.empty()) {
+        return;
+    }
+    if (output.best_par_score >= this_score) {
+        std::lock_guard<std::mutex> lk(output.mutex);
+        if (output.best_par_score > this_score) {
+            output.best_par_score = this_score;
+            output.targets.clear();
+        }
+        if (output.best_par_score == this_score) {
+            output.targets.push_back(std::move(target));
+        }
+    }
+}
+static void search_serial(const MAT::Node* node,std::vector<To_Place_Sample_Mutation>& this_muts,Output<Main_Tree_Target> &output) {
     Main_Tree_Target target;
     for (const auto child : node->children) {
-            target.target_node = child;
-            target.parent_node = const_cast<MAT::Node *>(node);
-            int parsimony_score = 0;
-            if (child->is_leaf()) {
-                generic_merge(child, this_muts,
-                              Combine_Hook<Empty_Hook, Down_Sibling_Hook>{
-                                  Empty_Hook(),
-                                  Down_Sibling_Hook(target, parsimony_score)});
-                register_target(target, parsimony_score,output);
-            } else {
-                int lower_bound = 0;
-                std::vector<To_Place_Sample_Mutation> descendant_mutations;
-                generic_merge(
-                    child, this_muts,
-                    Combine_Hook<Down_Decendant_Hook, Down_Sibling_Hook>{
-                        Down_Decendant_Hook(descendant_mutations, lower_bound),
-                        Down_Sibling_Hook(target, parsimony_score)});
+        target.target_node = child;
+        target.parent_node = const_cast<MAT::Node *>(node);
+        int parsimony_score = 0;
+        if (child->is_leaf()) {
+            generic_merge(child, this_muts,
+            Combine_Hook<Empty_Hook, Down_Sibling_Hook> {
+                Empty_Hook(),
+                Down_Sibling_Hook(target, parsimony_score)
+            });
+            register_target(target, parsimony_score,output);
+        } else {
+            int lower_bound = 0;
+            std::vector<To_Place_Sample_Mutation> descendant_mutations;
+            generic_merge(
+                child, this_muts,
+            Combine_Hook<Down_Decendant_Hook, Down_Sibling_Hook> {
+                Down_Decendant_Hook(descendant_mutations, lower_bound),
+                Down_Sibling_Hook(target, parsimony_score)
+            });
 #ifdef DETAILED_MERGER_CHECK
-                check_continuation(child,
-                                   sample_mutations, descendant_mutations);
+            check_continuation(child,
+                               sample_mutations, descendant_mutations);
 #endif
-                register_target(target, parsimony_score,output);
-/*#ifndef BOUND_CHECK
-                assert(parsimony_score>=curr_lower_bound);
-                assert(curr_lower_bound<=lower_bound);
-                if (lower_bound <= output.best_par_score) {
-#endif*/
-                    search_serial(child, descendant_mutations, output);
-/*#ifndef BOUND_CHECK
-                }
-#endif*/
-            }
-#ifdef DETAILED_MERGER_CHECK
-            check_mutations(sample_mutations, target);
-#endif
+            register_target(target, parsimony_score,output);
+            /*#ifndef BOUND_CHECK
+                            assert(parsimony_score>=curr_lower_bound);
+                            assert(curr_lower_bound<=lower_bound);
+                            if (lower_bound <= output.best_par_score) {
+            #endif*/
+            search_serial(child, descendant_mutations, output);
+            /*#ifndef BOUND_CHECK
+                            }
+            #endif*/
         }
+#ifdef DETAILED_MERGER_CHECK
+        check_mutations(sample_mutations, target);
+#endif
+    }
 }
 struct Main_Tree_Searcher : public tbb::task {
     int curr_lower_bound;
@@ -381,22 +382,22 @@ struct Main_Tree_Searcher : public tbb::task {
                        ,
                        Mutation_Set &sample_mutations
 #endif
-                       )
+                      )
         : curr_lower_bound(curr_lower_bound),node(node),
           output(output)
 #ifdef DETAILED_MERGER_CHECK
-          ,
+        ,
           sample_mutations(sample_mutations)
 #endif
     {
     }
     tbb::task *execute() {
 #ifndef BOUND_CHECK
-        if(curr_lower_bound>output.best_par_score){
+        if(curr_lower_bound>output.best_par_score) {
             return nullptr;
         }
 #endif
-        if(node->bfs_index<10){
+        if(node->bfs_index<10) {
             search_serial(node, this_muts, output);
             return nullptr;
         }
@@ -410,17 +411,19 @@ struct Main_Tree_Searcher : public tbb::task {
             int parsimony_score = 0;
             if (child->is_leaf()) {
                 generic_merge(child, this_muts,
-                              Combine_Hook<Empty_Hook, Down_Sibling_Hook>{
-                                  Empty_Hook(),
-                                  Down_Sibling_Hook(target, parsimony_score)});
+                Combine_Hook<Empty_Hook, Down_Sibling_Hook> {
+                    Empty_Hook(),
+                    Down_Sibling_Hook(target, parsimony_score)
+                });
             } else {
                 int lower_bound = 0;
                 std::vector<To_Place_Sample_Mutation> descendant_mutations;
                 generic_merge(
                     child, this_muts,
-                    Combine_Hook<Down_Decendant_Hook, Down_Sibling_Hook>{
-                        Down_Decendant_Hook(descendant_mutations, lower_bound),
-                        Down_Sibling_Hook(target, parsimony_score)});
+                Combine_Hook<Down_Decendant_Hook, Down_Sibling_Hook> {
+                    Down_Decendant_Hook(descendant_mutations, lower_bound),
+                    Down_Sibling_Hook(target, parsimony_score)
+                });
 #ifdef DETAILED_MERGER_CHECK
                 check_continuation(child,
                                    sample_mutations, descendant_mutations);
@@ -431,12 +434,12 @@ struct Main_Tree_Searcher : public tbb::task {
 #endif
                     children_tasks.push_back(
                         new (cont->allocate_child())
-                            Main_Tree_Searcher(lower_bound, child, output
+                        Main_Tree_Searcher(lower_bound, child, output
 #ifdef DETAILED_MERGER_CHECK
-                                               ,
-                                               sample_mutations
+                                           ,
+                                           sample_mutations
 #endif
-                                               ));
+                                          ));
                     children_tasks.back()->this_muts =
                         std::move(descendant_mutations);
 #ifndef BOUND_CHECK
@@ -463,24 +466,24 @@ place_main_tree(const std::vector<To_Place_Sample_Mutation> &mutations,
                 ,
                 Mutation_Set &sample_mutations
 #endif
-){
-            Output<Main_Tree_Target> output;
-            output.targets.reserve(1000);
-            output.best_par_score = INT_MAX;
-            auto main_tree_task_root = new (tbb::task::allocate_root())
-                Main_Tree_Searcher(0,main_tree.root,
-                                   output
+               ) {
+    Output<Main_Tree_Target> output;
+    output.targets.reserve(1000);
+    output.best_par_score = INT_MAX;
+    auto main_tree_task_root = new (tbb::task::allocate_root())
+    Main_Tree_Searcher(0,main_tree.root,
+                       output
 #ifdef DETAILED_MERGER_CHECK
-                                   ,
-                                   sample_mutations
+                       ,
+                       sample_mutations
 #endif
-                );
-            main_tree_task_root->this_muts = mutations;
-            To_Place_Sample_Mutation temp(INT_MAX,0,0xf);
-            main_tree_task_root->this_muts.push_back(temp);
-            main_tree_task_root->set_group_priority(tbb::priority_low);
-            tbb::task::spawn_root_and_wait(*main_tree_task_root);
-            assert(!output.targets.empty());
+                      );
+    main_tree_task_root->this_muts = mutations;
+    To_Place_Sample_Mutation temp(INT_MAX,0,0xf);
+    main_tree_task_root->this_muts.push_back(temp);
+    main_tree_task_root->set_group_priority(tbb::priority_low);
+    tbb::task::spawn_root_and_wait(*main_tree_task_root);
+    assert(!output.targets.empty());
 
     return std::make_tuple(std::move(output.targets), output.best_par_score);
 }

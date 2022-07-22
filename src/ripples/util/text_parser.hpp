@@ -9,13 +9,19 @@ class text_parser {
     text_parser(const std::string &path);
     ~text_parser();
 
-    std::string_view line() const { return std::string_view(curr, eol - curr); }
+    std::string_view line() const {
+        return std::string_view(curr, eol - curr);
+    }
 
-    size_t get_size() const { return size; }
+    size_t get_size() const {
+        return size;
+    }
 
     void next_line();
 
-    bool done() const { return curr == end; }
+    bool done() const {
+        return curr == end;
+    }
 
 
     std::string_view get_value(int column) const {

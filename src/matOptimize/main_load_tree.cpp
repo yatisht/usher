@@ -197,7 +197,7 @@ void reassign_states(MAT::Tree& t, Original_State_t& origin_states) {
 Mutation_Annotated_Tree::Tree load_tree(const std::string& path,Original_State_t& origin_states) {
     fputs("Start loading protobuf\n",stderr);
     Mutation_Annotated_Tree::Tree t;
-    if(!Mutation_Annotated_Tree::load_mutation_annotated_tree(path,t)){
+    if(!Mutation_Annotated_Tree::load_mutation_annotated_tree(path,t)) {
         exit(EXIT_FAILURE);
     }
     fputs("Finished loading protobuf, start reassigning states\n",stderr);

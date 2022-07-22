@@ -15,11 +15,11 @@ int main(int argc, char **argv) {
     po::options_description desc("optimize options");
     desc.add_options()("input-mat,i", po::value<std::string>()->required(),
                        "Input mutation-annotated tree file [REQUIRED].")(
-        "branch-length,l", po::value<uint32_t>()->default_value(3),
-        "Minimum length of the branch to consider to recombination events")(
-        "num-descendants,n", po::value<uint32_t>()->default_value(2),
-        "Minimum number of leaves that node should have to be considered for "
-        "recombination.");
+                           "branch-length,l", po::value<uint32_t>()->default_value(3),
+                           "Minimum length of the branch to consider to recombination events")(
+                               "num-descendants,n", po::value<uint32_t>()->default_value(2),
+                               "Minimum number of leaves that node should have to be considered for "
+                               "recombination.");
 
     po::options_description all_options;
     all_options.add(desc);
@@ -27,9 +27,9 @@ int main(int argc, char **argv) {
     po::variables_map vm;
     try {
         po::store(po::command_line_parser(argc, argv)
-                      .options(all_options)
-                      .positional(p)
-                      .run(),
+                  .options(all_options)
+                  .positional(p)
+                  .run(),
                   vm);
         po::notify(vm);
     } catch (std::exception &e) {
@@ -53,6 +53,6 @@ int main(int argc, char **argv) {
     preorder_traversal(T);
 
     size_t long_branches = find_long_branches(T, branch_len, num_descendants);
-		std::cout << long_branches << "\n";
+    std::cout << long_branches << "\n";
     return 0;
 }

@@ -373,50 +373,50 @@ static void process(MAT::Tree& tree,infile_t& fd) {
     std::vector<MAT::Node*> bfs_ordered_nodes=tree.breadth_first_expansion();
     std::vector<long> idx_map(9);
     {
-    std::unordered_set<std::string> inserted_samples;
-    for (size_t idx=9; idx<fields.size(); idx++) {
-        auto node=tree.get_node(fields[idx]);;
-        if (node==nullptr) {
-            fprintf(stderr, "sample %s cannot be found in tree\n",fields[idx].c_str());
-            idx_map.push_back(-1);
-            //exit(EXIT_FAILURE);
-        } else {
-            auto res=inserted_samples.insert(fields[idx]);
-            if (res.second) {
-                idx_map.push_back(node->bfs_index);
-            } else {
+        std::unordered_set<std::string> inserted_samples;
+        for (size_t idx=9; idx<fields.size(); idx++) {
+            auto node=tree.get_node(fields[idx]);;
+            if (node==nullptr) {
+                fprintf(stderr, "sample %s cannot be found in tree\n",fields[idx].c_str());
                 idx_map.push_back(-1);
-            }
+                //exit(EXIT_FAILURE);
+            } else {
+                auto res=inserted_samples.insert(fields[idx]);
+                if (res.second) {
+                    idx_map.push_back(node->bfs_index);
+                } else {
+                    idx_map.push_back(-1);
+                }
 
+            }
         }
     }
-    }
     {
-    std::vector<backward_pass_range> child_idx_range;
-    std::vector<forward_pass_range> parent_idx;
-    FS_result_per_thread_t output;
-    Fitch_Sankoff_prep(bfs_ordered_nodes,child_idx_range, parent_idx);
-    {
-    tbb::flow::graph input_graph;
-    line_parser_t parser(input_graph,tbb::flow::unlimited,line_parser{idx_map});
-    //feed used buffer back to decompressor
-    tbb::flow::function_node<Parsed_VCF_Line*> assign_state(input_graph,tbb::flow::unlimited,Assign_State{child_idx_range,parent_idx,output});
-    tbb::flow::make_edge(tbb::flow::output_port<0>(parser),assign_state);
-    size_t single_line_size;
-    parser.try_put(try_get_first_line(fd, single_line_size));
-    size_t first_approx_size=std::min(CHUNK_SIZ,ONE_GB/single_line_size)-2;
-    read_size=first_approx_size*single_line_size;
-    alloc_size=(first_approx_size+2)*single_line_size;
-    tbb::concurrent_bounded_queue<std::pair<char*,uint8_t*>> queue;
-    queue.set_capacity(10);
-    tbb::flow::source_node<line_start_later> line(input_graph,line_align(queue));
-    tbb::flow::make_edge(line,parser);
-    //raise(SIGTRAP);
-    fd(queue);
-    input_graph.wait_for_all();
-    }
-    //deallocate_FS_cache(output);
-    fill_muts(output, bfs_ordered_nodes);
+        std::vector<backward_pass_range> child_idx_range;
+        std::vector<forward_pass_range> parent_idx;
+        FS_result_per_thread_t output;
+        Fitch_Sankoff_prep(bfs_ordered_nodes,child_idx_range, parent_idx);
+        {
+            tbb::flow::graph input_graph;
+            line_parser_t parser(input_graph,tbb::flow::unlimited,line_parser{idx_map});
+            //feed used buffer back to decompressor
+            tbb::flow::function_node<Parsed_VCF_Line*> assign_state(input_graph,tbb::flow::unlimited,Assign_State{child_idx_range,parent_idx,output});
+            tbb::flow::make_edge(tbb::flow::output_port<0>(parser),assign_state);
+            size_t single_line_size;
+            parser.try_put(try_get_first_line(fd, single_line_size));
+            size_t first_approx_size=std::min(CHUNK_SIZ,ONE_GB/single_line_size)-2;
+            read_size=first_approx_size*single_line_size;
+            alloc_size=(first_approx_size+2)*single_line_size;
+            tbb::concurrent_bounded_queue<std::pair<char*,uint8_t*>> queue;
+            queue.set_capacity(10);
+            tbb::flow::source_node<line_start_later> line(input_graph,line_align(queue));
+            tbb::flow::make_edge(line,parser);
+            //raise(SIGTRAP);
+            fd(queue);
+            input_graph.wait_for_all();
+        }
+        //deallocate_FS_cache(output);
+        fill_muts(output, bfs_ordered_nodes);
     }
     size_t total_mutation_size=0;
     for(const auto node:bfs_ordered_nodes) {

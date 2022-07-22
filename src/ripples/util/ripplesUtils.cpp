@@ -36,8 +36,8 @@ int main(int argc, char **argv) {
     // Ouputs two files:  allRelevantNodeNames.txt and nodeToParent.txt
     get_trios(T, combined_pvals_filename);
 
-		// Generate "leaves.txt" file, same as "optimized-large-radius-pruneCatExcludeB30.usher.no-long-branches.leaves.txt" 
-		// The file contains the following information on each line for all nodes in tree:  node_id \t number of leaves
+    // Generate "leaves.txt" file, same as "optimized-large-radius-pruneCatExcludeB30.usher.no-long-branches.leaves.txt"
+    // The file contains the following information on each line for all nodes in tree:  node_id \t number of leaves
     fprintf(stdout, "Calculating number of leaves per node in the tree. Written to 'filtering/data/leaves.txt'.\n");
     leaves_per_node(T);
 

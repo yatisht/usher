@@ -103,7 +103,7 @@ void generate_sample_paths(MAT::Tree &T) {
     outfile.close();
 
     fprintf(stdout, "Finished generating sample paths file. Written to "
-                    "filtering/data/sample_paths.txt.\n");
+            "filtering/data/sample_paths.txt.\n");
 }
 
 void leaves_per_node(MAT::Tree &T) {

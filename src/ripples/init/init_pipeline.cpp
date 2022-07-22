@@ -51,20 +51,20 @@ int find_long_branches(MAT::Tree &T, uint32_t branch_len, uint32_t num_descendan
 
     tbb::parallel_for(
         tbb::blocked_range<size_t>(0, bfs.size()),
-        [&](const tbb::blocked_range<size_t> r) {
-            for (size_t i = r.begin(); i < r.end(); ++i) {
-                auto n = bfs[i];
-                if (n == T.root) {
-                    continue;
-                }
-                if (n->mutations.size() >= branch_len) {
-                    if (T.get_num_leaves(n) >= num_descendants) {
-                        nodes_to_consider.insert(n->identifier);
-                    }
+    [&](const tbb::blocked_range<size_t> r) {
+        for (size_t i = r.begin(); i < r.end(); ++i) {
+            auto n = bfs[i];
+            if (n == T.root) {
+                continue;
+            }
+            if (n->mutations.size() >= branch_len) {
+                if (T.get_num_leaves(n) >= num_descendants) {
+                    nodes_to_consider.insert(n->identifier);
                 }
             }
-        },
-        ap);
+        }
+    },
+    ap);
     std::vector<std::string> nodes_to_consider_vec;
     for (const auto &elem : nodes_to_consider) {
         nodes_to_consider_vec.emplace_back(elem);

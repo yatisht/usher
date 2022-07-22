@@ -57,8 +57,8 @@ struct Assign_Descendant_Possible_Muts : public tbb::task {
         : root(root), output(output) {}
     tbb::task *execute() {
         auto cont = new (allocate_continuation())
-            Assign_Descendant_Possible_Muts_Cont(output, root->children.size(),
-                                                 root);
+        Assign_Descendant_Possible_Muts_Cont(output, root->children.size(),
+                                             root);
         std::vector<Assign_Descendant_Possible_Muts *> children_tasks;
         children_tasks.reserve(root->children.size());
         for (size_t idx = 0; idx < root->children.size(); idx++) {
@@ -71,8 +71,8 @@ struct Assign_Descendant_Possible_Muts : public tbb::task {
                 }
             } else {
                 auto new_task = new (cont->allocate_child())
-                    Assign_Descendant_Possible_Muts(this_child,
-                                                    cont->childen_out[idx]);
+                Assign_Descendant_Possible_Muts(this_child,
+                                                cont->childen_out[idx]);
                 children_tasks.push_back(new_task);
             }
         }
@@ -87,5 +87,5 @@ void assign_descendant_muts(MAT::Tree &in) {
     std::unordered_map<int, uint8_t> ignore;
     tbb::task::spawn_root_and_wait(
         *new (tbb::task::allocate_root())
-            Assign_Descendant_Possible_Muts(in.root,ignore));
+        Assign_Descendant_Possible_Muts(in.root,ignore));
 }

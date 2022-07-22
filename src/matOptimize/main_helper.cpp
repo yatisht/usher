@@ -149,7 +149,7 @@ void save_final_tree(MAT::Tree &t,
             dfs[i]->mutations.remove_invalid();
         }
     });
-                    for (const auto& condensed : t.condensed_nodes) {
+    for (const auto& condensed : t.condensed_nodes) {
         auto name=t.get_node_name(condensed.first);
         if (name=="") {
             fprintf(stderr, "Condensed node %zu not found \n",condensed.first);

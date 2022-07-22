@@ -38,7 +38,7 @@ int count_back_mutation(const MAT::Tree& tree);
 void get_pos_samples_old_tree(MAT::Tree& tree,std::vector<mutated_t>& output);
 int follower_recieve_positions( std::vector<mutated_t>& to_recieve);
 void MPI_min_back_reassign_states(MAT::Tree &tree,const std::vector<mutated_t> &mutations,
-    int start_position);
+                                  int start_position);
 void min_back_reassign_state_local(MAT::Tree& tree,const std::vector<mutated_t>& mutations);
 thread_local TlRng rng;
 std::atomic_bool interrupted(false);
@@ -163,7 +163,7 @@ int main(int argc, char **argv) {
     }
     if (vm.count("no_reduce_back_mutations")) {
         reduce_back_mutations=false;
-    }else {
+    } else {
         reduce_back_mutations=true;
     }
     if (drift_iterations) {
@@ -265,7 +265,7 @@ int main(int argc, char **argv) {
                                 input_nh_path);
                         //fprintf(stderr, "Input tree have %zu nodes\n",t.all_nodes.size());
                     } else {
-                        if(!MAT::load_mutation_annotated_tree(input_pb_path,t)){
+                        if(!MAT::load_mutation_annotated_tree(input_pb_path,t)) {
                             exit(EXIT_FAILURE);
                         }
                         t.uncondense_leaves();
@@ -273,7 +273,7 @@ int main(int argc, char **argv) {
                     fputs("Finished loading input tree, start reading VCF and assigning states \n",stderr);
                     load_vcf_nh_directly(t, input_vcf_path, origin_states);
                 } else if(transposed_vcf_path!="") {
-                    if(!MAT::load_mutation_annotated_tree(input_pb_path,t)){
+                    if(!MAT::load_mutation_annotated_tree(input_pb_path,t)) {
                         exit(EXIT_FAILURE);
                     }
 #ifdef PROFILE_HEAP
@@ -399,14 +399,14 @@ int main(int argc, char **argv) {
                 nodes_to_search.clear();
                 for (auto idx : defered_nodes) {
                     if (t.get_node(idx)) {
-                        nodes_to_search.push_back(t.get_node(idx));                
+                        nodes_to_search.push_back(t.get_node(idx));
                     }
                 }
                 auto curr_score=t.get_parsimony_score();
-		if(curr_score>=new_score){
-			nodes_to_search.clear();
-		}
-		new_score=curr_score;
+                if(curr_score>=new_score) {
+                    nodes_to_search.clear();
+                }
+                new_score=curr_score;
                 fprintf(stderr, "parsimony score after optimizing: %zu,with radius %d, second from start %ld \n\n",
                         new_score,std::abs(radius),std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now()-start_time).count());
                 if(!no_write_intermediate) {
@@ -418,7 +418,7 @@ int main(int argc, char **argv) {
                     last_save_time=std::chrono::steady_clock::now();
                     fprintf(stderr, "Took %ldsecond to save intermediate protobuf\n",std::chrono::duration_cast<std::chrono::seconds>(last_save_time-save_start).count());
                 }
-                if(allow_drift){
+                if(allow_drift) {
                     MAT::save_mutation_annotated_tree(t, intermediate_nwk_out+std::to_string(iteration)+".pb.gz");
                 }
                 if (std::chrono::steady_clock::now()>=search_end_time) {
@@ -460,16 +460,16 @@ int main(int argc, char **argv) {
         MPI_Request req;
         MPI_Ibcast(&temp, 1, MPI_INT, 0, MPI_COMM_WORLD,&req);
         if (reduce_back_mutations) {
-        fprintf(stderr, "Parsimony score before %zu\n",t.get_parsimony_score());
-        fprintf(stderr, "Back mutation count before %d\n",count_back_mutation(t));
-        std::vector<mutated_t> output(MAT::Mutation::refs.size());
-        get_pos_samples_old_tree(t, output);
-        if (process_count==1) {
-            min_back_reassign_state_local(t,output);
-        }else {
-            MPI_min_back_reassign_states(t, output, 0);        
-        }
-        fprintf(stderr, "Back mutation count after %d\n",count_back_mutation(t));
+            fprintf(stderr, "Parsimony score before %zu\n",t.get_parsimony_score());
+            fprintf(stderr, "Back mutation count before %d\n",count_back_mutation(t));
+            std::vector<mutated_t> output(MAT::Mutation::refs.size());
+            get_pos_samples_old_tree(t, output);
+            if (process_count==1) {
+                min_back_reassign_state_local(t,output);
+            } else {
+                MPI_min_back_reassign_states(t, output, 0);
+            }
+            fprintf(stderr, "Back mutation count after %d\n",count_back_mutation(t));
         }
         fprintf(stderr, "Final Parsimony score %zu\n",t.get_parsimony_score());
         fclose(movalbe_src_log);
@@ -507,9 +507,9 @@ int main(int argc, char **argv) {
             t.delete_nodes();
         }
         if (reduce_back_mutations) {
-        std::vector<mutated_t> to_recieve;
-        int pos= follower_recieve_positions(to_recieve);
-        MPI_min_back_reassign_states(t, to_recieve, pos);
+            std::vector<mutated_t> to_recieve;
+            int pos= follower_recieve_positions(to_recieve);
+            MPI_min_back_reassign_states(t, to_recieve, pos);
         }
     }
     for(auto& pos:mutated_positions) {

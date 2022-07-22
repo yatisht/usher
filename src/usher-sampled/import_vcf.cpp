@@ -41,10 +41,14 @@ typedef tbb::flow::source_node<char *> decompressor_node_t;
 std::condition_variable progress_bar_cv;
 struct raw_input_source {
     FILE *fh;
-    raw_input_source(const char *fname) { fh = fopen(fname, "r"); }
-    int getc() { return fgetc(fh); }
+    raw_input_source(const char *fname) {
+        fh = fopen(fname, "r");
+    }
+    int getc() {
+        return fgetc(fh);
+    }
     void operator()(tbb::concurrent_bounded_queue<std::pair<char *, uint8_t *>>
-                        &out) const {
+                    &out) const {
         while (!feof(fh)) {
             auto line_out = new char[alloc_size];
             auto bytes_read = fread(line_out, 1, read_size, fh);
@@ -57,7 +61,9 @@ struct raw_input_source {
         out.emplace(nullptr, nullptr);
         out.emplace(nullptr, nullptr);
     }
-    void unalloc() { fclose(fh); }
+    void unalloc() {
+        fclose(fh);
+    }
 };
 struct line_start_later {
     char *start;
@@ -142,7 +148,7 @@ struct gzip_input_source {
         decompress_to_buffer(getc_buf, BUFSIZ);
         get_c_ptr = getc_buf;
     }
-    void unalloc() { 
+    void unalloc() {
         munmap(map_start, mapped_size);
     }
     bool decompress_to_buffer(unsigned char *buffer, size_t buffer_size) const {
@@ -163,7 +169,7 @@ struct gzip_input_source {
         // copied from
         // https://github.com/intel/isa-l/blob/78f5c31e66fedab78328e592c49eefe4c2a733df/programs/igzip_cli.c#L952
         while (state->avail_out > 0 && state->avail_in > 0 &&
-               state->next_in[0] == 31) {
+                state->next_in[0] == 31) {
             // fprintf(stderr,"continuing\n");
             if (state->avail_in > 1 && state->next_in[1] != 139)
                 break;
@@ -190,7 +196,7 @@ struct gzip_input_source {
     }
 
     void operator()(tbb::concurrent_bounded_queue<std::pair<char *, uint8_t *>>
-                        &out) const {
+                    &out) const {
         char *line_out = new char[alloc_size];
         // if (getc_buf) {
         auto load_size = getc_buf + BUFSIZ - get_c_ptr;
@@ -213,8 +219,8 @@ struct gzip_input_source {
     }
 };
 typedef tbb::enumerable_thread_specific<
-    std::vector<std::vector<MAT::Mutation>>>
-    Sampled_Tree_Mutations_t;
+std::vector<std::vector<MAT::Mutation>>>
+Sampled_Tree_Mutations_t;
 typedef std::vector<mutated_t> mut_container_t;
 // Parse a block of lines, assuming there is a complete line in the line_in
 // buffer
@@ -399,8 +405,8 @@ static line_start_later try_get_first_line(infile_t &f, size_t &size) {
 #define CHUNK_SIZ 200ul
 #define ONE_GB 0x4ffffffful
 #define ONE_MB 0xffffful
-static void map_names(MAT::Tree &tree,std::vector<Sample_Muts> &sample_mutations,std::vector<std::string>& sample_names){
-    for (size_t idx=0;idx<sample_names.size();idx++) {
+static void map_names(MAT::Tree &tree,std::vector<Sample_Muts> &sample_mutations,std::vector<std::string>& sample_names) {
+    for (size_t idx=0; idx<sample_names.size(); idx++) {
         sample_mutations[idx].sample_idx=tree.map_samp_name_only(sample_names[idx]);
     }
 }
@@ -417,27 +423,26 @@ static void process(infile_t &fd, std::vector<Sample_Muts> &sample_mutations,
     std::unordered_map<std::string,size_t> vcf_samples;
     vcf_samples.reserve(fields.size());
     for (size_t field_idx = 9; field_idx < fields.size(); field_idx++) {
-	auto ins_result=vcf_samples.emplace(fields[field_idx],field_idx);
-	if(!ins_result.second){
-		fprintf(stderr,"sample %s on both column %zu and %zu, taking first column\n",fields[field_idx].c_str(),ins_result.first->second,field_idx);
-		continue;
-	}
+        auto ins_result=vcf_samples.emplace(fields[field_idx],field_idx);
+        if(!ins_result.second) {
+            fprintf(stderr,"sample %s on both column %zu and %zu, taking first column\n",fields[field_idx].c_str(),ins_result.first->second,field_idx);
+            continue;
+        }
         auto node=tree.get_node(fields[field_idx]);
         if (node != nullptr) {
             if (override) {
                 sample_idx[field_idx]=-node->node_id;
-            }else {
+            } else {
                 fprintf(stderr, "WARNING: Sample %s already in the tree! Ignoring.\n\n", fields[field_idx].c_str());
             }
-        }else if (samples_in_condensed_nodes.find(fields[field_idx])!=samples_in_condensed_nodes.end()) {
+        } else if (samples_in_condensed_nodes.find(fields[field_idx])!=samples_in_condensed_nodes.end()) {
             fprintf(stderr, "WARNING: Sample %s already in the tree! (condensed node) Ignoring.\n\n", fields[field_idx].c_str());
-        }
-        else {
+        } else {
             auto new_samp_idx=tree.map_samp_name_only(fields[field_idx]);
             sample_idx[field_idx] = sample_mutations.size();
             sample_mutations.emplace_back();
             sample_mutations.back().sample_idx=new_samp_idx;
-        }       
+        }
     }
     mutations_out.resize(MAT::Mutation::refs.size());
     if (MAT::Mutation::refs.size()==0) {
@@ -455,7 +460,7 @@ static void process(infile_t &fd, std::vector<Sample_Muts> &sample_mutations,
     alloc_size = (first_approx_size + 2) * single_line_size;
     tbb::concurrent_bounded_queue<std::pair<char *, uint8_t *>> queue;
     tbb::flow::source_node<line_start_later> line(input_graph,
-                                                  line_align(queue));
+            line_align(queue));
     tbb::flow::make_edge(line, parser);
     fd(queue);
     input_graph.wait_for_all();
@@ -463,22 +468,22 @@ static void process(infile_t &fd, std::vector<Sample_Muts> &sample_mutations,
     fd.unalloc();
     tbb::parallel_for(
         tbb::blocked_range<size_t>(0, sample_mutations.size()),
-        [&](tbb::blocked_range<size_t> range) {
-            for (size_t idx = range.begin(); idx < range.end(); idx++) {
-                size_t mut_count = 2;
-                for (const auto &one_thread : tree_mutations) {
-                    mut_count += one_thread[idx].size();
-                }
-                std::vector<MAT::Mutation> this_out;
-                this_out.reserve(mut_count);
-                for (auto &one_thread : tree_mutations) {
-                    this_out.insert(this_out.end(), one_thread[idx].begin(),
-                                    one_thread[idx].end());
-                }
-                std::sort(this_out.begin(),this_out.end());
-                convert_mut_type(this_out,  sample_mutations[idx].muts);
+    [&](tbb::blocked_range<size_t> range) {
+        for (size_t idx = range.begin(); idx < range.end(); idx++) {
+            size_t mut_count = 2;
+            for (const auto &one_thread : tree_mutations) {
+                mut_count += one_thread[idx].size();
             }
-        });
+            std::vector<MAT::Mutation> this_out;
+            this_out.reserve(mut_count);
+            for (auto &one_thread : tree_mutations) {
+                this_out.insert(this_out.end(), one_thread[idx].begin(),
+                                one_thread[idx].end());
+            }
+            std::sort(this_out.begin(),this_out.end());
+            convert_mut_type(this_out,  sample_mutations[idx].muts);
+        }
+    });
 }
 void Sample_Input(const char *name, std::vector<Sample_Muts> &sample_mutations,
                   MAT::Tree &tree,mut_container_t& position_wise_out

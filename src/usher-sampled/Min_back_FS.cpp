@@ -7,28 +7,28 @@
 #include <array>
 #include <unordered_map>
 #include <vector>
-class Min_Back_Mut_FS_Score_PerNode_T{
+class Min_Back_Mut_FS_Score_PerNode_T {
     std::array<unsigned int, 16> last_mutation;
-    public:
+  public:
     std::array<unsigned int, 4> parsimony_score;
     std::array<unsigned int, 4> back_mutation_count;
-    Min_Back_Mut_FS_Score_PerNode_T(){
+    Min_Back_Mut_FS_Score_PerNode_T() {
         parsimony_score.fill(0);
         back_mutation_count.fill(0);
         last_mutation.fill(0);
     }
-    unsigned int& get_last_mut(uint8_t surface_nuc,uint8_t nuc_beneath){
+    unsigned int& get_last_mut(uint8_t surface_nuc,uint8_t nuc_beneath) {
         return last_mutation[4*surface_nuc+nuc_beneath];
     }
 };
-class Min_Back_Mut_FS_Score_PerNode_Choice{
+class Min_Back_Mut_FS_Score_PerNode_Choice {
     uint8_t choices;
-    public:
-    Min_Back_Mut_FS_Score_PerNode_Choice():choices(0){}
-    uint8_t get_choice(uint8_t par_nuc_2bit) const{
+  public:
+    Min_Back_Mut_FS_Score_PerNode_Choice():choices(0) {}
+    uint8_t get_choice(uint8_t par_nuc_2bit) const {
         return (choices>>(2*par_nuc_2bit))&3;
     }
-    void set_choice(uint8_t par_nuc_2bit, uint8_t child_nuc_2bit){
+    void set_choice(uint8_t par_nuc_2bit, uint8_t child_nuc_2bit) {
         /*if (par_nuc_2bit>3||child_nuc_2bit>3) {
             fprintf(stderr, "Not 2but\n");
             raise(SIGTRAP);
@@ -38,12 +38,12 @@ class Min_Back_Mut_FS_Score_PerNode_Choice{
             raise(SIGTRAP);
         }*/
     }
-    uint8_t set_leaf_choice(uint8_t leaf_nuc_one_hot){
+    uint8_t set_leaf_choice(uint8_t leaf_nuc_one_hot) {
         uint8_t default_nuc=__builtin_ctz(leaf_nuc_one_hot);
         for (int nuc_idx=0; nuc_idx<4; nuc_idx++) {
             if (leaf_nuc_one_hot&(1<<nuc_idx)) {
                 set_choice(nuc_idx, nuc_idx);
-            }else {
+            } else {
                 set_choice(nuc_idx, default_nuc);
             }
         }
@@ -53,8 +53,8 @@ class Min_Back_Mut_FS_Score_PerNode_Choice{
 namespace MAT = Mutation_Annotated_Tree;
 typedef std::vector<std::pair<long, nuc_one_hot>> mutated_t;
 void find_best_child_nuc(Min_Back_Mut_FS_Score_PerNode_T &child_score_output,
-               int this_nuc_idx, int &best_child_nuc,
-               int &best_parsimony_score, int &best_back_mutation_count) {
+                         int this_nuc_idx, int &best_child_nuc,
+                         int &best_parsimony_score, int &best_back_mutation_count) {
     for (int child_nuc = 0; child_nuc < 4; child_nuc++) {
         int parsimony;
         int back_mutation_count;
@@ -75,8 +75,8 @@ void find_best_child_nuc(Min_Back_Mut_FS_Score_PerNode_T &child_score_output,
                 child_score_output.get_last_mut(child_nuc, this_nuc_idx);
         }
         if (parsimony < best_parsimony_score ||
-            ((parsimony == best_parsimony_score) &&
-             (back_mutation_count < best_back_mutation_count))) {
+                ((parsimony == best_parsimony_score) &&
+                 (back_mutation_count < best_back_mutation_count))) {
             best_parsimony_score = parsimony;
             best_child_nuc = child_nuc;
             best_back_mutation_count = back_mutation_count;
@@ -106,14 +106,14 @@ backward_pass(MAT::Node *node, mutated_t::const_iterator &iter,
                     output.get_last_mut(nuc_idx, default_nuc)++;
                 }
             }
-        }else {
+        } else {
             auto child_score_output=backward_pass(child, iter, state_output, ref_nuc);
             for (int this_nuc_idx=0; this_nuc_idx<4; this_nuc_idx++) {
                 int best_child_nuc=0;
                 int best_parsimony_score=INT_MAX;
                 int best_back_mutation_count=INT_MAX;
                 find_best_child_nuc(child_score_output, this_nuc_idx, best_child_nuc,
-                          best_parsimony_score, best_back_mutation_count);
+                                    best_parsimony_score, best_back_mutation_count);
                 //Commit changes
                 output.parsimony_score[this_nuc_idx]+=best_parsimony_score;
                 output.back_mutation_count[this_nuc_idx]+=best_back_mutation_count;
@@ -123,7 +123,7 @@ backward_pass(MAT::Node *node, mutated_t::const_iterator &iter,
                     for (int beneath_nuc_idx=0; beneath_nuc_idx<4; beneath_nuc_idx++) {
                         output.get_last_mut(this_nuc_idx, beneath_nuc_idx)+=child_score_output.get_last_mut(this_nuc_idx, beneath_nuc_idx);
                     }
-                }else {
+                } else {
                     output.get_last_mut(this_nuc_idx, best_child_nuc)++;
                 }
             }
@@ -132,7 +132,7 @@ backward_pass(MAT::Node *node, mutated_t::const_iterator &iter,
     return output;
 }
 static void forward_pass(MAT::Node* node, const std::vector<Min_Back_Mut_FS_Score_PerNode_Choice> &state_output,uint8_t par_nuc,
-    const MAT::Mutation& mut_template,std::vector<std::vector<MAT::Mutation>>& mutation_output,int& mutations_added){
+                         const MAT::Mutation& mut_template,std::vector<std::vector<MAT::Mutation>>& mutation_output,int& mutations_added) {
     auto this_idx=node->dfs_index;
     auto this_nuc=state_output[this_idx].get_choice(par_nuc);
     if (this_nuc!=par_nuc) {
@@ -152,7 +152,7 @@ static void forward_pass(MAT::Node* node, const std::vector<Min_Back_Mut_FS_Scor
 }
 
 void Min_Back_Fitch_Sankoff(MAT::Node* root_node,const MAT::Mutation& mut_template,
-    std::vector<std::vector<MAT::Mutation>>& mutation_output,mutated_t& positions,size_t dfs_size){
+                            std::vector<std::vector<MAT::Mutation>>& mutation_output,mutated_t& positions,size_t dfs_size) {
     mutated_t::const_iterator mut_iter=positions.begin();
     std::vector<Min_Back_Mut_FS_Score_PerNode_Choice> best_nucleotide(dfs_size);
     auto root_scores=backward_pass(root_node, mut_iter,best_nucleotide, mut_template.get_ref_one_hot());
@@ -160,7 +160,7 @@ void Min_Back_Fitch_Sankoff(MAT::Node* root_node,const MAT::Mutation& mut_templa
     int root_best_par=INT_MAX;
     int root_best_back=INT_MAX;
     auto ref_nuc_two_bit=__builtin_ctz(mut_template.get_ref_one_hot());
-    find_best_child_nuc(root_scores,ref_nuc_two_bit , root_best_nuc, root_best_par, root_best_back);
+    find_best_child_nuc(root_scores,ref_nuc_two_bit, root_best_nuc, root_best_par, root_best_back);
     //fprintf(stderr, "parsimony at %d:%d\n",mut_template.get_position(),root_best_par);
     best_nucleotide[0].set_choice(ref_nuc_two_bit, root_best_nuc);
     int mutations_added=0;
@@ -171,7 +171,7 @@ void Min_Back_Fitch_Sankoff(MAT::Node* root_node,const MAT::Mutation& mut_templa
     }
 }
 
-static int count_back_mutations_helper(const MAT::Node* root, std::unordered_map<int, MAT::Mutation> parent_mutations){
+static int count_back_mutations_helper(const MAT::Node* root, std::unordered_map<int, MAT::Mutation> parent_mutations) {
     int back_mutation_count=0;
     for (const auto& mut : root->mutations) {
         auto emplace_result=parent_mutations.emplace(mut.get_position(),mut);
@@ -187,6 +187,6 @@ static int count_back_mutations_helper(const MAT::Node* root, std::unordered_map
     }
     return back_mutation_count;
 }
-int count_back_mutation(const MAT::Tree& tree){
+int count_back_mutation(const MAT::Tree& tree) {
     return count_back_mutations_helper(tree.root, std::unordered_map<int, MAT::Mutation>());
 }

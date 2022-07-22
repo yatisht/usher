@@ -12,7 +12,7 @@ Mutation_Set get_mutations(const MAT::Node *main_tree_node) {
     Mutation_Set out;
     while (main_tree_node) {
         for (const auto &mut : main_tree_node->mutations) {
-                out.insert(mut);        
+            out.insert(mut);
         }
         main_tree_node = main_tree_node->parent;
     }
@@ -51,7 +51,7 @@ check_mutation_helper(Mutation_Set &ref,
             continue;
         }
         if (check_non_ambi &&
-            (__builtin_popcount(mut.get_mut_one_hot()) != 1)) {
+                (__builtin_popcount(mut.get_mut_one_hot()) != 1)) {
             raise(SIGTRAP);
         }
         auto ref_iter = ref.find(mut);
@@ -60,9 +60,9 @@ check_mutation_helper(Mutation_Set &ref,
                 raise(SIGTRAP);
             }
             ref.erase(ref_iter);
-        }   
+        }
         auto ins_result = parent_allele_check.emplace(mut.get_position(),
-                                                      mut.get_par_one_hot());
+                          mut.get_par_one_hot());
         if (!ins_result.second) {
             if (ins_result.first->second != mut.get_mut_one_hot()) {
                 raise(SIGTRAP);
@@ -80,14 +80,14 @@ check_mutation_helper(Mutation_Set &ref,
             continue;
         }
         if (mut.mut_nuc==0xf) {
-            for(int pos=mut.position;pos<=mut.get_end_range();pos++){
+            for(int pos=mut.position; pos<=mut.get_end_range(); pos++) {
                 auto ref_iter = ref.find(MAT::Mutation(mut.chrom_idx,pos,0,0xf));
                 if (ref_iter != ref.end()) {
                     if (ref_iter->get_mut_one_hot() != 0xf) {
                         raise(SIGTRAP);
                     }
                     ref.erase(ref_iter);
-                }        
+                }
             }
             continue;
         }
@@ -97,16 +97,16 @@ check_mutation_helper(Mutation_Set &ref,
                 raise(SIGTRAP);
             }
             ref.erase(ref_iter);
-        }   
+        }
         auto ins_result = parent_allele_check.emplace(mut.position,
-                                                      mut.par_nuc);
-        if(!ins_result.second){
+                          mut.par_nuc);
+        if(!ins_result.second) {
             raise(SIGTRAP);
         }
     }
 }
 
-void check_ancestor(const MAT::Node* parent_node,Mutation_Set &ref,std::unordered_map<int, uint8_t>& parent_allele_check){
+void check_ancestor(const MAT::Node* parent_node,Mutation_Set &ref,std::unordered_map<int, uint8_t>& parent_allele_check) {
     while (parent_node&&(!ref.empty())) {
         check_mutation_helper(ref, parent_node->mutations, parent_allele_check,
                               true);
@@ -119,7 +119,7 @@ void check_ancestor(const MAT::Node* parent_node,Mutation_Set &ref,std::unordere
             met=true;
         }
         if (met) {
-            raise(SIGTRAP);        
+            raise(SIGTRAP);
         }
     }
     /*for (const auto &temp : parent_allele_check) {
@@ -151,7 +151,7 @@ void check_mutations(Mutation_Set ref,
 
 }
 
-void check_continuation(const MAT::Node* parent_node,Mutation_Set ref,const std::vector<To_Place_Sample_Mutation> &decendent_mutations){
+void check_continuation(const MAT::Node* parent_node,Mutation_Set ref,const std::vector<To_Place_Sample_Mutation> &decendent_mutations) {
     assert(decendent_mutations.back().position==INT_MAX);
     std::unordered_map<int, uint8_t> parent_allele_check;
     parent_allele_check.reserve(MAT::Mutation::refs.size());
@@ -169,14 +169,14 @@ void check_mutations(Mutation_Set ref,
                     target_to_check.shared_mutations,
                     target_to_check.parent_node);
 }
-void check_descendant_nuc(const MAT::Node* node){
+void check_descendant_nuc(const MAT::Node* node) {
     std::unordered_map<int, uint8_t> muts;
     muts.reserve(node->mutations.size());
-    for(const auto& mut:node->mutations){
+    for(const auto& mut:node->mutations) {
         muts.emplace(mut.get_position(),mut.get_mut_one_hot());
     }
     while (node) {
-        for(const auto& mut:node->mutations){
+        for(const auto& mut:node->mutations) {
             auto iter=muts.find(mut.get_position());
             if (iter!=muts.end()) {
                 if ((iter->second&mut.get_descendant_mut())!=iter->second) {

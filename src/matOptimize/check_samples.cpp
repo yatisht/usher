@@ -21,7 +21,7 @@ void ins_mut(Mutation_Set &parent_mutations,const Mutation_Annotated_Tree::Mutat
     }
     if (!temp.second) {
         //already present
-        if(temp.first->get_mut_one_hot()!=m.get_par_one_hot()){
+        if(temp.first->get_mut_one_hot()!=m.get_par_one_hot()) {
             fprintf(stderr, "nuc mismatch, at pos %d\n",m.get_position());
             //raise(SIGTRAP);
         }
@@ -90,7 +90,7 @@ struct check_samples_worker:public tbb::task {
                          const Original_State_t &samples,
                          tbb::concurrent_unordered_set<size_t>& visited_samples,
                          const MAT::Tree& tree):
-                         root(root),parent_mutations(parent_mutations),samples(samples),visited_samples(visited_samples),tree(tree) {}
+        root(root),parent_mutations(parent_mutations),samples(samples),visited_samples(visited_samples),tree(tree) {}
     tbb::task* execute() override {
         tbb::empty_task* empty=new(allocate_continuation()) tbb::empty_task();
         empty->set_ref_count(root->children.size());
@@ -115,7 +115,7 @@ struct check_samples_worker:public tbb::task {
                             "[ERROR] Extra mutation to\t%c\%d\t of Sample\t%s at bfs_index %zu \n",
                             Mutation_Annotated_Tree::get_nuc(m.get_all_major_allele()), m.get_position(),
                             tree.get_node_name(root->node_id).c_str(),root->bfs_index);
-                            raise(SIGTRAP);
+                        raise(SIGTRAP);
 
                     } else {
                         if ((m.get_all_major_allele())!=m_iter->get_all_major_allele()) {
@@ -167,18 +167,18 @@ void check_samples(const Mutation_Annotated_Tree::Node *root,
         tbb::concurrent_unordered_set<size_t> visited_sample;
         tbb::task::spawn_root_and_wait(*new(tbb::task::allocate_root())check_samples_worker(root, mutations, samples,visited_sample,*tree));
         if (!ignore_missed_samples) {
-        bool have_missed=false;
-        for (auto s : samples) {
-            if (!visited_sample.count(s.first)) {
-                fprintf(stderr, "[ERROR] Missing Sample %s \n",
-                        tree->get_node_name(s.first).c_str());
-                have_missed=true;
+            bool have_missed=false;
+            for (auto s : samples) {
+                if (!visited_sample.count(s.first)) {
+                    fprintf(stderr, "[ERROR] Missing Sample %s \n",
+                            tree->get_node_name(s.first).c_str());
+                    have_missed=true;
+                }
             }
-        }
-        if (have_missed) {
-            fprintf(stderr, "have_missing samples\n");
-        }
-        assert(!have_missed);
+            if (have_missed) {
+                fprintf(stderr, "have_missing samples\n");
+            }
+            assert(!have_missed);
         }
         fputs("checked\n", stderr);
     }

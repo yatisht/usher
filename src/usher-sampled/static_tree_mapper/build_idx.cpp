@@ -15,7 +15,7 @@
 #include <vector>
 #include "src/usher-sampled/usher.hpp"
 namespace MAT = Mutation_Annotated_Tree;
-struct Temp_Idx_Tree_Node{
+struct Temp_Idx_Tree_Node {
     MAT::Node* covering_node;
     int dfs_start_idx;
     int dfs_end_idx;
@@ -36,7 +36,7 @@ struct temp_tree_build_comp {
         return false;
     }
 };
-static void check_node(const Temp_Idx_Tree_Node* to_check){
+static void check_node(const Temp_Idx_Tree_Node* to_check) {
     //check sorting
     int idx=to_check->covering_node->dfs_index;
     if (idx>to_check->dfs_start_idx) {
@@ -62,15 +62,15 @@ static void check_node(const Temp_Idx_Tree_Node* to_check){
     }
 
 }
-static void set_idx(Temp_Idx_Tree_Node* to_set){
+static void set_idx(Temp_Idx_Tree_Node* to_set) {
     to_set->dfs_start_idx=to_set->children.front()->dfs_start_idx;
     to_set->dfs_end_idx=to_set->children.back()->dfs_end_idx;
 }
-static void bulid_idx_tree(Temp_Tree_Node_Coll_t& in,std::vector<index_ele>& output){
+static void bulid_idx_tree(Temp_Tree_Node_Coll_t& in,std::vector<index_ele>& output) {
     if (in.empty()) {
         output.push_back(index_ele{INT_MAX,INT_MAX,-1});
         return;
-    }else if (in.size()==1) {
+    } else if (in.size()==1) {
         output.push_back(index_ele{in[0]->dfs_start_idx,in[0]->dfs_end_idx,-1});
         output.push_back(index_ele{INT_MAX,INT_MAX,-1});
         return;
@@ -84,7 +84,7 @@ static void bulid_idx_tree(Temp_Tree_Node_Coll_t& in,std::vector<index_ele>& out
         std::vector<Temp_Idx_Tree_Node*> children;
         while ((!in.empty())&&in.front()->covering_node==curr->covering_node) {
             auto front=in.front();
-            children.push_back(front);        
+            children.push_back(front);
             if (front->is_self) {
                 if (front->dfs_start_idx==(int)front->covering_node->dfs_index) {
                     fprintf(stderr, "Mult self node\n");
@@ -99,7 +99,7 @@ static void bulid_idx_tree(Temp_Tree_Node_Coll_t& in,std::vector<index_ele>& out
             par_node=curr->covering_node;
         }
         bool is_curr_self=curr->is_self &&
-            curr->dfs_start_idx == (int)curr->covering_node->dfs_index;
+                          curr->dfs_start_idx == (int)curr->covering_node->dfs_index;
         if (is_curr_self) {
             if (!curr->children.empty()) {
                 Temp_Idx_Tree_Node *temp_node = new Temp_Idx_Tree_Node;
@@ -114,25 +114,25 @@ static void bulid_idx_tree(Temp_Tree_Node_Coll_t& in,std::vector<index_ele>& out
         std::vector<Temp_Idx_Tree_Node *> children_expanded;
         children_expanded.reserve(children.size());
         std::sort(children.begin(), children.end(),
-                  [](Temp_Idx_Tree_Node *first, Temp_Idx_Tree_Node *second) {
-                      return first->children.size() < second->children.size();
-                  });
+        [](Temp_Idx_Tree_Node *first, Temp_Idx_Tree_Node *second) {
+            return first->children.size() < second->children.size();
+        });
         int count = children.size();
         for (const auto& child : children) {
             if (child->is_self) {
                 children_expanded.push_back(child);
-            }else if (child->children.size()==1) {
+            } else if (child->children.size()==1) {
                 children_expanded.push_back(child->children[0]);
                 delete child;
-            }else if ((child->children.size()-1)+count<8) {
+            } else if ((child->children.size()-1)+count<8) {
                 children_expanded.insert(children_expanded.end(),child->children.begin(),child->children.end());
                 count+=(child->children.size()-1);
                 delete child;
-            }else {
+            } else {
                 children_expanded.push_back(child);
             }
         }
-        std::sort(children_expanded.begin(),children_expanded.end(),[](Temp_Idx_Tree_Node* first,Temp_Idx_Tree_Node* second){
+        std::sort(children_expanded.begin(),children_expanded.end(),[](Temp_Idx_Tree_Node* first,Temp_Idx_Tree_Node* second) {
             return first->dfs_start_idx<second->dfs_start_idx;
         });
         if (is_curr_self) {
@@ -142,7 +142,7 @@ static void bulid_idx_tree(Temp_Tree_Node_Coll_t& in,std::vector<index_ele>& out
             curr=new Temp_Idx_Tree_Node{curr->covering_node->parent,old_curr->dfs_start_idx,old_curr->dfs_end_idx,false};
             node_count++;
             curr->children.push_back(old_curr);
-        }else {
+        } else {
             curr=new Temp_Idx_Tree_Node;
             curr->children=std::move(children_expanded);
             curr->covering_node=par_node;
@@ -171,7 +171,7 @@ static void bulid_idx_tree(Temp_Tree_Node_Coll_t& in,std::vector<index_ele>& out
                     raise(SIGTRAP);
                 }
                 output.push_back(index_ele{child->dfs_start_idx, child->dfs_end_idx,
-                                    -1});
+                                           -1});
                 if (child->children.empty()) {
                     delete child;
                 } else {
@@ -188,7 +188,7 @@ static void bulid_idx_tree(Temp_Tree_Node_Coll_t& in,std::vector<index_ele>& out
     output.emplace_back(index_ele{INT_MAX,INT_MAX,-1});
 
 }
-Traversal_Info build_idx(MAT::Tree& tree){
+Traversal_Info build_idx(MAT::Tree& tree) {
     Traversal_Info out;
     auto dfs=tree.depth_first_expansion();
     out.traversal_track.reserve(dfs.size());
@@ -201,7 +201,7 @@ Traversal_Info build_idx(MAT::Tree& tree){
             idx_node_vec[mut.get_position()][one_hot_to_two_bit(mut.get_mut_one_hot())].push_back(new_temp_node);
         }
     }
-    tbb::parallel_for(tbb::blocked_range<size_t>(0,MAT::Mutation::refs.size()),[&idx_node_vec,&out](tbb::blocked_range<size_t>r){
+    tbb::parallel_for(tbb::blocked_range<size_t>(0,MAT::Mutation::refs.size()),[&idx_node_vec,&out](tbb::blocked_range<size_t>r) {
         for (size_t idx=r.begin(); idx<r.end(); idx++) {
             for (int nuc_idx=0; nuc_idx<4; nuc_idx++) {
                 /*if (idx==24047&&nuc_idx==2) {
