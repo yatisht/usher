@@ -129,7 +129,7 @@ class Mutation {
     uint8_t get_descendant_mut() const {
         return decrement_increment_effect;
     }
-    void set_descendant_mut(uint8_t value){
+    void set_descendant_mut(uint8_t value) {
         decrement_increment_effect=value;
     }
     void set_sensitive_change(nuc_one_hot decrement,nuc_one_hot increment) {
@@ -302,8 +302,8 @@ class Mutations_Collection {
     }
     void push_back(const Mutation& m) {
         if (m.get_position()>=(int)(Mutation::refs.size()+1)&&m.get_position()!=INT_MAX) {
-                fprintf(stderr, "strange size \n");
-                raise(SIGTRAP);
+            fprintf(stderr, "strange size \n");
+            raise(SIGTRAP);
         }
         if (!mutations.empty()) {
             if (m.get_position()<=mutations.back().get_position()) {
@@ -386,16 +386,16 @@ class Mutations_Collection {
         return true;
     }
 };
-struct copyable_atomic_uint8_t: public std::atomic_int8_t{
+struct copyable_atomic_uint8_t: public std::atomic_int8_t {
     copyable_atomic_uint8_t()=default;
-    copyable_atomic_uint8_t (copyable_atomic_uint8_t& other){
+    copyable_atomic_uint8_t (copyable_atomic_uint8_t& other) {
         this->store(other.load());
     }
-    copyable_atomic_uint8_t& operator=(copyable_atomic_uint8_t& other){
+    copyable_atomic_uint8_t& operator=(copyable_atomic_uint8_t& other) {
         this->store(other.load());
         return *this;
     }
-    copyable_atomic_uint8_t& operator=(uint8_t other){
+    copyable_atomic_uint8_t& operator=(uint8_t other) {
         this->store(other);
         return *this;
     }
@@ -473,7 +473,7 @@ class Node {
     bool no_valid_mutation()const {
         return mutations.no_valid_mutation();
     }
-    void add_child(Node* child){
+    void add_child(Node* child) {
         child->parent=this;
         children.push_back(child);
     }
@@ -499,10 +499,10 @@ class Tree {
 #ifdef LOAD
   public:
 #endif
-  std::vector < Node*> all_nodes;
-  std::unordered_map<size_t,  std::string> node_names;
-  std::unordered_map<std::string, size_t> node_name_to_idx_map;
-  size_t node_idx;
+    std::vector < Node*> all_nodes;
+    std::unordered_map<size_t,  std::string> node_names;
+    std::unordered_map<std::string, size_t> node_name_to_idx_map;
+    size_t node_idx;
   public:
     typedef  tbb::concurrent_unordered_map<size_t, std::vector<std::string>> condensed_node_t;
     Tree() {
@@ -510,27 +510,27 @@ class Tree {
         node_idx=0;
         all_nodes.clear();
     }
-    void register_node_serial(Node* node){
+    void register_node_serial(Node* node) {
         all_nodes.resize(std::max(all_nodes.size(),node->node_id+1),nullptr);
         all_nodes[node->node_id]=node;
     }
-    void register_node_serial(Node* node,std::string& name){
+    void register_node_serial(Node* node,std::string& name) {
         register_node_serial(node);
         node_names.emplace(node->node_id,name);
         node_name_to_idx_map.emplace(name,node->node_id);
     }
     void check_leaves();
-    size_t node_name_to_node_idx(const std::string& in) const{
+    size_t node_name_to_node_idx(const std::string& in) const {
         auto iter=node_name_to_idx_map.find(in);
         if (iter==node_name_to_idx_map.end()) {
             return -1;
         }
         return iter->second;
     }
-    size_t get_size_upper() const{
+    size_t get_size_upper() const {
         return all_nodes.size();
     }
-    Node* get_node(size_t idx)const{
+    Node* get_node(size_t idx)const {
         if (idx>=all_nodes.size()) {
             /*if (warn) {
                 fprintf(stderr, "%zu node out of range, total size %zu \n",idx,all_nodes.size());
@@ -538,14 +538,14 @@ class Tree {
             }*/
             return nullptr;
         }
-        /*if (warn&&!all_nodes[idx]) {        
+        /*if (warn&&!all_nodes[idx]) {
             fprintf(stderr, "%zu node not found \n",idx);
             raise(SIGTRAP);
         }*/
 
         return all_nodes[idx];
     }
-    void erase_node(size_t node_idx){
+    void erase_node(size_t node_idx) {
         all_nodes[node_idx]=nullptr;
         auto iter=node_names.find(node_idx);
         if (iter!=node_names.end()) {
@@ -570,14 +570,14 @@ class Tree {
         }
         return node_name_iter->second;
     }
-    size_t map_samp_name_only(const std::string& samp_name){
+    size_t map_samp_name_only(const std::string& samp_name) {
         auto assigned_idx=node_idx++;
         node_names.emplace(assigned_idx,samp_name);
         node_name_to_idx_map.emplace(samp_name,assigned_idx);
         return assigned_idx;
     }
     Node* create_node (std::string const& identifier);
-    Node* create_node (std::string const& identifier,size_t annotation_size){
+    Node* create_node (std::string const& identifier,size_t annotation_size) {
         auto node=create_node(identifier);
         node->clade_annotations.resize(annotation_size);
         return node;
@@ -603,7 +603,7 @@ class Tree {
         }
         return ret;
     }
-    void exchange_nid(Node* n1, Node* n2){
+    void exchange_nid(Node* n1, Node* n2) {
         auto n1_id=n1->node_id;
         n1->node_id=n2->node_id;
         n2->node_id=n1_id;

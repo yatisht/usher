@@ -40,17 +40,17 @@ struct tree_info {
     std::unordered_set<std::string> condensed_nodes;
     tree_info(const tree_info& )=delete;
     tree_info()=default;
-    ~tree_info(){
+    ~tree_info() {
         fprintf(stderr, "deleting nodes\n");
         tree.delete_nodes();
     }
 };
-struct child_proc_info{
+struct child_proc_info {
     std::chrono::steady_clock::time_point start_time;
     //int fd;
     child_proc_info()=default;
-    child_proc_info(int fd):start_time(std::chrono::steady_clock::now()){}
-    bool is_time_out(long limit){
+    child_proc_info(int fd):start_time(std::chrono::steady_clock::now()) {}
+    bool is_time_out(long limit) {
         auto duration=std::chrono::steady_clock::now()-start_time;
         return std::chrono::duration_cast<std::chrono::milliseconds>(duration).count()>limit;
     }
@@ -75,11 +75,11 @@ bool prep_single_tree(std::string path, tree_info &out) {
 }
 
 typedef std::shared_ptr<std::vector<tree_info>> TreeCollectionPtr;
-void reload_trees(TreeCollectionPtr &to_replace, const std::vector<std::string>& paths){
+void reload_trees(TreeCollectionPtr &to_replace, const std::vector<std::string>& paths) {
     tbb::task_scheduler_init init(num_threads);
     auto next = new std::vector<tree_info>(paths.size());
     for (size_t idx=0; idx<paths.size(); idx++) {
-        if(!prep_single_tree(paths[idx], (*next)[idx])){
+        if(!prep_single_tree(paths[idx], (*next)[idx])) {
             fprintf(stderr, "Not reloaded\n");
             delete next;
             return;
@@ -96,7 +96,7 @@ void refresh_tree(TreeCollectionPtr &to_replace, std::fstream &tree_paths) {
         if (buf == "") {
             break;
         }
-        paths.push_back(buf);        
+        paths.push_back(buf);
     }
     reload_trees(to_replace,paths);
     scalable_allocation_command(TBBMALLOC_CLEAN_ALL_BUFFERS, 0);
@@ -139,12 +139,12 @@ static void mgr_thread(TreeCollectionPtr &to_replace, std::string cmd_fifo_name,
                 fprintf(stderr, "setting thread count to %d\n",
                         new_thread_count);
                 num_threads = new_thread_count;
-            }else {
+            } else {
                 int new_time_out_second;
                 auto scaned = sscanf(buf.c_str(), "timeout %d", &new_time_out_second);
                 if (scaned) {
                     fprintf(stderr, "setting new timeout to %d seconds\n",
-                        new_time_out_second);
+                            new_time_out_second);
                     wait_miliseconds.store(new_time_out_second*1000);
                 }
             }
@@ -153,12 +153,12 @@ static void mgr_thread(TreeCollectionPtr &to_replace, std::string cmd_fifo_name,
 }
 
 static int create_socket(std::string socket_name) {
-    #ifdef __linux
+#ifdef __linux
     auto sock_fd = socket(AF_UNIX, SOCK_STREAM|SOCK_NONBLOCK, 0);
-    #else
+#else
     auto sock_fd = socket(AF_UNIX, SOCK_STREAM, 0);
     fcntl(sock_fd, F_SETFL, O_NONBLOCK);
-    #endif
+#endif
     if (sock_fd == -1) {
         perror("unable to create socket");
         exit(EXIT_FAILURE);
@@ -239,79 +239,79 @@ size_t get_options(FILE *f, Leader_Thread_Options &options) {
         "vcf,v", po::value<std::string>(&options.vcf_filename)->required(),
         "Input VCF file (in uncompressed or gzip-compressed .gz format) "
         "[REQUIRED]")(
-        "outdir,d",
-        po::value<std::string>(&options.out_options.outdir)->default_value("."),
-        "Output directory to dump output and log files [DEFAULT uses current "
-        "directory]")("mat-index,i", po::value<size_t>(&mat_idx)->required(),
-                      "Load mutation-annotated tree object")(
-        "save-mutation-annotated-tree,o",
-        po::value<std::string>(&options.out_options.dout_filename)
-            ->default_value(""),
-        "Save output mutation-annotated tree object to the specified filename")(
-        "sort-before-placement-1,s",
-        po::bool_switch(&options.sort_before_placement_1)->default_value(false),
-        "Sort new samples based on computed parsimony score and then number of "
-        "optimal placements before the actual placement [EXPERIMENTAL].")(
-        "sort-before-placement-2,S",
-        po::bool_switch(&options.sort_before_placement_2)->default_value(false),
-        "Sort new samples based on the number of optimal placements and then "
-        "the parsimony score before the actual placement [EXPERIMENTAL].")(
-        "sort-before-placement-3,A",
-        po::bool_switch(&options.sort_by_ambiguous_bases)->default_value(false),
-        "Sort new samples based on the number of ambiguous bases "
-        "[EXPERIMENTAL].")(
-        "reverse-sort,r",
-        po::bool_switch(&options.reverse_sort)->default_value(false),
-        "Reverse the sorting order of sorting options (sort-before-placement-1 "
-        "or sort-before-placement-2) [EXPERIMENTAL]")(
-        "collapse-tree,c",
-        po::bool_switch(&options.collapse_tree)->default_value(false),
-        "Collapse internal nodes of the input tree with no mutations and "
-        "condense identical sequences in polytomies into a single node and the "
-        "save the tree to file condensed-tree.nh in outdir")(
-        "collapse-output-tree,C", po::bool_switch(&ignored_options),
-        "Collapse internal nodes of the output tree with no mutations before "
-        "the saving the tree to file final-tree.nh in outdir")(
-        "max-uncertainty-per-sample,e",
-        po::value(&options.max_uncertainty)->default_value(1e6),
-        "Maximum number of equally parsimonious placements allowed per sample "
-        "beyond which the sample is ignored")(
-        "max-parsimony-per-sample,E",
-        po::value(&options.max_parsimony)->default_value(1e6),
-        "Maximum parsimony score of the most parsimonious placement(s) allowed "
-        "per sample beyond which the sample is ignored")(
-        "write-uncondensed-final-tree,u",
-        po::bool_switch(&options.out_options.print_uncondensed_tree)
-            ->default_value(false),
-        "Write the final tree in uncondensed format and save to file "
-        "uncondensed-final-tree.nh in outdir")(
-        "write-subtrees-size,k",
-        po::value<size_t>(&options.out_options.print_subtrees_size)
-            ->default_value(0),
-        "Write minimum set of subtrees covering the newly added samples of "
-        "size equal to this value")(
-        "write-single-subtree,K",
-        po::value<size_t>(&options.out_options.print_subtrees_single)
-            ->default_value(0),
-        "Similar to write-subtrees-size but produces a single subtree with all "
-        "newly added samples along with random samples up to the value "
-        "specified by this argument")(
-        "retain-input-branch-lengths,l",
-        po::bool_switch(&options.out_options.retain_original_branch_len)
-            ->default_value(false),
-        "Retain the branch lengths from the input tree in out newick files "
-        "instead of using number of mutations for the branch lengths.")(
-        "detailed-clades,D",
-        po::bool_switch(&options.out_options.detailed_clades),
-        "In clades.txt, write a histogram of annotated clades and counts "
-        "across all equally parsimonious placements")(
-        "version", "Print version number")("help,h", "Print help messages");
+            "outdir,d",
+            po::value<std::string>(&options.out_options.outdir)->default_value("."),
+            "Output directory to dump output and log files [DEFAULT uses current "
+            "directory]")("mat-index,i", po::value<size_t>(&mat_idx)->required(),
+                          "Load mutation-annotated tree object")(
+                              "save-mutation-annotated-tree,o",
+                              po::value<std::string>(&options.out_options.dout_filename)
+                              ->default_value(""),
+                              "Save output mutation-annotated tree object to the specified filename")(
+                                  "sort-before-placement-1,s",
+                                  po::bool_switch(&options.sort_before_placement_1)->default_value(false),
+                                  "Sort new samples based on computed parsimony score and then number of "
+                                  "optimal placements before the actual placement [EXPERIMENTAL].")(
+                                      "sort-before-placement-2,S",
+                                      po::bool_switch(&options.sort_before_placement_2)->default_value(false),
+                                      "Sort new samples based on the number of optimal placements and then "
+                                      "the parsimony score before the actual placement [EXPERIMENTAL].")(
+                                          "sort-before-placement-3,A",
+                                          po::bool_switch(&options.sort_by_ambiguous_bases)->default_value(false),
+                                          "Sort new samples based on the number of ambiguous bases "
+                                          "[EXPERIMENTAL].")(
+                                                  "reverse-sort,r",
+                                                  po::bool_switch(&options.reverse_sort)->default_value(false),
+                                                  "Reverse the sorting order of sorting options (sort-before-placement-1 "
+                                                  "or sort-before-placement-2) [EXPERIMENTAL]")(
+                                                          "collapse-tree,c",
+                                                          po::bool_switch(&options.collapse_tree)->default_value(false),
+                                                          "Collapse internal nodes of the input tree with no mutations and "
+                                                          "condense identical sequences in polytomies into a single node and the "
+                                                          "save the tree to file condensed-tree.nh in outdir")(
+                                                                  "collapse-output-tree,C", po::bool_switch(&ignored_options),
+                                                                  "Collapse internal nodes of the output tree with no mutations before "
+                                                                  "the saving the tree to file final-tree.nh in outdir")(
+                                                                          "max-uncertainty-per-sample,e",
+                                                                          po::value(&options.max_uncertainty)->default_value(1e6),
+                                                                          "Maximum number of equally parsimonious placements allowed per sample "
+                                                                          "beyond which the sample is ignored")(
+                                                                                  "max-parsimony-per-sample,E",
+                                                                                  po::value(&options.max_parsimony)->default_value(1e6),
+                                                                                  "Maximum parsimony score of the most parsimonious placement(s) allowed "
+                                                                                  "per sample beyond which the sample is ignored")(
+                                                                                          "write-uncondensed-final-tree,u",
+                                                                                          po::bool_switch(&options.out_options.print_uncondensed_tree)
+                                                                                          ->default_value(false),
+                                                                                          "Write the final tree in uncondensed format and save to file "
+                                                                                          "uncondensed-final-tree.nh in outdir")(
+                                                                                                  "write-subtrees-size,k",
+                                                                                                  po::value<size_t>(&options.out_options.print_subtrees_size)
+                                                                                                  ->default_value(0),
+                                                                                                  "Write minimum set of subtrees covering the newly added samples of "
+                                                                                                  "size equal to this value")(
+                                                                                                          "write-single-subtree,K",
+                                                                                                          po::value<size_t>(&options.out_options.print_subtrees_single)
+                                                                                                          ->default_value(0),
+                                                                                                          "Similar to write-subtrees-size but produces a single subtree with all "
+                                                                                                          "newly added samples along with random samples up to the value "
+                                                                                                          "specified by this argument")(
+                                                                                                                  "retain-input-branch-lengths,l",
+                                                                                                                  po::bool_switch(&options.out_options.retain_original_branch_len)
+                                                                                                                  ->default_value(false),
+                                                                                                                  "Retain the branch lengths from the input tree in out newick files "
+                                                                                                                  "instead of using number of mutations for the branch lengths.")(
+                                                                                                                          "detailed-clades,D",
+                                                                                                                          po::bool_switch(&options.out_options.detailed_clades),
+                                                                                                                          "In clades.txt, write a histogram of annotated clades and counts "
+                                                                                                                          "across all equally parsimonious placements")(
+                                                                                                                                  "version", "Print version number")("help,h", "Print help messages");
     po::variables_map vm;
     // wait_debug();
     try {
         po::store(po::command_line_parser(args.size(), args.data())
-                      .options(desc)
-                      .run(),
+                  .options(desc)
+                  .run(),
                   vm);
         po::notify(vm);
     } catch (std::exception &e) {
@@ -373,7 +373,7 @@ static void child_proc(int fd, TreeCollectionPtr &trees_ptr) {
         options.out_options.outdir + "/placement_stats.tsv";
     FILE *placement_stats_file = fopen(placement_stats_filename.c_str(), "w");
     //auto reordered =
-        sort_samples(options, samples_to_place, tree, sample_start_idx);
+    sort_samples(options, samples_to_place, tree, sample_start_idx);
     place_sample_sequential(samples_to_place, tree, false, placement_stats_file,
                             options.max_parsimony, options.max_uncertainty,
                             low_confidence_samples, samples_clade,
@@ -406,7 +406,7 @@ static void accept_fork_loop(int socket_fd, TreeCollectionPtr &trees_ptr,std::at
         }
         if (conn_fd == -1) {
             if (errno!=EAGAIN&&errno!=EWOULDBLOCK) {
-                perror("cannot accept connection");        
+                perror("cannot accept connection");
             }
             continue;
         }
@@ -426,7 +426,7 @@ static void accept_fork_loop(int socket_fd, TreeCollectionPtr &trees_ptr,std::at
     collect_done(pid_to_fd_map, true,wait_miliseconds);
 }
 
-int main(int argc, char** argv){
+int main(int argc, char** argv) {
     po::options_description desc{"Options"};
     std::string mgr_fifo;
     std::string socket_path;
@@ -438,17 +438,17 @@ int main(int argc, char** argv){
                                       std::to_string(num_threads) +
                                       " detected on this machine]";
     desc.add_options()("manager-fifo-path,m",po::value<std::string>(&mgr_fifo)->required(),
-    "path to a fifo taking commands,existing file will be deleted currently support:\n"
-    "stop: stop taking new connections and exit\n"
-    "thread [int] : reset the number of threads for each job\n"
-    "reload [EXPERIMENTAL]: replace the cached trees, expecting one per line\n"
-    "timeout [int] : change timeout, in second\n"
-    )
+                       "path to a fifo taking commands,existing file will be deleted currently support:\n"
+                       "stop: stop taking new connections and exit\n"
+                       "thread [int] : reset the number of threads for each job\n"
+                       "reload [EXPERIMENTAL]: replace the cached trees, expecting one per line\n"
+                       "timeout [int] : change timeout, in second\n"
+                      )
     ("socket-patch,s",po::value<std::string>(&socket_path)->required(),
-    "path to socket,existing file will be deleted\n"
-    "Expect usher cmd args separated by new line, terminated with an empty line"
-    "then the server will reply with the output of usher\n"
-    "")
+     "path to socket,existing file will be deleted\n"
+     "Expect usher cmd args separated by new line, terminated with an empty line"
+     "then the server will reply with the output of usher\n"
+     "")
     ("threads-per-process,T",po::value<unsigned int>(&num_threads),num_threads_message.c_str())
     ("timeout,t",po::value<int>(&wait_second)->default_value(180),"Timeout in seconds")
     ("pb-to-load,l",po::value<std::vector<std::string>>(&init_pb_to_load)->multitoken()->composing(),"initial list of protobufs to load")
@@ -456,8 +456,8 @@ int main(int argc, char** argv){
     po::variables_map vm;
     try {
         po::store(po::command_line_parser(argc, argv)
-                      .options(desc)
-                      .run(),
+                  .options(desc)
+                  .run(),
                   vm);
         po::notify(vm);
     } catch (std::exception &e) {
@@ -476,7 +476,7 @@ int main(int argc, char** argv){
     std::atomic_size_t wait_miliseconds(wait_second*1000);
     TreeCollectionPtr trees;
     if (!init_pb_to_load.empty()) {
-        reload_trees(trees, init_pb_to_load);    
+        reload_trees(trees, init_pb_to_load);
         scalable_allocation_command(TBBMALLOC_CLEAN_ALL_BUFFERS, 0);
     }
     auto socket_fd=create_socket(socket_path);

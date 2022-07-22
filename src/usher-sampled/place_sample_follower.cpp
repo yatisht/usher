@@ -11,7 +11,7 @@
 #include <mpi.h>
 #include <tuple>
 #include "src/usher-sampled/static_tree_mapper/index.hpp"
-void check_parent(MAT::Node* root,MAT::Tree& tree){
+void check_parent(MAT::Node* root,MAT::Tree& tree) {
     if (root!=tree.get_node(root->node_id)) {
         fprintf(stderr, "dict mismatch at node %zu\n",root->node_id);
         raise(SIGTRAP);
@@ -55,13 +55,13 @@ serialize_move(move_type *in, MAT::Tree& tree) {
 }
 
 
-void check_order_node(MAT::Node* node){
+void check_order_node(MAT::Node* node) {
     int prev_pos=-1;
     for (const auto& mut : node->mutations) {
-            if (mut.get_position()>=(int)MAT::Mutation::refs.size()) {
-                fprintf(stderr, "%zu: placement_check strange size\n",node->node_id);
-                raise(SIGTRAP);
-            }
+        if (mut.get_position()>=(int)MAT::Mutation::refs.size()) {
+            fprintf(stderr, "%zu: placement_check strange size\n",node->node_id);
+            raise(SIGTRAP);
+        }
         if (mut.get_position()<=prev_pos) {
             fprintf(stderr, "%zu:placement out of order\n",node->node_id);
             raise(SIGTRAP);
@@ -69,7 +69,7 @@ void check_order_node(MAT::Node* node){
         prev_pos=mut.get_position();
     }
 }
-void check_order(MAT::Mutations_Collection& in){
+void check_order(MAT::Mutations_Collection& in) {
     int prev_pos=-1;
     for (const auto& mut : in) {
         if (mut.get_position()<=prev_pos) {
@@ -83,7 +83,7 @@ void check_order(MAT::Mutations_Collection& in){
         prev_pos=mut.get_position();
     }
 }
-static void check_parent_match(MAT::Node* node,MAT::Tree& tree,char* name){
+static void check_parent_match(MAT::Node* node,MAT::Tree& tree,char* name) {
     auto split_node_par_child=node->parent->children;
     if (std::find(split_node_par_child.begin(),split_node_par_child.end(),node)==split_node_par_child.end()) {
         fprintf(stderr, "%s parent mismatch\n",name);
@@ -95,7 +95,7 @@ static void check_parent_match(MAT::Node* node,MAT::Tree& tree,char* name){
     }
 }
 static void recv_and_place_follower(MAT::Tree &tree,
-                           std::vector<MAT::Node *> &deleted_nodes,bool dry_run) {
+                                    std::vector<MAT::Node *> &deleted_nodes,bool dry_run) {
     if (dry_run) {
         return;
     }
@@ -134,9 +134,9 @@ static void recv_and_place_follower(MAT::Tree &tree,
             std::raise(SIGTRAP);
         }*/
         auto out = update_main_tree(
-            sample_mutations, splitted_mutations, shared_mutations,
-            target_node,
-            parsed_target.sample_id(), tree, parsed_target.split_node_id(),true);
+                       sample_mutations, splitted_mutations, shared_mutations,
+                       target_node,
+                       parsed_target.sample_id(), tree, parsed_target.split_node_id(),true);
         /*if (out.splitted_node) {
             if (out.splitted_node->node_id!=parsed_target.split_node_id()) {
                 fprintf(stderr, "split node id mismatch\n");
@@ -169,25 +169,25 @@ struct Fetcher {
     bool& is_first;
     Sample_Muts* operator()(tbb::flow_control& fc) const {
         int res_size;
-        while(true){
-        mpi_trace_print("follower send work req \n");
-        MPI_Send(&res_size, 0, MPI_BYTE, 0, PLACEMENT_WORK_REQ_TAG, MPI_COMM_WORLD);
-        MPI_Status status;
-        MPI_Probe(0, PLACEMENT_WORK_RES_TAG, MPI_COMM_WORLD, &status);
-        mpi_trace_print("follower recieve work res \n");
-        MPI_Get_count(&status, MPI_BYTE, &res_size);
-        if (res_size==0) {
-            MPI_Recv(&res_size, res_size, MPI_BYTE, 0, PLACEMENT_WORK_RES_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            if (is_first) {
-                continue;
+        while(true) {
+            mpi_trace_print("follower send work req \n");
+            MPI_Send(&res_size, 0, MPI_BYTE, 0, PLACEMENT_WORK_REQ_TAG, MPI_COMM_WORLD);
+            MPI_Status status;
+            MPI_Probe(0, PLACEMENT_WORK_RES_TAG, MPI_COMM_WORLD, &status);
+            mpi_trace_print("follower recieve work res \n");
+            MPI_Get_count(&status, MPI_BYTE, &res_size);
+            if (res_size==0) {
+                MPI_Recv(&res_size, res_size, MPI_BYTE, 0, PLACEMENT_WORK_RES_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                if (is_first) {
+                    continue;
+                }
+                fprintf(stderr, "tag: %d, sender:%d, error %d",status.MPI_TAG,status.MPI_SOURCE,status.MPI_ERROR);
+                fprintf(stderr, "Fetcher exit \n");
+                fc.stop();
+                return nullptr;
+            } else {
+                break;
             }
-            fprintf(stderr, "tag: %d, sender:%d, error %d",status.MPI_TAG,status.MPI_SOURCE,status.MPI_ERROR);
-            fprintf(stderr, "Fetcher exit \n");
-            fc.stop();
-            return nullptr;
-        }else {
-            break;
-        }
         }
         is_first=false;
         auto buffer=new char[res_size];
@@ -203,16 +203,16 @@ struct Fetcher {
         return out;
     }
 };
-struct Finder{
+struct Finder {
     MAT::Tree& tree;
     const Traversal_Info &in;
     const std::vector<MAT::Node *> &dfs_ordered_nodes;
     bool fix_tree;
-    void operator()(Sample_Muts* to_search)const{
+    void operator()(Sample_Muts* to_search)const {
         std::string buffer;
         if (fix_tree) {
             buffer = serialize_move(place_sample_fixed_idx(in, to_search, dfs_ordered_nodes),tree);
-        }else {    
+        } else {
             buffer = serialize_move(find_place(tree, to_search),tree);
         }
         //fprintf(stderr, "follower sent placement \n");
@@ -221,7 +221,7 @@ struct Finder{
         delete to_search;
     }
 };
-void follower_place_sample(MAT::Tree &main_tree,int batch_size,bool dry_run){
+void follower_place_sample(MAT::Tree &main_tree,int batch_size,bool dry_run) {
     Traversal_Info traversal_info;
     std::vector<MAT::Node *> dfs_ordered_nodes;
     if (dry_run) {
@@ -233,9 +233,9 @@ void follower_place_sample(MAT::Tree &main_tree,int batch_size,bool dry_run){
     bool is_first=true;
     std::thread tree_update_thread(recv_and_place_follower,std::ref(main_tree),std::ref(deleted_nodes),dry_run);
     tbb::parallel_pipeline(batch_size,
-        tbb::make_filter<void,Sample_Muts*>(tbb::filter::serial,Fetcher{is_first})&
-        tbb::make_filter<Sample_Muts*,void>(
-            tbb::filter::parallel,Finder{main_tree,traversal_info,dfs_ordered_nodes,dry_run}));
+                           tbb::make_filter<void,Sample_Muts*>(tbb::filter::serial,Fetcher{is_first})&
+                           tbb::make_filter<Sample_Muts*,void>(
+                               tbb::filter::parallel,Finder{main_tree,traversal_info,dfs_ordered_nodes,dry_run}));
     for (auto node : deleted_nodes) {
         delete node;
     }

@@ -171,11 +171,11 @@ struct line_parser {
                 }
                 auto translated_idx=index_translate[field_idx-SAMPLE_START_IDX];
                 if (translated_idx>=0) {
-                if (allele_idx>=(int)(allele_translated.size()+1)||allele_idx<0) {
-                    out[translated_idx]=0xf;
-                } else {
-                    out[translated_idx]=allele_translated[allele_idx];
-                }
+                    if (allele_idx>=(int)(allele_translated.size()+1)||allele_idx<0) {
+                        out[translated_idx]=0xf;
+                    } else {
+                        out[translated_idx]=allele_translated[allele_idx];
+                    }
                 }
                 field_idx++;
                 line_in++;

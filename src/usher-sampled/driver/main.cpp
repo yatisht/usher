@@ -40,104 +40,104 @@ std::atomic_bool interrupted(false);
 void fix_condensed_nodes(MAT::Tree *tree);
 namespace po = boost::program_options;
 void leader_thread_optimization(MAT::Tree& tree,std::vector<mutated_t>& position_wise_out,
-    std::atomic_size_t& curr_idx,int& optimization_radius, size_t start_idx,FILE* ignored_file,float desired_optimization_msec,bool is_last){
-            size_t last_parsimony_score=SIZE_MAX;
-            std::default_random_engine g;
-            auto optimiation_start=std::chrono::steady_clock::now();
-            auto optimization_end=optimiation_start+std::chrono::milliseconds((long)desired_optimization_msec);
-            bool timeout=false;
-            if (is_last) {
-                optimization_radius=-4;
-            }
-            bool is_first=true;
-            do  {
-            bool distributed = process_count > 1;
-            fprintf(stderr, "Main sent optimization prep\n");
-            if (process_count == 1) {
-                reassign_state_local(tree,position_wise_out);
+                                std::atomic_size_t& curr_idx,int& optimization_radius, size_t start_idx,FILE* ignored_file,float desired_optimization_msec,bool is_last) {
+    size_t last_parsimony_score=SIZE_MAX;
+    std::default_random_engine g;
+    auto optimiation_start=std::chrono::steady_clock::now();
+    auto optimization_end=optimiation_start+std::chrono::milliseconds((long)desired_optimization_msec);
+    bool timeout=false;
+    if (is_last) {
+        optimization_radius=-4;
+    }
+    bool is_first=true;
+    do  {
+        bool distributed = process_count > 1;
+        fprintf(stderr, "Main sent optimization prep\n");
+        if (process_count == 1) {
+            reassign_state_local(tree,position_wise_out);
+        } else {
+            MPI_Bcast(&optimization_radius, 1, MPI_INT, 0, MPI_COMM_WORLD);
+            if (is_first) {
+                MPI_reassign_states(tree, position_wise_out, 0);
             } else {
-                MPI_Bcast(&optimization_radius, 1, MPI_INT, 0, MPI_COMM_WORLD);
-                if (is_first) {
-                    MPI_reassign_states(tree, position_wise_out, 0);            
-                }else {
-                    tree.MPI_send_tree();            
-                }
+                tree.MPI_send_tree();
             }
-            is_first=false;
-            if (is_last) {
-                optimization_radius=-optimization_radius;
-            }
-            fprintf(stderr, "Main parsimony score %zu",tree.get_parsimony_score());
-            fprintf(stderr, "Main sent optimization prep done\n");
-            std::vector<size_t> node_to_search_idx;
-            find_moved_node_neighbors(optimization_radius,
-                                      start_idx, tree,
-                                      curr_idx.load(), node_to_search_idx);
-            fprintf(stderr, "Main found nodes to move\n");
-            std::shuffle(node_to_search_idx.begin(),node_to_search_idx.end(),g);
+        }
+        is_first=false;
+        if (is_last) {
+            optimization_radius=-optimization_radius;
+        }
+        fprintf(stderr, "Main parsimony score %zu",tree.get_parsimony_score());
+        fprintf(stderr, "Main sent optimization prep done\n");
+        std::vector<size_t> node_to_search_idx;
+        find_moved_node_neighbors(optimization_radius,
+                                  start_idx, tree,
+                                  curr_idx.load(), node_to_search_idx);
+        fprintf(stderr, "Main found nodes to move\n");
+        std::shuffle(node_to_search_idx.begin(),node_to_search_idx.end(),g);
 
-            while (!node_to_search_idx.empty()) {
-                std::vector<size_t> deferred_nodes_out;
-                adjust_all(tree);
-                fprintf(stderr, "Main sent tree_optimizing\n");
-                optimize_tree_main_thread(
-                    node_to_search_idx, tree, optimization_radius, ignored_file,
-                    false, 1, deferred_nodes_out, distributed, optimization_end, true,
-                    true, true);
-                node_to_search_idx.clear();
-                auto dfs = tree.depth_first_expansion();
-                node_to_search_idx.reserve(deferred_nodes_out.size());
-                for (auto idx : deferred_nodes_out) {
-                    auto node=tree.get_node(idx);
-                    if(node){
-                        node_to_search_idx.push_back(node->dfs_index);
-                    }
-                }
-                distributed = false;
-                auto new_parsimony_score=tree.get_parsimony_score();
-                fprintf(stderr, "Last parsimony score %lu\n",new_parsimony_score);
-                if(new_parsimony_score>=last_parsimony_score
-                    || std::chrono::steady_clock::now()>optimization_end){
-                    timeout=true;
-                    break;
-                }
-                last_parsimony_score=new_parsimony_score;
-            }
-            if (is_last) {
-                optimization_radius=-2*optimization_radius;
-            }
-            }while(is_last&&!timeout);
-            if (is_last) {
-                int to_send=0;
-                MPI_Bcast(&to_send, 1, MPI_INT, 0, MPI_COMM_WORLD);
-            }
-            auto finish_time=std::chrono::steady_clock::now();
-            int next_optimization_radius;
-            if (finish_time>optimization_end) {
-                next_optimization_radius=optimization_radius-1;
-            }else {
-                float actual_msec=std::chrono::duration_cast<std::chrono::milliseconds>(finish_time-optimiation_start).count();
-                float time_ratio=sqrt(desired_optimization_msec/actual_msec);
-                next_optimization_radius=(optimization_radius*time_ratio);
-		fprintf(stderr,"Next radius %d, ratio %f",next_optimization_radius,time_ratio);
-            }
-            optimization_radius=std::max(next_optimization_radius,2);
+        while (!node_to_search_idx.empty()) {
+            std::vector<size_t> deferred_nodes_out;
+            adjust_all(tree);
+            fprintf(stderr, "Main sent tree_optimizing\n");
+            optimize_tree_main_thread(
+                node_to_search_idx, tree, optimization_radius, ignored_file,
+                false, 1, deferred_nodes_out, distributed, optimization_end, true,
+                true, true);
+            node_to_search_idx.clear();
             auto dfs = tree.depth_first_expansion();
-            for (auto node : dfs) {
-                if(node->is_leaf()){
-                    for (auto& mut : node->mutations) {
-                        mut.set_mut_one_hot(mut.get_all_major_allele());
-                    }
-                }else {
-                    node->mutations.remove_invalid();            
+            node_to_search_idx.reserve(deferred_nodes_out.size());
+            for (auto idx : deferred_nodes_out) {
+                auto node=tree.get_node(idx);
+                if(node) {
+                    node_to_search_idx.push_back(node->dfs_index);
                 }
             }
+            distributed = false;
+            auto new_parsimony_score=tree.get_parsimony_score();
+            fprintf(stderr, "Last parsimony score %lu\n",new_parsimony_score);
+            if(new_parsimony_score>=last_parsimony_score
+                    || std::chrono::steady_clock::now()>optimization_end) {
+                timeout=true;
+                break;
+            }
+            last_parsimony_score=new_parsimony_score;
+        }
+        if (is_last) {
+            optimization_radius=-2*optimization_radius;
+        }
+    } while(is_last&&!timeout);
+    if (is_last) {
+        int to_send=0;
+        MPI_Bcast(&to_send, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    }
+    auto finish_time=std::chrono::steady_clock::now();
+    int next_optimization_radius;
+    if (finish_time>optimization_end) {
+        next_optimization_radius=optimization_radius-1;
+    } else {
+        float actual_msec=std::chrono::duration_cast<std::chrono::milliseconds>(finish_time-optimiation_start).count();
+        float time_ratio=sqrt(desired_optimization_msec/actual_msec);
+        next_optimization_radius=(optimization_radius*time_ratio);
+        fprintf(stderr,"Next radius %d, ratio %f",next_optimization_radius,time_ratio);
+    }
+    optimization_radius=std::max(next_optimization_radius,2);
+    auto dfs = tree.depth_first_expansion();
+    for (auto node : dfs) {
+        if(node->is_leaf()) {
+            for (auto& mut : node->mutations) {
+                mut.set_mut_one_hot(mut.get_all_major_allele());
+            }
+        } else {
+            node->mutations.remove_invalid();
+        }
+    }
 }
 
 static int leader_thread(
     int batch_size_per_process,
     Leader_Thread_Options& options
-    ){
+) {
     int optimization_radius=options.initial_optimization_radius;
     boost::filesystem::path path(options.out_options.outdir);
     if (!boost::filesystem::exists(path)) {
@@ -152,8 +152,8 @@ static int leader_thread(
     MAT::Tree tree;
     if (options.tree_in!="") {
         tree=Mutation_Annotated_Tree::create_tree_from_newick(options.tree_in);
-    }else {
-        if(!MAT::load_mutation_annotated_tree(options.protobuf_in,tree)){
+    } else {
+        if(!MAT::load_mutation_annotated_tree(options.protobuf_in,tree)) {
             exit(EXIT_FAILURE);
         }
     }
@@ -169,38 +169,38 @@ static int leader_thread(
     size_t sample_end_idx=samples_to_place.back().sample_idx+1;
     fprintf(stderr, "Sample start idx %zu, end index %zu\n",sample_start_idx,sample_end_idx);
     if (options.tree_in==""&&(!options.no_add)&&(options.initial_optimization_radius>0)) {
-        get_pos_samples_old_tree(tree, position_wise_out);    
-    }else if (options.tree_in!=""){
+        get_pos_samples_old_tree(tree, position_wise_out);
+    } else if (options.tree_in!="") {
         position_wise_out_dup=position_wise_out;
         std::unordered_set<std::string> sample_set(samples.begin(),samples.end());
         remove_absent_leaves(tree, sample_set);
         if (process_count==1) {
             reassign_state_local(tree,position_wise_out,true);
-        }else {
+        } else {
             distribute_positions(position_wise_out);
             MPI_reassign_states(tree, position_wise_out, 0,true);
         }
         for (auto node : tree.depth_first_expansion()) {
-            if(node->is_leaf()){
-                    for (auto& mut : node->mutations) {
-                        mut.set_mut_one_hot(mut.get_all_major_allele());
-                    }
-                }else {
-                    node->mutations.remove_invalid();            
+            if(node->is_leaf()) {
+                for (auto& mut : node->mutations) {
+                    mut.set_mut_one_hot(mut.get_all_major_allele());
                 }
+            } else {
+                node->mutations.remove_invalid();
             }
+        }
     }
     tree.condense_leaves();
     fix_parent(tree);
     tree.check_leaves();
     if (options.tree_in!="") {
         for (auto& pos : position_wise_out_dup) {
-            pos.erase(std::remove_if(pos.begin(), pos.end(), [sample_start_idx](const std::pair<long, nuc_one_hot>& in){
+            pos.erase(std::remove_if(pos.begin(), pos.end(), [sample_start_idx](const std::pair<long, nuc_one_hot>& in) {
                 return in.first<(long)sample_start_idx;
             }),pos.end());
         }
         get_pos_samples_old_tree(tree, position_wise_out_dup);
-        position_wise_out=std::move(position_wise_out_dup);    
+        position_wise_out=std::move(position_wise_out_dup);
 
     }
     std::vector<std::string> low_confidence_samples;
@@ -215,12 +215,12 @@ static int leader_thread(
     fprintf(stderr, "Found %zu missing samples.\n\n", samples_to_place.size());
     std::string placement_stats_filename = options.out_options.outdir + "/placement_stats.tsv";
     FILE *placement_stats_file = fopen(placement_stats_filename.c_str(), "w");
-    
+
     if (options.no_add) {
         std::atomic_size_t curr_idx(0);
         assign_descendant_muts(tree);
         if (process_count>1) {
-            tree.MPI_send_tree();        
+            tree.MPI_send_tree();
         }
         tree.breadth_first_expansion();
         place_sample_leader(samples_to_place, tree, 100, curr_idx, INT_MAX,
@@ -230,7 +230,7 @@ static int leader_thread(
         print_annotation(tree, options.out_options, samples_clade,
                          sample_start_idx, sample_end_idx,
                          tree.get_num_annotations());
-	    MPI_Finalize();
+        MPI_Finalize();
         return 0;
     }
     auto reordered=sort_samples(options, samples_to_place, tree,sample_start_idx);
@@ -239,7 +239,7 @@ static int leader_thread(
     std::vector<size_t>* idx_map_ptr=nullptr;
     if (reordered) {
         idx_map.resize(samples_to_place.size());
-        for(size_t idx=0;idx<samples_to_place.size();idx++){
+        for(size_t idx=0; idx<samples_to_place.size(); idx++) {
             idx_map[samples_to_place[idx].sample_idx-sample_start_idx]=idx;
         }
         idx_map_ptr=&idx_map;
@@ -249,7 +249,7 @@ static int leader_thread(
     use_bound=true;
     //samples_to_place.resize(1000);
     options.out_options.only_one_tree=options.keep_n_tree==1;
-    if(options.keep_n_tree>1){
+    if(options.keep_n_tree>1) {
         std::vector<MAT::Tree> trees{tree};
         place_sample_multiple_tree(samples_to_place, trees, placement_stats_file, options.keep_n_tree);
         for (size_t t_idx=0; t_idx<trees.size(); t_idx++) {
@@ -272,25 +272,25 @@ static int leader_thread(
                             options.max_parsimony, options.max_uncertainty,
                             low_confidence_samples, samples_clade,sample_start_idx,idx_map_ptr);
         bool is_last=false;
-	tree.check_leaves();
+        tree.check_leaves();
         if (curr_idx >= samples_to_place.size()) {
             curr_idx.store(samples_to_place.size());
             is_last=true;
         }
         if (options.initial_optimization_radius > 0) {
             leader_thread_optimization(tree, position_wise_out, curr_idx, optimization_radius,
-             sample_start_idx, ignored_file,is_last?60000*options.last_optimization_minutes:options.desired_optimization_msec,is_last);
-	    tree.check_leaves();
+                                       sample_start_idx, ignored_file,is_last?60000*options.last_optimization_minutes:options.desired_optimization_msec,is_last);
+            tree.check_leaves();
         }
         if (curr_idx<samples_to_place.size()) {
             int to_board_cast=0;
-            if (process_count>1) {            
+            if (process_count>1) {
                 MPI_Bcast(&to_board_cast, 1, MPI_INT, 0, MPI_COMM_WORLD);
             }
-        }else {
+        } else {
             int to_board_cast=1;
             if (process_count>1) {
-                MPI_Bcast(&to_board_cast, 1, MPI_INT, 0, MPI_COMM_WORLD);            
+                MPI_Bcast(&to_board_cast, 1, MPI_INT, 0, MPI_COMM_WORLD);
             }
             break;
         }
@@ -307,7 +307,7 @@ static int leader_thread(
 }
 void wait_debug();
 int main(int argc, char **argv) {
-    
+
     //signal(SIGSEGV, handler);
     int ignored;
     MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &ignored);
@@ -360,24 +360,24 @@ int main(int argc, char **argv) {
     ("detailed-clades,D", po::bool_switch(&options.out_options.detailed_clades), \
      "In clades.txt, write a histogram of annotated clades and counts across all equally parsimonious placements")
     ("threads,T",po::value<uint32_t>(&num_threads)->default_value(num_cores),num_threads_message.c_str())
-    ("reduce-back-mutation,B",po::bool_switch(&options.out_options.redo_FS_Min_Back_Mutations)->default_value(false), 
-        "Reassign states of internal nodes to reduce back mutation count.")
+    ("reduce-back-mutation,B",po::bool_switch(&options.out_options.redo_FS_Min_Back_Mutations)->default_value(false),
+     "Reassign states of internal nodes to reduce back mutation count.")
     ("version", "Print version number")
     ("help,h", "Print help messages")
     ("optimization_radius", po::value(&options.initial_optimization_radius)->default_value(4),
-        "The search radius for optimization when parsimony score increase exceeds the threshold"
-        "Set to 0 to disable optimiation"
-        "Only newly placed samples and nodes within this radius will be searched")
+     "The search radius for optimization when parsimony score increase exceeds the threshold"
+     "Set to 0 to disable optimiation"
+     "Only newly placed samples and nodes within this radius will be searched")
     ("optimization_minutes", po::value(&optimiation_minutes)->default_value(5),
-        "Optimization time of each iterations in minutes"
-        "Set to 0 to disable optimiation"
-        "Only newly placed samples and nodes within this radius will be searched")
+     "Optimization time of each iterations in minutes"
+     "Set to 0 to disable optimiation"
+     "Only newly placed samples and nodes within this radius will be searched")
     ("last_optimization_minutes", po::value(&options.last_optimization_minutes)->default_value(120),
-        "Optimization radius for the last round")
+     "Optimization radius for the last round")
     ("batch_size_per_process",po::value(&batch_size_per_process)->default_value(5),
-        "The number of samples each process search simultaneously")
+     "The number of samples each process search simultaneously")
     ("parsimony_threshold",po::value(&options.parsimony_threshold)->default_value(100000),
-        "Optimize after the parsimony score increase by this amount")
+     "Optimize after the parsimony score increase by this amount")
     ("first_n_samples",po::value(&options.first_n_samples)->default_value(SIZE_MAX),"[TESTING ONLY] Only place first n samples")
     //("gdb_pid,g",po::value(&gdb_pids)->multitoken(),"gdb pids for attaching")
     ;
@@ -408,23 +408,23 @@ int main(int argc, char **argv) {
     }
     options.desired_optimization_msec=optimiation_minutes*60000;
     fprintf(stderr, "Num threads %d\n",num_threads);
-    #ifdef __linux
+#ifdef __linux
     prctl(0x59616d61,-1);
     fprintf(stderr, "rand %d of pid %d ",this_rank,getpid());
-    #endif
+#endif
     tbb::task_scheduler_init init(num_threads);
     if (this_rank==0) {
-    if (options.keep_n_tree>1&&process_count>1) {
-        fprintf(stderr, "Multi-host parallelization of multiple placement is not supported\n");
-        MPI_Abort(MPI_COMM_WORLD, 1);
-    }
-    return leader_thread(batch_size_per_process,options);
+        if (options.keep_n_tree>1&&process_count>1) {
+            fprintf(stderr, "Multi-host parallelization of multiple placement is not supported\n");
+            MPI_Abort(MPI_COMM_WORLD, 1);
+        }
+        return leader_thread(batch_size_per_process,options);
     } else {
         MAT::Tree tree;
         std::vector<mutated_t> position_wise_mutations;
         int start_idx=0;
         if (!((options.tree_in==""&&options.no_add)||options.initial_optimization_radius==0)) {
-            start_idx=follower_recieve_positions(position_wise_mutations);    
+            start_idx=follower_recieve_positions(position_wise_mutations);
         }
         if (options.tree_in!="") {
             MPI_reassign_states(tree, position_wise_mutations, start_idx,true);
@@ -436,13 +436,13 @@ int main(int argc, char **argv) {
         if (options.sort_before_placement_1||options.sort_before_placement_2||options.no_add) {
             tree.MPI_receive_tree();
             if (!options.no_add) {
-            assign_levels(tree.root);
-            set_descendant_count(tree.root);
+                assign_levels(tree.root);
+                set_descendant_count(tree.root);
             }
-            follower_place_sample(tree,100,true);        
+            follower_place_sample(tree,100,true);
         }
         if (options.no_add) {
-	        MPI_Finalize();
+            MPI_Finalize();
             return 0;
         }
         while (true) {
@@ -453,44 +453,44 @@ int main(int argc, char **argv) {
             auto dfs=tree.depth_first_expansion();
             for (auto node : dfs) {
                 //check_order(node->mutations);
-                #ifdef NDEBUG
+#ifdef NDEBUG
                 node->children.reserve(SIZE_MULT*node->children.size());
-                #endif
+#endif
             }
-	    init.terminate();
-	    init.initialize(num_threads-1);
+            init.terminate();
+            init.initialize(num_threads-1);
             follower_place_sample(tree,batch_size_per_process,false);
-	    init.terminate();
-	    init.initialize(num_threads);
-        bool done=false;
-	    if (options.initial_optimization_radius>0) {
-            bool is_last=false;
-            do{
-            int optimization_radius;
-            MPI_Bcast(&optimization_radius, 1, MPI_INT, 0, MPI_COMM_WORLD);
-            if (optimization_radius==0) {
-                done=true;
-                break;
-            }
-            fprintf(stderr, "Optimizing with radius %d\n",optimization_radius);
-            fprintf(stderr, "follower recieving trees\n");
-            if (is_last) {
-                tree.delete_nodes();
-                tree.MPI_receive_tree();
-            }else {
-                MPI_reassign_states(tree, position_wise_mutations, start_idx);        
-            }
-            is_last=optimization_radius<0;
-            if (is_last) {
-                optimization_radius=-optimization_radius;
-            }
-            //tree.delete_nodes();
-            //tree.MPI_receive_tree();
-            adjust_all(tree);
-            use_bound=true;
-            fprintf(stderr, "follower start optimizing\n");
-            optimize_tree_worker_thread(tree, optimization_radius, false, true);
-            }while (is_last);
+            init.terminate();
+            init.initialize(num_threads);
+            bool done=false;
+            if (options.initial_optimization_radius>0) {
+                bool is_last=false;
+                do {
+                    int optimization_radius;
+                    MPI_Bcast(&optimization_radius, 1, MPI_INT, 0, MPI_COMM_WORLD);
+                    if (optimization_radius==0) {
+                        done=true;
+                        break;
+                    }
+                    fprintf(stderr, "Optimizing with radius %d\n",optimization_radius);
+                    fprintf(stderr, "follower recieving trees\n");
+                    if (is_last) {
+                        tree.delete_nodes();
+                        tree.MPI_receive_tree();
+                    } else {
+                        MPI_reassign_states(tree, position_wise_mutations, start_idx);
+                    }
+                    is_last=optimization_radius<0;
+                    if (is_last) {
+                        optimization_radius=-optimization_radius;
+                    }
+                    //tree.delete_nodes();
+                    //tree.MPI_receive_tree();
+                    adjust_all(tree);
+                    use_bound=true;
+                    fprintf(stderr, "follower start optimizing\n");
+                    optimize_tree_worker_thread(tree, optimization_radius, false, true);
+                } while (is_last);
             }
             int stop;
             MPI_Bcast(&stop, 1, MPI_INT, 0, MPI_COMM_WORLD);
@@ -503,6 +503,6 @@ int main(int argc, char **argv) {
             }
             tree.delete_nodes();
         }
-	    MPI_Finalize();
+        MPI_Finalize();
     }
 }

@@ -29,7 +29,9 @@ text_parser::text_parser(const std::string &path) {
     }
 }
 
-text_parser::~text_parser() { delete[] data; }
+text_parser::~text_parser() {
+    delete[] data;
+}
 
 void text_parser::next_line() {
     // Check end of file reached

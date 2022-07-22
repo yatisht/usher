@@ -130,7 +130,7 @@ struct no_serialize_condensed_node {
 };
 static void serialize_node(Mutation_Detailed::node &this_node,
                            const MAT::Node *root, const MAT::Tree &tree) {
-    this_node.set_node_id(root->node_id);    
+    this_node.set_node_id(root->node_id);
     this_node.set_changed(root->changed);
     this_node.mutable_mutation_positions()->Reserve(root->mutations.size());
     this_node.mutable_mutation_other_fields()->Reserve(root->mutations.size());

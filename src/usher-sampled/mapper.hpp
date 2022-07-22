@@ -21,7 +21,7 @@ place_main_tree(const std::vector<To_Place_Sample_Mutation> &mutations,
                 ,
                 Mutation_Set &sample_mutations
 #endif
-) ;
+               ) ;
 #ifndef NDEBUG
 void check_mutations(Mutation_Set ref,const Main_Tree_Target& target_to_check);
 void check_continuation(const MAT::Node* parent_node,Mutation_Set ref,const std::vector<To_Place_Sample_Mutation> &decendent_mutations);

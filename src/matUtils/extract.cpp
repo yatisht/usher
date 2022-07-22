@@ -104,7 +104,7 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
     ("break-ties,q", po::bool_switch(),
      "Only output one closest relative per sample (used only with --closest-relatives). If multiple closest relatives are equidistant, the lexicographically smallest sample ID is chosen.")
     ("within-distance", po::value<std::string>()->default_value(""),
-    "Write a tsv file of the relatives within --distance-thresold mutations of each selected sample to the indicated file.")
+     "Write a tsv file of the relatives within --distance-thresold mutations of each selected sample to the indicated file.")
     ("distance-threshold", po::value<size_t>()->default_value(0),
      "Specifies the distance threshold used in --within-distance.")
     ("dump-metadata,Q", po::value<std::string>()->default_value(""),

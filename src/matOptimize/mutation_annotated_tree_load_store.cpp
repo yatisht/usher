@@ -42,9 +42,9 @@ static void print_node(
     } else if(print_internal||n->is_leaf()) {
         auto iter=node_name_map.find(n->node_id);
         if (iter==node_name_map.end()) {
-            ss << n->node_id;        
-        }else {
-            ss << iter->second;        
+            ss << n->node_id;
+        } else {
+            ss << iter->second;
         }
     }
     float branch_length=retain_original_branch_len?n->branch_length:n->mutations.size();
@@ -58,8 +58,8 @@ static void print_node(
 // internal node ids and branch lengths are printed. If last boolean argument is
 // set, branch lengths from input tree are retained, otherwise, branch length
 // for a branch is equal to the number of mutations annotated on that branch
-void Mutation_Annotated_Tree::Tree::write_newick_string (std::iostream::basic_ostream& ss, Mutation_Annotated_Tree::Node* node, 
-    bool print_internal, bool print_branch_len, bool retain_original_branch_len, bool uncondense_leaves) const {
+void Mutation_Annotated_Tree::Tree::write_newick_string (std::iostream::basic_ostream& ss, Mutation_Annotated_Tree::Node* node,
+        bool print_internal, bool print_branch_len, bool retain_original_branch_len, bool uncondense_leaves) const {
     TIMEIT();
 
     struct stack_content {
@@ -78,8 +78,8 @@ void Mutation_Annotated_Tree::Tree::write_newick_string (std::iostream::basic_os
         if(after_last) {
             ss<<')';
             print_node(ss,stack_top.this_node, print_branch_len,
-                retain_original_branch_len,  uncondense_leaves, 
-                condensed_nodes,print_internal,node_names);
+                       retain_original_branch_len,  uncondense_leaves,
+                       condensed_nodes,print_internal,node_names);
             node_stack.pop();
             continue;
         }
@@ -96,8 +96,8 @@ void Mutation_Annotated_Tree::Tree::write_newick_string (std::iostream::basic_os
             continue;
         } else {
             print_node(ss,stack_top.this_node, print_branch_len,
-                retain_original_branch_len,  uncondense_leaves, condensed_nodes
-                ,print_internal,node_names);
+                       retain_original_branch_len,  uncondense_leaves, condensed_nodes
+                       ,print_internal,node_names);
             node_stack.pop();
             continue;
         }
@@ -106,14 +106,14 @@ void Mutation_Annotated_Tree::Tree::write_newick_string (std::iostream::basic_os
 }
 
 std::string Mutation_Annotated_Tree::Tree::get_newick_string ( Mutation_Annotated_Tree::Node* node,
-     bool print_internal, bool print_branch_len, bool retain_original_branch_len, bool uncondense_leaves) const {
+        bool print_internal, bool print_branch_len, bool retain_original_branch_len, bool uncondense_leaves) const {
     std::stringstream newick_ss;
     write_newick_string(newick_ss,node, print_internal, print_branch_len, retain_original_branch_len, uncondense_leaves);
     return newick_ss.str();
 }
 
 std::string Mutation_Annotated_Tree::Tree::get_newick_string (bool print_internal, bool print_branch_len,
-     bool retain_original_branch_len, bool uncondense_leaves) const {
+        bool retain_original_branch_len, bool uncondense_leaves) const {
     return get_newick_string( root, print_internal, print_branch_len, retain_original_branch_len, uncondense_leaves);
 }
 
@@ -285,7 +285,7 @@ bool Mutation_Annotated_Tree::load_mutation_annotated_tree (std::string filename
     } else {
         instream.push(inpfile);
     }
-    if(!data.ParseFromIstream(&instream)){
+    if(!data.ParseFromIstream(&instream)) {
         fprintf(stderr, "ERROR: Failed to parse: %s!\n", filename.c_str());
         return false;
     }

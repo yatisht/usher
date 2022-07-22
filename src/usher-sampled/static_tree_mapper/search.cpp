@@ -18,32 +18,32 @@
 #include "src/usher-sampled/place_sample.hpp"
 #define INDEX_END_POSITION INT_MAX
 namespace MAT = Mutation_Annotated_Tree;
-union fixed_tree_search_mutation{
-    struct{
+union fixed_tree_search_mutation {
+    struct {
         int position;
         uint8_t chrom;
         uint8_t mut_nuc;
-        union{
-        uint16_t range;
-        uint8_t par_nuc;
+        union {
+            uint16_t range;
+            uint8_t par_nuc;
         };
         int index_tree_idx;
     };
     std::array<int, 3> index_tree_idx_array;
-    int get_end_range() const{
+    int get_end_range() const {
         if (mut_nuc==0xf) {
             return position+range;
-        }else {
+        } else {
             return position;
         }
     }
 };
-int update_idx(int& idx, int dfs_idx,int dfs_end_idx, const std::vector<index_ele>& dfs_elem){
+int update_idx(int& idx, int dfs_idx,int dfs_end_idx, const std::vector<index_ele>& dfs_elem) {
     if (idx==INDEX_END_POSITION) {
         return INDEX_END_POSITION;
     }
     //int seek_distance=0;
-    for (; dfs_elem[idx].dfs_idx_end<dfs_idx;idx++) {
+    for (; dfs_elem[idx].dfs_idx_end<dfs_idx; idx++) {
         //seek_distance++;
     }
     /*if (seek_distance>100) {
@@ -59,22 +59,22 @@ int update_idx(int& idx, int dfs_idx,int dfs_end_idx, const std::vector<index_el
         }*/
         if (dfs_elem[idx].children_idx==-1) {
             return INDEX_END_POSITION;
-        }else {
+        } else {
             int ignored=dfs_elem[idx].children_idx;
             return update_idx(ignored, dfs_idx,dfs_end_idx,dfs_elem);
         }
     }
     return idx;
 }
-static bool check_more_bit_set(int in){
+static bool check_more_bit_set(int in) {
     return in&(in-1);
 }
-struct Output_No_Lock{
+struct Output_No_Lock {
     std::vector<Main_Tree_Target>& targets;
     int best_par_score;
 };
 void register_target(Main_Tree_Target &target, int this_score,Output_No_Lock &output
-    ,int dfs_idx,const std::vector<MAT::Node*>& dfs_ordered_nodes) {
+                     ,int dfs_idx,const std::vector<MAT::Node*>& dfs_ordered_nodes) {
     if ((dfs_idx!=0)&&target.shared_mutations.empty()) {
         return;
     }
@@ -93,29 +93,29 @@ add_existing_mut(std::vector<fixed_tree_search_mutation>::iterator &iter,
                  std::vector<fixed_tree_search_mutation> &output,
                  size_t dfs_idx, size_t dfs_end_idx, const Traversal_Info &in,
                  uint8_t par_nuc,Main_Tree_Target& sibling_out ) {
-    
+
     if (iter->mut_nuc==0xf) {
         output.push_back(*iter);
         output.back().par_nuc=par_nuc;
         To_Place_Sample_Mutation mut(iter->position,iter->chrom,iter->mut_nuc);
         mut.range=iter->range;
-        sibling_out.sample_mutations.push_back(mut);    
+        sibling_out.sample_mutations.push_back(mut);
         iter++;
         return 0;
     }
     To_Place_Sample_Mutation mut(iter->position,iter->chrom,iter->mut_nuc,(iter->mut_nuc&par_nuc)?par_nuc:iter->par_nuc);
-    sibling_out.sample_mutations.push_back(mut);    
+    sibling_out.sample_mutations.push_back(mut);
     if (check_more_bit_set(iter->mut_nuc)) {
         bool not_found=!(iter->mut_nuc&par_nuc);
         output.push_back(*iter);
         auto position=output.back().position;
         output.back().par_nuc=par_nuc;
         if (iter->index_tree_idx!=INDEX_END_POSITION) {
-                output.back().index_tree_idx =
-                    update_idx(iter->index_tree_idx, dfs_idx, dfs_end_idx,
-                       in.indexes[position][0]);
-                not_found &= (output.back().index_tree_idx == INDEX_END_POSITION);
-        }else {
+            output.back().index_tree_idx =
+                update_idx(iter->index_tree_idx, dfs_idx, dfs_end_idx,
+                           in.indexes[position][0]);
+            not_found &= (output.back().index_tree_idx == INDEX_END_POSITION);
+        } else {
             output.back().index_tree_idx =INDEX_END_POSITION;
         }
         iter++;
@@ -124,15 +124,15 @@ add_existing_mut(std::vector<fixed_tree_search_mutation>::iterator &iter,
             if (iter->index_tree_idx_array[nuc_idx-1]!=INDEX_END_POSITION) {
                 output.back().index_tree_idx_array[nuc_idx-1] =
                     update_idx(iter->index_tree_idx_array[nuc_idx-1], dfs_idx, dfs_end_idx,
-                       in.indexes[position][nuc_idx]);
+                               in.indexes[position][nuc_idx]);
                 not_found &= (output.back().index_tree_idx_array[nuc_idx-1] == INDEX_END_POSITION);
-            }else {
+            } else {
                 output.back().index_tree_idx_array[nuc_idx-1] =INDEX_END_POSITION;
             }
         }
         iter++;
         return not_found?1:0;
-    }else {
+    } else {
         output.push_back(*iter);
         output.back().par_nuc=par_nuc;
         output.back().index_tree_idx=update_idx(iter->index_tree_idx, dfs_idx, dfs_end_idx, in.indexes[iter->position][one_hot_to_two_bit(iter->mut_nuc)]);
@@ -141,13 +141,13 @@ add_existing_mut(std::vector<fixed_tree_search_mutation>::iterator &iter,
                 &&(output.back().index_tree_idx==INDEX_END_POSITION))?1:0;
     }
 }
-static void ins_mut(const MAT::Mutations_Collection& to_insert,std::unordered_map<int, uint8_t>& avail){
+static void ins_mut(const MAT::Mutations_Collection& to_insert,std::unordered_map<int, uint8_t>& avail) {
     for (const auto& mut : to_insert) {
         avail.emplace(mut.get_position(),mut.get_mut_one_hot());
     }
 }
-static void compare(std::unordered_map<int, uint8_t> pos,const std::vector<To_Place_Sample_Mutation>& ref){
-        bool trap=false;
+static void compare(std::unordered_map<int, uint8_t> pos,const std::vector<To_Place_Sample_Mutation>& ref) {
+    bool trap=false;
     for (const auto& ref_nuc : ref) {
         if (ref_nuc.mut_nuc==0xf) {
             for (int idx=ref_nuc.position; idx<=ref_nuc.get_end_range(); idx++) {
@@ -155,18 +155,18 @@ static void compare(std::unordered_map<int, uint8_t> pos,const std::vector<To_Pl
                 if (iter==pos.end()||iter->second!=0xf) {
                     fprintf(stderr, "%d to N Not found\n",idx);
                     trap=true;
-                }else {
+                } else {
                     pos.erase(iter);
                 }
             }
-        }else {
+        } else {
             auto iter=pos.find(ref_nuc.position);
-                if (iter==pos.end()||iter->second!=ref_nuc.mut_nuc) {
-                    fprintf(stderr, "%d to %d Not found\n",ref_nuc.position,ref_nuc.mut_nuc);
-                    trap=true;
-                }else {
-                    pos.erase(iter);
-                }
+            if (iter==pos.end()||iter->second!=ref_nuc.mut_nuc) {
+                fprintf(stderr, "%d to %d Not found\n",ref_nuc.position,ref_nuc.mut_nuc);
+                trap=true;
+            } else {
+                pos.erase(iter);
+            }
         }
     }
     for (const auto& remaining : pos) {
@@ -179,7 +179,7 @@ static void compare(std::unordered_map<int, uint8_t> pos,const std::vector<To_Pl
         raise(SIGTRAP);
     }
 }
-static void check_output(const Main_Tree_Target& to_check,const std::vector<To_Place_Sample_Mutation>& ref){
+static void check_output(const Main_Tree_Target& to_check,const std::vector<To_Place_Sample_Mutation>& ref) {
     std::unordered_map<int, uint8_t> pos;
     pos.reserve(ref.size());
     for (const auto& mut : to_check.sample_mutations) {
@@ -195,7 +195,7 @@ static void check_output(const Main_Tree_Target& to_check,const std::vector<To_P
             for (int idx=mut.position; idx<=end_range; idx++) {
                 pos.emplace(idx,0xf);
             }
-        }else {
+        } else {
             pos.emplace(mut.position,mut.mut_nuc);
         }
     }
@@ -207,16 +207,16 @@ static void check_output(const Main_Tree_Target& to_check,const std::vector<To_P
     }
     compare(pos, ref);
 }
-static void check_descendant(const std::vector<fixed_tree_search_mutation>& to_check,const std::vector<To_Place_Sample_Mutation>& ref,const MAT::Node* node){
-        std::unordered_map<int, uint8_t> pos;
+static void check_descendant(const std::vector<fixed_tree_search_mutation>& to_check,const std::vector<To_Place_Sample_Mutation>& ref,const MAT::Node* node) {
+    std::unordered_map<int, uint8_t> pos;
     pos.reserve(ref.size());
-    for (size_t idx=0;idx<to_check.size();idx++) {
+    for (size_t idx=0; idx<to_check.size(); idx++) {
         const auto& mut=to_check[idx];
         if (mut.mut_nuc==0xf) {
             for (int idx=mut.position; idx<=mut.get_end_range(); idx++) {
                 pos.emplace(idx,0xf);
             }
-        }else {
+        } else {
             pos.emplace(mut.position,mut.mut_nuc);
             if (check_more_bit_set(mut.mut_nuc)) {
                 idx++;
@@ -230,17 +230,17 @@ static void check_descendant(const std::vector<fixed_tree_search_mutation>& to_c
     compare(pos, ref);
 }
 static int merge_mutations(std::vector<fixed_tree_search_mutation>& parent,const MAT::Mutation* node_mut, size_t node_mut_count,
-    std::vector<fixed_tree_search_mutation>& descendant_output,
-    int dfs_idx, int dfs_end_idx,const Traversal_Info& in,Output_No_Lock& to_out
-    ,const std::vector<MAT::Node*>& dfs_ordered_nodes,int last_lower_bound
-){
+                           std::vector<fixed_tree_search_mutation>& descendant_output,
+                           int dfs_idx, int dfs_end_idx,const Traversal_Info& in,Output_No_Lock& to_out
+                           ,const std::vector<MAT::Node*>& dfs_ordered_nodes,int last_lower_bound
+                          ) {
     Main_Tree_Target sibling_out;
     descendant_output.reserve(parent.size()+node_mut_count);
     sibling_out.sample_mutations.reserve(parent.size());
     sibling_out.splited_mutations.reserve(node_mut_count);
     sibling_out.shared_mutations.reserve(node_mut_count);
     int lower_bound=0;
-    int parsimony_score=0; 
+    int parsimony_score=0;
     auto iter=parent.begin();
     auto end=parent.end();
     for (size_t idx=0; idx<node_mut_count; idx++) {
@@ -270,7 +270,7 @@ static int merge_mutations(std::vector<fixed_tree_search_mutation>& parent,const
                 }*/
                 iter++;
                 continue;
-            }else {
+            } else {
                 if (iter->mut_nuc&this_mut.get_mut_one_hot()) {
                     sibling_out.shared_mutations.push_back(this_mut);
                     /*auto coinciding_two_bit=one_hot_to_two_bit(iter->mut_nuc&this_mut.get_mut_one_hot());
@@ -284,15 +284,15 @@ static int merge_mutations(std::vector<fixed_tree_search_mutation>& parent,const
                         fprintf(stderr, "pos %d bound, idx %zu, co2bit %d \n",iter->position,node_mut+idx,coinciding_two_bit);
                         raise(SIGTRAP);
                     }*/
-                }else {
+                } else {
                     if (!(iter->par_nuc&iter->mut_nuc)) {
-                        parsimony_score++;                
+                        parsimony_score++;
                     }
                     sibling_out.splited_mutations.push_back(this_mut);
                 }
                 lower_bound+=add_existing_mut(iter, descendant_output, dfs_idx, dfs_end_idx, in, this_mut.get_mut_one_hot(),sibling_out);
             }
-        }else {
+        } else {
             sibling_out.splited_mutations.push_back(this_mut);
             fixed_tree_search_mutation mut;
             mut.position=this_mut.get_position();
@@ -301,9 +301,9 @@ static int merge_mutations(std::vector<fixed_tree_search_mutation>& parent,const
             mut.mut_nuc=this_mut.get_par_one_hot();
             if (this_mut.get_descendant_mut()&this_mut.get_par_one_hot()) {
                 int temp=0;
-                mut.index_tree_idx=update_idx(temp, dfs_idx, dfs_end_idx, 
-                    in.indexes[this_mut.get_position()][one_hot_to_two_bit(this_mut.get_par_one_hot())]);
-            }else {
+                mut.index_tree_idx=update_idx(temp, dfs_idx, dfs_end_idx,
+                                              in.indexes[this_mut.get_position()][one_hot_to_two_bit(this_mut.get_par_one_hot())]);
+            } else {
                 mut.index_tree_idx=INDEX_END_POSITION;
                 lower_bound++;
             }
@@ -325,9 +325,9 @@ static int merge_mutations(std::vector<fixed_tree_search_mutation>& parent,const
     return lower_bound;
 }
 move_type* place_sample_fixed_idx(const Traversal_Info &in,
-                  Sample_Muts* to_search,
-                  const std::vector<MAT::Node*>& dfs_ordered_nodes) {
-    struct stack_content{
+                                  Sample_Muts* to_search,
+                                  const std::vector<MAT::Node*>& dfs_ordered_nodes) {
+    struct stack_content {
         std::vector<fixed_tree_search_mutation> last_mut;
         int dfs_end_idx;
         int lower_bound;
@@ -344,25 +344,25 @@ move_type* place_sample_fixed_idx(const Traversal_Info &in,
     stack.back().dfs_end_idx=dfs_end_idx;
     //debug
     stack.back().lower_bound=0;
-    
+
     for (const auto& mut : mutations) {
         fixed_tree_search_mutation mut_out;
         mut_out.chrom=mut.chrom_idx;
         mut_out.position=mut.position;
-        mut_out.mut_nuc=mut.mut_nuc;    
+        mut_out.mut_nuc=mut.mut_nuc;
         if (mut.mut_nuc==0xf) {
             mut_out.range=mut.range;
             base_stack.push_back(mut_out);
-        }else if (check_more_bit_set(mut.mut_nuc)) {
+        } else if (check_more_bit_set(mut.mut_nuc)) {
             mut_out.par_nuc=mut.par_nuc;
             auto position=mut.position;
             bool not_found=!(mut.par_nuc&mut.mut_nuc);
             if (1 & mut.mut_nuc) {
                 int idx = 0;
                 mut_out.index_tree_idx =
-                update_idx(idx, 0, dfs_end_idx, in.indexes[position][0]);
+                    update_idx(idx, 0, dfs_end_idx, in.indexes[position][0]);
                 not_found&=(mut_out.index_tree_idx==INDEX_END_POSITION);
-            }else {
+            } else {
                 mut_out.index_tree_idx=INDEX_END_POSITION;
             }
             base_stack.push_back(mut_out);
@@ -371,7 +371,7 @@ move_type* place_sample_fixed_idx(const Traversal_Info &in,
                 if ((1 << nuc_idx) & mut.mut_nuc) {
                     int idx = 0;
                     next.index_tree_idx_array[nuc_idx - 1] = update_idx(
-                        idx, 0, dfs_end_idx, in.indexes[position][nuc_idx]);
+                                idx, 0, dfs_end_idx, in.indexes[position][nuc_idx]);
                     not_found&=(next.index_tree_idx_array[nuc_idx - 1]==INDEX_END_POSITION);
                 } else {
                     next.index_tree_idx_array[nuc_idx - 1] = INDEX_END_POSITION;
@@ -381,10 +381,10 @@ move_type* place_sample_fixed_idx(const Traversal_Info &in,
                 stack.back().lower_bound++;
             }
             base_stack.push_back(next);
-        }else {
+        } else {
             mut_out.par_nuc=mut.par_nuc;
             auto nuc_two_bit=one_hot_to_two_bit(mut.mut_nuc);
-             int idx=0;
+            int idx=0;
             mut_out.index_tree_idx=update_idx(idx, 0, dfs_end_idx,in.indexes[mut.position][nuc_two_bit]);
             if (mut_out.index_tree_idx==INDEX_END_POSITION) {
                 stack.back().lower_bound++;
@@ -412,11 +412,11 @@ move_type* place_sample_fixed_idx(const Traversal_Info &in,
 
 
         auto lower_bound=merge_mutations(stack[stack.size()-2].last_mut, curr_node.mutation_start,
-            curr_node.mutation_size, stack.back().last_mut, cur_idx, 
-            curr_node.dfs_end_idx, in, output,dfs_ordered_nodes,stack[stack.size()-2].lower_bound);
+                                         curr_node.mutation_size, stack.back().last_mut, cur_idx,
+                                         curr_node.dfs_end_idx, in, output,dfs_ordered_nodes,stack[stack.size()-2].lower_bound);
         stack.back().lower_bound=lower_bound;
         if (lower_bound>output.best_par_score) {
-            
+
             /*auto ast=dfs_ordered_nodes[cur_idx];
             auto next_par=dfs_ordered_nodes[curr_node.dfs_end_idx+1]->parent;
             bool found=false;
@@ -431,9 +431,9 @@ move_type* place_sample_fixed_idx(const Traversal_Info &in,
                 raise(SIGTRAP);
             }*/
             cur_idx=curr_node.dfs_end_idx;
-            
+
         }
-        
+
     }
     /*for(const auto& result:std::get<0>(*res)){
         check_output(result, to_search->muts);

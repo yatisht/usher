@@ -6,7 +6,7 @@
 #include <tbb/parallel_for.h>
 #include <vector>
 static void place_sample(MAT::Tree &main_tree, const Sample_Muts &samp,
-               Main_Tree_Target &target) {
+                         Main_Tree_Target &target) {
     MAT::Mutations_Collection sample_mutations;
     discretize_mutations(target.sample_mutations, target.shared_mutations,
                          target.parent_node, sample_mutations);
@@ -26,16 +26,16 @@ void place_sample_multiple_tree(
     fprintf(stderr, "Max tree size %d\n",max_trees);
     for (const auto &samp : sample_to_place) {
         std::vector<std::tuple<std::vector<Main_Tree_Target>, int>>
-            placement_result(trees.size());
+                placement_result(trees.size());
         tbb::parallel_for(tbb::blocked_range<size_t>(0, trees.size()),
                           [&samp, &trees, &placement_result](
-                              tbb::blocked_range<size_t> range) {
-                              for (size_t idx = range.begin();
-                                   idx < range.end(); idx++) {
-                                  placement_result[idx] =
-                                      place_main_tree(samp.muts, trees[idx]);
-                              }
-                          });
+        tbb::blocked_range<size_t> range) {
+            for (size_t idx = range.begin();
+                    idx < range.end(); idx++) {
+                placement_result[idx] =
+                    place_main_tree(samp.muts, trees[idx]);
+            }
+        });
         int min_par_score = INT_MAX;
         const auto& samp_name= trees[0].get_node_name(samp.sample_idx);
         for (size_t idx = 0; idx < placement_result.size(); idx++) {
@@ -57,21 +57,21 @@ void place_sample_multiple_tree(
         for (size_t idx = 0; idx < placement_result.size(); idx++) {
             auto to_place = std::get<0>(placement_result[idx]);
             if (to_place.size()>1) {
-            if ((size_t)max_trees<trees.size()+to_place.size()) {
-                fprintf(
-                    stderr,
-                    "%zu parsimony-optimal placements found but total trees "
-                    "has already exceed the max possible value (%i)!\n",
-                    to_place.size(), max_trees);
-            }else {
-                fprintf(stderr,
-                        "Creating %zu additional tree(s) for %zu "
-                        "parsimony-optimal placements.\n",
-                        to_place.size() - 1, to_place.size());
-            }
+                if ((size_t)max_trees<trees.size()+to_place.size()) {
+                    fprintf(
+                        stderr,
+                        "%zu parsimony-optimal placements found but total trees "
+                        "has already exceed the max possible value (%i)!\n",
+                        to_place.size(), max_trees);
+                } else {
+                    fprintf(stderr,
+                            "Creating %zu additional tree(s) for %zu "
+                            "parsimony-optimal placements.\n",
+                            to_place.size() - 1, to_place.size());
+                }
             }
             for (size_t place_idx = 1; place_idx < to_place.size();
-                 place_idx++) {
+                    place_idx++) {
                 if (trees.size() >= (size_t)max_trees) {
                     break;
                 }

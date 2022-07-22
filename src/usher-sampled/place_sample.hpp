@@ -8,15 +8,15 @@
 #define PLACEMENT_WORK_RES_TAG 13
 typedef std::tuple<std::vector<Main_Tree_Target>, Sample_Muts*,bool> move_type;
 #pragma once
-struct update_main_tree_output{
+struct update_main_tree_output {
     MAT::Node* splitted_node;
     MAT::Node* deleted_nodes;
 };
 update_main_tree_output update_main_tree(const MAT::Mutations_Collection& sample_mutations,
-                                    const MAT::Mutations_Collection& splitted_mutations,
-                                    const MAT::Mutations_Collection& shared_mutations,
-                                    MAT::Node* target_node,
-                                    size_t node_idx, MAT::Tree& tree,size_t split_node_idx,bool keep_old_node) ;
+        const MAT::Mutations_Collection& splitted_mutations,
+        const MAT::Mutations_Collection& shared_mutations,
+        MAT::Node* target_node,
+        size_t node_idx, MAT::Tree& tree,size_t split_node_idx,bool keep_old_node) ;
 bool check_overriden(MAT::Tree& tree,move_type* to_check);
 move_type* find_place(MAT::Tree& tree,Sample_Muts* in);
 template <typename pos_field_type, typename other_field_type, typename mut_type>

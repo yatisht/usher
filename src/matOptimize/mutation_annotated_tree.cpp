@@ -43,7 +43,7 @@ std::vector<Mutation_Annotated_Tree::Node*> Mutation_Annotated_Tree::Tree::bread
             return traversal;
         }
         node=root;
-    }else {
+    } else {
         node=get_node(nid);
     }
     size_t idx=0;
@@ -114,12 +114,12 @@ size_t Mutation_Annotated_Tree::Tree::get_max_level() {
 }
 void Mutation_Annotated_Tree::Tree::check_leaves() {
     fprintf(stderr,"===================Node ID so far %zu ===================",node_idx);
-    for (const auto node: get_leaves()){
-	auto iter=node_names.find(node->node_id);
-	if(iter==node_names.end()){
-		fprintf(stderr,"Node ID %zu name not found",node->node_id);
-		raise(SIGTRAP);
-	}
+    for (const auto node: get_leaves()) {
+        auto iter=node_names.find(node->node_id);
+        if(iter==node_names.end()) {
+            fprintf(stderr,"Node ID %zu name not found",node->node_id);
+            raise(SIGTRAP);
+        }
     }
 }
 void Mutation_Annotated_Tree::Tree::uncondense_leaves() {
@@ -172,7 +172,7 @@ std::vector<Node*> Mutation_Annotated_Tree::Tree::get_leaves(const Node* root) c
     get_leaves_helper(root, out);
     return out;
 }
-Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::Tree::copy_tree(){
+Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::Tree::copy_tree() {
     Mutation_Annotated_Tree::Tree out;
     out.node_names=node_names;
     out.node_name_to_idx_map=node_name_to_idx_map;
@@ -279,7 +279,7 @@ void Mutation_Annotated_Tree::get_sample_mutation_paths(
 }
 static bool is_anncestor_after_dfs(const Node *ancestral, const Node *to_test) {
     if (to_test->dfs_index > ancestral->dfs_index &&
-        to_test->dfs_index <= ancestral->dfs_end_index) {
+            to_test->dfs_index <= ancestral->dfs_end_index) {
         return true;
     }
     return false;
@@ -296,7 +296,7 @@ static std::vector<const Node *> get_ancestor(const Node *node, bool include_sel
     }
     return output;
 }
-static Node* get_subtree_helper(const std::unordered_set<size_t>& nodes_to_place,const Node* main_tree_node,Mutation_Annotated_Tree::Tree& new_tree,int num_annotations){
+static Node* get_subtree_helper(const std::unordered_set<size_t>& nodes_to_place,const Node* main_tree_node,Mutation_Annotated_Tree::Tree& new_tree,int num_annotations) {
     std::vector<Node*> child_node;
     for (const Node* child : main_tree_node->children) {
         auto ret=get_subtree_helper(nodes_to_place, child, new_tree,num_annotations);
@@ -317,7 +317,7 @@ static Node* get_subtree_helper(const std::unordered_set<size_t>& nodes_to_place
     }
     if (child_node.empty()) {
         return nullptr;
-    }else {
+    } else {
         return child_node[0];
     }
 };
@@ -340,8 +340,8 @@ Mutation_Annotated_Tree::get_subtree(const Mutation_Annotated_Tree::Tree &tree,
     }
     subtree.root=get_subtree_helper(nodes_to_place, tree.root, subtree, num_annotations);
     auto new_tree_dfs=subtree.depth_first_expansion();
-    tbb::parallel_for(tbb::blocked_range<size_t>(0,new_tree_dfs.size()),[&new_tree_dfs,&tree,num_annotations](tbb::blocked_range<size_t> range){
-        for(size_t idx=range.begin();idx<range.end();idx++){
+    tbb::parallel_for(tbb::blocked_range<size_t>(0,new_tree_dfs.size()),[&new_tree_dfs,&tree,num_annotations](tbb::blocked_range<size_t> range) {
+        for(size_t idx=range.begin(); idx<range.end(); idx++) {
             auto new_tree_node=new_tree_dfs[idx];
             const Node* corresponding_main_tree_node=tree.get_node(new_tree_node->node_id);
             if (corresponding_main_tree_node==tree.root) {
@@ -398,14 +398,14 @@ void Mutation_Annotated_Tree::Tree::rotate_for_display(bool reverse) {
     for (auto n : dfs) {
         if (reverse) {
             tbb::parallel_sort(n->children.begin(), n->children.end(),
-                               [&num_desc](Node *n1, Node *n2) {
-                                   return num_desc[n1] < num_desc[n2];
-                               });
+            [&num_desc](Node *n1, Node *n2) {
+                return num_desc[n1] < num_desc[n2];
+            });
         } else {
             tbb::parallel_sort(n->children.begin(), n->children.end(),
-                               [&num_desc](Node *n1, Node *n2) {
-                                   return num_desc[n1] > num_desc[n2];
-                               });
+            [&num_desc](Node *n1, Node *n2) {
+                return num_desc[n1] > num_desc[n2];
+            });
         }
     }
 }

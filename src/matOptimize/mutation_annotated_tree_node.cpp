@@ -64,7 +64,7 @@ int Mutation_Annotated_Tree::Tree::get_node_id_c_str (const char* identifier) co
     auto iter=node_name_to_idx_map.find(identifier);
     if (iter==node_name_to_idx_map.end()) {
         return -1;
-    }else {
+    } else {
         return iter->second;
     }
 }
@@ -73,7 +73,7 @@ void Mutation_Annotated_Tree::Tree::rename_node(size_t old_nid, std::string new_
         auto iter=node_names.find(old_nid);
         if (iter!=node_names.end()) {
             node_name_to_idx_map.erase(iter->second);
-            node_names.erase(iter);            
+            node_names.erase(iter);
         }
         return;
     }
@@ -117,7 +117,7 @@ void Mutation_Annotated_Tree::Node::populate_ignored_range() {
         ignore.emplace_back(INT_MAX,INT_MAX);
     }
 }
-size_t Mutation_Annotated_Tree::Node::get_num_leaves() const{
+size_t Mutation_Annotated_Tree::Node::get_num_leaves() const {
     if (children.empty()) {
         return 1;
     }
