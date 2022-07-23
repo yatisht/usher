@@ -1,8 +1,8 @@
 #include "isa-l/igzip_lib.h"
-#include "oneTBB-2019_U9/include/tbb/blocked_range.h"
-#include "oneTBB-2019_U9/include/tbb/enumerable_thread_specific.h"
-#include "oneTBB-2019_U9/include/tbb/flow_graph.h"
-#include "oneTBB-2019_U9/include/tbb/parallel_for.h"
+#include "tbb/blocked_range.h"
+#include "tbb/enumerable_thread_specific.h"
+#include "tbb/flow_graph.h"
+#include "tbb/parallel_for.h"
 #include "src/matOptimize/mutation_annotated_tree.hpp"
 #include "tbb/concurrent_queue.h"
 #include "tbb/flow_graph.h"
@@ -23,6 +23,7 @@
 #include <mutex>
 #include <signal.h>
 #include <string>
+#include <unistd.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <thread>
