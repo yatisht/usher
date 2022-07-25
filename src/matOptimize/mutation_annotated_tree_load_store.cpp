@@ -1,11 +1,14 @@
 #include "mutation_annotated_tree.hpp"
 #include <boost/iostreams/filtering_stream.hpp>
 #include <fstream>
+#include <csignal>
+#include <cstddef>
 #include <cstdio>
 #include <fcntl.h>
 #include <iostream>
 #include <boost/iostreams/filter/gzip.hpp>
 #include "parsimony.pb.h"
+#include <istream>
 #include <stack>
 #include <fstream>
 #include <sstream>
@@ -14,22 +17,21 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
-#include <google/protobuf/io/coded_stream.h>
 #include <string>
-#include <google/protobuf/io/zero_copy_stream_impl.h>
+#include <unordered_map>
 std::vector<int8_t> Mutation_Annotated_Tree::get_nuc_vec_from_id (int8_t nuc_id) {
     return get_nuc_vec(get_nuc(nuc_id));
 }
 
 static void print_node(
-    std::stringstream &ss, Mutation_Annotated_Tree::Node *n,
+    std::iostream::basic_ostream &ss, Mutation_Annotated_Tree::Node *n,
     bool print_branch_len, bool retain_original_branch_len,
     bool uncondense_leaves,
-    const tbb::concurrent_unordered_map<std::string, std::vector<std::string>>
-    &condensed_nodes,bool print_internal) {
+    const tbb::concurrent_unordered_map<size_t, std::vector<std::string>>
+    &condensed_nodes,bool print_internal,const std::unordered_map<size_t, std::string>& node_name_map) {
     if (n->is_leaf() && uncondense_leaves &&
-            (condensed_nodes.find(n->identifier) != condensed_nodes.end())) {
-        auto cn = condensed_nodes.at(n->identifier);
+            (condensed_nodes.find(n->node_id) != condensed_nodes.end())) {
+        auto cn = condensed_nodes.at(n->node_id);
         auto cn_size = cn.size();
         for (size_t idx = 0; idx < cn_size; idx++) {
             ss << cn[idx];
@@ -38,7 +40,12 @@ static void print_node(
             }
         }
     } else if(print_internal||n->is_leaf()) {
-        ss << n->identifier;
+        auto iter=node_name_map.find(n->node_id);
+        if (iter==node_name_map.end()) {
+            ss << n->node_id;
+        } else {
+            ss << iter->second;
+        }
     }
     float branch_length=retain_original_branch_len?n->branch_length:n->mutations.size();
     if ((print_branch_len) && (branch_length >= 0)) {
@@ -51,7 +58,8 @@ static void print_node(
 // internal node ids and branch lengths are printed. If last boolean argument is
 // set, branch lengths from input tree are retained, otherwise, branch length
 // for a branch is equal to the number of mutations annotated on that branch
-void Mutation_Annotated_Tree::write_newick_string (std::stringstream& ss, const Mutation_Annotated_Tree::Tree& T, Mutation_Annotated_Tree::Node* node, bool print_internal, bool print_branch_len, bool retain_original_branch_len, bool uncondense_leaves) {
+void Mutation_Annotated_Tree::Tree::write_newick_string (std::iostream::basic_ostream& ss, Mutation_Annotated_Tree::Node* node,
+        bool print_internal, bool print_branch_len, bool retain_original_branch_len, bool uncondense_leaves) const {
     TIMEIT();
 
     struct stack_content {
@@ -59,7 +67,7 @@ void Mutation_Annotated_Tree::write_newick_string (std::stringstream& ss, const 
         size_t child_idx;
     };
     std::stack<stack_content> node_stack;
-    node_stack.push({T.root,0});
+    node_stack.push({root,0});
 
     while (!node_stack.empty()) {
         //puts(ss.str().c_str());
@@ -69,7 +77,9 @@ void Mutation_Annotated_Tree::write_newick_string (std::stringstream& ss, const 
         bool after_last=have_children&&child_idx==stack_top.this_node->children.size();
         if(after_last) {
             ss<<')';
-            print_node(ss,stack_top.this_node, print_branch_len,  retain_original_branch_len,  uncondense_leaves, T.condensed_nodes,print_internal);
+            print_node(ss,stack_top.this_node, print_branch_len,
+                       retain_original_branch_len,  uncondense_leaves,
+                       condensed_nodes,print_internal,node_names);
             node_stack.pop();
             continue;
         }
@@ -85,7 +95,9 @@ void Mutation_Annotated_Tree::write_newick_string (std::stringstream& ss, const 
             }
             continue;
         } else {
-            print_node(ss,stack_top.this_node, print_branch_len,  retain_original_branch_len,  uncondense_leaves, T.condensed_nodes,print_internal);
+            print_node(ss,stack_top.this_node, print_branch_len,
+                       retain_original_branch_len,  uncondense_leaves, condensed_nodes
+                       ,print_internal,node_names);
             node_stack.pop();
             continue;
         }
@@ -93,14 +105,16 @@ void Mutation_Annotated_Tree::write_newick_string (std::stringstream& ss, const 
     ss<<';';
 }
 
-std::string Mutation_Annotated_Tree::get_newick_string (const Mutation_Annotated_Tree::Tree& T, Mutation_Annotated_Tree::Node* node, bool print_internal, bool print_branch_len, bool retain_original_branch_len, bool uncondense_leaves) {
+std::string Mutation_Annotated_Tree::Tree::get_newick_string ( Mutation_Annotated_Tree::Node* node,
+        bool print_internal, bool print_branch_len, bool retain_original_branch_len, bool uncondense_leaves) const {
     std::stringstream newick_ss;
-    write_newick_string(newick_ss, T, node, print_internal, print_branch_len, retain_original_branch_len, uncondense_leaves);
+    write_newick_string(newick_ss,node, print_internal, print_branch_len, retain_original_branch_len, uncondense_leaves);
     return newick_ss.str();
 }
 
-std::string Mutation_Annotated_Tree::get_newick_string (const Tree& T, bool print_internal, bool print_branch_len, bool retain_original_branch_len, bool uncondense_leaves) {
-    return get_newick_string(T, T.root, print_internal, print_branch_len, retain_original_branch_len, uncondense_leaves);
+std::string Mutation_Annotated_Tree::Tree::get_newick_string (bool print_internal, bool print_branch_len,
+        bool retain_original_branch_len, bool uncondense_leaves) const {
+    return get_newick_string( root, print_internal, print_branch_len, retain_original_branch_len, uncondense_leaves);
 }
 
 // Split string into words for a specific delimiter delim
@@ -136,88 +150,13 @@ void Mutation_Annotated_Tree::string_split (std::string s, std::vector<std::stri
     };
 }
 
-static void populate_node(const char*& in,const char* end, Mutation_Annotated_Tree::Node* this_node, Mutation_Annotated_Tree::Tree& T,bool use_internal_node_label) {
-    auto start_iter=in;
-    errno=0;
-    char *endptr;
-    float loaded=strtof(in,&endptr);
-    if(errno==0) {
-        if (*endptr==':'||*endptr==','||*endptr==')'||*endptr==';') {
-            assert(!this_node->is_leaf());
-            this_node->branch_length=loaded;
-            this_node->identifier=std::to_string(++T.curr_internal_node);
-            T.all_nodes.emplace(this_node->identifier,this_node);
-            in=endptr-1;
-            return;
-        }
-    }
-    while (in!=end&&*in!=':'&&*in!=','&&*in!=')') {
-        in++;
-    }
-    if (use_internal_node_label||this_node->is_leaf()) {
-        assert(end>start_iter);
-        this_node->identifier=std::string(start_iter,in-start_iter);
-    } else {
-        this_node->identifier=std::to_string(++T.curr_internal_node);
-    }
-    T.all_nodes.emplace(this_node->identifier,this_node);
-    if (*in==':') {
-        in++;
-    }
-    errno=0;
-    loaded=strtof(in,&endptr);
-    if(errno==0) {
-        this_node->branch_length=loaded;
-    }
-    in=endptr-1;
-
-}
-static void populate_node(Mutation_Annotated_Tree::Node* to_populate,const char*& start,Mutation_Annotated_Tree::Tree* tree) {
-    const char* name=start;
-    while (*start!=':') {
-        start++;
-    }
-    start++;
-    to_populate->identifier=std::string(name,start-1);
-    char* end;
-    to_populate->branch_length=strtod(start,&end);
-    start=end;
-    tree->all_nodes.emplace(to_populate->identifier,to_populate);
-}
-static void load_with_internal_label(const char* start,const char* end,Mutation_Annotated_Tree::Tree* tree) {
-    assert(*start=='(');
-    Mutation_Annotated_Tree::Node* curr_node=new Mutation_Annotated_Tree::Node();
-    tree->root=curr_node;
-    start++;
-    while (start!=end) {
-        if (*start=='(') {
-            Mutation_Annotated_Tree::Node* par_node=curr_node;
-            curr_node=new Mutation_Annotated_Tree::Node();
-            curr_node->parent=par_node;
-            par_node->children.push_back(curr_node);
-            start++;
-        } else if (*start==',') {
-            start++;
-        } else if (*start==';') {
-            start++;
-        } else if (*start==')') {
-            start++;
-            populate_node(curr_node,start,tree);
-            curr_node=curr_node->parent;
-        } else  {
-            Mutation_Annotated_Tree::Node* new_node=new Mutation_Annotated_Tree::Node();
-            new_node->parent=curr_node;
-            curr_node->children.push_back(new_node);
-            populate_node(new_node,start,tree);
-        }
-    }
-}
 void Mutation_Annotated_Tree::Tree::load_from_newick(const std::string& newick_string,bool use_internal_node_label) {
     std::vector<std::string> leaves;
     std::vector<size_t> num_open;
     std::vector<size_t> num_close;
     std::vector<std::queue<float>> branch_len (128);  // will be resized later if needed
     size_t level = 0;
+    node_idx=0;
 
     std::vector<std::string> s1;
     string_split(newick_string, ',', s1);
@@ -279,18 +218,21 @@ void Mutation_Annotated_Tree::Tree::load_from_newick(const std::string& newick_s
         auto no = num_open[i];
         auto nc = num_close[i];
         for (size_t j=0; j<no; j++) {
-            std::string nid = std::to_string(++curr_internal_node);
-            Node* new_node = NULL;
+            Node* new_node = create_node();
+            new_node->branch_length= branch_len[level].front();
             if (parent_stack.size() == 0) {
-                new_node = create_node(nid, branch_len[level].front());
+                //root
+                root=new_node;
             } else {
-                new_node = create_node(nid, parent_stack.top(), branch_len[level].front());
+                parent_stack.top()->add_child(new_node);
             }
             branch_len[level].pop();
             level++;
             parent_stack.push(new_node);
         }
-        create_node(leaf, parent_stack.top(), branch_len[level].front());
+        auto new_node=create_node(leaf);
+        new_node->branch_length= branch_len[level].front();
+        parent_stack.top()->add_child(new_node);
         branch_len[level].pop();
         for (size_t j=0; j<nc; j++) {
             parent_stack.pop();
@@ -323,19 +265,17 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::create_tree_from_newick (
     return create_tree_from_newick_string(newick_string);
 }
 
-Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_tree (std::string filename) {
+bool Mutation_Annotated_Tree::load_mutation_annotated_tree (std::string filename,Tree& tree) {
     TIMEIT();
-    Tree tree;
 
     Parsimony::data data;
-#define BIG_SIZE 2000000000l
     boost::iostreams::filtering_istream instream;
     std::ifstream inpfile(filename, std::ios::in | std::ios::binary);
+    if (!inpfile) {
+        fprintf(stderr, "ERROR: Could not load the mutation-annotated tree object from file: %s!\n", filename.c_str());
+        return false;
+    }
     if (filename.find(".gz\0") != std::string::npos) {
-        if (!inpfile) {
-            fprintf(stderr, "ERROR: Could not load the mutation-annotated tree object from file: %s!\n", filename.c_str());
-            exit(1);
-        }
         try {
             instream.push(boost::iostreams::gzip_decompressor());
             instream.push(inpfile);
@@ -345,10 +285,10 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
     } else {
         instream.push(inpfile);
     }
-    google::protobuf::io::IstreamInputStream stream(&instream);
-    google::protobuf::io::CodedInputStream input(&stream);
-//    input.SetTotalBytesLimit(BIG_SIZE, BIG_SIZE);
-    data.ParseFromCodedStream(&input);
+    if(!data.ParseFromIstream(&instream)) {
+        fprintf(stderr, "ERROR: Failed to parse: %s!\n", filename.c_str());
+        return false;
+    }
     //check if the pb has a metadata field
     bool hasmeta = (data.metadata_size()>0);
     if (!hasmeta) {
@@ -393,14 +333,15 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::load_mutation_annotated_t
     [&](tbb::blocked_range<size_t> r) {
         for (size_t idx = r.begin(); idx < r.end(); idx++) {
             auto cn = data.condensed_nodes(idx);
-            tree.condensed_nodes.emplace(std::pair<std::string, std::vector<std::string>>(cn.node_name(), std::vector<std::string>(cn.condensed_leaves_size())));
+            tree.condensed_nodes.insert(std::pair<size_t, std::vector<std::string>>(tree.get_node(cn.node_name())->node_id, std::vector<std::string>(cn.condensed_leaves_size())));
+            auto cn_idx=tree.node_name_to_node_idx(cn.node_name());
             for (int k = 0; k < cn.condensed_leaves_size(); k++) {
-                tree.condensed_nodes[cn.node_name()][k] = cn.condensed_leaves(k);
+                tree.condensed_nodes[cn_idx][k] = cn.condensed_leaves(k);
             }
         }
     }, ap);
 
-    return tree;
+    return true;
 }
 
 void Mutation_Annotated_Tree::save_mutation_annotated_tree (const Mutation_Annotated_Tree::Tree& tree, std::string filename) {
@@ -409,7 +350,7 @@ void Mutation_Annotated_Tree::save_mutation_annotated_tree (const Mutation_Annot
     auto dfs = tree.depth_first_expansion();
 
 
-    data.set_newick(get_newick_string(tree, true, true));
+    data.set_newick(tree.get_newick_string( true, true));
     for (size_t idx = 0; idx < dfs.size(); idx++) {
         auto meta = data.add_metadata();
         for (size_t k = 0; k < dfs[idx]->clade_annotations.size(); k++) {
@@ -423,7 +364,9 @@ void Mutation_Annotated_Tree::save_mutation_annotated_tree (const Mutation_Annot
             mut->set_ref_nuc(-1);
         }
         for (auto m: dfs[idx]->mutations) {
-
+            if (m.get_par_one_hot()==m.get_mut_one_hot()) {
+                continue;
+            }
             auto mut = mutation_list->add_mutation();
             mut->set_chromosome(m.get_chromosome());
             mut->set_position(m.get_position());
@@ -451,10 +394,20 @@ void Mutation_Annotated_Tree::save_mutation_annotated_tree (const Mutation_Annot
         }
     }
 
+    for (const auto& condensed :tree.condensed_nodes) {
+        auto name=tree.get_node_name(condensed.first);
+        if (name=="") {
+            fprintf(stderr, "Condensed node %zu not found \n",condensed.first);
+            raise(SIGTRAP);
+        }
+    }
     // Add condensed nodes
     for (auto cn: tree.condensed_nodes) {
         auto cn_ptr = data.add_condensed_nodes();
-        cn_ptr->set_node_name(cn.first);
+        auto node_name=tree.get_node_name(cn.first);
+        if (node_name=="") {
+        }
+        cn_ptr->set_node_name(node_name);
         for (auto lid: cn.second) {
             cn_ptr->add_condensed_leaves(lid);
         }

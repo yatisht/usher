@@ -5,7 +5,7 @@ USER root
 RUN apt-get update && apt-get install -yq --no-install-recommends \
     git wget \
     ca-certificates \
-    sudo python3
+    sudo python3 python3-pip
 WORKDIR /HOME/kentsource
 RUN wget http://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64/faSomeRecords
 RUN wget http://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64/faSize

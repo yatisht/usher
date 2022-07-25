@@ -90,7 +90,8 @@ static void insert_line(int position,std::vector<int8_t>& variants,int file_idx)
         for (size_t i=0; i<other.size(); i++) {
             if (!(other[i]&variants[i])) {
                 std::lock_guard<std::mutex> lock(print_lock);
-                printf("At %d , sample %s , %c in file %s, %c in file %s\n",position,samples[i].c_str(),MAT::get_nuc(other[i]),filenames[!file_idx].c_str(),MAT::get_nuc(variants[i]),filenames[file_idx].c_str());
+                fprintf(stderr,"At %d , sample %s , %c in file %s, %c in file %s\n",position,samples[i].c_str(),MAT::get_nuc(other[i]),filenames[!file_idx].c_str(),MAT::get_nuc(variants[i]),filenames[file_idx].c_str());
+                fprintf(stderr, "At %d , sample %s , %d in file %s, %d in file %s\n",position,samples[i].c_str(),other[i],filenames[!file_idx].c_str(),variants[i],filenames[file_idx].c_str());
             }
         }
     }
@@ -169,10 +170,12 @@ struct line_parser {
                     line_in++;
                 }
                 auto translated_idx=index_translate[field_idx-SAMPLE_START_IDX];
-                if (allele_idx>=(int)(allele_translated.size()+1)||allele_idx<0) {
-                    out[translated_idx]=0xf;
-                } else {
-                    out[translated_idx]=allele_translated[allele_idx];
+                if (translated_idx>=0) {
+                    if (allele_idx>=(int)(allele_translated.size()+1)||allele_idx<0) {
+                        out[translated_idx]=0xf;
+                    } else {
+                        out[translated_idx]=allele_translated[allele_idx];
+                    }
                 }
                 field_idx++;
                 line_in++;
@@ -239,6 +242,7 @@ static std::pair<size_t,long> map_index(gzFile* fd1,gzFile* fd2,std::vector<long
             index_map2.push_back(iter->second);
             idx_map.erase(iter);
         } else {
+            index_map2.push_back(-1);
             printf("sample %s missing in file 1\n",header2[i+line_parser::SAMPLE_START_IDX].c_str());
         }
     }

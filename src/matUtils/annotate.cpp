@@ -298,7 +298,7 @@ void parse_clade_names(const std::string& clade_filename,
             // specified the mutations we want to use for placement, or if the clade was
             // already assigned by a method with higher precedence.
             if (clade_mutations.find(clade) == clade_mutations.end() &&
-                clades_already_assigned.find(clade) == clades_already_assigned.end()) {
+                    clades_already_assigned.find(clade) == clades_already_assigned.end()) {
                 auto n = uncondensed_T.get_node(words[1]);
                 if (n != NULL) {
                     if (clade_map.find(clade) == clade_map.end()) {

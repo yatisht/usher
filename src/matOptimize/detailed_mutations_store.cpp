@@ -1,4 +1,5 @@
 #include "detailed_mutation_load_store.hpp"
+#include "mutation_detailed.pb.h"
 #include "src/matOptimize/mutation_annotated_tree.hpp"
 #include "src/matOptimize/tree_rearrangement_internal.hpp"
 #include <cstddef>
@@ -7,6 +8,8 @@
 #include <tbb/flow_graph.h>
 #include <unistd.h>
 #include <mpi.h>
+#include <sys/time.h>
+#include <sys/resource.h>
 /*
 File structure:
 offset of metadata message (8 byte)
@@ -15,7 +18,11 @@ node in the tree, each contain the offset and size of its children metadata
 message (meta in mutation_detailed.proto), contain offset and size of root node
 */
 namespace MAT = Mutation_Annotated_Tree;
-
+size_t get_memory() {
+    struct rusage usage;
+    getrusage(RUSAGE_SELF, &usage);
+    return usage.ru_maxrss;
+}
 static void save_chrom_vector(Mutation_Detailed::meta &to_save) {
     for (const std::string &chrom : MAT::Mutation::chromosomes) {
         to_save.add_chromosomes(chrom);
@@ -109,7 +116,7 @@ struct serializer_t {
 struct serialize_condensed_node {
     void operator()(const MAT::Node *root, const MAT::Tree &tree,
                     Mutation_Detailed::node &this_node) {
-        auto condensed_node_iter = tree.condensed_nodes.find(root->identifier);
+        auto condensed_node_iter = tree.condensed_nodes.find(root->node_id);
         if (condensed_node_iter != tree.condensed_nodes.end()) {
             for (const auto &child_id : condensed_node_iter->second) {
                 this_node.add_condensed_nodes(child_id);
@@ -123,7 +130,7 @@ struct no_serialize_condensed_node {
 };
 static void serialize_node(Mutation_Detailed::node &this_node,
                            const MAT::Node *root, const MAT::Tree &tree) {
-    this_node.set_identifier(root->identifier);
+    this_node.set_node_id(root->node_id);
     this_node.set_changed(root->changed);
     this_node.mutable_mutation_positions()->Reserve(root->mutations.size());
     this_node.mutable_mutation_other_fields()->Reserve(root->mutations.size());
@@ -243,7 +250,14 @@ struct subtree_serializer : public tbb::task {
 u_int64_t save_meta(const MAT::Tree &tree, u_int64_t root_offset,
                     u_int64_t root_length, serializer_t &serializer) {
     Mutation_Detailed::meta meta;
-    meta.set_internal_nodes_count(tree.curr_internal_node);
+    meta.set_nodes_idx_next(tree.node_idx);
+    auto node_names=meta.mutable_node_idx_map();
+    node_names->Reserve(tree.node_names.size());
+    for (const auto& name_map: tree.node_names) {
+        auto next_idx=meta.add_node_idx_map();
+        next_idx->set_node_id(name_map.first);
+        next_idx->set_node_name(name_map.second);
+    }
     save_chrom_vector(meta);
     meta.set_root_offset(root_offset);
     meta.set_root_length(root_length);
@@ -307,7 +321,7 @@ void Mutation_Annotated_Tree::Tree::save_detailed_mutations(
 void Mutation_Annotated_Tree::Tree::MPI_send_tree() const {
     size_t max_memory=get_memory();
     MPI_Bcast(&max_memory, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
-    //fprintf(stderr, "Sending memory requirement of %zu \n",max_memory);
+    fprintf(stderr, "Sending memory requirement of %zu \n",max_memory);
     tbb::flow::graph g;
     compressor_node_t compressor(g, tbb::flow::unlimited, compressor_node());
     tbb::flow::function_node<compressor_out,tbb::flow::continue_msg,tbb::flow::queueing> sender(
@@ -319,4 +333,5 @@ void Mutation_Annotated_Tree::Tree::MPI_send_tree() const {
     size_t size_t_max=UINT64_MAX;
     MPI_Bcast(&size_t_max, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
     MPI_Bcast(&uncompressed_length, 1, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
+    fprintf(stderr, "main node list zize %zu\n",all_nodes.size());
 }

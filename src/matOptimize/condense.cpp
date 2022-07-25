@@ -4,7 +4,9 @@
 #include <cstddef>
 #include <cstdio>
 #include <tbb/blocked_range.h>
+#include <tbb/concurrent_vector.h>
 #include <tbb/parallel_for.h>
+#include <utility>
 #include <vector>
 //find mutated alleles shared by both of the input
 static void intersect_allele(const Mutation_Annotated_Tree::Mutations_Collection& in1, const Mutation_Annotated_Tree::Mutations_Collection& in2, Mutation_Annotated_Tree::Mutations_Collection& out) {
@@ -51,8 +53,7 @@ static void get_common_mutations(std::vector<Mutation_Annotated_Tree::Node*>::co
 //as condensing nodes doesn't take too long anyway
 struct Node_Condenser {
     const std::vector<Mutation_Annotated_Tree::Node*>& condensable_nodes;
-    Mutation_Annotated_Tree::Tree::condensed_node_t& condensed_nodes;
-    std::atomic<size_t>& condensed_nodes_count;
+    tbb::concurrent_vector<std::vector<size_t>>& condensed_ids;
     void condense(Mutation_Annotated_Tree::Node* root) const {
         //condensed children of root
         std::vector<Mutation_Annotated_Tree::Node*> polytomy_nodes;
@@ -81,24 +82,20 @@ struct Node_Condenser {
             }
 #endif
             //replace the first node to condense with the condensed node in place
-            std::vector<std::string> children_id{polytomy_nodes[0]->identifier};
-            children_id.reserve(polytomy_nodes.size());
+            std::vector<size_t> condensed_node_group_ids{polytomy_nodes[0]->node_id};
+            condensed_node_group_ids.reserve(polytomy_nodes.size());
             new_children.push_back(polytomy_nodes[0]);
             //get a new name for condensed node
-            polytomy_nodes[0]->identifier="node_" + std::to_string(++condensed_nodes_count) + "_condensed_" + std::to_string(polytomy_nodes.size()) + "_leaves";
             polytomy_nodes[0]->mutations.swap(new_shared_muts);
             //record original sample name
             for (size_t replaced_child_idx=1; replaced_child_idx<polytomy_nodes.size(); replaced_child_idx++) {
-                children_id.push_back(polytomy_nodes[replaced_child_idx]->identifier);
+                condensed_node_group_ids.push_back(polytomy_nodes[replaced_child_idx]->node_id);
                 delete polytomy_nodes[replaced_child_idx];
             }
             //assert(res.second);
             root->children.swap(new_children);
-            std::vector<std::string> temp;
-            auto condensed_node_insert_result=condensed_nodes.emplace(polytomy_nodes[0]->identifier,temp);
-            condensed_node_insert_result.first->second=std::move(children_id);
+            condensed_ids.emplace_back(std::move(condensed_node_group_ids));
         }
-        //scheduler bypass to run continuation task if no task spawned
     }
     void operator()(tbb::blocked_range<size_t> r) const {
         for (size_t idx=r.begin(); idx<r.end(); idx++) {
@@ -125,25 +122,34 @@ void Mutation_Annotated_Tree::Tree::condense_leaves(std::vector<std::string> mis
     }
     std::vector<Mutation_Annotated_Tree::Node*> condensable_nodes;
     find_condensable_nodes(root, condensable_nodes);
-
-    std::atomic<size_t> condensed_nodes_count(0);
-    tbb::parallel_for(tbb::blocked_range<size_t>(0,condensable_nodes.size()),Node_Condenser{condensable_nodes,condensed_nodes,condensed_nodes_count});
+    tbb::concurrent_vector<std::vector<size_t>> condensed_ids;
+    tbb::parallel_for(tbb::blocked_range<size_t>(0,condensable_nodes.size()),Node_Condenser{condensable_nodes,condensed_ids});
     //assert(condensed_nodes_count.load()==condensed_nodes.size());
-    for(const auto& condensed:condensed_nodes) {
-        Mutation_Annotated_Tree::Node* ori_node=get_node(condensed.second[0]);
-        //update all node, as the first condensed children is replaced with resulting condensed node in place,
-        //can get the pointer to condensed node with the name of first condensed children
-        auto emplcr_result=all_nodes.emplace(ori_node->identifier,ori_node);
-        if (!emplcr_result.second) {
-            fprintf(stderr, "Duplicated condensed node : %s\n",emplcr_result.first->first.c_str());
-            if (emplcr_result.first->first!=emplcr_result.first->second->identifier) {
-                fprintf(stderr, "Duplicated condensed node label mismatch, label on node : %s\n",emplcr_result.first->second->identifier.c_str());
+    size_t condensed_nodes_count(0);
+    for(const auto& condensed:condensed_ids) {
+        auto new_id="node_" + std::to_string(++condensed_nodes_count) + "_condensed_" + std::to_string(condensed.size()) + "_leaves";
+        auto preserved_id=condensed[0];
+        std::vector<std::string> sample_names;
+        sample_names.reserve(condensed.size());
+        for (auto old_ids : condensed) {
+            auto iter=node_names.find(old_ids);
+            if(iter==node_names.end()) {
+                fprintf(stderr,"old node id %zu not found, condensed vector addr %lx \n",old_ids,(unsigned long)&condensed);
+                raise(SIGTRAP);
+                continue;
+            }
+            sample_names.push_back(iter->second);
+            auto back_iter=node_name_to_idx_map.find(iter->second);
+            node_names.erase(iter);
+            if(back_iter!=node_name_to_idx_map.end()) {
+                node_name_to_idx_map.erase(back_iter);
             }
         }
-        for(auto node_id:condensed.second) {
-            assert(condensed_nodes.count(node_id)==0);
-            all_nodes.erase(node_id);
+        for (size_t idx=1; idx<condensed.size(); idx++) {
+            all_nodes[condensed[idx]]=nullptr;
         }
-
+        condensed_nodes.emplace(preserved_id,std::move(sample_names));
+        node_names.emplace(preserved_id,new_id);
+        node_name_to_idx_map.emplace(new_id,preserved_id);
     }
 }

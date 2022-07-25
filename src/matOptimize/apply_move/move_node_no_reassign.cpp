@@ -118,7 +118,7 @@ clean_up_after_remove(MAT::Node *node, std::unordered_set<size_t> &deleted,
             std::find(parent_children.begin(), parent_children.end(), node);
         parent_children.erase(iter);
         deleted.insert((size_t)node);
-        tree.all_nodes.erase(node->identifier);
+        //tree.all_nodes.erase(node->identifier);
         //delete node;
         //this node is removed, its parental node may have similar situation
         return clean_up_after_remove(parent_node, deleted, nodes_to_clean,tree);
@@ -156,7 +156,7 @@ clean_up_after_remove(MAT::Node *node, std::unordered_set<size_t> &deleted,
             moved_mut.merge(node->mutations,
                         MAT::Mutations_Collection::KEEP_SELF);
         }*/
-        tree.all_nodes.erase(node->identifier);
+        //tree.all_nodes.erase(node->identifier);
         child->set_self_changed();
         //delete node;
         return parent_node;
@@ -165,14 +165,14 @@ clean_up_after_remove(MAT::Node *node, std::unordered_set<size_t> &deleted,
 }
 MAT::Node *replace_with_internal_node(MAT::Node *to_replace,
                                       MAT::Tree &tree) {
-    MAT::Node *new_node = new MAT::Node();
-    new_node->identifier = std::to_string(++tree.curr_internal_node);
+    MAT::Node *new_node = tree.create_node();
+    //new_node->identifier = std::to_string(++tree.curr_internal_node);
     new_node->parent = to_replace->parent;
     auto &to_replace_parent_children = to_replace->parent->children;
 
     auto iter = std::find(to_replace_parent_children.begin(),
                           to_replace_parent_children.end(), to_replace);
-    tree.all_nodes.emplace(new_node->identifier, new_node);
+    //tree.all_nodes.emplace(new_node->identifier, new_node);
     *iter = new_node;
 
     new_node->children.push_back(to_replace);

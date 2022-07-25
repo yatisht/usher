@@ -5,6 +5,7 @@
 #include "merge.hpp"
 #include "introduce.hpp"
 #include "version.hpp"
+#include <cstddef>
 
 Timer timer;
 
@@ -36,7 +37,7 @@ int main (int argc, char** argv) {
         cmd = vm["command"].as<std::string>();
     } catch (...) { //not sure this is the best way to catch it when matUtils is called with no positional arguments.
         fprintf(stderr, "\nNo command selected. Help follows:\n\n");
-        for (int i = 0; i < std::size(cnames); ++i) {
+        for (size_t i = 0; i < std::size(cnames); ++i) {
             fprintf(stderr, "%-15s\t%s", cnames[i].c_str(), chelp[i].c_str());
         }
         //0 when no command is selected because that's what passes tests.
@@ -61,13 +62,13 @@ int main (int argc, char** argv) {
     } else if (cmd == "help") {
         fprintf(stderr, "\n");
         std::cerr << "matUtils (v" << PROJECT_VERSION << ")" << std::endl;
-        for (int i = 0; i < std::size(cnames); ++i) {
+        for (size_t i = 0; i < std::size(cnames); ++i) {
             fprintf(stderr, "%-15s\t%s", cnames[i].c_str(), chelp[i].c_str());
         }
         exit(0);
     } else {
         fprintf(stderr, "\nInvalid command. Help follows:\n\n");
-        for (int i = 0; i < std::size(cnames); ++i) {
+        for (size_t i = 0; i < std::size(cnames); ++i) {
             fprintf(stderr, "%-15s\t%s", cnames[i].c_str(), chelp[i].c_str());
         }
         exit(1);

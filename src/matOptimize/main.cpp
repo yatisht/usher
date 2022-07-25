@@ -34,14 +34,15 @@
 #include <vector>
 #include <iostream>
 #include <sys/resource.h>
+int count_back_mutation(const MAT::Tree& tree);
+void get_pos_samples_old_tree(MAT::Tree& tree,std::vector<mutated_t>& output);
+int follower_recieve_positions( std::vector<mutated_t>& to_recieve);
+void MPI_min_back_reassign_states(MAT::Tree &tree,const std::vector<mutated_t> &mutations,
+                                  int start_position);
+void min_back_reassign_state_local(MAT::Tree& tree,const std::vector<mutated_t>& mutations);
 thread_local TlRng rng;
 std::atomic_bool interrupted(false);
 bool use_bound;
-size_t get_memory() {
-    struct rusage usage;
-    getrusage(RUSAGE_SELF, &usage);
-    return usage.ru_maxrss;
-}
 int process_count;
 int this_rank;
 uint32_t num_threads;
@@ -92,6 +93,8 @@ int main(int argc, char **argv) {
     std::string input_nh_path;
     std::string input_vcf_path;
     std::string intermediate_pb_base_name="";
+    std::string intermediate_nwk_out="";
+    bool reduce_back_mutations=true;
     std::string profitable_src_log;
     std::string transposed_vcf_path;
     float search_proportion=2;
@@ -130,6 +133,8 @@ int main(int argc, char **argv) {
     ("version", "Print version number")
     ("node_proportion,z",po::value(&search_proportion)->default_value(2),"the proportion of nodes to search")
     ("node_sel,y",po::value(&rand_sel_seed),"Random seed for selecting nodes to search")
+    ("drift_nwk_file,b",po::value(&intermediate_nwk_out)->default_value(""),"Newick filename stem for drifting")
+    ("no_reduce_back_mutations,c","skip FS that reduce back mutations in the end")
     ("help,h", "Print help messages");
     auto search_end_time=std::chrono::steady_clock::time_point::max();
     po::options_description all_options;
@@ -155,6 +160,14 @@ int main(int argc, char **argv) {
             return 0;
         } else
             return 1;
+    }
+    if (vm.count("no_reduce_back_mutations")) {
+        reduce_back_mutations=false;
+    } else {
+        reduce_back_mutations=true;
+    }
+    if (drift_iterations) {
+        min_improvement=0.000000001;
     }
     if (max_optimize_hours) {
         search_end_time=std::chrono::steady_clock::now()+std::chrono::hours(max_optimize_hours)-std::chrono::minutes(30);
@@ -250,15 +263,19 @@ int main(int argc, char **argv) {
                     if (input_nh_path != "") {
                         t = Mutation_Annotated_Tree::create_tree_from_newick(
                                 input_nh_path);
-                        fprintf(stderr, "Input tree have %zu nodes\n",t.all_nodes.size());
+                        //fprintf(stderr, "Input tree have %zu nodes\n",t.all_nodes.size());
                     } else {
-                        t = MAT::load_mutation_annotated_tree(input_pb_path);
+                        if(!MAT::load_mutation_annotated_tree(input_pb_path,t)) {
+                            exit(EXIT_FAILURE);
+                        }
                         t.uncondense_leaves();
                     }
                     fputs("Finished loading input tree, start reading VCF and assigning states \n",stderr);
                     load_vcf_nh_directly(t, input_vcf_path, origin_states);
                 } else if(transposed_vcf_path!="") {
-                    t=MAT::load_mutation_annotated_tree(input_pb_path);
+                    if(!MAT::load_mutation_annotated_tree(input_pb_path,t)) {
+                        exit(EXIT_FAILURE);
+                    }
 #ifdef PROFILE_HEAP
                     raise(SIGUSR1);
 #endif
@@ -364,7 +381,7 @@ int main(int argc, char **argv) {
                 for(const auto node:nodes_to_search) {
                     nodes_to_search_idx.push_back(node->dfs_index);
                 }
-                std::vector<MAT::Node*> defered_nodes;
+                std::vector<size_t> defered_nodes;
                 auto next_save_time=minutes_between_save?last_save_time+save_period:std::chrono::steady_clock::time_point::max();
                 bool do_continue=true;
                 auto search_stop_time=next_save_time;
@@ -372,14 +389,24 @@ int main(int argc, char **argv) {
                     search_stop_time=search_end_time;
                 }
                 optimize_tree_main_thread(nodes_to_search_idx, t,std::abs(radius),movalbe_src_log,allow_drift,log_moves?iteration:-1,defered_nodes,distribute,search_stop_time,do_continue,search_all_dir,isfirst_this_iter
-#ifndef NDEBUG
+#ifdef CHECK_STATE_REASSIGN
                                           , origin_states
 #endif
                                          );
                 isfirst_this_iter=false;
                 fprintf(stderr, "Defered %zu nodes\n",defered_nodes.size());
-                nodes_to_search=std::move(defered_nodes);
-                new_score=t.get_parsimony_score();
+                nodes_to_search.reserve(defered_nodes.size());
+                nodes_to_search.clear();
+                for (auto idx : defered_nodes) {
+                    if (t.get_node(idx)) {
+                        nodes_to_search.push_back(t.get_node(idx));
+                    }
+                }
+                auto curr_score=t.get_parsimony_score();
+                if(curr_score>=new_score) {
+                    nodes_to_search.clear();
+                }
+                new_score=curr_score;
                 fprintf(stderr, "parsimony score after optimizing: %zu,with radius %d, second from start %ld \n\n",
                         new_score,std::abs(radius),std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now()-start_time).count());
                 if(!no_write_intermediate) {
@@ -390,6 +417,9 @@ int main(int argc, char **argv) {
                     rename(intermediate_writing.c_str(), intermediate_pb_base_name.c_str());
                     last_save_time=std::chrono::steady_clock::now();
                     fprintf(stderr, "Took %ldsecond to save intermediate protobuf\n",std::chrono::duration_cast<std::chrono::seconds>(last_save_time-save_start).count());
+                }
+                if(allow_drift) {
+                    MAT::save_mutation_annotated_tree(t, intermediate_nwk_out+std::to_string(iteration)+".pb.gz");
                 }
                 if (std::chrono::steady_clock::now()>=search_end_time) {
                     break;
@@ -429,6 +459,18 @@ int main(int argc, char **argv) {
         int temp=0;
         MPI_Request req;
         MPI_Ibcast(&temp, 1, MPI_INT, 0, MPI_COMM_WORLD,&req);
+        if (reduce_back_mutations) {
+            fprintf(stderr, "Parsimony score before %zu\n",t.get_parsimony_score());
+            fprintf(stderr, "Back mutation count before %d\n",count_back_mutation(t));
+            std::vector<mutated_t> output(MAT::Mutation::refs.size());
+            get_pos_samples_old_tree(t, output);
+            if (process_count==1) {
+                min_back_reassign_state_local(t,output);
+            } else {
+                MPI_min_back_reassign_states(t, output, 0);
+            }
+            fprintf(stderr, "Back mutation count after %d\n",count_back_mutation(t));
+        }
         fprintf(stderr, "Final Parsimony score %zu\n",t.get_parsimony_score());
         fclose(movalbe_src_log);
         save_final_tree(t, output_path);
@@ -463,6 +505,11 @@ int main(int argc, char **argv) {
             use_bound=true;
             optimize_tree_worker_thread(t, radius,do_drift,search_all_dir);
             t.delete_nodes();
+        }
+        if (reduce_back_mutations) {
+            std::vector<mutated_t> to_recieve;
+            int pos= follower_recieve_positions(to_recieve);
+            MPI_min_back_reassign_states(t, to_recieve, pos);
         }
     }
     for(auto& pos:mutated_positions) {

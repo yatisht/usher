@@ -2,10 +2,13 @@
 #define MUTATION_ANNOTATED_TREE
 #include <algorithm>
 #include <atomic>
+#include <csignal>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <mutex>
 #include <sys/types.h>
+#include <istream>
 #include <unordered_map>
 #include <string>
 #include <utility>
@@ -109,9 +112,9 @@ class Mutation {
     uint8_t boundary1_all_major_allele; //boundary 1 alleles are alleles with allele count one less than major allele count
     uint8_t decrement_increment_effect;//Decrement which allele will increase parsimony score, then increment which allele may decrease parsimony score
     //uint8_t child_muts;//left child state then right child state for binary nodes
-    static tbb::concurrent_unordered_map<std::string, uint8_t> chromosome_map;
     static std::mutex ref_lock;//reference nuc are stored in a separate vector, need to be locked when adding new mutations
   public:
+    static tbb::concurrent_unordered_map<std::string, uint8_t> chromosome_map;
     static std::vector<std::string> chromosomes;// chromosome index to name map
     static std::vector<nuc_one_hot> refs;
     void set_boundary_one_hot(nuc_one_hot boundary1) {
@@ -122,6 +125,12 @@ class Mutation {
     }
     nuc_one_hot get_sensitive_increment()const {
         return decrement_increment_effect&0xf;
+    }
+    uint8_t get_descendant_mut() const {
+        return decrement_increment_effect;
+    }
+    void set_descendant_mut(uint8_t value) {
+        decrement_increment_effect=value;
     }
     void set_sensitive_change(nuc_one_hot decrement,nuc_one_hot increment) {
         decrement_increment_effect=(decrement<<4)|increment;
@@ -292,7 +301,16 @@ class Mutations_Collection {
         mutations.reserve(n);
     }
     void push_back(const Mutation& m) {
-        assert(mutations.empty()||m.get_position()>mutations.back().get_position());
+        if (m.get_position()>=(int)(Mutation::refs.size()+1)&&m.get_position()!=INT_MAX) {
+            fprintf(stderr, "strange size \n");
+            raise(SIGTRAP);
+        }
+        if (!mutations.empty()) {
+            if (m.get_position()<=mutations.back().get_position()) {
+                fprintf(stderr, "Adding out of order %d to %d \n",m.get_position(),mutations.back().get_position());
+                raise(SIGTRAP);
+            }
+        }
         mutations.push_back(m);
     }
     //Find next mutation with position greater or equal to pos
@@ -368,19 +386,33 @@ class Mutations_Collection {
         return true;
     }
 };
+struct copyable_atomic_uint8_t: public std::atomic_int8_t {
+    copyable_atomic_uint8_t()=default;
+    copyable_atomic_uint8_t (copyable_atomic_uint8_t& other) {
+        this->store(other.load());
+    }
+    copyable_atomic_uint8_t& operator=(copyable_atomic_uint8_t& other) {
+        this->store(other.load());
+        return *this;
+    }
+    copyable_atomic_uint8_t& operator=(uint8_t other) {
+        this->store(other);
+        return *this;
+    }
+};
 typedef std::vector<std::pair<int,int>> ignored_t;
 class Node {
 #ifdef LOAD
   public:
 #endif
-    std::atomic_uint8_t changed;
+    copyable_atomic_uint8_t changed;
     static const uint8_t SELF_CHANGED_MASK=1;
     static const uint8_t ANCESTOR_CHANGED_MASK=2;
     static const uint8_t DESCENDENT_CHANGED_MASK=4;
     static const uint8_t SELF_MOVED_MASK=8;
   public:
-    float branch_length;
-    std::string identifier;
+    int branch_length;
+    size_t node_id;
     std::vector<std::string> clade_annotations;
     Node* parent;
     std::vector<Node*> children;
@@ -395,9 +427,8 @@ class Node {
     bool have_masked;
     bool is_leaf() const;
     bool is_root();
-    Node();
-    Node(std::string id, float l);
-    Node(std::string id, Node* p, float l);
+    //Node();
+    Node(size_t id);
 
     Node(const Node& other, Node* parent,Tree* tree,bool copy_mutation=true);
     bool add_mutation(Mutation& mut) {
@@ -442,6 +473,11 @@ class Node {
     bool no_valid_mutation()const {
         return mutations.no_valid_mutation();
     }
+    void add_child(Node* child) {
+        child->parent=this;
+        children.push_back(child);
+    }
+    size_t get_num_leaves() const;
     void populate_ignored_range();
     //refill mutation with the option of filtering invalid mutations
     template<typename iter_t>
@@ -456,22 +492,68 @@ class Node {
         }
         this->mutations.refill(mutations);
     }
-    Node* add_child(Node* new_child,Mutation_Annotated_Tree::Tree* tree);
     void delete_this();
 };
 
 class Tree {
+#ifdef LOAD
   public:
-    typedef  tbb::concurrent_unordered_map<std::string, std::vector<std::string>> condensed_node_t;
-    std::unordered_map <std::string, Node*> all_nodes;
+#endif
+    std::vector < Node*> all_nodes;
+    std::unordered_map<size_t,  std::string> node_names;
+    std::unordered_map<std::string, size_t> node_name_to_idx_map;
+    size_t node_idx;
+  public:
+    typedef  tbb::concurrent_unordered_map<size_t, std::vector<std::string>> condensed_node_t;
     Tree() {
         root = NULL;
+        node_idx=0;
         all_nodes.clear();
     }
+    void register_node_serial(Node* node) {
+        all_nodes.resize(std::max(all_nodes.size(),node->node_id+1),nullptr);
+        all_nodes[node->node_id]=node;
+    }
+    void register_node_serial(Node* node,std::string& name) {
+        register_node_serial(node);
+        node_names.emplace(node->node_id,name);
+        node_name_to_idx_map.emplace(name,node->node_id);
+    }
+    void check_leaves();
+    size_t node_name_to_node_idx(const std::string& in) const {
+        auto iter=node_name_to_idx_map.find(in);
+        if (iter==node_name_to_idx_map.end()) {
+            return -1;
+        }
+        return iter->second;
+    }
+    size_t get_size_upper() const {
+        return all_nodes.size();
+    }
+    Node* get_node(size_t idx)const {
+        if (idx>=all_nodes.size()) {
+            /*if (warn) {
+                fprintf(stderr, "%zu node out of range, total size %zu \n",idx,all_nodes.size());
+                raise(SIGTRAP);
+            }*/
+            return nullptr;
+        }
+        /*if (warn&&!all_nodes[idx]) {
+            fprintf(stderr, "%zu node not found \n",idx);
+            raise(SIGTRAP);
+        }*/
 
+        return all_nodes[idx];
+    }
+    void erase_node(size_t node_idx) {
+        all_nodes[node_idx]=nullptr;
+        auto iter=node_names.find(node_idx);
+        if (iter!=node_names.end()) {
+            node_name_to_idx_map.erase(iter->second);
+            node_names.erase(iter);
+        }
+    }
     Tree (Node* n);
-
-    std::vector<Node*> new_nodes;
     size_t max_level;
 
     Node* root;
@@ -479,18 +561,36 @@ class Tree {
 
     size_t curr_internal_node;
 
-    void rename_node(std::string old_nid, std::string new_nid);
-    Node* create_node (std::string const& identifier, float branch_length = -1.0, size_t num_annotations=0);
-    Node* create_node (std::string const& identifier, Node* par, float branch_length = -1.0);
-    Node* create_node (std::string const& identifier, std::string const& parent_id, float branch_length = -1.0);
+    void rename_node(size_t old_nid, std::string new_nid);
+    Node* create_node ();
+    std::string get_node_name(size_t node_idx) const {
+        auto node_name_iter=node_names.find(node_idx);
+        if (node_name_iter==node_names.end()) {
+            return "";
+        }
+        return node_name_iter->second;
+    }
+    size_t map_samp_name_only(const std::string& samp_name) {
+        auto assigned_idx=node_idx++;
+        node_names.emplace(assigned_idx,samp_name);
+        node_name_to_idx_map.emplace(samp_name,assigned_idx);
+        return assigned_idx;
+    }
+    Node* create_node (std::string const& identifier);
+    Node* create_node (std::string const& identifier,size_t annotation_size) {
+        auto node=create_node(identifier);
+        node->clade_annotations.resize(annotation_size);
+        return node;
+    }
     Node* get_node (const std::string& identifier) const {
-        auto iter=all_nodes.find(identifier);
-        if (iter != all_nodes.end()) {
-            return iter->second;
+        auto iter=node_name_to_idx_map.find(identifier);
+        if (iter != node_name_to_idx_map.end()) {
+            return all_nodes[iter->second];
         }
         return NULL;
     }
-    Node* get_node_c_str (char* identifier) const;
+    Node* get_node_c_str (const char* identifier) const;
+    int get_node_id_c_str (const char* identifier) const;
     std::vector<Node*> breadth_first_expansion(std::string nid="");
     std::vector<Node*> depth_first_expansion(Node* node=NULL) const;
 
@@ -503,32 +603,53 @@ class Tree {
         }
         return ret;
     }
+    void exchange_nid(Node* n1, Node* n2) {
+        auto n1_id=n1->node_id;
+        n1->node_id=n2->node_id;
+        n2->node_id=n1_id;
+        all_nodes[n1->node_id]=n1;
+        all_nodes[n2->node_id]=n2;
+    }
     void save_detailed_mutations(const std::string& path)const;
     void load_detatiled_mutations(const std::string& path);
     void load_from_newick(const std::string& newick_string,bool use_internal_node_label=false);
     void condense_leaves(std::vector<std::string> = std::vector<std::string>());
     void uncondense_leaves();
-    std::vector<Node*> get_leaves() const;
+    std::string get_clade_assignment (const Node* n, int clade_id, bool include_self) const;
+    std::vector<Node*> get_leaves(const Node* n=nullptr) const;
     void populate_ignored_range();
     size_t get_max_level();
     friend class Node;
     void MPI_send_tree() const;
     void MPI_receive_tree();
     void delete_nodes();
+    void write_newick_string (std::iostream::basic_ostream& ss, Node* node, bool b1, bool b2, bool b3=false, bool b4=false) const;
+    std::string get_newick_string(bool b1, bool b2, bool b3=false, bool b4=false) const ;
+    std::string get_newick_string(Node* node, bool b1, bool b2, bool b3=false, bool b4=false) const;
+    void rotate_for_display(bool reverse = false);
+    Tree copy_tree();
 };
 
-std::string get_newick_string(const Tree& T, bool b1, bool b2, bool b3=false, bool b4=false);
-std::string get_newick_string(const Tree& T, Node* node, bool b1, bool b2, bool b3=false, bool b4=false);
-void write_newick_string (std::stringstream& ss, const Tree& T, Node* node, bool b1, bool b2, bool b3=false, bool b4=false);
 Tree create_tree_from_newick (std::string filename);
 Tree create_tree_from_newick_string (std::string newick_string);
 void string_split(std::string const& s, char delim, std::vector<std::string>& words);
 void string_split(std::string s, std::vector<std::string>& words);
-
-Tree load_mutation_annotated_tree (std::string filename);
+Tree get_subtree(const Tree &tree, const std::vector<Node*> &samples,
+                 bool keep_clade_annotations = false);
+void get_random_single_subtree(const Mutation_Annotated_Tree::Tree &T,
+                               std::vector<Node*> samples,
+                               std::string outdir, size_t subtree_size,
+                               size_t tree_idx = 0, bool use_tree_idx = false,
+                               bool retain_original_branch_len = false);
+void get_random_sample_subtrees(const Mutation_Annotated_Tree::Tree &T,
+                                std::vector<Node*> samples,
+                                std::string outdir, size_t subtree_size,
+                                size_t tree_idx = 0, bool use_tree_idx = false,
+                                bool retain_original_branch_len = false);
+bool load_mutation_annotated_tree (std::string filename,Tree& tree);
 void save_mutation_annotated_tree (const Tree& tree, std::string filename);
+void get_sample_mutation_paths (Mutation_Annotated_Tree::Tree* T, std::vector<Node*> samples, std::string mutation_paths_filename);
 }
 bool check_grand_parent(const Mutation_Annotated_Tree::Node* node,const Mutation_Annotated_Tree::Node* grand_parent);
-
 nuc_one_hot get_parent_state(Mutation_Annotated_Tree::Node* ancestor,int position);
 #endif
