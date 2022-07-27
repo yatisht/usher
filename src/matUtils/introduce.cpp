@@ -621,11 +621,9 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::unordered_map<std
                     //can't assign region of origin if introduction point is root (no information about parent)
                     if ((region_assignments.size() > 1) & (!a->is_root())) {
                         auto assign_search = region_ins.find(a->identifier);
-                        // float highest_conf = 0.0;
-                        // std::string highest_conf_origin = "indeterminate";
                         //instead of immediately reporting each that pass a high threshold,
                         //collect the set of all that pass a low threshold, sort by confidence, and store only the top Z scores and associated strings.
-                        //std::vector<std::pair<float,std::string>> oriscores;
+                        //use of the greater comparator means that the top() element is the smallest value. 
                         std::priority_queue<std::pair<float,std::string>, std::vector<std::pair<float,std::string>>, std::greater<std::pair<float,std::string>>> oriscores;
                         if (assign_search != region_ins.end()) {
                             size_t count = assign_search->second.size();
@@ -640,26 +638,78 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::unordered_map<std
                                 }
                                 std::pair<float,std::string> dpair = std::make_pair(region_cons.find(a->identifier)->second[i], assign_search->second[i]);
                                 oriscores.push(dpair);
-                                if (oriscores.size() > count) {
-                                    //drop the lowest member if we're over count.
+                                if ((oriscores.size() > count) && (oriscores.top().first < 1)) {
+                                    //drop the lowest member if we're over count and if the lowest member is less than 1
+                                    //this means we can generate vectors longer than the indicated count of values of 1.
                                     oriscores.pop();
                                 }
                             }
-                            while (!oriscores.empty()) {
-                                auto osp = oriscores.top();
-                                if (origins.size() == 0) {
-                                    origins += osp.second;
-                                    origins_cons << osp.first;
-                                } else {
-                                    origins += "," + osp.second;
-                                    origins_cons << "," << osp.first;
+                            //if we ended up storing a bunch of tied values, more than the count to report, just set it to be indeterminate
+                            //this means that a cluster labeled as indeterminate can have its composition of potential origins revealed 
+                            //by increasing the number of potential origins to report.
+                            if ((oriscores.size() > count) && (oriscores.top().first == 1)) {
+                                origins = "indeterminate";
+                                origins_cons << 0.0;
+                            } else {
+                                while (!oriscores.empty()) {
+                                    auto osp = oriscores.top();
+                                    if (origins.size() == 0) {
+                                        origins += osp.second;
+                                        origins_cons << osp.first;
+                                    } else {
+                                        origins += "," + osp.second;
+                                        origins_cons << "," << osp.first;
+                                    }
+                                    oriscores.pop();
                                 }
-                                oriscores.pop();
                             }
                         } else {
                             origins = "indeterminate";
                             origins_cons << 0.0;
                         }
+                        
+                        // if (assign_search != region_ins.end()) {
+                        //     size_t count = assign_search->second.size();
+                        //     if (num_to_report > 0) {
+                        //         count = num_to_report;
+                        //     }
+                        //     for (size_t i = 0; i < assign_search->second.size(); i++) {
+                        //         //vectors for confidence and region tags were generated in parallel and should remain aligned
+                        //         if (assign_search->second[i] == region) {
+                        //             //don't allow it to be its own point of origin, that's silly.
+                        //             continue;
+                        //         }
+                        //         std::pair<float,std::string> dpair = std::make_pair(region_cons.find(a->identifier)->second[i], assign_search->second[i]);
+                        //         oriscores.push(dpair);
+                        //     }
+                        //     size_t count_printed = 0;
+                        //     size_t last_value = 0;
+                        //     while (!oriscores.empty()) {
+                        //         auto osp = oriscores.top();
+                        //         if (origins.size() == 0) {
+                        //             origins += osp.second;
+                        //             origins_cons << osp.first;
+                        //         } else {
+                        //             origins += "," + osp.second;
+                        //             origins_cons << "," << osp.first;
+                        //         }
+                        //         if ((count_printed < count) || (osp.first == last_value)) {
+                        //             count_printed++;
+                        //         } else {
+                        //             break;
+                        //         }
+                        //         last_value = osp.first;
+                        //         oriscores.pop();
+                        //     }
+                        //     //if we have a whole bunch of tied for maximum values over our number to report, just set it to be indeterminate instead
+                        //     if (count_printed > count) {
+                        //         origins = "indeterminate";
+                        //         origins_cons << 0.0;
+                        //     }
+                        // } else {
+                        //     origins = "indeterminate";
+                        //     origins_cons << 0.0;
+                        // }
                     }
                     if (origins.size() == 0) {
                         //if we didn't find anything which has the pre-introduction node at 1, we don't know where it came from
