@@ -39,6 +39,18 @@ unsigned int num_threads;
 std::atomic_bool interrupted(false);
 void fix_condensed_nodes(MAT::Tree *tree);
 namespace po = boost::program_options;
+static void clean_tree_for_placement(MAT::Tree& tree){
+    auto dfs = tree.depth_first_expansion();
+    for (auto node : dfs) {
+        if(node->is_leaf()&&!node->is_root()) {
+            for (auto& mut : node->mutations) {
+                mut.set_mut_one_hot(mut.get_all_major_allele());
+            }
+        } else {
+            node->mutations.remove_invalid();
+        }
+    }
+}
 void leader_thread_optimization(MAT::Tree& tree,std::vector<mutated_t>& position_wise_out,
                                 std::atomic_size_t& curr_idx,int& optimization_radius, size_t start_idx,FILE* ignored_file,float desired_optimization_msec,bool is_last) {
     size_t last_parsimony_score=SIZE_MAX;
@@ -54,11 +66,15 @@ void leader_thread_optimization(MAT::Tree& tree,std::vector<mutated_t>& position
         bool distributed = process_count > 1;
         fprintf(stderr, "Main sent optimization prep\n");
         if (process_count == 1) {
+            if(is_first){
             reassign_state_local(tree,position_wise_out);
+            tree.populate_ignored_range();
+            }
         } else {
             MPI_Bcast(&optimization_radius, 1, MPI_INT, 0, MPI_COMM_WORLD);
             if (is_first) {
                 MPI_reassign_states(tree, position_wise_out, 0);
+                tree.populate_ignored_range();
             } else {
                 tree.MPI_send_tree();
             }
@@ -122,16 +138,7 @@ void leader_thread_optimization(MAT::Tree& tree,std::vector<mutated_t>& position
         fprintf(stderr,"Next radius %d, ratio %f",next_optimization_radius,time_ratio);
     }
     optimization_radius=std::max(next_optimization_radius,2);
-    auto dfs = tree.depth_first_expansion();
-    for (auto node : dfs) {
-        if(node->is_leaf()) {
-            for (auto& mut : node->mutations) {
-                mut.set_mut_one_hot(mut.get_all_major_allele());
-            }
-        } else {
-            node->mutations.remove_invalid();
-        }
-    }
+    clean_tree_for_placement(tree);
 }
 
 static int leader_thread(
@@ -174,21 +181,15 @@ static int leader_thread(
         position_wise_out_dup=position_wise_out;
         std::unordered_set<std::string> sample_set(samples.begin(),samples.end());
         remove_absent_leaves(tree, sample_set);
+        if(tree.root->children.size()){
         if (process_count==1) {
             reassign_state_local(tree,position_wise_out,true);
         } else {
             distribute_positions(position_wise_out);
             MPI_reassign_states(tree, position_wise_out, 0,true);
         }
-        for (auto node : tree.depth_first_expansion()) {
-            if(node->is_leaf()) {
-                for (auto& mut : node->mutations) {
-                    mut.set_mut_one_hot(mut.get_all_major_allele());
-                }
-            } else {
-                node->mutations.remove_invalid();
-            }
         }
+        clean_tree_for_placement(tree);
     }
     tree.condense_leaves();
     fix_parent(tree);
@@ -261,6 +262,7 @@ static int leader_thread(
     }
     while (true) {
         fprintf(stderr, "Parsimony score %zu\n",tree.get_parsimony_score());
+        clean_tree_for_placement(tree);
         prep_tree(tree);
         if (process_count>1) {
             fprintf(stderr, "Main sending tree\n");

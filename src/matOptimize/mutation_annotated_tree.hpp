@@ -505,7 +505,9 @@ class Tree {
     size_t node_idx;
   public:
     typedef  tbb::concurrent_unordered_map<size_t, std::vector<std::string>> condensed_node_t;
+    size_t root_ident;
     Tree() {
+        root_ident=1;
         root = NULL;
         node_idx=0;
         all_nodes.clear();

@@ -469,7 +469,22 @@ place_main_tree(const std::vector<To_Place_Sample_Mutation> &mutations,
                ) {
     Output<Main_Tree_Target> output;
     output.targets.reserve(1000);
-    output.best_par_score = INT_MAX;
+    output.best_par_score = 0;
+    To_Place_Sample_Mutation temp(INT_MAX,0,0xf);
+    Main_Tree_Target target;
+    target.target_node=main_tree.root;
+    target.parent_node=(MAT::Node*)main_tree.root_ident;
+    if (!target.parent_node) {
+        raise(SIGTRAP);
+    }
+    target.sample_mutations=mutations;
+    target.sample_mutations.push_back(temp);
+    for (const auto& mut : mutations) {
+        if (!(mut.par_nuc&mut.mut_nuc)) {        
+            output.best_par_score++;
+        }
+    }
+    output.targets.push_back(target);
     auto main_tree_task_root = new (tbb::task::allocate_root())
     Main_Tree_Searcher(0,main_tree.root,
                        output
@@ -479,7 +494,6 @@ place_main_tree(const std::vector<To_Place_Sample_Mutation> &mutations,
 #endif
                       );
     main_tree_task_root->this_muts = mutations;
-    To_Place_Sample_Mutation temp(INT_MAX,0,0xf);
     main_tree_task_root->this_muts.push_back(temp);
     main_tree_task_root->set_group_priority(tbb::priority_low);
     tbb::task::spawn_root_and_wait(*main_tree_task_root);
