@@ -667,49 +667,6 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::unordered_map<std
                             origins = "indeterminate";
                             origins_cons << 0.0;
                         }
-                        
-                        // if (assign_search != region_ins.end()) {
-                        //     size_t count = assign_search->second.size();
-                        //     if (num_to_report > 0) {
-                        //         count = num_to_report;
-                        //     }
-                        //     for (size_t i = 0; i < assign_search->second.size(); i++) {
-                        //         //vectors for confidence and region tags were generated in parallel and should remain aligned
-                        //         if (assign_search->second[i] == region) {
-                        //             //don't allow it to be its own point of origin, that's silly.
-                        //             continue;
-                        //         }
-                        //         std::pair<float,std::string> dpair = std::make_pair(region_cons.find(a->identifier)->second[i], assign_search->second[i]);
-                        //         oriscores.push(dpair);
-                        //     }
-                        //     size_t count_printed = 0;
-                        //     size_t last_value = 0;
-                        //     while (!oriscores.empty()) {
-                        //         auto osp = oriscores.top();
-                        //         if (origins.size() == 0) {
-                        //             origins += osp.second;
-                        //             origins_cons << osp.first;
-                        //         } else {
-                        //             origins += "," + osp.second;
-                        //             origins_cons << "," << osp.first;
-                        //         }
-                        //         if ((count_printed < count) || (osp.first == last_value)) {
-                        //             count_printed++;
-                        //         } else {
-                        //             break;
-                        //         }
-                        //         last_value = osp.first;
-                        //         oriscores.pop();
-                        //     }
-                        //     //if we have a whole bunch of tied for maximum values over our number to report, just set it to be indeterminate instead
-                        //     if (count_printed > count) {
-                        //         origins = "indeterminate";
-                        //         origins_cons << 0.0;
-                        //     }
-                        // } else {
-                        //     origins = "indeterminate";
-                        //     origins_cons << 0.0;
-                        // }
                     }
                     if (origins.size() == 0) {
                         //if we didn't find anything which has the pre-introduction node at 1, we don't know where it came from
