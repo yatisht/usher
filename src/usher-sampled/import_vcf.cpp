@@ -25,6 +25,7 @@
 #include <string>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <tbb/queuing_rw_mutex.h>
 #include <unistd.h>
 #include <thread>
 #include <unordered_map>
@@ -225,13 +226,13 @@ typedef std::vector<mutated_t> mut_container_t;
 // Parse a block of lines, assuming there is a complete line in the line_in
 // buffer
 typedef tbb::flow::function_node<line_start_later> line_parser_t;
-std::mutex mutation_mutex;
+tbb::queuing_rw_mutex mutation_mutex;
 static void add_mutation(long output_idx, const MAT::Mutation &mut_template,
                          std::vector<std::vector<MAT::Mutation>> &this_blk,
                          mut_container_t &mutations_out,
                          size_t offset,uint8_t mut_nuc) {
     if (mutations_out.size()<mut_template.get_position()+1ul) {
-        std::lock_guard<std::mutex> lk(mutation_mutex);
+        tbb::queuing_rw_mutex::scoped_lock lk(mutation_mutex,true);
         mutations_out.resize(std::max(mutations_out.size(),(size_t)(mut_template.get_position()+1)));
     }
     if (output_idx >= 0) {
@@ -243,9 +244,13 @@ static void add_mutation(long output_idx, const MAT::Mutation &mut_template,
         this_mut.set_auxillary(mut_nuc, 0);
         this_mut.set_descendant_mut(mut_nuc);
         this_blk[output_idx].push_back(this_mut);
-        mutations_out[mut_template.get_position()].push_back(std::make_pair(output_idx + offset, mut_nuc));
+        {
+            tbb::queuing_rw_mutex::scoped_lock lk(mutation_mutex,false);
+            mutations_out[mut_template.get_position()].push_back(std::make_pair(output_idx + offset, mut_nuc));
+        }
     } else {
-        mutations_out[mut_template.get_position()].push_back(std::make_pair(-output_idx, mut_nuc));
+            tbb::queuing_rw_mutex::scoped_lock lk(mutation_mutex,false);
+            mutations_out[mut_template.get_position()].push_back(std::make_pair(-output_idx, mut_nuc));
     }
 }
 struct line_parser {
@@ -498,6 +503,7 @@ void Sample_Input(const char *name, std::vector<Sample_Muts> &sample_mutations,
     if (vcf_filename.find(".gz\0") != std::string::npos) {
         gzip_input_source fd(name);
         process(fd, sample_mutations, tree,position_wise_out,override,fields,samples_in_condensed_nodes);
+        delete fd.state;
     } else {
         raw_input_source fd(name);
         process(fd, sample_mutations, tree,position_wise_out,override,fields,samples_in_condensed_nodes);
