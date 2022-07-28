@@ -20,7 +20,7 @@ configure_file(src/version.hpp.in version.hpp)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -Wall -pipe -g -ggdb3 -Wno-unused-function  -Wno-deprecated-declarations") 
 #-DDEBUG_PARSIMONY_SCORE_CHANGE_CORRECT -fsanitize=address -DCHECK_PAR_MAIN  -DEASY_DEBUG -DSTOP_ON_ERROR  -DDETAILED_MERGER_CHECK -O0
-set(CMAKE_CXX_FLAGS_DEBUG "  -fno-eliminate-unused-debug-symbols -fsanitize=address -O0")
+set(CMAKE_CXX_FLAGS_DEBUG "  -fno-eliminate-unused-debug-symbols -O0")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-DNDEBUG -O3")
 set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O3 ")
 set(CMAKE_INCLUDE_CURRENT_DIR ON) 
