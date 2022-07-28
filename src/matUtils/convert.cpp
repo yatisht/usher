@@ -80,9 +80,11 @@ uint r_add_genotypes(MAT::Node *node,
             if (pos_info.leaf_genotypes.empty()||pos_info.leaf_genotypes.back().leaf_ix<leaf_ix) {
                 pos_info.leaf_genotypes.emplace_back(Leaf_Genotype{leaf_ix,mut->mut_nuc});            
             }else {
+                #ifndef NDEBUG
                 if (pos_info.leaf_genotypes.back().leaf_ix>leaf_ix) {
                     raise(SIGTRAP);
                 }
+                #endif
                 pos_info.leaf_genotypes.back().genotype=mut->mut_nuc;
             }
         }
@@ -193,9 +195,11 @@ struct VCF_Line_Writer {
         auto & pos_info=pos_genotypes[pos].second;
         int8_t ref = pos_info.ref;
         auto& gt_array = pos_info.leaf_genotypes;
+        #ifndef NDEBUG
         if(!std::is_sorted(gt_array.begin(),gt_array.end(),[](Leaf_Genotype& left,Leaf_Genotype& right){
             return left.leaf_ix<right.leaf_ix;
         })) raise(SIGTRAP);
+        #endif
         gt_array.push_back(Leaf_Genotype{leaf_count+10,0});
         std::unordered_map<int8_t, uint>allele_counts = count_alleles(gt_array);
         std::map<int8_t, uint>alts = make_alts(allele_counts, ref);
@@ -224,16 +228,20 @@ struct VCF_Line_Writer {
                     allele=leaf_iter->genotype;
                     leaf_iter++;
                 }
+                #ifndef NDEBUG
                 if (leaf_iter->leaf_ix<=i) {
                     raise(SIGTRAP);
                 }
+                #endif
                 out->append("\t");
                 out->append(std::to_string(allele_codes[allele]));
                 //fprintf(vcf_file, "\t%d", allele_codes[allele]);
             }
+                #ifndef NDEBUG
             if (leaf_iter->leaf_ix<=leaf_count) {
                 raise(SIGTRAP);
             }
+                #endif
         }
         //fputc('\n', vcf_file);
         out->append("\n");
