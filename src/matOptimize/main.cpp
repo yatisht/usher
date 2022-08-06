@@ -64,7 +64,21 @@ static void make_output_path(std::string& path_template) {
     auto fd=mkstemps(const_cast<char*>(path_template.c_str()),3);
     close(fd);
 }
-
+static void load_reference(std::string fasta_fname){
+    auto fh=fopen(fasta_fname.c_str(), "r");
+    char* seq_name=nullptr;
+    size_t seq_len=0;
+    getline(&seq_name, &seq_len, fh);
+    free(seq_name);
+    auto read=fgetc(fh);
+    while (read!=EOF) {
+        if (read!='\n') {
+            auto parsed_nuc=MAT::get_nuc_id(read);
+            MAT::Mutation::refs.push_back(parsed_nuc);
+        }
+        read=fgetc(fh);
+    }
+}
 void print_file_info(std::string info_msg,std::string error_msg,const std::string& filename) {
     struct stat stat_buf;
     errno=0;
@@ -96,6 +110,7 @@ int main(int argc, char **argv) {
     std::string intermediate_nwk_out="";
     bool reduce_back_mutations=true;
     std::string profitable_src_log;
+    std::string ref_file;
     std::string transposed_vcf_path;
     float search_proportion=2;
     int rand_sel_seed=0;
@@ -106,6 +121,7 @@ int main(int argc, char **argv) {
     int max_round;
     float min_improvement;
     bool no_write_intermediate;
+    std::string diff_file_path;
 
     po::options_description desc{"Options"};
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
@@ -130,6 +146,8 @@ int main(int argc, char **argv) {
      "Maximum number of optimization iterations to perform.")
     ("max-hours,M",po::value(&max_optimize_hours)->default_value(0),"Maximium number of hours to run")
     ("transposed-vcf-path,V",po::value(&transposed_vcf_path)->default_value(""),"Auxiliary transposed VCF for ambiguous bases, used in combination with usher protobuf (-i)")
+    ("diff_file_path,D",po::value(&diff_file_path)->default_value(""),"Diff file from MAPLE, used with newick tree (-t)")
+    ("reference,R",po::value(&ref_file)->default_value(""),"Reference file, use with diff file (-D)")
     ("version", "Print version number")
     ("node_proportion,z",po::value(&search_proportion)->default_value(2),"the proportion of nodes to search")
     ("node_sel,y",po::value(&rand_sel_seed),"Random seed for selecting nodes to search")
@@ -217,7 +235,10 @@ int main(int argc, char **argv) {
         } else if (input_nh_path!=""&&input_vcf_path!="") {
             print_file_info("Load starting tree from", "starting tree file,-t", input_nh_path);
             print_file_info("Load sample variant from", "sample vcf,-v", input_vcf_path);
-        } else {
+        } else if (input_nh_path!=""&&diff_file_path!="") {
+        
+        } 
+        else {
             fputs("Input file not completely specified. Please either \n"
                   "1. Specify an intermediate protobuf from last run with -a to continue optimization, or\n"
                   "2. Specify a usher-compatible protobuf with -i, and both starting tree and sample variants will be extracted from it, or\n"
@@ -280,11 +301,26 @@ int main(int argc, char **argv) {
                     raise(SIGUSR1);
 #endif
                     //malloc_stats();
-                    add_ambiguous_mutation(transposed_vcf_path.c_str(),t);
+                    add_ambiguous_mutation(transposed_vcf_path.c_str(),t,false);
 #ifdef PROFILE_HEAP
                     raise(SIGUSR1);
 #endif
                     //malloc_stats();
+                } else if (diff_file_path!="") {
+                    if (input_nh_path=="") {
+                        fprintf(stderr, "expect newick file\n");
+                        exit(EXIT_FAILURE);
+                    }
+                    if(ref_file==""){
+                        fprintf(stderr, "expect reference fasta file\n");
+                        exit(EXIT_FAILURE);
+
+                    }
+                    load_reference(ref_file);
+                    t = Mutation_Annotated_Tree::create_tree_from_newick(
+                                input_nh_path);
+                    add_ambiguous_mutation(diff_file_path.c_str(),t,true);
+                    
                 } else {
                     t = load_tree(input_pb_path, origin_states);
                 }
