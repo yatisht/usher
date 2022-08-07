@@ -102,7 +102,7 @@ void clean_tree(MAT::Tree& t);
 void populate_mutated_pos(const Original_State_t& origin_state,MAT::Tree& tree);
 void add_ambuiguous_mutations(const char* path,Original_State_t& to_patch,Mutation_Annotated_Tree::Tree& tree);
 void recondense_tree(MAT::Tree& t);
-void add_ambiguous_mutation(const char *input_path,MAT::Tree& tree);
+void add_ambiguous_mutation(const char *input_path,MAT::Tree& tree,bool is_diff_file);
 struct TlRng:public std::mt19937_64 {
     TlRng():std::mt19937_64(std::chrono::steady_clock::now().time_since_epoch().count()*std::hash<std::thread::id>()(std::this_thread::get_id())) {}
 };

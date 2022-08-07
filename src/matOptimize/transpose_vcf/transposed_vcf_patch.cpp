@@ -38,7 +38,7 @@ struct Sample_Pos_Mut {
     size_t bfs_idx;
     std::vector<Pos_Mut> not_Ns;
     std::vector<std::pair<int, int>> Ns;
-    Sample_Pos_Mut(std::string &&name, MAT::Tree &tree) {
+    Sample_Pos_Mut(std::string &name, MAT::Tree &tree) {
         auto node=tree.get_node(name);
         if (node) {
             bfs_idx = node->bfs_index;
@@ -68,7 +68,7 @@ struct All_Sample_Appender {
     Sample_Pos_Mut_Wrap set_name(std::string &&name) {
         sample_pos_mut_local_t::reference my_sample_pos_mut_local =
             sample_pos_mut_local.local();
-        my_sample_pos_mut_local.emplace_back(std::move(name), tree);
+        my_sample_pos_mut_local.emplace_back(name, tree);
         return Sample_Pos_Mut_Wrap{my_sample_pos_mut_local.back()};
     }
 };
@@ -243,6 +243,78 @@ void get_sample_mut(const char *input_path,std::vector<Sample_Pos_Mut>& all_samp
                            std::make_move_iterator(sample_block.end()));
     }
 }
+static int parse_digit(FILE* fh,int& read){
+    int acc=0;
+    read=fgetc(fh);
+    while (isdigit(read)) {
+        acc=acc*10+(read-'0');
+        read=fgetc(fh);
+    }
+    return acc;
+}
+void load_diff(const char *input_path,std::vector<Sample_Pos_Mut>& all_samples, MAT::Tree &tree) {
+    auto fh=fopen(input_path, "r");
+    int read;
+    int line_count=0;
+    while (true) {
+        read=fgetc(fh);
+        if (read==EOF) {
+            return;
+        }
+        if (read=='>') {
+            std::string sample_name;
+            for(read=fgetc(fh);read!='\n';read=fgetc(fh)){
+            if (read==EOF) {
+                fprintf(stderr, "%d: unexpected EOF READ %s sofar\n",line_count, sample_name.c_str());
+                raise(SIGTRAP);
+            }
+            sample_name.push_back(read);
+            }
+            all_samples.emplace_back(sample_name,tree);
+            if (all_samples.back().bfs_idx==-1) {
+                fprintf(stderr, "%d:sample %s not found\n",line_count, sample_name.c_str());
+                raise(SIGTRAP);
+            }
+        }else {
+            
+            auto parsed_nuc=MAT::get_nuc_id(read);
+            if (parsed_nuc==0xf&&read!='n'&&read!='-') {
+                fprintf(stderr, "at line %d\n",line_count);
+                raise(SIGTRAP);
+            }
+            read=fgetc(fh);
+            if(read!='\t'){
+                fprintf(stderr, "%d:Expect tab, got %d:%c\n",line_count,read,read);
+                raise(SIGTRAP);
+            }
+            auto pos=parse_digit(fh,read);
+            if (parsed_nuc==0xf) {
+                if(read!='\t'){
+                    fprintf(stderr, "%d:n nuc, Expect tab, got %d:%c\n",line_count,read,read);
+                    raise(SIGTRAP);
+                }else {
+                    auto len=parse_digit(fh, read);
+                    all_samples.back().Ns.emplace_back(pos,pos+len);
+                }
+            }else {
+                all_samples.back().not_Ns.emplace_back(pos,parsed_nuc);
+            }
+            if (read!='\n'&&read!=EOF) {
+                std::string temp;
+                while (read!='\n'&&read!=EOF) {
+                    temp.push_back(read);
+                    read=fgetc(fh);
+                }
+                fprintf(stderr, "%d:Got unrecongnized trialing :%s\n",line_count,temp.c_str());
+            }
+            if (read==EOF) {
+                return;
+            }
+        }
+
+        line_count++;
+    }
+}
 void print_mut(const Sample_Pos_Mut& to_print) {
     for (const auto& mut : to_print.not_Ns) {
         fprintf(stderr, "%d:%d\t",mut.position,mut.mut);
@@ -297,13 +369,17 @@ void asign_and_fill(std::vector<Sample_Pos_Mut>& all_samples, MAT::Tree &tree,st
     //malloc_stats();
     fill_muts(output, bfs_ordered_nodes);
 }
-void add_ambiguous_mutation(const char *input_path, MAT::Tree &tree) {
+void add_ambiguous_mutation(const char *input_path, MAT::Tree &tree,bool is_diff_file) {
     tree.uncondense_leaves();
     auto bfs_ordered_nodes = tree.breadth_first_expansion();
     //p_idx=tree.get_node("LR882438.1|260113|20-08-26")->bfs_index;
     p_idx=-1;
     std::vector<Sample_Pos_Mut> all_samples;
-    get_sample_mut(input_path, all_samples, tree);
+    if (is_diff_file) {
+        load_diff(input_path, all_samples, tree);
+    }else {
+        get_sample_mut(input_path, all_samples, tree);    
+    }
     /*tbb::parallel_for(tbb::blocked_range<size_t>(0,pos_mut_idx.size(),100),Output_Genotypes{pos_mut_idx,all_samples,child_idx_range,parent_idx,output});*/
     asign_and_fill(all_samples, tree, bfs_ordered_nodes);
     auto par_score = tree.get_parsimony_score();
@@ -312,3 +388,4 @@ void add_ambiguous_mutation(const char *input_path, MAT::Tree &tree) {
     //malloc_stats();
     recondense_tree(tree);
 }
+

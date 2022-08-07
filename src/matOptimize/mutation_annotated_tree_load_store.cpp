@@ -185,7 +185,7 @@ void Mutation_Annotated_Tree::Tree::load_from_newick(const std::string& newick_s
             } else if (c == ')') {
                 stop = true;
                 nc++;
-                float len = (branch.size() > 0) ? std::stof(branch) : -1.0;
+                float len = (branch.size() > 0) ? std::stod(branch) : -1.0;
                 branch_len[level].push(len);
                 level--;
                 branch_start = false;
@@ -201,7 +201,7 @@ void Mutation_Annotated_Tree::Tree::load_from_newick(const std::string& newick_s
         leaves.push_back(std::move(leaf));
         num_open.push_back(no);
         num_close.push_back(nc);
-        float len = (branch.size() > 0) ? std::stof(branch) : -1.0;
+        float len = (branch.size() > 0) ? std::stod(branch) : -1.0;
         branch_len[level].push(len);
     }
 

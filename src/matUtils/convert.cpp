@@ -191,8 +191,9 @@ struct VCF_Line_Writer {
     uint leaf_count;
     bool print_genotypes;
     const std::string& chrom;
-    std::string* operator()(uint pos) const {
-        auto & pos_info=pos_genotypes[pos].second;
+    std::string* operator()(uint idx) const {
+        auto & pos_info=pos_genotypes[idx].second;
+        auto pos=pos_genotypes[idx].first;
         int8_t ref = pos_info.ref;
         auto& gt_array = pos_info.leaf_genotypes;
         #ifndef NDEBUG
@@ -200,8 +201,8 @@ struct VCF_Line_Writer {
             return left.leaf_ix<right.leaf_ix;
         })) raise(SIGTRAP);
         #endif
-        gt_array.push_back(Leaf_Genotype{leaf_count+10,0});
         std::unordered_map<int8_t, uint>allele_counts = count_alleles(gt_array);
+        gt_array.push_back(Leaf_Genotype{leaf_count+10,0});
         std::map<int8_t, uint>alts = make_alts(allele_counts, ref);
         if (alts.size() == 0) {
             fprintf(stderr, "WARNING: no-alternative site encountered in vcf output; skipping\n");

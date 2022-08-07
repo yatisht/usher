@@ -1,4 +1,5 @@
 #include "mutation_annotated_tree.hpp"
+#include <cstdio>
 int8_t Mutation_Annotated_Tree::get_nuc_id(char nuc) {
     int8_t ret = 0b1111;
     switch(nuc) {
@@ -19,37 +20,52 @@ int8_t Mutation_Annotated_Tree::get_nuc_id(char nuc) {
         ret = 0b1000;
         break;
     case 'R':
+    case 'r':
         ret = 0b101;
         break;
     case 'Y':
+    case 'y':
         ret = 0b1010;
         break;
     case 'S':
+    case 's':
         ret = 0b110;
         break;
     case 'W':
+    case 'w':
         ret = 0b1001;
         break;
     case 'K':
+    case 'k':
         ret = 0b1100;
         break;
     case 'M':
+    case 'm':
         ret = 0b11;
         break;
     case 'B':
+    case 'b':
         ret = 0b1110;
         break;
     case 'D':
+    case 'd':
         ret = 0b1101;
         break;
     case 'H':
+    case 'h':
         ret = 0b1011;
         break;
     case 'V':
+    case 'v':
         ret = 0b111;
+        break;
     case 'n':
     case 'N':
+    case '-':
+        ret = 0b1111;
+        break;
     default:
+        fprintf(stderr, "unexpected nucleotide: %c\n",nuc);
         ret = 0b1111;
         break;
     }
