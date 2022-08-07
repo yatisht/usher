@@ -287,7 +287,7 @@ void load_diff(const char *input_path,std::vector<Sample_Pos_Mut>& all_samples, 
                 fprintf(stderr, "%d:Expect tab, got %d:%c\n",line_count,read,read);
                 raise(SIGTRAP);
             }
-            auto pos=parse_digit(fh,read)-1;
+            auto pos=parse_digit(fh,read);
             if (parsed_nuc==0xf) {
                 if(read!='\t'){
                     fprintf(stderr, "%d:n nuc, Expect tab, got %d:%c\n",line_count,read,read);

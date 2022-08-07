@@ -68,12 +68,18 @@ static void load_reference(std::string fasta_fname){
     auto fh=fopen(fasta_fname.c_str(), "r");
     char* seq_name=nullptr;
     size_t seq_len=0;
-    getline(&seq_name, &seq_len, fh);
+    auto nchar=getline(&seq_name, &seq_len, fh);
+    MAT::Mutation::chromosomes.emplace_back(seq_name+1,seq_name+nchar-1);
+    MAT::Mutation::chromosome_map.emplace(MAT::Mutation::chromosomes[0],0);
     free(seq_name);
     auto read=fgetc(fh);
+    MAT::Mutation::refs.push_back(0);
     while (read!=EOF) {
         if (read!='\n') {
             auto parsed_nuc=MAT::get_nuc_id(read);
+            if (parsed_nuc==0xf) {
+                parsed_nuc=0;
+            }
             MAT::Mutation::refs.push_back(parsed_nuc);
         }
         read=fgetc(fh);
