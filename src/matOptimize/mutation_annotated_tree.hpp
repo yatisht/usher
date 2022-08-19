@@ -572,6 +572,13 @@ class Tree {
         }
         return node_name_iter->second;
     }
+    std::string get_node_name_for_log_output(size_t node_idx) const {
+        auto node_name_iter=node_names.find(node_idx);
+        if (node_name_iter==node_names.end()) {
+            return "node_"+std::to_string(node_idx);
+        }
+        return node_name_iter->second;
+    }
     size_t map_samp_name_only(const std::string& samp_name) {
         auto assigned_idx=node_idx++;
         node_names.emplace(assigned_idx,samp_name);

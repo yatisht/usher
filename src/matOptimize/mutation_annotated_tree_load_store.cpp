@@ -42,7 +42,7 @@ static void print_node(
     } else if(print_internal||n->is_leaf()) {
         auto iter=node_name_map.find(n->node_id);
         if (iter==node_name_map.end()) {
-            ss << n->node_id;
+            ss <<"node_"<< n->node_id;
         } else {
             ss << iter->second;
         }
