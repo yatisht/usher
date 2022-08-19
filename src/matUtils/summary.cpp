@@ -1,6 +1,7 @@
 #include "summary.hpp"
 #include "introduce.hpp" //for date parsing functions.
 #include "translate.hpp"
+#include <array>
 #include <boost/date_time/gregorian/gregorian.hpp>
 
 po::variables_map parse_summary_command(po::parsed_options parsed) {
@@ -39,7 +40,8 @@ po::variables_map parse_summary_command(po::parsed_options parsed) {
     ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
     ("expanded-roho,E", po::bool_switch(),
      "Use to include date and other contextual information in RoHO table output. Significantly slows calculation time.")
-    ("help,h", "Print help messages");
+    ("help,h", "Print help messages")
+    ("mutation-stats,M", po::bool_switch(), "Print counts of different kinds of mutations");
     // Collect all the unrecognized options from the first pass. This will include the
     // (positional) command name, so we need to erase that.
     std::vector<std::string> opts = po::collect_unrecognized(parsed.options, po::include_positional);
@@ -191,6 +193,28 @@ std::map<std::set<std::string>,size_t> count_haplotypes(MAT::Tree* T) {
         hapmap[mset]++;
     }
     return hapmap;
+}
+static uint8_t one_hot_to_two_bit(uint8_t arg) {
+    return 31-__builtin_clz((unsigned int)arg);
+}
+void print_mut_stats(MAT::Tree* T){
+    std::array<int, 16> mut_frequency;
+    for ( auto& temp : mut_frequency) {
+        temp=0;
+    }
+    auto nodes=T->depth_first_expansion();
+    for(const auto node:nodes){
+        for(const auto& mut:node->mutations){
+            auto from=one_hot_to_two_bit(mut.par_nuc);
+            auto to=one_hot_to_two_bit(mut.mut_nuc);
+            mut_frequency[4*from+to]++;
+        }
+    }
+    for (int from=0; from<4; from++) {
+        for(int to=0;to<4;to++){
+            printf("%c->%c\t%d\n",MAT::get_nuc(1<<from),MAT::get_nuc(1<<to),mut_frequency[4*from+to]);
+        }
+    }
 }
 
 void write_haplotype_table(MAT::Tree* T, std::string filename) {
@@ -527,6 +551,9 @@ void summary_main(po::parsed_options parsed) {
     if (aberrant != dir_prefix) {
         write_aberrant_table(&T, aberrant);
         no_print = false;
+    }
+    if(vm["mutation-stats"].as<bool>()){
+        print_mut_stats(&T);
     }
     if (sample_clades != dir_prefix) {
         write_sample_clades_table(&T, sample_clades);

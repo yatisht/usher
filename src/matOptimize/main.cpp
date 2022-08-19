@@ -345,6 +345,10 @@ int main(int argc, char **argv) {
                 fputs("Finished checkpointing initial tree.\n",stderr);
             }
         }
+        if (radius==0) {
+            save_final_tree(t, output_path);
+            return 0;
+        }
         auto last_save_time=std::chrono::steady_clock::now();
         size_t new_score;
         size_t score_before;

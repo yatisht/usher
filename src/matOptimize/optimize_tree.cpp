@@ -60,7 +60,7 @@ bool check_not_ancestor(MAT::Node* dst,MAT::Node* src) {
 }
 void log_move_detail(const std::vector<Profitable_Moves_ptr_t> & moves, FILE* out,int iteration,int radius,MAT::Tree& tree) {
     for(const auto& move:moves) {
-        fprintf(out, "%s\t%s\t%d\t%d\t%d\t%lu\n",tree.get_node_name(move->src->node_id).c_str(),tree.get_node_name(move->dst->node_id).c_str()
+        fprintf(out, "%s\t%s\t%d\t%d\t%d\t%lu\n",tree.get_node_name_for_log_output(move->src->node_id).c_str(),tree.get_node_name_for_log_output(move->dst->node_id).c_str()
                 ,iteration,move->score_change,radius-move->radius_left,move->src->dfs_end_index-move->src->dfs_index);
     }
 }
