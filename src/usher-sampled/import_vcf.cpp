@@ -253,6 +253,15 @@ static void add_mutation(long output_idx, const MAT::Mutation &mut_template,
             mutations_out[mut_template.get_position()].push_back(std::make_pair(-output_idx, mut_nuc));
     }
 }
+static int parse_digit(FILE* fh,int& read){
+    int acc=0;
+    read=fgetc(fh);
+    while (isdigit(read)) {
+        acc=acc*10+(read-'0');
+        read=fgetc(fh);
+    }
+    return acc;
+}
 struct line_parser {
     Sampled_Tree_Mutations_t &header;
     mut_container_t& mutations_out;
@@ -511,4 +520,112 @@ void Sample_Input(const char *name, std::vector<Sample_Muts> &sample_mutations,
     done = true;
     progress_bar_cv.notify_all();
     progress_meter.join();
+}
+static void load_reference(std::string fasta_fname){
+    auto fh=fopen(fasta_fname.c_str(), "r");
+    char* seq_name=nullptr;
+    size_t seq_len=0;
+    auto nchar=getline(&seq_name, &seq_len, fh);
+    MAT::Mutation::chromosomes.emplace_back(seq_name+1,seq_name+nchar-1);
+    MAT::Mutation::chromosome_map.emplace(MAT::Mutation::chromosomes[0],0);
+    free(seq_name);
+    auto read=fgetc(fh);
+    MAT::Mutation::refs.push_back(0);
+    while (read!=EOF) {
+        if (read!='\n') {
+            auto parsed_nuc=MAT::get_nuc_id(read);
+            if (parsed_nuc==0xf) {
+                parsed_nuc=0;
+            }
+            MAT::Mutation::refs.push_back(parsed_nuc);
+        }
+        read=fgetc(fh);
+    }
+}
+typedef std::vector<mutated_t> mut_container_t;
+void load_diff_for_usher(
+    const char *input_path,std::vector<Sample_Muts>& all_samples,
+    mut_container_t& position_wise_out, MAT::Tree &tree, const std::string& fasta_fname,
+    std::vector<std::string> & samples) {
+    load_reference(fasta_fname);
+    position_wise_out.resize(MAT::Mutation::refs.size());
+    auto fh=fopen(input_path, "r");
+    int read;
+    int line_count=0;
+    bool do_add=true;
+    int samp_idx;
+    while (true) {
+        read=fgetc(fh);
+        if (read==EOF) {
+            return;
+        }
+        if (read=='>') {
+            std::string sample_name;
+            for(read=fgetc(fh);read!='\n';read=fgetc(fh)){
+            if (read==EOF) {
+                fprintf(stderr, "%d: unexpected EOF READ %s sofar\n",line_count, sample_name.c_str());
+                raise(SIGTRAP);
+            }
+            sample_name.push_back(read);
+            }
+            samples.push_back(sample_name);
+            auto node=tree.get_node(sample_name);
+            if (node != nullptr) {
+                fprintf(stderr, "WARNING: Sample %s already in the tree! Ignoring.\n\n", sample_name.c_str());
+                samp_idx=node->node_id;
+                do_add=false;
+            } else {
+                samp_idx=tree.map_samp_name_only(sample_name);
+                do_add=true;
+                all_samples.emplace_back();
+                all_samples.back().sample_idx=samp_idx;
+            }
+        }else {
+            
+            auto parsed_nuc=MAT::get_nuc_id(read);
+            if (parsed_nuc==0xf&&read!='n'&&read!='-') {
+                fprintf(stderr, "at line %d\n",line_count);
+                raise(SIGTRAP);
+            }
+            read=fgetc(fh);
+            if(read!='\t'){
+                fprintf(stderr, "%d:Expect tab, got %d:%c\n",line_count,read,read);
+                raise(SIGTRAP);
+            }
+            auto pos=parse_digit(fh,read);
+            if (parsed_nuc==0xf) {
+                if(read!='\t'){
+                    fprintf(stderr, "%d:n nuc, Expect tab, got %d:%c\n",line_count,read,read);
+                    raise(SIGTRAP);
+                }else {
+                    auto len=parse_digit(fh, read);
+                    if(do_add){
+                        all_samples.back().muts.emplace_back(pos,0,0xf);
+                        all_samples.back().muts.back().range=len-1;
+                    }
+                    for (int n_counter=0; n_counter<len; n_counter++) {
+                        position_wise_out[pos+n_counter].emplace_back(samp_idx,0xf);
+                    }
+                }
+            }else {
+                if(do_add){
+                    all_samples.back().muts.emplace_back(pos,0,parsed_nuc,MAT::Mutation::refs[pos]);
+                }
+                position_wise_out[pos].emplace_back(samp_idx,parsed_nuc);
+            }
+            if (read!='\n'&&read!=EOF) {
+                std::string temp;
+                while (read!='\n'&&read!=EOF) {
+                    temp.push_back(read);
+                    read=fgetc(fh);
+                }
+                fprintf(stderr, "%d:Got unrecongnized trialing :%s\n",line_count,temp.c_str());
+            }
+            if (read==EOF) {
+                return;
+            }
+        }
+
+        line_count++;
+    }
 }
