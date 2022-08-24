@@ -644,9 +644,10 @@ bool final_output(MAT::Tree &T, const output_options &options, int t_idx,
     fix_condensed_nodes(&T);
     //check_leaves(T);
     //MAT::save_mutation_annotated_tree(T, "before_post_processing.pb");
+    MPI_Finalize();
     int pid=output_newick(T, options,t_idx);
     if(!pid){
-        return false;
+        _exit(EXIT_SUCCESS);
     }
     // For each final tree write the path of mutations from tree root to the
     // sample for each newly placed sample

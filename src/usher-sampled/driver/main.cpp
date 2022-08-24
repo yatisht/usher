@@ -311,7 +311,6 @@ static int leader_thread(
         tree, options.out_options, 0, samples_clade, sample_start_idx, sample_end_idx, low_confidence_samples,position_wise_out);
     auto duration=std::chrono::steady_clock::now()-start_time;
     fprintf(stderr, "Took %ld msec\n",std::chrono::duration_cast<std::chrono::milliseconds>(duration).count());
-    MPI_Finalize();
     return 0;
 }
 void wait_debug();
