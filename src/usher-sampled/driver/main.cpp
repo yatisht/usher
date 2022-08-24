@@ -393,11 +393,15 @@ int main(int argc, char **argv) {
     ;
     po::variables_map vm;
     //wait_debug();
+    bool have_error=false;
     try {
         po::store(po::command_line_parser(argc, argv).options(desc).run(), vm);
         po::notify(vm);
     } catch(std::exception &e) {
         // Return with error code 1 unless the user specifies help
+        have_error=true;
+    }
+    if (have_error||(options.vcf_filename==""&&(options.diff_file_name==""||options.reference_file_name==""))) {
         if (this_rank==0) {
             if (vm.count("version")) {
                 std::cout << "UShER " << std::endl;
