@@ -26,6 +26,7 @@ static bool output_not_LCA(Mutation_Count_Change_Collection &parent_added,
                            ,bool do_continue
 #endif
                           ) {
+    std::vector<Node_With_Major_Allele_Set_Change> major_alllele_count_changes_hist(src_side.node_with_major_allele_set_change);
     if (use_bound&&lower_bound > src_side.out.score_change) {
 #ifndef CHECK_BOUND
         return false;
@@ -44,6 +45,9 @@ static bool output_not_LCA(Mutation_Count_Change_Collection &parent_added,
         get_intermediate_nodes_mutations(this_node,
                                          parent_added, parent_of_parent_added,
                                          parsimony_score_change);
+        if (!parent_of_parent_added.empty()) {
+            major_alllele_count_changes_hist.push_back(Node_With_Major_Allele_Set_Change{this_node, parent_of_parent_added});        
+        }
         parent_added.swap(parent_of_parent_added);
         if (parent_added.empty()) {
             break;
@@ -62,12 +66,15 @@ static bool output_not_LCA(Mutation_Count_Change_Collection &parent_added,
                          src_side.allele_count_change_from_src,
                          parent_added, parent_of_parent_added,
                          parsimony_score_change);
+        if (!parent_of_parent_added.empty()) {
+            major_alllele_count_changes_hist.push_back(Node_With_Major_Allele_Set_Change{src_side.LCA, parent_of_parent_added});
+        }
     }
     parent_added.swap(parent_of_parent_added);
     parent_of_parent_added.clear();
     check_parsimony_score_change_above_LCA(
         src_side.LCA->parent, parsimony_score_change, parent_added,
-        parent_of_parent_added);
+        parent_of_parent_added,major_alllele_count_changes_hist);
 #ifdef CHECK_PAR_MAIN
     output_t temp;
     auto refout=individual_move(src_side.src, dst_node, src_side.LCA, temp);
@@ -102,7 +109,7 @@ static bool output_not_LCA(Mutation_Count_Change_Collection &parent_added,
     src_side.savings.total++;
 #endif
     return output_result(src_side.src, dst_node, src_side.LCA, parsimony_score_change,
-                         src_side.out,radius,callback);
+                         src_side.out,radius,callback,major_alllele_count_changes_hist);
 }
 struct go_descendant {};
 struct no_descendant {};

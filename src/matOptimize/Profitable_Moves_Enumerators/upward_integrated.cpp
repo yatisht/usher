@@ -17,6 +17,10 @@ void output_LCA(
     Mutation_Count_Change_Collection &allele_count_change_from_splitting_LCA,
     int par_score_change, const src_side_info &src_side, int radius_left,Move_Found_Callback& callback) {
     Mutation_Count_Change_Collection parent_of_parent_added;
+    std::vector<Node_With_Major_Allele_Set_Change> major_alllele_count_changes_hist(src_side.node_with_major_allele_set_change);
+    if (!allele_count_change_from_splitting_LCA.empty()) {
+        major_alllele_count_changes_hist.push_back(Node_With_Major_Allele_Set_Change{src_side.LCA,allele_count_change_from_splitting_LCA});
+    }
     parent_of_parent_added.reserve(
         allele_count_change_from_splitting_LCA.size());
     auto actual_LCA=src_side.LCA->parent;
@@ -25,7 +29,7 @@ void output_LCA(
     }
     check_parsimony_score_change_above_LCA(
         actual_LCA, par_score_change, allele_count_change_from_splitting_LCA,
-        parent_of_parent_added);
+        parent_of_parent_added,major_alllele_count_changes_hist);
     std::vector<MAT::Node *> ignored;
 #ifdef CHECK_PAR_MAIN
     output_t temp;
@@ -49,7 +53,7 @@ void output_LCA(
     }
 #endif
     output_result(src_side.src, actual_LCA, actual_LCA, par_score_change,
-                  src_side.out, radius_left,callback);
+                  src_side.out, radius_left,callback,major_alllele_count_changes_hist);
 }
 template<typename T>
 static void search_subtree_first_level(MAT::Node *node, MAT::Node *to_exclude,
@@ -323,6 +327,9 @@ upward_integrated(src_side_info &src_side,
 
     output_LCA(split_allele_count_change_out, par_score_change_split_LCA+next_src_par_score,
                src_side, radius_left,callback);
+    if(!mut_out.empty()){
+        src_side.node_with_major_allele_set_change.emplace_back(Node_With_Major_Allele_Set_Change{node, Mutation_Count_Change_Collection{mut_out.begin(),mut_out.end()}});
+    }
     return true;
 }
 template<typename T>
