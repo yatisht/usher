@@ -285,7 +285,12 @@ void write_sample_clades_table (MAT::Tree* T, std::string sample_clades) {
         std::vector<std::string> annotations_found (num_annotations, "None");
         for (auto a: T->rsearch(n->identifier, false)) {
             std::vector<std::string> canns = a->clade_annotations;
-            for (size_t i = 0; i < num_annotations; i++) {
+            // watch out for nodes that have fewer than expected annotations
+            size_t node_num_annotations = num_annotations;
+            if (node_num_annotations > canns.size()) {
+                node_num_annotations = canns.size();
+            }
+            for (size_t i = 0; i < node_num_annotations; i++) {
                 if (canns[i] != "" && annotations_found[i] == "None") {
                     annotations_found[i] = canns[i];
                 }
