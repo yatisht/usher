@@ -90,7 +90,7 @@ struct output_options {
     bool detailed_clades;
     bool redo_FS_Min_Back_Mutations;
 };
-void final_output(MAT::Tree& T,const output_options& options,int t_idx,std::vector<Clade_info>& assigned_clades,
+bool final_output(MAT::Tree& T,const output_options& options,int t_idx,std::vector<Clade_info>& assigned_clades,
                   size_t sample_start_idx,size_t sample_end_idx,std::vector<std::string>& low_confidence_samples,std::vector<mutated_t>& position_wise_out);
 void place_sample_leader(std::vector<Sample_Muts> &sample_to_place,
                          MAT::Tree &main_tree, int batch_size,
@@ -135,6 +135,8 @@ struct Leader_Thread_Options {
     int last_optimization_minutes;
     std::string vcf_filename;
     bool no_add;
+    std::string diff_file_name;
+    std::string reference_file_name;
 };
 int set_descendant_count(MAT::Node* root);
 void discretize_mutations(const std::vector<To_Place_Sample_Mutation> &in,
@@ -164,3 +166,7 @@ void place_sample_sequential(
     bool do_print, FILE *printer_out);
 void clean_up_leaf(std::vector<MAT::Node*>& dfs);
 void prep_tree(MAT::Tree &tree);
+void load_diff_for_usher(
+    const char *input_path,std::vector<Sample_Muts>& all_samples,
+    std::vector<mutated_t>& position_wise_out, MAT::Tree &tree,
+    const std::string& fasta_fname,std::vector<std::string> & samples);
