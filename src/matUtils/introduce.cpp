@@ -648,8 +648,8 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::unordered_map<std
                             //this means that a cluster labeled as indeterminate can have its composition of potential origins revealed 
                             //by increasing the number of potential origins to report.
                             if ((oriscores.size() > count) && (oriscores.top().first == 1)) {
-                                origins = "indeterminate";
-                                origins_cons << 0.0;
+                                origins = "indeterminate: " + std::to_string(oriscores.size()) + " potential origins.";
+                                origins_cons << 1.0;
                             } else {
                                 while (!oriscores.empty()) {
                                     auto osp = oriscores.top();
@@ -664,13 +664,13 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::unordered_map<std
                                 }
                             }
                         } else {
-                            origins = "indeterminate";
+                            origins = "indeterminate: no information.";
                             origins_cons << 0.0;
                         }
                     }
                     if (origins.size() == 0) {
                         //if we didn't find anything which has the pre-introduction node at 1, we don't know where it came from
-                        origins = "indeterminate";
+                        origins = "indeterminate: no regions with support";
                         origins_cons << 0.0;
                     }
                     //collect additional information if requested.
