@@ -247,6 +247,10 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
     std::vector<std::string> samples;
     if (input_samples_file != "") {
         samples = read_sample_names(input_samples_file);
+        if (samples.size() == 0) {
+            fprintf(stderr, "ERROR: Sample file is empty or unparseable!");
+            exit(1);
+        }
     }
     std::string sample_id;
     if (nearest_k != "") {
