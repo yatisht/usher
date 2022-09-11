@@ -36,23 +36,22 @@ static MAT::Node* add_children(MAT::Node* target_node,MAT::Node* sample_node,MAT
     if (keep_old_node&&((target_node->children.size()+1)>=target_node->children.capacity())) {
         MAT::Node* new_target_node=new MAT::Node(*target_node);
         tree.register_node_serial(new_target_node);
-        if (!new_target_node->parent) {
-            /*if (new_target_node->node_id!=0){
-                fprintf(stderr, "replacing root is root?\n");
-                raise(SIGTRAP);
-            }*/
-            tree.root=new_target_node;
-        }
         for(auto child:new_target_node->children) {
             child->parent=new_target_node;
         }
         new_target_node->children.reserve(SIZE_MULT*new_target_node->children.size());
+        if (!new_target_node->parent) {
+            fprintf(stderr, "replacing root\n");
+            tree.root=new_target_node;
+            tree.root_ident++;
+        }else {
         auto& parent_children=target_node->parent->children;
         auto iter=std::find(parent_children.begin(),parent_children.end(),target_node);
         /*if (iter==parent_children.end()) {
             fprintf(stderr, "not found in children\n");
         }*/
         *iter=new_target_node;
+        }
         deleted_node=target_node;
         deleted_node->parent=nullptr;
         target_node=new_target_node;
@@ -83,7 +82,7 @@ update_main_tree_output update_main_tree(const MAT::Mutations_Collection& sample
         assert(mut.get_position());
     }
     sample_node->branch_length = sample_node_mut_count;
-    if (splitted_mutations.empty() && (!target_node->is_leaf())) {
+    if ((splitted_mutations.empty() && (!target_node->is_leaf()))||target_node->is_root()) {
         deleted_node=add_children(target_node, sample_node,tree,keep_old_node);
     } else if (shared_mutations.empty() &&
                (!target_node->is_leaf())) {
@@ -146,10 +145,23 @@ update_main_tree_output update_main_tree(const MAT::Mutations_Collection& sample
 }
 bool check_overriden(MAT::Tree& tree,move_type* in) {
     for (const auto& place_target : std::get<0>(*in)) {
-        if (place_target.target_node->parent!=place_target.parent_node) {
-            auto par_id= place_target.target_node->parent?  place_target.target_node->parent->node_id:0;
-            fprintf(stderr, "parent Mismatch  ; from placement: %zu ; actual %zu \n", place_target.parent_node->node_id,par_id);
-            return true;
+        if (place_target.target_node==tree.root) {
+            if (place_target.parent_node!=(MAT::Node*)tree.root_ident) {
+                fprintf(stderr, "root Mismatch  ; from placement: %zu ; actual %zu \n", (size_t)place_target.parent_node,tree.root_ident);
+                return true;
+            }
+        }
+        else{
+            if (place_target.target_node->parent!=place_target.parent_node) {
+                if(place_target.target_node->parent){
+                auto par_id= place_target.target_node->parent?  place_target.target_node->parent->node_id:0;
+                fprintf(stderr, "parent Mismatch  ; from placement: %zu ; actual %zu \n", place_target.parent_node->node_id,par_id);
+                }else {
+                fprintf(stderr,"old root");
+                }
+                return true;
+
+            }
         }
         if (tree.get_node(place_target.target_node->node_id)!=place_target.target_node) {
             fprintf(stderr, "node id Mismatch: %zu \n", place_target.target_node->node_id);

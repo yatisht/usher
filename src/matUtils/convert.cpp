@@ -1,6 +1,12 @@
 #include "convert.hpp"
 #include "nlohmann_json.hpp"
 #include "tbb/pipeline.h"
+#include <algorithm>
+#include <csignal>
+#include <cstdint>
+#include <tbb/parallel_sort.h>
+#include <unordered_map>
+#include <vector>
 
 using json = nlohmann::json;
 
@@ -35,11 +41,17 @@ int8_t *new_gt_array(int size, int8_t ref) {
     }
     return gt_array;
 }
-
+struct Leaf_Genotype{
+    uint leaf_ix;
+    int8_t genotype;
+};
+struct Pos_Data{
+    std::vector<Leaf_Genotype> leaf_genotypes;
+    uint8_t ref;
+};
 uint r_add_genotypes(MAT::Node *node,
-                     std::unordered_map<std::string, std::vector<int8_t *>> &chrom_pos_genotypes,
-                     std::unordered_map<std::string, std::vector<int8_t>> &chrom_pos_ref,
-                     uint leaf_count, uint leaf_ix, std::vector<struct MAT::Mutation *> &mut_stack, const std::set<std::string>* samples_to_use) {
+                     std::unordered_map<std::string, std::unordered_map<uint, Pos_Data>> &info,
+                     uint leaf_count, uint leaf_ix, std::vector<struct MAT::Mutation *> mut_stack, const std::set<std::string>* samples_to_use) {
     // Traverse tree, adding leaf/sample genotypes for mutations annotated on path from root to node
     // to chrom_pos_genotypes (and reference allele to chrom_pos_ref).
     for (auto &mut: node->mutations) {
@@ -58,32 +70,28 @@ uint r_add_genotypes(MAT::Node *node,
                 fprintf(stderr, "mut->chrom is empty std::string at node '%s', position %u\n",
                         node->identifier.c_str(), pos);
             }
-            if (chrom_pos_genotypes.find(chrom) == chrom_pos_genotypes.end()) {
-                // First variant on chrom: initialize a vector mapping position to genotype.
-                // Assume a genome size similar to SARS-CoV-2, resize if necessary.
-                uint initSize = 30000;
-                chrom_pos_genotypes[chrom] = std::vector<int8_t *>(initSize);
-                chrom_pos_ref[chrom] = std::vector<int8_t>(initSize);
+            auto chrom_res=info.insert(std::make_pair(chrom,std::unordered_map<uint, Pos_Data>()));
+            auto& all_pos_info=chrom_res.first->second;
+            auto pos_res= all_pos_info.insert(std::make_pair(pos,Pos_Data()));
+            auto& pos_info=pos_res.first->second;
+            if (pos_res.second) {
+                pos_info.ref=mut->par_nuc;
             }
-            if (pos >= chrom_pos_genotypes[chrom].size()) {
-                // chrom has larger positions than we assumed; allocate a larger vector.
-                uint newSize = chrom_pos_genotypes[chrom].size() * 2;
-                chrom_pos_genotypes[chrom].resize(newSize);
-                chrom_pos_ref[chrom].resize(newSize);
+            if (pos_info.leaf_genotypes.empty()||pos_info.leaf_genotypes.back().leaf_ix<leaf_ix) {
+                pos_info.leaf_genotypes.emplace_back(Leaf_Genotype{leaf_ix,mut->mut_nuc});            
+            }else {
+                #ifndef NDEBUG
+                if (pos_info.leaf_genotypes.back().leaf_ix>leaf_ix) {
+                    raise(SIGTRAP);
+                }
+                #endif
+                pos_info.leaf_genotypes.back().genotype=mut->mut_nuc;
             }
-            if (! chrom_pos_genotypes[chrom][pos]) {
-                // First variant reported at this position; allocate genotype array and
-                // store reference allele (which is stored in par_nuc not ref_nuc).
-                chrom_pos_genotypes[chrom][pos] = new_gt_array(leaf_count, mut->par_nuc);
-                chrom_pos_ref[chrom][pos] = mut->par_nuc;
-            }
-            // Store the allele/genotype for this chrom / pos / sample.
-            chrom_pos_genotypes[chrom][pos][leaf_ix] = mut->mut_nuc;
         }
         leaf_ix++;
     }
     for (auto child: node->children) {
-        leaf_ix = r_add_genotypes(child, chrom_pos_genotypes, chrom_pos_ref, leaf_count, leaf_ix,
+        leaf_ix = r_add_genotypes(child, info, leaf_count, leaf_ix,
                                   mut_stack, samples_to_use);
     }
     for (auto mut: node->mutations) {
@@ -92,11 +100,11 @@ uint r_add_genotypes(MAT::Node *node,
     return leaf_ix;
 }
 
-std::unordered_map<int8_t, uint>count_alleles(int8_t *gt_array, uint gtCount)  {
+std::unordered_map<int8_t, uint>count_alleles(const std::vector<Leaf_Genotype>& gt_array)  {
     // Tally up the count of each allele (both ref and alts) from sample genotypes.
     std::unordered_map<int8_t, uint> allele_counts;
-    for (uint i = 0;  i < gtCount;  i++) {
-        int8_t allele = gt_array[i];
+    for (const auto& mut:gt_array) {
+        int8_t allele = mut.genotype;
         if (allele_counts.find(allele) == allele_counts.end()) {
             allele_counts.insert({allele, 1});
         } else {
@@ -165,10 +173,9 @@ std::string make_info(std::map<int8_t, uint> &alts, uint leaf_count) {
     return info;
 }
 
-int *make_allele_codes(int8_t ref, std::map<int8_t, uint> &alts) {
+void make_allele_codes(int8_t ref, std::map<int8_t, uint> &alts,int *al_codes) {
     // Return an array that maps binary-encoded nucleotide to VCF genotype encoding:
     // 0 for reference allele, 1 for first alternate allele, and so on.
-    int *al_codes = new int[256];
     for (int i = 0;  i < 256;  i++) {
         al_codes[i] = 0;
     }
@@ -177,18 +184,25 @@ int *make_allele_codes(int8_t ref, std::map<int8_t, uint> &alts) {
     for (auto &itr : alts) {
         al_codes[itr.first] = altIx++;
     }
-    return al_codes;
 }
+typedef std::pair<uint,Pos_Data> Pos_Genotype_t;
 struct VCF_Line_Writer {
-    const std::vector<int8_t *>& pos_genotypes;
-    const std::vector<int8_t>& pos_ref;
+    std::vector<Pos_Genotype_t>& pos_genotypes;
     uint leaf_count;
     bool print_genotypes;
     const std::string& chrom;
-    std::string* operator()(uint pos) const {
-        int8_t ref = pos_ref[pos];
-        int8_t *gt_array = pos_genotypes[pos];
-        std::unordered_map<int8_t, uint>allele_counts = count_alleles(gt_array, leaf_count);
+    std::string* operator()(uint idx) const {
+        auto & pos_info=pos_genotypes[idx].second;
+        auto pos=pos_genotypes[idx].first;
+        int8_t ref = pos_info.ref;
+        auto& gt_array = pos_info.leaf_genotypes;
+        #ifndef NDEBUG
+        if(!std::is_sorted(gt_array.begin(),gt_array.end(),[](Leaf_Genotype& left,Leaf_Genotype& right){
+            return left.leaf_ix<right.leaf_ix;
+        })) raise(SIGTRAP);
+        #endif
+        std::unordered_map<int8_t, uint>allele_counts = count_alleles(gt_array);
+        gt_array.push_back(Leaf_Genotype{leaf_count+10,0});
         std::map<int8_t, uint>alts = make_alts(allele_counts, ref);
         if (alts.size() == 0) {
             fprintf(stderr, "WARNING: no-alternative site encountered in vcf output; skipping\n");
@@ -204,15 +218,31 @@ struct VCF_Line_Writer {
                                          % chrom.c_str() % pos % id .c_str() % MAT::get_nuc(ref) % alt_str.c_str() % info.c_str()));
         if (print_genotypes) {
             out->reserve(leaf_count*2);
-            int *allele_codes = make_allele_codes(ref, alts);
+            int allele_codes[256];
+            make_allele_codes(ref, alts,allele_codes);
+            auto leaf_iter=gt_array.begin();
             //fprintf(vcf_file, "\tGT");
             out ->append("\tGT");
             for (uint i = 0;  i < leaf_count;  i++) {
-                int8_t allele = gt_array[i];
+                int8_t allele = ref;
+                if (leaf_iter->leaf_ix==i) {
+                    allele=leaf_iter->genotype;
+                    leaf_iter++;
+                }
+                #ifndef NDEBUG
+                if (leaf_iter->leaf_ix<=i) {
+                    raise(SIGTRAP);
+                }
+                #endif
                 out->append("\t");
                 out->append(std::to_string(allele_codes[allele]));
                 //fprintf(vcf_file, "\t%d", allele_codes[allele]);
             }
+                #ifndef NDEBUG
+            if (leaf_iter->leaf_ix<=leaf_count) {
+                raise(SIGTRAP);
+            }
+                #endif
         }
         //fputc('\n', vcf_file);
         out->append("\n");
@@ -221,13 +251,12 @@ struct VCF_Line_Writer {
 };
 struct Pos_Finder {
     uint& pos;
-    const std::vector<int8_t *>& pos_genotypes;
+    const std::vector<Pos_Genotype_t>& pos_genotypes;
     uint operator()(tbb::flow_control& fc) const {
-        for (; pos<pos_genotypes.size(); pos++) {
-            if (pos_genotypes[pos]) {
-                pos++;
-                return pos-1;
-            }
+        if (pos<pos_genotypes.size()) {
+            auto to_return=pos;
+            pos++;
+            return to_return;
         }
         fc.stop();
         return -1;
@@ -239,17 +268,19 @@ void write_vcf_rows(std::ostream& vcf_file, MAT::Tree T, bool print_genotypes, c
     // sample names in the header, compute allele counts, and output VCF rows.
     uint leaf_count = samples_to_include->size();
     // The int8_t here is mutation_annotated_tree.hpp's binary encoding of IUPAC nucleotide bases.
-    std::unordered_map<std::string, std::vector<int8_t *>> chrom_pos_genotypes;
-    std::unordered_map<std::string, std::vector<int8_t>> chrom_pos_ref;
+    std::unordered_map<std::string, std::unordered_map<uint, Pos_Data>> chrom_pos_genotypes;
     std::vector<struct MAT::Mutation *> mut_stack;
-    r_add_genotypes(T.root, chrom_pos_genotypes, chrom_pos_ref, leaf_count, 0, mut_stack, samples_to_include);
+    r_add_genotypes(T.root, chrom_pos_genotypes, leaf_count, 0, mut_stack, samples_to_include);
     // Write row of VCF for each variant in chrom_pos_genotypes[chrom]
     for (auto itr = chrom_pos_genotypes.begin();  itr != chrom_pos_genotypes.end();  ++itr) {
         std::string chrom = itr->first;
-        std::vector<int8_t *> pos_genotypes = itr->second;
+        std::vector<Pos_Genotype_t> pos_genotypes(itr->second.begin(),itr->second.end());
+        tbb::parallel_sort(pos_genotypes.begin(),pos_genotypes.end(),[](Pos_Genotype_t& left,Pos_Genotype_t& right){
+            return left.first<right.first;
+        });
         uint pos=0;
         tbb::parallel_pipeline(tbb::task_scheduler_init::default_num_threads()*2,tbb::make_filter<void,uint>(tbb::filter::serial_in_order,Pos_Finder{pos,pos_genotypes})&
-                               tbb::make_filter<uint,std::string*>(tbb::filter::parallel,VCF_Line_Writer{pos_genotypes,chrom_pos_ref[chrom],leaf_count,print_genotypes,chrom})
+                               tbb::make_filter<uint,std::string*>(tbb::filter::parallel,VCF_Line_Writer{pos_genotypes,leaf_count,print_genotypes,chrom})
         &tbb::make_filter<std::string*,void>(tbb::filter::serial_in_order,[&vcf_file](std::string* to_write) {
             if (to_write) {
                 vcf_file<<*to_write;

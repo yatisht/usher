@@ -505,7 +505,9 @@ class Tree {
     size_t node_idx;
   public:
     typedef  tbb::concurrent_unordered_map<size_t, std::vector<std::string>> condensed_node_t;
+    size_t root_ident;
     Tree() {
+        root_ident=1;
         root = NULL;
         node_idx=0;
         all_nodes.clear();
@@ -567,6 +569,13 @@ class Tree {
         auto node_name_iter=node_names.find(node_idx);
         if (node_name_iter==node_names.end()) {
             return "";
+        }
+        return node_name_iter->second;
+    }
+    std::string get_node_name_for_log_output(size_t node_idx) const {
+        auto node_name_iter=node_names.find(node_idx);
+        if (node_name_iter==node_names.end()) {
+            return "node_"+std::to_string(node_idx);
         }
         return node_name_iter->second;
     }

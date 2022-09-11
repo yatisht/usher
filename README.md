@@ -9,13 +9,14 @@
 [![Published in Nature Genetics](https://img.shields.io/badge/Published%20in-Nature%20Genetics-blue.svg)](https://www.nature.com/articles/s41588-021-00862-7)
 [![Published in MBE](https://img.shields.io/badge/Published%20in-MBE-blue.svg)](https://doi.org/10.1093/molbev/msab264)
 [![Published in Bioinformatics](https://img.shields.io/badge/Published%20in-Bioinformatics-blue.svg)](https://doi.org/10.1093/bioinformatics/btac401)
+[![Published in Nature](https://img.shields.io/badge/Published%20in-Nature-blue.svg)](https://doi.org/10.1038/s41586-022-05189-9)
 [![DOI](https://zenodo.org/badge/296144053.svg)](https://zenodo.org/badge/latestdoi/296144053)
 
 
 
 <img src="/images/usher_logo.png" width="600">
 
-**NEW: We will now be sharing and updating UShER's pre-processed mutation-annotated tree object for public SARS-CoV-2 sequences here: http://hgdownload.soe.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/. We recommend using https://cov2tree.org/ (developed by [Theo Sanderson](https://github.com/theosanderson/taxodium)) to visualize this tree.**
+**NEW: We will now be sharing and updating UShER's pre-processed mutation-annotated tree object for public SARS-CoV-2 sequences here: http://hgdownload.soe.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/. We recommend using https://cov2tree.org/?treenomeEnabled=true (developed by [Theo Sanderson](https://github.com/theosanderson/taxodium) and Alexander Kramer) to visualize this tree and its genotypes.**
 
 UShER is now a package consisting of a family of programs for rapid phylogenetic analyses, particularly suitable for the SARS-CoV-2 genomes. 
 
@@ -38,11 +39,12 @@ We thank Jim Kent and the UCSC Genome Browser team for allowing us to download t
 **matUtils:**
 * Jakob McBroome*, Bryan Thornlow*, Angie S. Hinrichs, Alexander Kramer, Nicola De Maio, Nick Goldman, David Haussler, Russell Corbett-Detig, Yatish Turakhia, "A daily-updated database and tools for comprehensive SARS-CoV-2 mutation-annotated trees", **Molecular Biology and Evolution** (2021), [paper](https://doi.org/10.1093/molbev/msab264).
 
-**RIPPLES:**
-* Yatish Turakhia*, Bryan Thornlow*, Angie S. Hinrichs, Jakob McBroome, Nicolas Ayala, Cheng Ye, Nicola De Maio, David Haussler, Russell Corbett-Detig, "Pandemic-Scale Phylogenomics Reveals Elevated Recombination Rates in the SARS-CoV-2 Spike Region", bioRxiv (2021), [preprint](https://www.biorxiv.org/content/10.1101/2021.08.04.455157v1).
-
 **matOptimize**
 * Cheng Ye, Bryan Thornlow, Angie Hinrichs, Alexander Kramer, Cade Mirchandani, Devika Torvi, Robert Lanfear, Russell Corbett-Detig, Yatish Turakhia, "matOptimize: A parallel tree optimization method enables online phylogenetics for SARS-CoV-2",  **Bioinformatics** (2022), [paper](https://doi.org/10.1093/bioinformatics/btac401).
+
+**RIPPLES:**
+* Yatish Turakhia*, Bryan Thornlow*, Angie S. Hinrichs, Jakob McBroome, Nicolas Ayala, Cheng Ye, Kyle Smith, Nicola De Maio, David Haussler, Robert Lanfear, Russell Corbett-Detig, "Pandemic-Scale Phylogenomics Reveals The SARS-CoV-2 Recombination Landscape", **Nature** (2022), [paper](https://doi.org/10.1038/s41586-022-05189-9).
+
 
 **For masking recomendations, please also cite:**
 * Yatish Turakhia*, Nicola De Maio*, Bryan Thornlow*, Landen Gozashti, Robert Lanfear, Conor R. Walker, Angie S. Hinrichs, Jason D. Fernandes, Rui Borges, Greg Slodkowicz, Lukas Weilguny, David Haussler, Nick Goldman and Russell Corbett-Detig, "Stability of SARS-CoV-2 Phylogenies", **PLOS Genetics** (2020), [paper](https://doi.org/10.1371/journal.pgen.1009175).

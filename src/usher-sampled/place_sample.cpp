@@ -478,11 +478,21 @@ static void place_sample_thread( MAT::Tree &main_tree,std::vector<MAT::Node *> &
         }
         for (const auto &placement : search_result) {
             if (placement.parent_node == nullptr ||
-                    placement.target_node == nullptr ||
-                    placement.parent_node != placement.target_node->parent) {
-                if (placement.parent_node&&placement.target_node) {
+                    (placement.target_node==main_tree.root?(placement.parent_node!=(MAT::Node*)main_tree.root_ident)
+                    :placement.parent_node != placement.target_node->parent
+                     )||
+                    placement.target_node == nullptr) {
+                if(placement.target_node==main_tree.root){
+                    if (placement.parent_node!=(MAT::Node*)main_tree.root_ident) {
+                        fprintf(stderr, "root mismatch: recieved %zu, actual %zu",(size_t)placement.parent_node,main_tree.root_ident);
+                    }
+                }else if (placement.parent_node&&placement.target_node) {
                     auto actual_par=placement.target_node->parent;
-                    fprintf(stderr, "par mismatch: recieved %zu, actual %zu, target %zu",placement.parent_node->node_id,actual_par?actual_par->node_id:-1,placement.target_node->node_id);
+                    if (placement.target_node->parent) {
+                        fprintf(stderr, "par mismatch: recieved %zu, actual %zu, target %zu",placement.parent_node->node_id,actual_par?actual_par->node_id:-1,placement.target_node->node_id);                
+                    }else {
+                        fprintf(stderr, "old root node\n");
+                    }
                     if (std::get<2>(*in)) {
                         fprintf(stderr, " from self\n");
                     } else {
@@ -491,6 +501,13 @@ static void place_sample_thread( MAT::Tree &main_tree,std::vector<MAT::Node *> &
                 } else {
                     fprintf(stderr, "Node not found\n");
                 }
+                if (!placement.parent_node) {
+                    raise(SIGTRAP);
+                }
+                if (!placement.target_node) {
+                    raise(SIGTRAP);
+                }
+                
                 retry_queue.try_put(std::get<1>(*in));
                 delete in;
                 /*if (!out->is_self) {
@@ -516,6 +533,9 @@ static void place_sample_thread( MAT::Tree &main_tree,std::vector<MAT::Node *> &
         }
         auto target=choose_best(search_result);
         MAT::Mutations_Collection sample_mutations;
+        if (target.target_node==main_tree.root) {
+            target.parent_node=nullptr;
+        }
         discretize_mutations(target.sample_mutations, target.shared_mutations,
                              target.parent_node, sample_mutations);
         Preped_Sample_To_Place* to_ser;
@@ -713,6 +733,7 @@ void place_sample_leader(std::vector<Sample_Muts> &sample_to_place,
     std::thread *mpi_thread=nullptr;
     Traversal_Info traversal_info;
     std::vector<MAT::Node*> dfs_ordered_nodes;
+    main_tree.root_ident++;
     tbb::concurrent_bounded_queue<Preped_Sample_To_Place*> send_queue;
     {
         std::atomic_bool stop(false);
@@ -750,9 +771,10 @@ void place_sample_leader(std::vector<Sample_Muts> &sample_to_place,
                 g, tbb::flow::unlimited, Finder{main_tree, found_queue});
         }
         tbb::flow::make_edge(std::get<0>(init.output_ports()),*searcher);
-        Printer_Node_t printer_node(g,tbb::flow::serial,
-                                    Print_Thread{main_tree,placement_stats_file,max_parsimony,
-                                            max_uncertainty,node_count,low_confidence_samples,samples_clade,descendant_count,sample_start_idx,dry_run,stdout});
+        Print_Thread print_thread {main_tree,placement_stats_file,max_parsimony,
+                                            max_uncertainty,node_count,low_confidence_samples,samples_clade,descendant_count,sample_start_idx,dry_run,stdout};
+        Printer_Node_t printer_node(g,tbb::flow::serial,print_thread
+                                    );
         if (process_count>1) {
             mpi_thread=new std::thread(mpi_loop,
                                        Dist_sample_state{curr_idx,sample_to_place,process_count-1,stop},

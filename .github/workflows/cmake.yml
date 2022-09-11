@@ -38,6 +38,20 @@ jobs:
         ./build/ripples --help
         command -v mafft
 
+  ubuntu-22-04:
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@master
+    - name: install pre-reqs and build
+      run: sudo ./install/installUbuntu.sh
+    - name: test
+      run: |
+        ./build/usher --help
+        ./build/matUtils --help
+        mpirun -np 1 ./build/matOptimize --help
+        ./build/ripples --help
+        command -v mafft
+
   macOS-latest:
     runs-on: macOS-latest
     steps:

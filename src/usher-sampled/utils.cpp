@@ -541,7 +541,7 @@ static int output_newick(MAT::Tree& T,const output_options& options,int t_idx) {
         std::ofstream final_tree_file(final_tree_filename.c_str(), std::ofstream::out);
         T.write_newick_string(final_tree_file,T.root, true, true, options.retain_original_branch_len,true);
         final_tree_file.close();
-        exit(EXIT_SUCCESS);
+        return 0;
     } else {
         return pid;
     }
@@ -618,7 +618,7 @@ void print_annotation(const MAT::Tree &T, const output_options &options,
 
     fclose(annotations_file);
 }
-void final_output(MAT::Tree &T, const output_options &options, int t_idx,
+bool final_output(MAT::Tree &T, const output_options &options, int t_idx,
                   std::vector<Clade_info> &assigned_clades,
                   size_t sample_start_idx, size_t sample_end_idx,
                   std::vector<std::string> &low_confidence_samples,std::vector<mutated_t>& position_wise_out) {
@@ -644,7 +644,11 @@ void final_output(MAT::Tree &T, const output_options &options, int t_idx,
     fix_condensed_nodes(&T);
     //check_leaves(T);
     //MAT::save_mutation_annotated_tree(T, "before_post_processing.pb");
+    MPI_Finalize();
     int pid=output_newick(T, options,t_idx);
+    if(!pid){
+        _exit(EXIT_SUCCESS);
+    }
     // For each final tree write the path of mutations from tree root to the
     // sample for each newly placed sample
     bool use_tree_idx = !options.only_one_tree;
@@ -733,7 +737,7 @@ void final_output(MAT::Tree &T, const output_options &options, int t_idx,
         //fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
     wait(&pid);
-
+    return true;
 }
 /*static void check_repeats(const std::vector<Sample_Muts>& samples_to_place,size_t sample_start_idx){
     std::vector<bool> encountered(samples_to_place.size());
