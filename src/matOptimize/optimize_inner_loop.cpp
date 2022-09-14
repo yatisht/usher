@@ -1,5 +1,6 @@
 #include "tree_rearrangement_internal.hpp"
 #include <mpi.h>
+#include <stdlib.h>
 void make_output_path(std::string& path_template) {
     auto fd=mkstemps(const_cast<char*>(path_template.c_str()),3);
     close(fd);
