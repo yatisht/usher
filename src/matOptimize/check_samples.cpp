@@ -13,7 +13,7 @@
 #include <vector>
 //add mutation m to parent_mutations, which represent the mutation of a node relative to root,
 //or update major allele if already present
-void ins_mut(Mutation_Set &parent_mutations,const Mutation_Annotated_Tree::Mutation &m,bool is_leaf) {
+void ins_mut(Mutation_Set &parent_mutations,const Mutation_Annotated_Tree::Mutation &m,bool is_leaf,const MAT::Node* root) {
     auto temp = parent_mutations.insert(m);
     //other major allele of leaf node is also counted
     if(!is_leaf) {
@@ -22,7 +22,7 @@ void ins_mut(Mutation_Set &parent_mutations,const Mutation_Annotated_Tree::Mutat
     if (!temp.second) {
         //already present
         if(temp.first->get_mut_one_hot()!=m.get_par_one_hot()) {
-            fprintf(stderr, "nuc mismatch, at pos %d\n",m.get_position());
+            fprintf(stderr, "nuc mismatch, at pos %d, node id %zu, expect %d, got %d\n",m.get_position(),root->node_id,temp.first->get_mut_one_hot().get_nuc_no_check(),m.get_par_one_hot().get_nuc_no_check());
             //raise(SIGTRAP);
         }
         //mutate back to ref, so no more mutation
@@ -57,7 +57,7 @@ struct insert_samples_worker:public tbb::task {
         //add mutation of "root"
         for (const Mutation_Annotated_Tree::Mutation &m : root->mutations) {
             if(m.is_valid()||root->is_leaf()) {
-                ins_mut(parent_mutations, m,root->is_leaf());
+                ins_mut(parent_mutations, m,root->is_leaf(),root);
             }
         }
         //output
@@ -96,7 +96,7 @@ struct check_samples_worker:public tbb::task {
         empty->set_ref_count(root->children.size());
         for (const Mutation_Annotated_Tree::Mutation &m : root->mutations) {
             if(m.is_valid()||root->is_leaf()) {
-                ins_mut(parent_mutations, m,root->is_leaf());
+                ins_mut(parent_mutations, m,root->is_leaf(),root);
             };
         }
 
@@ -112,7 +112,7 @@ struct check_samples_worker:public tbb::task {
                     if (m_iter == to_check.end()) {
                         fprintf(
                             stderr,
-                            "[ERROR] Extra mutation to\t%c\%d\t of Sample\t%s at bfs_index %zu \n",
+                            "[ERROR] Extra mutation to\t%c\t%d\t of Sample\t%s at bfs_index %zu \n",
                             Mutation_Annotated_Tree::get_nuc(m.get_all_major_allele()), m.get_position(),
                             tree.get_node_name(root->node_id).c_str(),root->bfs_index);
                         raise(SIGTRAP);
