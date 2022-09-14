@@ -18,9 +18,14 @@
 #define MOVE_TAG 0
 #define WORK_REQ_TAG 1
 #define WORK_RES_TAG 2
+#define DRIFT_MASK 0x80000000
+#define ALL_DIR_MASK 0x40000000
+#define RADIUS_MASK 0x3fffffff
 extern int this_rank;
 extern int process_count;
 extern bool use_bound;
+extern FILE* movalbe_src_log;
+void make_output_path(std::string& path_template) ;
 extern uint32_t num_threads;
 namespace MAT = Mutation_Annotated_Tree;
 extern std::atomic_bool interrupted;
@@ -117,3 +122,19 @@ struct counters {
     counters():saved(0),total(0) {}
 };
 #endif
+size_t optimize_inner_loop(std::vector<MAT::Node*>& nodes_to_search,MAT::Tree& t,int radius,
+#ifdef CHECK_STATE_REASSIGN
+    Original_State_t& origin_states,
+#endif
+    bool allow_drift=false,
+    bool search_all_dir=true,
+    int minutes_between_save=0,
+    bool no_write_intermediate=true,
+    std::chrono::steady_clock::time_point search_end_time=std::chrono::steady_clock::time_point::max(),
+    std::chrono::steady_clock::time_point start_time=std::chrono::steady_clock::now(),
+    bool log_moves=false,
+    int iteration=1,
+    std::string intermediate_template="",
+    std::string intermediate_pb_base_name="",
+    std::string intermediate_nwk_out=""
+    );
