@@ -180,6 +180,10 @@ static int leader_thread(
         Sample_Input(options.vcf_filename.c_str(),samples_to_place,tree,position_wise_out,options.override_mutations,samples,samples_in_condensed_nodes);
     }
     samples_to_place.resize(std::min(samples_to_place.size(),options.first_n_samples));
+    if(samples_to_place.empty()){
+        fprintf(stderr,"No samples to place\n");
+        exit(EXIT_FAILURE);
+    }
     size_t sample_start_idx=samples_to_place[0].sample_idx;
     size_t sample_end_idx=samples_to_place.back().sample_idx+1;
     fprintf(stderr, "Sample start idx %zu, end index %zu\n",sample_start_idx,sample_end_idx);
