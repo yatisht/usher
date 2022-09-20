@@ -188,7 +188,7 @@ bool match_mutations(MAT::Mutation* target, MAT::Mutation* query) {
         return false;
     }
     if (target->ref_nuc != 0b1111) {
-        if (target->ref_nuc != query->ref_nuc) {
+        if (target->par_nuc != query->par_nuc) {
             return false;
         }
     }
