@@ -134,12 +134,13 @@ struct move_searcher {
     Reachable reachable;
     void operator()(std::vector<size_t>* to_search,searcher_node_t::output_ports_type& output)const {
         int r=radius;
+        Move_Found_Callback callback;
         auto start_time=std::chrono::steady_clock::now();
         for (auto idx:*to_search) {
             auto node_to_search=dfs_ordered_nodes[idx];
             output_t out;
             out.moves=new std::vector<Profitable_Moves_ptr_t>;
-            find_moves_bounded(node_to_search, out,r,do_drift,reachable
+            find_moves_bounded(node_to_search, out,r,do_drift,reachable,callback
 #ifdef CHECK_BOUND
                                ,count
 #endif
