@@ -1,3 +1,4 @@
+#include "src/matOptimize/Profitable_Moves_Enumerators/Profitable_Moves_Enumerators.hpp"
 #include "tree_rearrangement_internal.hpp"
 #include <mpi.h>
 #include <cstdlib>
@@ -8,6 +9,7 @@ void make_output_path(std::string& path_template) {
 }
 
 size_t optimize_inner_loop(std::vector<MAT::Node*>& nodes_to_search,MAT::Tree& t,int radius,
+    Move_Found_Callback& callback,
     bool allow_drift,
     bool search_all_dir,
     int minutes_between_save,
@@ -59,7 +61,7 @@ size_t optimize_inner_loop(std::vector<MAT::Node*>& nodes_to_search,MAT::Tree& t
                 if (no_write_intermediate||search_end_time<next_save_time) {
                     search_stop_time=search_end_time;
                 }
-                optimize_tree_main_thread(nodes_to_search_idx, t,std::abs(radius),movalbe_src_log,allow_drift,log_moves?iteration:-1,defered_nodes,distribute,search_stop_time,do_continue,search_all_dir,isfirst_this_iter
+                optimize_tree_main_thread(nodes_to_search_idx, t,std::abs(radius),movalbe_src_log,allow_drift,log_moves?iteration:-1,defered_nodes,distribute,search_stop_time,do_continue,search_all_dir,isfirst_this_iter, callback
                                          );
                 isfirst_this_iter=false;
                 fprintf(stderr, "Defered %zu nodes\n",defered_nodes.size());

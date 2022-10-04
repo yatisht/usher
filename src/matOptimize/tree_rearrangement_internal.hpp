@@ -92,9 +92,11 @@ void find_nodes_to_move(const std::vector<MAT::Node *> &bfs_ordered_nodes,
 void add_root(MAT::Tree *tree) ;
 void VCF_input(const char * name,MAT::Tree& tree);
 
+struct Move_Found_Callback;
+
 void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
                                MAT::Tree &t,int radius,FILE* log,bool allow_drift,int iteration,
-                               std::vector<size_t>& deferred_nodes_out,bool MPI_involved,std::chrono::steady_clock::time_point end_time,bool do_continue,bool search_all_dir,bool isfirst_this_iter
+                               std::vector<size_t>& deferred_nodes_out,bool MPI_involved,std::chrono::steady_clock::time_point end_time,bool do_continue,bool search_all_dir,bool isfirst_this_iter, Move_Found_Callback& callback
 #ifdef CHECK_STATE_REASSIGN
                                , Original_State_t& origin_states
 #endif
@@ -126,6 +128,7 @@ size_t optimize_inner_loop(std::vector<MAT::Node*>& nodes_to_search,MAT::Tree& t
 #ifdef CHECK_STATE_REASSIGN
     Original_State_t& origin_states,
 #endif
+    Move_Found_Callback& callback,
     bool allow_drift=false,
     bool search_all_dir=true,
     int minutes_between_save=0,
