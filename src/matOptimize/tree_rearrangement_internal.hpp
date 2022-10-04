@@ -73,7 +73,8 @@ struct output_t {
     std::vector<Profitable_Moves_ptr_t>* moves;
     output_t():score_change(-1),radius_left(-1) {}
 };
-int individual_move(Mutation_Annotated_Tree::Node* src,Mutation_Annotated_Tree::Node* dst,Mutation_Annotated_Tree::Node* LCA,output_t& out,bool do_drift
+struct Move_Found_Callback;
+int individual_move(Mutation_Annotated_Tree::Node* src,Mutation_Annotated_Tree::Node* dst,Mutation_Annotated_Tree::Node* LCA,output_t& out,bool do_drift, Move_Found_Callback& callback
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
                     ,MAT::Tree* tree
 #endif
@@ -102,7 +103,7 @@ void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
 #endif
                               );
 
-void optimize_tree_worker_thread(MAT::Tree &t,int radius,bool do_drift,bool search_all_dir);
+void optimize_tree_worker_thread(MAT::Tree &t,int radius,bool do_drift,bool search_all_dir, Move_Found_Callback& callback);
 void save_final_tree(MAT::Tree &t,const std::string &output_path);
 //For removing nodes with no valid mutations between rounds
 void clean_tree(MAT::Tree& t);

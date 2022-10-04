@@ -154,7 +154,7 @@ struct Node_With_Major_Allele_Set_Change{
     Mutation_Count_Change_Collection major_allele_set_change;
 };
 struct Move_Found_Callback{
-    bool operator()(Profitable_Moves move,int best_score_change,std::vector<Node_With_Major_Allele_Set_Change>& node_with_major_allele_set_change){
+    virtual bool operator()(Profitable_Moves move,int best_score_change,std::vector<Node_With_Major_Allele_Set_Change>& node_with_major_allele_set_change){
         return move.score_change <= best_score_change;
     }
 };

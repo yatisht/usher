@@ -106,12 +106,11 @@ struct Profitable_Move_Comparator {
         return lhs->radius_left>rhs->radius_left;
     }
 };
-int individual_move(MAT::Node* src,MAT::Node* dst,MAT::Node* LCA,output_t& out,bool do_drift
+int individual_move(MAT::Node* src,MAT::Node* dst,MAT::Node* LCA,output_t& out,bool do_drift, Move_Found_Callback& callback
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
                     ,MAT::Tree* tree
 #endif
                    ) {
-    Move_Found_Callback callback;
     MAT::Node *root = src->parent;
     Mutation_Count_Change_Collection mutations;
     init_mutation_change(src, mutations);
