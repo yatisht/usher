@@ -583,7 +583,7 @@ void load_diff_for_usher(
         }else {
             
             auto parsed_nuc=MAT::get_nuc_id(read);
-            if (parsed_nuc==0xf&&read!='n'&&read!='-') {
+            if (parsed_nuc==0xf&&read!='n'&&read!='N'&&read!='-') {
                 fprintf(stderr, "at line %d\n",line_count);
                 raise(SIGTRAP);
             }
@@ -594,19 +594,24 @@ void load_diff_for_usher(
             }
             auto pos=parse_digit(fh,read);
             if (parsed_nuc==0xf) {
+                int len;
                 if(read!='\t'){
+                    if(read=='\n'){
+                        len=1;
+                    }else{           
                     fprintf(stderr, "%d:n nuc, Expect tab, got %d:%c\n",line_count,read,read);
                     raise(SIGTRAP);
+                    }
                 }else {
-                    auto len=parse_digit(fh, read);
-                    if(do_add){
+                    len=parse_digit(fh, read);
+                }
+                if(do_add){
                         all_samples.back().muts.emplace_back(pos,0,0xf);
                         all_samples.back().muts.back().range=len-1;
                     }
                     for (int n_counter=0; n_counter<len; n_counter++) {
                         position_wise_out[pos+n_counter].emplace_back(samp_idx,0xf);
                     }
-                }
             }else {
                 if(do_add){
                     all_samples.back().muts.emplace_back(pos,0,parsed_nuc,MAT::Mutation::refs[pos]);
