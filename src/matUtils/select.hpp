@@ -15,3 +15,4 @@ std::vector<std::string> get_sample_match(MAT::Tree* T, std::vector<std::string>
 std::vector<std::string> fill_random_samples(MAT::Tree* T, std::vector<std::string> current_samples, size_t target_size, bool lca_limit = false);
 std::vector<std::string> get_mrca_samples(MAT::Tree* T, std::vector<std::string> current_samples);
 std::pair<std::vector<std::string>, size_t> get_closest_samples(MAT::Tree* T, std::string nid, bool fixed_k, size_t k);
+std::unordered_set<std::string> filter_mut_density(Mutation_Annotated_Tree::Tree* T, std::unordered_set<std::string>& samples_to_check, double max_mut_density);

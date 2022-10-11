@@ -31,6 +31,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
      "Select samples which don't have any branches with than the indicated length in their ancestry.")
     ("max-path-length,P", po::value<int>()->default_value(-1),
      "Select samples which have a total path length (number of mutations different from reference) less than or equal to P.")
+      ("max-mutation-density", po::value<double>()->default_value(0),
+     "Select samples descended from internal nodes whose sum of descendant mutation counts divided by number of descendants is at most arg, i.e. filter out branches with a higher mutation density.")
     ("nearest-k,k", po::value<std::string>()->default_value(""),
      "Select a sample ID and the nearest k samples to it, formatted as sample:k. E.g. -k sample_1:50 gets sample 1 and the nearest 50 samples to it as a subtree.")
     ("nearest-k-batch,K", po::value<std::string>()->default_value(""),
@@ -111,6 +113,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
      "Set to write all final stored metadata to a tsv.")
     ("whitelist,L", po::value<std::string>()->default_value(""),
      "Pass a list of samples, one per line, to always retain regardless of any other parameters.")
+    ("node-stats", po::value<std::string>()->default_value(""),
+     "Write a tsv file of the total leaf count and total mutations for each internal node.")
     ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
     ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
@@ -153,6 +157,7 @@ void extract_main (po::parsed_options parsed) {
     int max_parsimony = vm["max-parsimony"].as<int>();
     int max_branch = vm["max-branch-length"].as<int>();
     int max_path = vm["max-path-length"].as<int>();
+    double max_mut_density = vm["max-mutation-density"].as<double>();
     size_t max_epps = vm["max-epps"].as<size_t>();
     bool prune_samples = vm["prune"].as<bool>();
     bool mrca = vm["from-mrca"].as<bool>();
@@ -199,6 +204,7 @@ void extract_main (po::parsed_options parsed) {
     std::string gtf_filename = dir_prefix + vm["input-gtf"].as<std::string>();
     std::string fasta_filename = dir_prefix + vm["input-fasta"].as<std::string>();
     std::string dump_metadata = dir_prefix + vm["dump-metadata"].as<std::string>();
+    std::string node_stats_filename = dir_prefix + vm["node-stats"].as<std::string>();
 
 
     std::vector<std::string> additional_meta_fields;
@@ -209,7 +215,7 @@ void extract_main (po::parsed_options parsed) {
     uint32_t num_threads = vm["threads"].as<uint32_t>();
     //check that at least one of the output filenames (things which take dir_prefix)
     //are set before proceeding.
-    std::vector<std::string> outs = {sample_path_filename, clade_path_filename, all_path_filename, tree_filename, vcf_filename, output_mat_filename, output_tax_filename, json_filename, used_sample_filename};
+    std::vector<std::string> outs = {sample_path_filename, clade_path_filename, all_path_filename, tree_filename, vcf_filename, output_mat_filename, output_tax_filename, json_filename, used_sample_filename, node_stats_filename};
     if (!std::any_of(outs.begin(), outs.end(), [=](std::string f) {
     return f != dir_prefix;
 }) &&
@@ -375,6 +381,22 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
             fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
             exit(1);
         }
+    }
+    if (max_mut_density > 0.0) {
+
+        // This should be done once, up above, not be repeated inside every filtering step:
+        if (samples.size() == 0) {
+            //if nothing is passed in, then check the whole tree.
+            samples = T.get_leaves_ids();
+        }
+
+        std::unordered_set<std::string> sample_set(samples.begin(), samples.end());
+        sample_set = filter_mut_density(&T, sample_set, max_mut_density);
+        if (sample_set.size() == 0) {
+            fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
+            exit(1);
+        }
+        samples = std::vector<std::string>(sample_set.begin(), sample_set.end());
     }
     if (max_epps > 0) {
         //this specific sample parser only calculates for values present in samples argument
@@ -780,6 +802,16 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         std::unordered_map<std::string,std::unordered_map<std::string,std::string>> submet;
         submet["selected_for"] = ranmap;
         catmeta.emplace_back(submet);
+    }
+
+    if (node_stats_filename != dir_prefix) {
+        timer.Start();
+        fprintf(stderr, "Writing node stats to %s\n", node_stats_filename.c_str());
+        std::ofstream outfile (node_stats_filename);
+        size_t leaf_count_total, mut_count_total;
+        print_node_stats(T.root, leaf_count_total, mut_count_total, outfile);
+        outfile.close();
+        fprintf(stderr, "Completed in %ld msec\n\n", timer.Stop());
     }
 
     //last step is to convert the subtree to other file formats
