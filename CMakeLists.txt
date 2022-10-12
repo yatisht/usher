@@ -458,6 +458,7 @@ else()
             src/matOptimize/mutation_annotated_tree_load_store.cpp
             src/matOptimize/mutation_annotated_tree_nuc_util.cpp
             src/matOptimize/Mutation_Collection.cpp
+            src/matOptimize/reassign_states.cpp
             src/matOptimize/check_samples.cpp
             src/matOptimize/optimize_tree.cpp
             src/matOptimize/condense.cpp
