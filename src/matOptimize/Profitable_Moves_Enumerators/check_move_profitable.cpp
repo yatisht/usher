@@ -21,19 +21,17 @@ static void check_LCA(MAT::Node* src, MAT::Node* dst,MAT::Node* LCA_to_check) {
 bool output_result(MAT::Node *src, MAT::Node *dst, MAT::Node *LCA,
                    int parsimony_score_change, output_t &output,int radius_left,Move_Found_Callback& callback,
                     std::vector<Node_With_Major_Allele_Set_Change>& major_alllele_count_changes_hist) {
-    if (callback(Profitable_Moves{parsimony_score_change,src,dst,LCA,radius_left},output.score_change,major_alllele_count_changes_hist)) {
+    Profitable_Moves new_move;
+    new_move.score_change = parsimony_score_change;
+    new_move.src = src;
+    new_move.dst=dst;
+    new_move.LCA = LCA;
+    new_move.radius_left=radius_left;
+    if (callback(new_move,output.score_change,major_alllele_count_changes_hist)) {
         if (parsimony_score_change < output.score_change) {
             output.score_change = parsimony_score_change;
             output.moves->clear();
         }
-        Profitable_Moves_ptr_t new_move = Profitable_Moves_ptr_t(new Profitable_Moves);
-        new_move->score_change = parsimony_score_change;
-        new_move->src = src;
-        new_move->dst=dst;
-        new_move->LCA = LCA;
-        new_move->radius_left=radius_left;
-        //assert(dst == LCA || new_move->dst_to_LCA.back()->parent == LCA);
-        //assert(src->parent == LCA ||new_move->src_to_LCA.back()->parent == LCA);
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
         std::unordered_set<int> node_idx_set;
         node_idx_set.insert(src->bfs_index);
@@ -44,7 +42,7 @@ bool output_result(MAT::Node *src, MAT::Node *dst, MAT::Node *LCA,
             assert(node_idx_set.insert(node->bfs_index).second);
         }
 #endif
-        output.moves->push_back(new_move);
+        output.moves->push_back(Profitable_Moves_ptr_t(new Profitable_Moves(new_move)));
         return true;
     }
     return false;
