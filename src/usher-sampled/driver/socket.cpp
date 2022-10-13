@@ -235,6 +235,7 @@ size_t get_options(FILE *f, Leader_Thread_Options &options) {
     // std::vector<int> gdb_pids;
     size_t mat_idx = 0;
     options.print_parsimony_scores=false;
+    fputs("start args parsing", stderr);
     desc.add_options()(
         "vcf,v", po::value<std::string>(&options.vcf_filename)->required(),
         "Input VCF file (in uncompressed or gzip-compressed .gz format) "
@@ -315,8 +316,10 @@ size_t get_options(FILE *f, Leader_Thread_Options &options) {
                   vm);
         po::notify(vm);
     } catch (std::exception &e) {
+        fputs("parsing failed", stderr);
         return -1;
     }
+    fprintf( stderr,"parsed arguments, using tree %d",mat_idx);
 
     for (size_t idx = 1; idx < args.size(); idx++) {
         free(args[idx]);
@@ -343,7 +346,9 @@ static void child_proc(int fd, TreeCollectionPtr &trees_ptr) {
         fclose(f);
         exit(EXIT_FAILURE);
     }
+    fputs("getting tree\n", stderr);
     MAT::Tree &tree = (*trees_ptr)[idx].tree;
+    fputs("got tree\n", stderr);
     std::vector<Sample_Muts> samples_to_place;
     tbb::task_scheduler_init init(num_threads);
     std::vector<mutated_t> position_wise_out;
@@ -351,8 +356,10 @@ static void child_proc(int fd, TreeCollectionPtr &trees_ptr) {
     std::vector<std::string> samples;
     std::unordered_set<std::string> &samples_in_condensed_nodes =
         (*trees_ptr)[idx].condensed_nodes;
+    fputs("got condensed_nodes, start parsing vcf\n", stderr);
     Sample_Input(options.vcf_filename.c_str(), samples_to_place, tree,
                  position_wise_out, false, samples, samples_in_condensed_nodes);
+    fputs("end parsing vcf\n", stderr);
     samples_to_place.resize(
         std::min(samples_to_place.size(), options.first_n_samples));
     size_t sample_start_idx = samples_to_place[0].sample_idx;
@@ -373,7 +380,9 @@ static void child_proc(int fd, TreeCollectionPtr &trees_ptr) {
         options.out_options.outdir + "/placement_stats.tsv";
     FILE *placement_stats_file = fopen(placement_stats_filename.c_str(), "w");
     //auto reordered =
+    fputs("sorting sample\n", stderr);
     sort_samples(options, samples_to_place, tree, sample_start_idx);
+    fputs("placing sample\n", stderr);
     place_sample_sequential(samples_to_place, tree, false, placement_stats_file,
                             options.max_parsimony, options.max_uncertainty,
                             low_confidence_samples, samples_clade,
