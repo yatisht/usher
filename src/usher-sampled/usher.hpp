@@ -91,7 +91,8 @@ struct output_options {
     bool redo_FS_Min_Back_Mutations;
 };
 bool final_output(MAT::Tree& T,const output_options& options,int t_idx,std::vector<Clade_info>& assigned_clades,
-                  size_t sample_start_idx,size_t sample_end_idx,std::vector<std::string>& low_confidence_samples,std::vector<mutated_t>& position_wise_out);
+                  size_t sample_start_idx,size_t sample_end_idx,std::vector<std::string>& low_confidence_samples,
+                  std::vector<mutated_t>& position_wise_out, bool finish_mpi=true);
 void place_sample_leader(std::vector<Sample_Muts> &sample_to_place,
                          MAT::Tree &main_tree, int batch_size,
                          std::atomic_size_t &curr_idx,
