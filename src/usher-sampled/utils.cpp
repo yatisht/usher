@@ -621,7 +621,7 @@ void print_annotation(const MAT::Tree &T, const output_options &options,
 bool final_output(MAT::Tree &T, const output_options &options, int t_idx,
                   std::vector<Clade_info> &assigned_clades,
                   size_t sample_start_idx, size_t sample_end_idx,
-                  std::vector<std::string> &low_confidence_samples,std::vector<mutated_t>& position_wise_out) {
+                  std::vector<std::string> &low_confidence_samples,std::vector<mutated_t>& position_wise_out, bool finish_mpi) {
     // If user need uncondensed tree output, write uncondensed tree(s) to
     // file(s)
     //check_leaves(T);
@@ -644,7 +644,7 @@ bool final_output(MAT::Tree &T, const output_options &options, int t_idx,
     fix_condensed_nodes(&T);
     //check_leaves(T);
     //MAT::save_mutation_annotated_tree(T, "before_post_processing.pb");
-    MPI_Finalize();
+    if(finish_mpi) MPI_Finalize();
     int pid=output_newick(T, options,t_idx);
     if(!pid){
         _exit(EXIT_SUCCESS);

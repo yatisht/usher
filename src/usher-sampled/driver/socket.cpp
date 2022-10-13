@@ -381,7 +381,7 @@ static void child_proc(int fd, TreeCollectionPtr &trees_ptr) {
     auto dfs = tree.depth_first_expansion();
     clean_up_leaf(dfs);
     final_output(tree, options.out_options, 0, samples_clade, sample_start_idx,
-                 sample_end_idx, low_confidence_samples, position_wise_out);
+                 sample_end_idx, low_confidence_samples, position_wise_out,false);
     fputc('\n', f);
     fputc(4, f);
     fputc('\n', f);
