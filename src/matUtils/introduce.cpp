@@ -391,17 +391,39 @@ std::unordered_map<std::string, float> get_assignments(MAT::Tree* T, std::unorde
     return assignments;
 }
 
-std::pair<boost::gregorian::date,boost::gregorian::date> get_nearest_date(MAT::Tree* T, MAT::Node* n, std::set<std::string>* in_samples, std::unordered_map<std::string, std::string> datemeta) {
+std::pair<boost::gregorian::date,boost::gregorian::date> daterange_from_set(std::set<std::string> cluster_samples, std::unordered_map<std::string, std::string> datemeta) {
     boost::gregorian::date earliest = boost::gregorian::day_clock::universal_day();
     boost::gregorian::date latest = boost::gregorian::date(1500,1,1);
-    for (auto l: T->get_leaves_ids(n->identifier)) {
-        if (in_samples->find(l) != in_samples->end()) {
-            if (datemeta.find(l) != datemeta.end()) {
+    for (auto l: cluster_samples) {
+        if (datemeta.find(l) != datemeta.end()) {
+            boost::gregorian::date leafdate;
+            try {
+                leafdate = boost::gregorian::from_string(datemeta.find(l)->second);
+            } catch (boost::bad_lexical_cast &e) {
+                fprintf(stderr, "WARNING: Malformed date %s provided in date file for sample %s; ignoring sample date\n", datemeta.find(l)->second.c_str(), l.c_str());
+                continue;
+            }
+            if (leafdate < earliest) {
+                earliest = leafdate;
+            }
+            if (leafdate > latest) {
+                latest = leafdate;
+            }
+        } else {
+            std::string datend = l.substr(l.rfind("|")+1, std::string::npos);
+            if (datend.size() > 0) {
                 boost::gregorian::date leafdate;
                 try {
-                    leafdate = boost::gregorian::from_string(datemeta.find(l)->second);
+                    if (datend.size() == 8) {
+                        leafdate = boost::gregorian::from_string("20"+datend);
+                    } else if (datend.size() == 10) {
+                        leafdate = boost::gregorian::from_string(datend);
+                    } else {
+                        continue;
+                    }
                 } catch (boost::bad_lexical_cast &e) {
-                    fprintf(stderr, "WARNING: Malformed date %s provided in date file for sample %s; ignoring sample date\n", datemeta.find(l)->second.c_str(), l.c_str());
+                    continue;
+                } catch (const std::out_of_range& oor) {
                     continue;
                 }
                 if (leafdate < earliest) {
@@ -410,30 +432,6 @@ std::pair<boost::gregorian::date,boost::gregorian::date> get_nearest_date(MAT::T
                 if (leafdate > latest) {
                     latest = leafdate;
                 }
-            } else {
-                std::string datend = l.substr(l.rfind("|")+1, std::string::npos);
-                if (datend.size() > 0) {
-                    boost::gregorian::date leafdate;
-                    try {
-                        if (datend.size() == 8) {
-                            leafdate = boost::gregorian::from_string("20"+datend);
-                        } else if (datend.size() == 10) {
-                            leafdate = boost::gregorian::from_string(datend);
-                        } else {
-                            continue;
-                        }
-                    } catch (boost::bad_lexical_cast &e) {
-                        continue;
-                    } catch (const std::out_of_range& oor) {
-                        continue;
-                    }
-                    if (leafdate < earliest) {
-                        earliest = leafdate;
-                    }
-                    if (leafdate > latest) {
-                        latest = leafdate;
-                    }
-                }
             }
         }
     }
@@ -441,6 +439,16 @@ std::pair<boost::gregorian::date,boost::gregorian::date> get_nearest_date(MAT::T
         return std::pair<boost::gregorian::date,boost::gregorian::date> ();
     }
     return std::pair<boost::gregorian::date,boost::gregorian::date> (earliest,latest);
+}
+std::pair<boost::gregorian::date,boost::gregorian::date> get_nearest_date(MAT::Tree* T, MAT::Node* n, std::set<std::string>* in_samples, std::unordered_map<std::string, std::string> datemeta) {
+    std::set<std::string> lnames;
+    for (auto l: T->get_leaves_ids(n->identifier)) {
+        if (in_samples->find(l) != in_samples->end()) {
+            lnames.insert(l);
+        }
+    }
+    std::pair<boost::gregorian::date,boost::gregorian::date> datepair = daterange_from_set(lnames, datemeta);
+    return datepair;
 }
 
 std::vector<std::string> find_introductions(MAT::Tree* T, std::unordered_map<std::string, std::vector<std::string>> sample_regions, bool add_info, std::string clade_output, float min_origin_confidence, std::string bycluster, std::string dump_assignments, bool eval_uncertainty, std::string earliest_date = "1500/1/1", std::string latest_date = "1500/1/1", std::unordered_map<std::string, std::string> datemeta = {}, float minimum_reporting = 0.05, size_t num_to_report = 1, size_t look_ahead = 0, size_t minimum_gap = 0) {
@@ -801,8 +809,10 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::unordered_map<std
         std::unordered_map<std::string, std::string> date_tracker;
         for (auto cs: clusters) {
             std::string ldatestr;
-            MAT::Node* nn = T->get_node(cs.first);
-            std::pair<boost::gregorian::date,boost::gregorian::date> ldates = get_nearest_date(T, nn, &sampleset, datemeta);
+            std::set<std::string> cluster_samples;
+            for (auto s : cs.second)
+                cluster_samples.insert(s.first);
+            std::pair<boost::gregorian::date,boost::gregorian::date> ldates = daterange_from_set(cluster_samples, datemeta);
             boost::gregorian::days diff(0);
             if ((ldates.first.is_not_a_date()) || (ldates.second.is_not_a_date())) {
                 fprintf(stderr, "WARNING: Cluster %s has no valid dates included among samples\n", cs.first.c_str());
