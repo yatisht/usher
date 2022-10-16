@@ -32,7 +32,7 @@
 void Min_Back_Fitch_Sankoff(MAT::Node* root_node,const MAT::Mutation& mut_template,
                             std::vector<std::vector<MAT::Mutation>>& mutation_output,mutated_t& positions,size_t dfs_size);
 int set_descendant_count(MAT::Node* root) {
-    size_t child_count=0;
+    size_t child_count=1;
     for (auto child : root->children) {
         child_count+=set_descendant_count(child);
     }

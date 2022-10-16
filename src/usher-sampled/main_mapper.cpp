@@ -11,6 +11,7 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+int switch_to_serial_threshold=10;
 template <typename Hook1, typename Hook2> struct Combine_Hook {
     Hook1 hook1;
     Hook2 hook2;
@@ -397,7 +398,7 @@ struct Main_Tree_Searcher : public tbb::task {
             return nullptr;
         }
 #endif
-        if(node->bfs_index<10) {
+        if(node->bfs_index<switch_to_serial_threshold) {
             search_serial(node, this_muts, output);
             return nullptr;
         }

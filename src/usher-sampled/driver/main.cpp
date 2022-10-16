@@ -274,7 +274,9 @@ static int leader_thread(
     }
     while (true) {
         clean_tree_for_placement(tree);
-        prep_tree(tree);
+        auto tree_size=prep_tree(tree);
+        switch_to_serial_threshold=std::max((int)(tree_size*batch_size_per_process/(2*num_threads)),10);
+        fprintf(stderr, "switch to serial search when there are less than %d descendants\n", switch_to_serial_threshold);
         if (process_count>1) {
             fprintf(stderr, "Main sending tree\n");
             tree.MPI_send_tree();
