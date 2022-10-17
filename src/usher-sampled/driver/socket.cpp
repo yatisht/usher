@@ -16,6 +16,7 @@
 #include <fcntl.h>
 #include <fstream>
 #include <functional>
+#include <iomanip>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -38,6 +39,9 @@ namespace po = boost::program_options;
 struct tree_info {
     MAT::Tree tree;
     std::unordered_set<std::string> condensed_nodes;
+    std::string path;
+    std::string canonical_path;
+    int switch_threshold;
     tree_info(const tree_info& )=delete;
     tree_info()=default;
     ~tree_info() {
@@ -60,29 +64,35 @@ int process_count = 1;
 int this_rank = 0;
 unsigned int num_threads;
 std::atomic_bool interrupted(false);
-bool prep_single_tree(std::string path, tree_info &out) {
-    if (!MAT::load_mutation_annotated_tree(path, out.tree)) {
+bool prep_single_tree(std::string path, std::shared_ptr<tree_info> &out) {
+    if (!MAT::load_mutation_annotated_tree(path, out->tree)) {
         return false;
     }
-    fix_parent(out.tree);
-    prep_tree(out.tree);
-    for (const auto &temp : out.tree.condensed_nodes) {
+    fix_parent(out->tree);
+    auto tree_size=prep_tree(out->tree);
+    out->switch_threshold=std::max((int)(tree_size/(4*num_threads)),10);
+    for (const auto &temp : out->tree.condensed_nodes) {
         for (const auto &str : temp.second) {
-            out.condensed_nodes.emplace(str);
+            out->condensed_nodes.emplace(str);
         }
     }
     return true;
 }
 
-typedef std::shared_ptr<std::vector<tree_info>> TreeCollectionPtr;
+typedef std::shared_ptr<std::unordered_map<std::string, std::shared_ptr<tree_info> > > TreeCollectionPtr;
 void reload_trees(TreeCollectionPtr &to_replace, const std::vector<std::string>& paths) {
     tbb::task_scheduler_init init(num_threads);
-    auto next = new std::vector<tree_info>(paths.size());
+    auto next = new std::unordered_map<std::string, std::shared_ptr<tree_info> > (paths.size());
+    next->reserve(paths.size()*2);
     for (size_t idx=0; idx<paths.size(); idx++) {
-        if(!prep_single_tree(paths[idx], (*next)[idx])) {
-            fprintf(stderr, "Not reloaded\n");
-            delete next;
-            return;
+        auto canonical_path=boost::filesystem::canonical(paths[idx]).string();
+        auto ins_result=next->emplace(canonical_path, new tree_info);
+        if(ins_result.second){
+            if(!prep_single_tree(canonical_path, ins_result.first->second)) {
+                fprintf(stderr, "Not reloaded\n");
+                delete next;
+                return;
+            }
         }
     }
     to_replace.reset(next);
@@ -178,11 +188,22 @@ static int create_socket(std::string socket_name) {
 
 static void collect_done(std::unordered_map<int, child_proc_info> &pid_to_fd_map,
                          bool blocking,int milisecond_time_out) {
+    std::vector<pid_t> to_remove;
     for (auto & proc : pid_to_fd_map) {
         if (proc.second.is_time_out(milisecond_time_out)||blocking) {
+            int ignored;
+            auto done_pid = waitpid(proc.first, &ignored, WNOHANG);
+            if(done_pid==proc.first){
+                std::cerr<<"pid "<< done_pid<<" exited with "<<ignored<<"\n";
+                to_remove.push_back(done_pid);
+                continue;
+            }
             fprintf(stderr, "process %d timed out\n",proc.first);
             kill(proc.first, SIGKILL);
         }
+    }
+    for (auto pid : to_remove) {
+        pid_to_fd_map.erase(pid);
     }
     while (true) {
         int ignored;
@@ -206,19 +227,20 @@ static void collect_done(std::unordered_map<int, child_proc_info> &pid_to_fd_map
             /*if (ret!=0) {
                 perror("failed to close");
             }*/
+            std::cerr<<"pid "<< done_pid<<" exited with "<<ignored<<"\n";
             pid_to_fd_map.erase(iter);
         }
     }
 }
 char cmd[] = "usher";
-size_t get_options(FILE *f, Leader_Thread_Options &options) {
+std::string get_options(FILE *f, Leader_Thread_Options &options) {
     std::vector<char *> args({cmd});
     while (true) {
         char *buf = NULL;
         size_t len = 0;
         auto char_read = getline(&buf, &len, f);
         if (char_read == -1) {
-            return -1;
+            return "";
         } else if (char_read == 1) {
             break;
         } else {
@@ -233,7 +255,7 @@ size_t get_options(FILE *f, Leader_Thread_Options &options) {
     options.out_options.redo_FS_Min_Back_Mutations = false;
     options.initial_optimization_radius = 0;
     // std::vector<int> gdb_pids;
-    size_t mat_idx = 0;
+    std::string mat_path;
     options.print_parsimony_scores=false;
     fputs("start args parsing", stderr);
     desc.add_options()(
@@ -243,7 +265,7 @@ size_t get_options(FILE *f, Leader_Thread_Options &options) {
             "outdir,d",
             po::value<std::string>(&options.out_options.outdir)->default_value("."),
             "Output directory to dump output and log files [DEFAULT uses current "
-            "directory]")("mat-index,i", po::value<size_t>(&mat_idx)->required(),
+            "directory]")("mat-index,i", po::value<std::string>(&mat_path)->required(),
                           "Load mutation-annotated tree object")(
                               "save-mutation-annotated-tree,o",
                               po::value<std::string>(&options.out_options.dout_filename)
@@ -317,9 +339,9 @@ size_t get_options(FILE *f, Leader_Thread_Options &options) {
         po::notify(vm);
     } catch (std::exception &e) {
         fputs("parsing failed", stderr);
-        return -1;
+        return "";
     }
-    fprintf( stderr,"parsed arguments, using tree %d",mat_idx);
+    fprintf( stderr,"parsed arguments, using tree %s\n",mat_path.c_str());
 
     for (size_t idx = 1; idx < args.size(); idx++) {
         free(args[idx]);
@@ -333,21 +355,28 @@ size_t get_options(FILE *f, Leader_Thread_Options &options) {
     options.out_options.outdir = path.generic_string();
     options.override_mutations = false;
     options.first_n_samples=INT_MAX;
-    return mat_idx;
+    return mat_path;
 }
 static void child_proc(int fd, TreeCollectionPtr &trees_ptr) {
     FILE *f = fdopen(fd, "a+");
     Leader_Thread_Options options;
     auto idx = get_options(f, options);
-    if (idx >= trees_ptr->size()) {
-        fprintf(f, "got idx %zu but only have %zu trees\n",idx,trees_ptr->size());
+    if(idx==""){
+        exit(EXIT_FAILURE);
+    }
+    auto iter=trees_ptr->find(idx);
+    if (iter==trees_ptr->end()) {
+        fprintf(f, "Tree %s not found\n Have trees :\n",idx.c_str());
+        for (auto const &temp : *trees_ptr) {
+            fprintf(f, "%s\n",temp.first.c_str());
+        }
         fputc(4, f);
         fputc('\n', f);
         fclose(f);
         exit(EXIT_FAILURE);
     }
     fputs("getting tree\n", stderr);
-    MAT::Tree &tree = (*trees_ptr)[idx].tree;
+    MAT::Tree &tree = iter->second->tree;
     fputs("got tree\n", stderr);
     std::vector<Sample_Muts> samples_to_place;
     tbb::task_scheduler_init init(num_threads);
@@ -355,7 +384,7 @@ static void child_proc(int fd, TreeCollectionPtr &trees_ptr) {
     std::vector<mutated_t> position_wise_out_dup;
     std::vector<std::string> samples;
     std::unordered_set<std::string> &samples_in_condensed_nodes =
-        (*trees_ptr)[idx].condensed_nodes;
+        iter->second->condensed_nodes;
     fputs("got condensed_nodes, start parsing vcf\n", stderr);
     Sample_Input(options.vcf_filename.c_str(), samples_to_place, tree,
                  position_wise_out, false, samples, samples_in_condensed_nodes);
@@ -366,6 +395,8 @@ static void child_proc(int fd, TreeCollectionPtr &trees_ptr) {
     size_t sample_end_idx = samples_to_place.back().sample_idx + 1;
     std::vector<std::string> low_confidence_samples;
     std::vector<Clade_info> samples_clade(samples_to_place.size());
+    switch_to_serial_threshold=iter->second->switch_threshold;
+    fprintf(stderr, "switch to serial search if less than %d descendant\n", switch_to_serial_threshold);
     for (auto &temp : samples_clade) {
         temp.valid = false;
     }
@@ -483,12 +514,12 @@ int main(int argc, char** argv) {
     }
     fprintf(stderr, "Server PID: %d\n",getpid());
     std::atomic_size_t wait_miliseconds(wait_second*1000);
+    auto socket_fd=create_socket(socket_path);
     TreeCollectionPtr trees;
     if (!init_pb_to_load.empty()) {
         reload_trees(trees, init_pb_to_load);
         scalable_allocation_command(TBBMALLOC_CLEAN_ALL_BUFFERS, 0);
     }
-    auto socket_fd=create_socket(socket_path);
     std::thread mgr(mgr_thread,std::ref(trees), mgr_fifo, socket_path,std::ref(wait_miliseconds));
     accept_fork_loop(socket_fd, trees,wait_miliseconds);
     mgr.join();

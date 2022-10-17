@@ -22,6 +22,7 @@ namespace MAT = Mutation_Annotated_Tree;
 #else
 #define mpi_trace_print(...)
 #endif
+extern int switch_to_serial_threshold;
 void check_order(MAT::Mutations_Collection& in);
 struct To_Place_Sample_Mutation {
     int position;
@@ -166,7 +167,7 @@ void place_sample_sequential(
     std::vector<Clade_info> &samples_clade, size_t sample_start_idx,
     bool do_print, FILE *printer_out);
 void clean_up_leaf(std::vector<MAT::Node*>& dfs);
-void prep_tree(MAT::Tree &tree);
+int prep_tree(MAT::Tree &tree);
 void load_diff_for_usher(
     const char *input_path,std::vector<Sample_Muts>& all_samples,
     std::vector<mutated_t>& position_wise_out, MAT::Tree &tree,
