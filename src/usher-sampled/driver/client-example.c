@@ -37,11 +37,17 @@ static void send_args(FILE* f, int argc, char** argv){
     fputc('\n',f);
 }
 
+#define ArraySize(arr) ( sizeof(arr) / sizeof (*arr) )
+
 int main (int argc, char** argv){
+    if (argc != 5) {
+        fprintf(stderr, "usage: client-example socket_file samples.vcf tree.pb out_dir\n");
+        exit(1);
+    }
     FILE* fh=make_f(argv[1]);
-    char *cmd[] = { "ignored", "-v", argv[2], "-i", argv[3], "-d", "out",
+    char *cmd[] = { "ignored", "-v", argv[2], "-i", argv[3], "-d", argv[4],
                 "-k", "50", "-K", "50", "-u","--no-ignore-prefix","user_"};
-    send_args(fh, 14, cmd);
+    send_args(fh, ArraySize(cmd), cmd);
     char* line=NULL;
     size_t capacity=0;
     while (getline(&line, &capacity, fh)>0) {
