@@ -40,7 +40,6 @@ struct tree_info {
     MAT::Tree tree;
     std::unordered_set<std::string> condensed_nodes;
     std::string path;
-    std::string canonical_path;
     int switch_threshold;
     tree_info(const tree_info& )=delete;
     tree_info()=default;
@@ -85,10 +84,10 @@ void reload_trees(TreeCollectionPtr &to_replace, const std::vector<std::string>&
     auto next = new std::unordered_map<std::string, std::shared_ptr<tree_info> > (paths.size());
     next->reserve(paths.size()*2);
     for (size_t idx=0; idx<paths.size(); idx++) {
-        auto canonical_path=boost::filesystem::canonical(paths[idx]).string();
-        auto ins_result=next->emplace(canonical_path, new tree_info);
+        const auto& path=paths[idx];
+        auto ins_result=next->emplace(path, new tree_info);
         if(ins_result.second){
-            if(!prep_single_tree(canonical_path, ins_result.first->second)) {
+            if(!prep_single_tree(path, ins_result.first->second)) {
                 fprintf(stderr, "Not reloaded\n");
                 delete next;
                 return;
