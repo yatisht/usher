@@ -232,7 +232,7 @@ void Mutation_Annotated_Tree::get_sample_mutation_paths(
         auto curr_node_mutations = sample_node->mutations;
         if (curr_node_mutations.size() > 0) {
             curr_node_mutation_string =
-                T->get_node_name(sample_node->node_id) + ":";
+                T->get_node_name_for_log_output(sample_node->node_id) + ":";
             size_t num_mutations = curr_node_mutations.size();
             for (size_t k = 0; k < num_mutations; k++) {
                 curr_node_mutation_string +=
@@ -251,7 +251,7 @@ void Mutation_Annotated_Tree::get_sample_mutation_paths(
             curr_node_mutations = anc_node->mutations;
             if (curr_node_mutations.size() > 0) {
                 curr_node_mutation_string =
-                    T->get_node_name(anc_node->node_id) + ":";
+                    T->get_node_name_for_log_output(anc_node->node_id) + ":";
                 size_t num_mutations = curr_node_mutations.size();
                 for (size_t k = 0; k < num_mutations; k++) {
                     curr_node_mutation_string +=
@@ -268,7 +268,7 @@ void Mutation_Annotated_Tree::get_sample_mutation_paths(
         }
 
         fprintf(mutation_paths_file, "%s\t",
-                T->get_node_name(sample_node->node_id).c_str());
+                T->get_node_name_for_log_output(sample_node->node_id).c_str());
         while (mutation_stack.size()) {
             fprintf(mutation_paths_file, "%s", mutation_stack.top().c_str());
             mutation_stack.pop();
@@ -328,7 +328,7 @@ Mutation_Annotated_Tree::get_subtree(const Mutation_Annotated_Tree::Tree &tree,
     //Original_State_t ori_state;
     //check_samples(tree.root, ori_state, &tree);
     TIMEIT();
-    Tree subtree=tree;
+    Tree subtree=tree.get_data_no_nodes();
     size_t num_annotations = 0;
     if (keep_clade_annotations) {
         num_annotations = tree.get_num_annotations();
@@ -430,7 +430,7 @@ void Mutation_Annotated_Tree::get_random_single_subtree(
         }
     }
 
-    std::vector<Node *> leaves_to_keep(samples.begin(), samples.end());
+    std::vector<Node *> leaves_to_keep(leaves_to_keep_set.begin(), leaves_to_keep_set.end());
 
     auto new_T = get_subtree(T, leaves_to_keep);
     //check_leaves(T);
@@ -464,7 +464,7 @@ void Mutation_Annotated_Tree::get_random_single_subtree(
     for (auto n : new_T.depth_first_expansion()) {
         size_t tot_mutations = n->mutations.size();
         fprintf(subtree_mutations_file,
-                "%s: ", new_T.get_node_name(n->node_id).c_str());
+                "%s: ", new_T.get_node_name_for_log_output(n->node_id).c_str());
         for (size_t idx = 0; idx < tot_mutations; idx++) {
             auto m = n->mutations[idx];
             fprintf(subtree_mutations_file, "%s", m.get_string().c_str());
@@ -496,7 +496,7 @@ void Mutation_Annotated_Tree::get_random_single_subtree(
                 has_condensed = true;
             }
             fprintf(subtree_expanded_file,
-                    "%s: ", new_T.get_node_name(l->node_id).c_str());
+                    "%s: ", new_T.get_node_name_for_log_output(l->node_id).c_str());
             auto iter=T.condensed_nodes.find(l->node_id);
             for (auto n : iter->second) {
                 fprintf(subtree_expanded_file, "%s ", n.c_str());
@@ -679,7 +679,7 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (const Mutation_Annotat
 
             for (auto n: new_T.depth_first_expansion()) {
                 size_t tot_mutations = n->mutations.size();
-                fprintf(subtree_mutations_file, "%s: ", new_T.get_node_name(n->node_id).c_str());
+                fprintf(subtree_mutations_file, "%s: ", new_T.get_node_name_for_log_output(n->node_id).c_str());
                 for (size_t idx = 0; idx < tot_mutations; idx++) {
                     auto m = n->mutations[idx];
                     fprintf(subtree_mutations_file, "%s", m.get_string().c_str());
@@ -702,7 +702,7 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (const Mutation_Annotat
                         subtree_expanded_file = fopen(subtree_expanded_filename.c_str(), "w");
                         has_condensed = true;
                     }
-                    fprintf(subtree_expanded_file, "%s: ", T.get_node_name(l->node_id).c_str());
+                    fprintf(subtree_expanded_file, "%s: ", T.get_node_name_for_log_output(l->node_id).c_str());
                     auto iter=T.condensed_nodes.find(l->node_id);
                     for (auto n: iter->second) {
                         fprintf(subtree_expanded_file, "%s ", n.c_str());

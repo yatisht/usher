@@ -40,7 +40,6 @@ struct tree_info {
     MAT::Tree tree;
     std::unordered_set<std::string> condensed_nodes;
     std::string path;
-    std::string canonical_path;
     int switch_threshold;
     tree_info(const tree_info& )=delete;
     tree_info()=default;
@@ -85,10 +84,10 @@ void reload_trees(TreeCollectionPtr &to_replace, const std::vector<std::string>&
     auto next = new std::unordered_map<std::string, std::shared_ptr<tree_info> > (paths.size());
     next->reserve(paths.size()*2);
     for (size_t idx=0; idx<paths.size(); idx++) {
-        auto canonical_path=boost::filesystem::canonical(paths[idx]).string();
-        auto ins_result=next->emplace(canonical_path, new tree_info);
+        const auto& path=paths[idx];
+        auto ins_result=next->emplace(path, new tree_info);
         if(ins_result.second){
-            if(!prep_single_tree(canonical_path, ins_result.first->second)) {
+            if(!prep_single_tree(path, ins_result.first->second)) {
                 fprintf(stderr, "Not reloaded\n");
                 delete next;
                 return;
@@ -328,7 +327,8 @@ std::string get_options(FILE *f, Leader_Thread_Options &options) {
                                                                                                                           po::bool_switch(&options.out_options.detailed_clades),
                                                                                                                           "In clades.txt, write a histogram of annotated clades and counts "
                                                                                                                           "across all equally parsimonious placements")(
-                                                                                                                                  "version", "Print version number")("help,h", "Print help messages");
+                                                                                                                                  "version", "Print version number")("help,h", "Print help messages")
+                                                                                                                    ("no-ignore-prefix",po::value<std::string>(&options.duplicate_prefix),"prefix samples already in the tree to force placement");
     po::variables_map vm;
     // wait_debug();
     try {
@@ -387,7 +387,7 @@ static void child_proc(int fd, TreeCollectionPtr &trees_ptr) {
         iter->second->condensed_nodes;
     fputs("got condensed_nodes, start parsing vcf\n", stderr);
     Sample_Input(options.vcf_filename.c_str(), samples_to_place, tree,
-                 position_wise_out, false, samples, samples_in_condensed_nodes);
+                 position_wise_out, false, samples, samples_in_condensed_nodes,options.duplicate_prefix);
     fputs("end parsing vcf\n", stderr);
     samples_to_place.resize(
         std::min(samples_to_place.size(), options.first_n_samples));
@@ -418,6 +418,7 @@ static void child_proc(int fd, TreeCollectionPtr &trees_ptr) {
                             options.max_parsimony, options.max_uncertainty,
                             low_confidence_samples, samples_clade,
                             sample_start_idx, true, f);
+    fputs("placing sample end\n", stderr);
     auto dfs = tree.depth_first_expansion();
     clean_up_leaf(dfs);
     final_output(tree, options.out_options, 0, samples_clade, sample_start_idx,

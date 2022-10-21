@@ -1,5 +1,6 @@
 #include <atomic>
 #include <cstddef>
+#include <string>
 #define USHER
 #include "src/matOptimize/mutation_annotated_tree.hpp"
 #include "src/matOptimize/Fitch_Sankoff.hpp"
@@ -75,7 +76,7 @@ struct Clade_info {
 void Sample_Input(const char *name, std::vector<Sample_Muts> &sample_mutations,
                   MAT::Tree &tree,std::vector<mutated_t>&,bool,
                   std::vector<std::string>& fields
-                  ,const std::unordered_set<std::string>& samples_in_condensed_nodes);
+                  ,const std::unordered_set<std::string>& samples_in_condensed_nodes, std::string duplicate_prefix="");
 #ifndef NDEBUG
 Mutation_Set get_mutations(const MAT::Node *main_tree_node);
 void check_descendant_nuc(const MAT::Node* node);
@@ -90,6 +91,7 @@ struct output_options {
     std::string dout_filename;
     bool detailed_clades;
     bool redo_FS_Min_Back_Mutations;
+    bool suppress_whole_newick;
 };
 bool final_output(MAT::Tree& T,const output_options& options,int t_idx,std::vector<Clade_info>& assigned_clades,
                   size_t sample_start_idx,size_t sample_end_idx,std::vector<std::string>& low_confidence_samples,
@@ -135,6 +137,7 @@ struct Leader_Thread_Options {
     float desired_optimization_msec;
     int initial_optimization_radius;
     int last_optimization_minutes;
+    std::string duplicate_prefix;
     std::string vcf_filename;
     bool no_add;
     std::string diff_file_name;
