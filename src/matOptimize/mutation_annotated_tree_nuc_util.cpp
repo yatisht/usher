@@ -62,6 +62,7 @@ int8_t Mutation_Annotated_Tree::get_nuc_id(char nuc) {
     case 'n':
     case 'N':
     case '-':
+    case '*':
         ret = 0b1111;
         break;
     default:
