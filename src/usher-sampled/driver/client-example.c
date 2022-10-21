@@ -40,7 +40,7 @@ static void send_args(FILE* f, int argc, char** argv){
 int main (int argc, char** argv){
     FILE* fh=make_f(argv[1]);
     char *cmd[] = { "ignored", "-v", argv[2], "-i", argv[3], "-d", "out",
-                "-e","5","-k", "5", "-K", "5", "-u","-o","test_out.pb.gz"};
+                "-k", "50", "-K", "50", "-u","--no-ignore-prefix","user_"};
     send_args(fh, 14, cmd);
     char* line=NULL;
     size_t capacity=0;

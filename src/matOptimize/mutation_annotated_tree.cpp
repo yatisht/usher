@@ -328,7 +328,7 @@ Mutation_Annotated_Tree::get_subtree(const Mutation_Annotated_Tree::Tree &tree,
     //Original_State_t ori_state;
     //check_samples(tree.root, ori_state, &tree);
     TIMEIT();
-    Tree subtree=tree;
+    Tree subtree=tree.get_data_no_nodes();
     size_t num_annotations = 0;
     if (keep_clade_annotations) {
         num_annotations = tree.get_num_annotations();
