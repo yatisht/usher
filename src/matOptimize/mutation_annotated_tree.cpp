@@ -528,7 +528,7 @@ struct NodeDist {
                     }
                 };
 class Least_N{
-    int cur_max;
+    //int cur_max;
     public:
     std::vector<NodeDist> nodes;
     size_t n;
@@ -545,15 +545,15 @@ class Least_N{
                 remaining_nodes.push_back(nodes.back().node);
                 nodes.back()=to_add;
                 std::push_heap(nodes.begin(),nodes.end());
-                if((int)nodes[0].num_mut>cur_max){
+                /*if((int)nodes[0].num_mut>cur_max){
                     raise(SIGTRAP);
                 }
-                cur_max=nodes[0].num_mut;
+                cur_max=nodes[0].num_mut;*/
             }
         }else {
             nodes.emplace_back(to_add);
             std::make_heap(nodes.begin(),nodes.end());
-            cur_max=nodes[0].num_mut;
+            //cur_max=nodes[0].num_mut;
         }
     }
 };
@@ -660,7 +660,6 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (const Mutation_Annotat
         trees_to_extract.emplace_back();
         auto& curr_tree=trees_to_extract.back();
         curr_tree.leaves_to_keep.reserve(subtree_size);
-        fprintf(stderr, "preping tree %zu\n", trees_to_extract.size());
         // Keep moving up the tree till a subtree of required size is
         // found
         auto anc=samples[i];
@@ -685,8 +684,7 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (const Mutation_Annotat
                 }
 
                 Least_N selected;
-                fprintf(stderr, "curr subtree size %zu\n",curr_tree.leaves_to_keep.size());
-                selected.n=nearest_subtree_size>curr_tree.leaves_to_keep.size()?nearest_subtree_size>curr_tree.leaves_to_keep.size():0;
+                selected.n=nearest_subtree_size>curr_tree.leaves_to_keep.size()?nearest_subtree_size-curr_tree.leaves_to_keep.size():0;
                 selected.nodes.reserve(selected.n);
                 selected.remaining_nodes.reserve(num_leaves-curr_tree.leaves_to_keep.size());
                 gather_nodes(anc, last_anc, selected, 0);
@@ -694,7 +692,7 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (const Mutation_Annotat
                     curr_tree.add_leave(n.node,sample_pos,displayed_samples);
                 }
                 to_extract_info_back_inserter inserter{curr_tree,sample_pos,displayed_samples};
-                std::sample(selected.remaining_nodes.begin(), selected.remaining_nodes.end(), inserter, random_subtree_size, std::default_random_engine{});
+                std::sample(selected.remaining_nodes.begin(), selected.remaining_nodes.end(), inserter, subtree_size-curr_tree.leaves_to_keep.size(), std::default_random_engine{});
             } else {
                 for (auto l: T.get_leaves(anc)) {
                      if (curr_tree.leaves_to_keep.size() == subtree_size) {
@@ -703,15 +701,6 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (const Mutation_Annotat
                     curr_tree.add_leave(l,sample_pos,displayed_samples);
                 
                 }
-            }
-            bool found=false;
-            for(auto &node: curr_tree.to_display_samples){
-                if(node==samples[i]){
-                    found=true;
-                }
-            }
-            if(!found){
-                raise(SIGTRAP);
             }
             break;
         }
