@@ -391,10 +391,10 @@ std::unordered_map<std::string, float> get_assignments(MAT::Tree* T, std::unorde
     return assignments;
 }
 
-std::pair<boost::gregorian::date,boost::gregorian::date> daterange_from_set(std::set<std::string> cluster_samples, std::unordered_map<std::string, std::string> datemeta) {
+std::pair<boost::gregorian::date,boost::gregorian::date> daterange_from_list(std::vector<std::string> sample_list, std::unordered_map<std::string, std::string> datemeta) {
     boost::gregorian::date earliest = boost::gregorian::day_clock::universal_day();
     boost::gregorian::date latest = boost::gregorian::date(1500,1,1);
-    for (auto l: cluster_samples) {
+    for (auto l: sample_list) {
         if (datemeta.find(l) != datemeta.end()) {
             boost::gregorian::date leafdate;
             try {
@@ -441,13 +441,13 @@ std::pair<boost::gregorian::date,boost::gregorian::date> daterange_from_set(std:
     return std::pair<boost::gregorian::date,boost::gregorian::date> (earliest,latest);
 }
 std::pair<boost::gregorian::date,boost::gregorian::date> get_nearest_date(MAT::Tree* T, MAT::Node* n, std::set<std::string>* in_samples, std::unordered_map<std::string, std::string> datemeta) {
-    std::set<std::string> lnames;
+    std::vector<std::string> lnames;
     for (auto l: T->get_leaves_ids(n->identifier)) {
         if (in_samples->find(l) != in_samples->end()) {
-            lnames.insert(l);
+            lnames.push_back(l);
         }
     }
-    std::pair<boost::gregorian::date,boost::gregorian::date> datepair = daterange_from_set(lnames, datemeta);
+    std::pair<boost::gregorian::date,boost::gregorian::date> datepair = daterange_from_list(lnames, datemeta);
     return datepair;
 }
 
@@ -809,10 +809,10 @@ std::vector<std::string> find_introductions(MAT::Tree* T, std::unordered_map<std
         std::unordered_map<std::string, std::string> date_tracker;
         for (auto cs: clusters) {
             std::string ldatestr;
-            std::set<std::string> cluster_samples;
+            std::vector<std::string> cluster_samples;
             for (auto s : cs.second)
-                cluster_samples.insert(s.first);
-            std::pair<boost::gregorian::date,boost::gregorian::date> ldates = daterange_from_set(cluster_samples, datemeta);
+                cluster_samples.push_back(s.first);
+            std::pair<boost::gregorian::date,boost::gregorian::date> ldates = daterange_from_list(cluster_samples, datemeta);
             boost::gregorian::days diff(0);
             if ((ldates.first.is_not_a_date()) || (ldates.second.is_not_a_date())) {
                 fprintf(stderr, "WARNING: Cluster %s has no valid dates included among samples\n", cs.first.c_str());
