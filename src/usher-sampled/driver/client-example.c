@@ -40,8 +40,8 @@ static void send_args(FILE* f, int argc, char** argv){
 int main (int argc, char** argv){
     FILE* fh=make_f(argv[1]);
     char *cmd[] = { "ignored", "-v", argv[2], "-i", argv[3], "-d", "out",
-                "-k", "50", "-K", "50", "-u","--no-ignore-prefix","user_"};
-    send_args(fh, 14, cmd);
+                "-k", "500", "-u","--no-ignore-prefix","user_"};
+    send_args(fh, 12, cmd);
     char* line=NULL;
     size_t capacity=0;
     while (getline(&line, &capacity, fh)>0) {

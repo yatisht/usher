@@ -2,6 +2,7 @@
 #include "src/matOptimize/check_samples.hpp"
 #include <algorithm>
 #include <atomic>
+#include <csignal>
 #include <cstddef>
 #include <cstdio>
 #include <iomanip>
@@ -164,10 +165,14 @@ static void get_leaves_helper(const Node* root, std::vector<Node*>& out) {
         }
     }
 }
-std::vector<Node*> Mutation_Annotated_Tree::Tree::get_leaves(const Node* root) const {
+std::vector<Node*> Mutation_Annotated_Tree::Tree::get_leaves(Node* root) const {
     std::vector<Node*> out;
     if (root==nullptr) {
         root=this->root;
+    }
+    if(root->is_leaf()){
+        out.push_back(root);
+        return out;
     }
     get_leaves_helper(root, out);
     return out;
@@ -509,6 +514,71 @@ void Mutation_Annotated_Tree::get_random_single_subtree(
         fclose(subtree_expanded_file);
     }
 }
+struct NodeDist {
+                    Mutation_Annotated_Tree::Node* node;
+                    uint32_t num_mut;
+
+                    NodeDist(Node* n, uint32_t d) {
+                        node = n;
+                        num_mut = d;
+                    }
+
+                    inline bool operator< (const NodeDist& n) const {
+                        return ((*this).num_mut < n.num_mut);
+                    }
+                };
+class Least_N{
+    int cur_max;
+    public:
+    std::vector<NodeDist> nodes;
+    size_t n;
+    std::vector<Node*> remaining_nodes;
+    void add(NodeDist to_add){
+        if(!n){
+            remaining_nodes.push_back(to_add.node);
+        }
+        else if(nodes.size()==n){
+            if(to_add.num_mut>=nodes[0].num_mut){
+                remaining_nodes.push_back(to_add.node);
+            }else {
+                std::pop_heap(nodes.begin(),nodes.end());
+                remaining_nodes.push_back(nodes.back().node);
+                nodes.back()=to_add;
+                std::push_heap(nodes.begin(),nodes.end());
+                if((int)nodes[0].num_mut>cur_max){
+                    raise(SIGTRAP);
+                }
+                cur_max=nodes[0].num_mut;
+            }
+        }else {
+            nodes.emplace_back(to_add);
+            std::make_heap(nodes.begin(),nodes.end());
+            cur_max=nodes[0].num_mut;
+        }
+    }
+};
+static void gather_nodes(Node* start_node,Node* exclude_node,Least_N& out,int dist){
+    if(start_node==exclude_node){
+        return;
+    }
+    if(start_node->is_leaf()){
+        out.add(NodeDist(start_node,dist));
+    }
+    for (const auto child : start_node->children) {
+        gather_nodes(child, exclude_node, out,dist+child->mutations.size());
+    }
+}
+static int set_num_leaves_as_bfs_idx(Node* root){
+    int child_cnt=0;
+    if(root->is_leaf()){
+        child_cnt=1;
+    }
+    for (auto child : root->children) {
+        child_cnt+=set_num_leaves_as_bfs_idx(child);
+    }
+    root->bfs_index=child_cnt;
+    return child_cnt;
+}
 void Mutation_Annotated_Tree::get_random_sample_subtrees (const Mutation_Annotated_Tree::Tree& T, std::vector<Node*> samples, std::string outdir, size_t subtree_size, size_t tree_idx, bool use_tree_idx, bool retain_original_branch_len) {
     fprintf(stderr, "Computing subtrees for %ld samples. \n\n", samples.size());
     std::string preid = "/";
@@ -526,21 +596,52 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (const Mutation_Annotat
     size_t random_subtree_size = subtree_size/5;
     size_t nearest_subtree_size = subtree_size - random_subtree_size;
 
-    //Set a constant random seed
-    std::srand(0);
-
-    // Randomly shuffle the leaves for selecting the random subtree
-    auto all_leaves = T.get_leaves();
-    std::set<Mutation_Annotated_Tree::Node*> random_ordered_leaves;
-    for (size_t i=0; i< all_leaves.size(); i++) {
-        auto l = all_leaves.begin();
-        std::advance(l, std::rand() % all_leaves.size());
-        random_ordered_leaves.insert(*l);
-        if (random_ordered_leaves.size() >= subtree_size) {
-            break;
-        }
+    std::unordered_map<Node*, size_t> sample_pos;
+    for(size_t i=0; i<samples.size();i++){
+        sample_pos.emplace(samples[i],i);
     }
+    struct to_extract_info{
+        std::vector<Node*> leaves_to_keep;
+        std::vector<Node*> to_display_samples;
+        void add_leave(Node* node,const std::unordered_map<Node*, size_t>& sample_pos,std::vector<bool>& displayed_samples){
+            auto iter=sample_pos.find(node);
+            if(iter!=sample_pos.end()){
+                displayed_samples[iter->second]=true;
+                to_display_samples.push_back(node);
+            }
+            leaves_to_keep.push_back(node);
+        }
+    };
+    struct to_extract_info_back_inserter: public std::iterator< std::output_iterator_tag,
+                                                   void, void, void, void >{
+        to_extract_info& content;
+        const std::unordered_map<Node*, size_t>& sample_pos;
+        std::vector<bool>& displayed_samples;
+        to_extract_info_back_inserter(
+        to_extract_info& content,
+        const std::unordered_map<Node*, size_t>& sample_pos,
+        std::vector<bool>& displayed_samples
+        ):
+        content(content),
+        sample_pos(sample_pos),
+        displayed_samples(displayed_samples){}
+        to_extract_info_back_inserter& operator*(){
+            return *this;
+        }
+        to_extract_info_back_inserter& operator++(){
+            return *this;
+        }
+        to_extract_info_back_inserter& operator++(int){
+            return *this;
+        }
+        to_extract_info_back_inserter& operator=(Node* to_add){
+            content.add_leave(to_add, sample_pos, displayed_samples);
+            return *this;
+        }
+    };
 
+    std::vector<to_extract_info> trees_to_extract;
+    trees_to_extract.reserve(samples.size());
     // Bool vector to mark which newly placed samples have already been
     // displayed in a subtree (initialized to false)
     std::vector<bool> displayed_samples (samples.size(), false);
@@ -548,8 +649,7 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (const Mutation_Annotat
     // If the missing sample is not found in the tree, it was not placed
     // because of max_uncertainty. Mark those samples as already
     // displayed.
-
-    int num_subtrees = 0;
+    set_num_leaves_as_bfs_idx(T.root);
     for (size_t i = 0; i < samples.size(); i++) {
 
         if (displayed_samples[i]) {
@@ -557,8 +657,10 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (const Mutation_Annotat
         }
 
         Mutation_Annotated_Tree::Node* last_anc = samples[i];
-        std::vector<Node*> leaves_to_keep;
-
+        trees_to_extract.emplace_back();
+        auto& curr_tree=trees_to_extract.back();
+        curr_tree.leaves_to_keep.reserve(subtree_size);
+        fprintf(stderr, "preping tree %zu\n", trees_to_extract.size());
         // Keep moving up the tree till a subtree of required size is
         // found
         auto anc=samples[i];
@@ -571,96 +673,67 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (const Mutation_Annotat
                 }
             }
             is_first=false;
-            size_t num_leaves = anc->get_num_leaves();
+            size_t num_leaves = anc->bfs_index;
             if (num_leaves < subtree_size) {
                 last_anc = anc;
                 continue;
             }
 
             if (num_leaves > subtree_size) {
-                struct NodeDist {
-                    Mutation_Annotated_Tree::Node* node;
-                    uint32_t num_mut;
-
-                    NodeDist(Node* n, uint32_t d) {
-                        node = n;
-                        num_mut = d;
-                    }
-
-                    inline bool operator< (const NodeDist& n) const {
-                        return ((*this).num_mut < n.num_mut);
-                    }
-                };
-
                 for (auto l: T.get_leaves(last_anc)) {
-                    leaves_to_keep.emplace_back(l);
+                    curr_tree.add_leave(l,sample_pos,displayed_samples);
                 }
 
-                std::vector<NodeDist> node_distances;
-                for (auto l: T.get_leaves(anc)) {
-                    if (is_anncestor_after_dfs(last_anc, l)) {
-                        continue;
-                    }
-
-                    uint32_t dist = 0;
-                    for (auto a: get_ancestor(l, true)) {
-                        if (a == anc) {
-                            break;
-                        }
-                        dist += a->mutations.size();
-                    }
-
-                    node_distances.emplace_back(NodeDist(l, dist));
+                Least_N selected;
+                fprintf(stderr, "curr subtree size %zu\n",curr_tree.leaves_to_keep.size());
+                selected.n=nearest_subtree_size>curr_tree.leaves_to_keep.size()?nearest_subtree_size>curr_tree.leaves_to_keep.size():0;
+                selected.nodes.reserve(selected.n);
+                selected.remaining_nodes.reserve(num_leaves-curr_tree.leaves_to_keep.size());
+                gather_nodes(anc, last_anc, selected, 0);
+                for (auto n: selected.nodes) {
+                    curr_tree.add_leave(n.node,sample_pos,displayed_samples);
                 }
-
-                std::sort(node_distances.begin(), node_distances.end());
-                for (auto n: node_distances) {
-                    if (leaves_to_keep.size() >= nearest_subtree_size) {
-                        break;
-                    }
-                    leaves_to_keep.emplace_back(n.node);
-                }
-
-                if ((nearest_subtree_size < subtree_size) && (nearest_subtree_size < node_distances.size())) {
-                    std::vector<NodeDist> remaining_node_distances = {node_distances.begin()+nearest_subtree_size, node_distances.end()};
-                    std::shuffle(remaining_node_distances.begin(), remaining_node_distances.end(), std::default_random_engine {});
-
-                    for (auto n: remaining_node_distances) {
-                        if (leaves_to_keep.size() == subtree_size) {
-                            break;
-                        }
-                        leaves_to_keep.emplace_back(n.node);
-                    }
-                }
+                to_extract_info_back_inserter inserter{curr_tree,sample_pos,displayed_samples};
+                std::sample(selected.remaining_nodes.begin(), selected.remaining_nodes.end(), inserter, random_subtree_size, std::default_random_engine{});
             } else {
                 for (auto l: T.get_leaves(anc)) {
-                    if (leaves_to_keep.size() == subtree_size) {
+                     if (curr_tree.leaves_to_keep.size() == subtree_size) {
                         break;
                     }
-                    leaves_to_keep.emplace_back(l);
+                    curr_tree.add_leave(l,sample_pos,displayed_samples);
+                
                 }
             }
-
-            auto new_T = Mutation_Annotated_Tree::get_subtree(T, leaves_to_keep);
-
+            bool found=false;
+            for(auto &node: curr_tree.to_display_samples){
+                if(node==samples[i]){
+                    found=true;
+                }
+            }
+            if(!found){
+                raise(SIGTRAP);
+            }
+            break;
+        }
+    }
+    tbb::parallel_for(tbb::blocked_range<size_t>(0,trees_to_extract.size()),[&](tbb::blocked_range<size_t> range){
+        for (int num_subtrees=range.begin(); num_subtrees<(int)range.end(); num_subtrees++) {
+            auto new_T = Mutation_Annotated_Tree::get_subtree(T, trees_to_extract[num_subtrees].leaves_to_keep);
             // Rotate tree for display
             new_T.rotate_for_display();
-
-            tbb::parallel_for (tbb::blocked_range<size_t>(i+1, samples.size(), 100),
-            [&](tbb::blocked_range<size_t> r) {
-                for (size_t j=r.begin(); j<r.end(); ++j) {
-                    if (!displayed_samples[j]) {
-                        if (new_T.get_node(samples[j]->node_id) != NULL) {
-                            displayed_samples[j] = true;
-                        }
-                    }
+            
+            std::string node_names;
+            for(const auto& node:trees_to_extract[num_subtrees].to_display_samples){
+                auto cur_name=T.get_node_name(node->node_id);
+                node_names+=(cur_name+",");
+                if(new_T.get_node(cur_name)==NULL){
+                    fprintf(stderr, "cannot find node %zu in subtree\n",node->node_id);
+                    raise(SIGTRAP);
                 }
-            });
-
+            }
             // Write subtree to file
-            ++num_subtrees;
             auto subtree_filename = outdir + preid + "subtree-" + std::to_string(num_subtrees) + ".nh";
-            fprintf(stderr, "Writing subtree %d to file %s.\n", num_subtrees, subtree_filename.c_str());
+            fprintf(stderr, "Writing subtree %d containg %s to file %s.\n", num_subtrees, node_names.c_str(), subtree_filename.c_str());
             //FILE* subtree_file = fopen(subtree_filename.c_str(), "w");
             //fprintf(subtree_file, "%s\n", newick.c_str());
             //fclose(subtree_file);
@@ -715,5 +788,6 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (const Mutation_Annotat
             }
             break;
         }
-    }
+    });
+
 }
