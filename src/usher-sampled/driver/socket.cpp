@@ -477,22 +477,21 @@ int main(int argc, char** argv) {
     std::string num_threads_message = "Number of threads to use when possible "
                                       "[DEFAULT uses all available cores, " +
                                       std::to_string(num_threads) +
-                                      " detected on this machine]";
+                                      " detected on this machine]\n";
     desc.add_options()("manager-fifo-path,m",po::value<std::string>(&mgr_fifo)->required(),
-                       "path to a fifo taking commands,existing file will be deleted currently support:\n"
+                       "Path to a fifo taking commands, existing file will be deleted. currently support:\n"
                        "stop: stop taking new connections and exit\n"
                        "thread [int] : reset the number of threads for each job\n"
                        "reload [EXPERIMENTAL]: replace the cached trees, expecting one per line\n"
                        "timeout [int] : change timeout, in second\n"
                       )
-    ("socket-patch,s",po::value<std::string>(&socket_path)->required(),
-     "path to socket,existing file will be deleted\n"
-     "Expect usher cmd args separated by new line, terminated with an empty line"
-     "then the server will reply with the output of usher\n"
-     "")
+    ("socket-path,s",po::value<std::string>(&socket_path)->required(),
+     "Path to socket, existing file will be deleted\n"
+     "Expect usher cmd args separated by new line, terminated with an empty line\n"
+     "then the server will reply with the output of usher terminated by \\004 (ASCII EOT)\n")
     ("threads-per-process,T",po::value<unsigned int>(&num_threads),num_threads_message.c_str())
-    ("timeout,t",po::value<int>(&wait_second)->default_value(180),"Timeout in seconds")
-    ("pb-to-load,l",po::value<std::vector<std::string>>(&init_pb_to_load)->multitoken()->composing(),"initial list of protobufs to load")
+    ("timeout,t",po::value<int>(&wait_second)->default_value(180),"Timeout in seconds for child process\n")
+    ("pb-to-load,l",po::value<std::vector<std::string>>(&init_pb_to_load)->multitoken()->composing(),"Initial list of protobufs to load (multiple file args can follow)")
     ;
     po::variables_map vm;
     try {

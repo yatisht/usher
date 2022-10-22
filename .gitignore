@@ -1,4 +1,4 @@
-build/
+build*/
 scripts/__pycache__
 *.tar.gz
 *~
