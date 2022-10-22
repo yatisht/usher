@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <functional>
 #include <mpi.h>
 #include <string>
 #include <sys/wait.h>
@@ -32,7 +33,7 @@
 void Min_Back_Fitch_Sankoff(MAT::Node* root_node,const MAT::Mutation& mut_template,
                             std::vector<std::vector<MAT::Mutation>>& mutation_output,mutated_t& positions,size_t dfs_size);
 int set_descendant_count(MAT::Node* root) {
-    size_t child_count=0;
+    size_t child_count=1;
     for (auto child : root->children) {
         child_count+=set_descendant_count(child);
     }
@@ -519,11 +520,9 @@ static void remove_absent_leaves(MAT::Node* node,MAT::Tree& tree,std::unordered_
 void remove_absent_leaves(MAT::Tree& tree,std::unordered_set<std::string>& present) {
     remove_absent_leaves(tree.root,tree,present);
 }
-static int output_newick(MAT::Tree& T,const output_options& options,int t_idx) {
-    std::string uncondensed_string=options.print_uncondensed_tree?"uncondensed":"";
+static void write_newick_stub(const MAT::Tree& T,const output_options& options,int t_idx){
     auto final_tree_filename = options.outdir + "/";
     if (options.print_uncondensed_tree) {
-        T.uncondense_leaves();
         final_tree_filename+="uncondensed-";
     }
     final_tree_filename+="final-tree";
@@ -534,17 +533,23 @@ static int output_newick(MAT::Tree& T,const output_options& options,int t_idx) {
         final_tree_filename += std::to_string(t_idx+1) + ".nh";
         fprintf(stderr, "Writing uncondensed final tree %d to file %s \n", (t_idx+1), final_tree_filename.c_str());
     }
+    std::ofstream final_tree_file(final_tree_filename.c_str(), std::ofstream::out);
+    T.write_newick_string(final_tree_file,T.root, true, true, options.retain_original_branch_len,true);
+    final_tree_file.close();
+}
+static std::thread output_newick(MAT::Tree& T,const output_options& options,int t_idx) {
+    std::string uncondensed_string=options.print_uncondensed_tree?"uncondensed":"";
+    if (options.print_uncondensed_tree) {
+        fputs("uncondense start",stderr);
+        T.uncondense_leaves();
+        fputs("uncondense enmd",stderr);
+
+    }
+    return std::thread(write_newick_stub, std::ref(T),std::ref(options),t_idx);
     //auto parsimony_score = T.get_parsimony_score();
     //fprintf(stderr, "The parsimony score for this tree is: %zu \n", parsimony_score);
-    int pid=fork();
-    if (pid==0) {
-        std::ofstream final_tree_file(final_tree_filename.c_str(), std::ofstream::out);
-        T.write_newick_string(final_tree_file,T.root, true, true, options.retain_original_branch_len,true);
-        final_tree_file.close();
-        return 0;
-    } else {
-        return pid;
-    }
+    
+    
 
 }
 void check_leaves(const MAT::Tree& T) {
@@ -645,9 +650,9 @@ bool final_output(MAT::Tree &T, const output_options &options, int t_idx,
     //check_leaves(T);
     //MAT::save_mutation_annotated_tree(T, "before_post_processing.pb");
     if(finish_mpi) MPI_Finalize();
-    int pid=output_newick(T, options,t_idx);
-    if(!pid){
-        _exit(EXIT_SUCCESS);
+    auto thread=output_newick(T, options,t_idx);
+    if (T.condensed_nodes.size() > 0) {
+        T.uncondense_leaves();
     }
     // For each final tree write the path of mutations from tree root to the
     // sample for each newly placed sample
@@ -726,17 +731,14 @@ bool final_output(MAT::Tree &T, const output_options &options, int t_idx,
         }
         fprintf(stderr, "Saving mutation-annotated tree object to file (after condensing identical sequences) %s\n", options.dout_filename.c_str());
         // Recondense tree with new samples
-        check_leaves(T);
-        if (T.condensed_nodes.size() > 0) {
-            T.uncondense_leaves();
-        }
-        check_leaves(T);
+        //check_leaves(T);
+        //check_leaves(T);
         T.condense_leaves();
         MAT::save_mutation_annotated_tree(T, options.dout_filename);
 
         //fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
-    wait(&pid);
+    thread.join();
     return true;
 }
 /*static void check_repeats(const std::vector<Sample_Muts>& samples_to_place,size_t sample_start_idx){

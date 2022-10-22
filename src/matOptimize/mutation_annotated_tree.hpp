@@ -563,6 +563,12 @@ class Tree {
 
     size_t curr_internal_node;
 
+    Tree get_data_no_nodes() const{
+        Tree tree (*this);
+        tree.all_nodes.clear();
+        tree.root=nullptr;
+        return tree;
+    }
     void rename_node(size_t old_nid, std::string new_nid);
     Node* create_node ();
     std::string get_node_name(size_t node_idx) const {

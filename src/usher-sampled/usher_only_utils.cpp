@@ -2,7 +2,7 @@
 #include "src/usher-sampled/usher.hpp"
 #include <tbb/parallel_for.h>
 extern int process_count;
-void prep_tree(MAT::Tree &tree) {
+int prep_tree(MAT::Tree &tree) {
     if (!tree.root->mutations.empty()) {
         auto node = tree.create_node();
         auto ori_root = tree.root;
@@ -12,7 +12,7 @@ void prep_tree(MAT::Tree &tree) {
     }
     assign_descendant_muts(tree);
     assign_levels(tree.root);
-    set_descendant_count(tree.root);
+    return set_descendant_count(tree.root);
 }
 bool sort_samples(const Leader_Thread_Options& options,std::vector<Sample_Muts>& samples_to_place, MAT::Tree& tree,size_t sample_start_idx) {
     bool reordered=false;
