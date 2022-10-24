@@ -447,7 +447,7 @@ json get_json_entry(MAT::Node* n, std::vector<std::unordered_map<std::string,std
     std::unordered_map<std::string,std::vector<std::string>> nmap {{"nuc", mutids},};
     //mutation information is encoded twice in the output we're using.
     //don't ask me why.
-    std::unordered_map<std::string,std::string> mutv {{"nuc mutations", muts}, {"sample",n->identifier}};
+    std::unordered_map<std::string,std::string> mutv {{"nuc mutations", muts}, {"sample",n->identifier}, {"id",n->identifier}};
     sj["branch_attrs"] = {{"labels",mutv}, {"mutations",nmap}};
     //note: the below is pretty much sars-cov-2 specific. but so is all json-related things.
     //need to declare maps to get nlohmann to interpret these as key pairs.
