@@ -631,7 +631,7 @@ class Tree {
     void condense_leaves(std::vector<std::string> = std::vector<std::string>());
     void uncondense_leaves();
     std::string get_clade_assignment (const Node* n, int clade_id, bool include_self) const;
-    std::vector<Node*> get_leaves(const Node* n=nullptr) const;
+    std::vector<Node*> get_leaves(Node* n=nullptr) const;
     void populate_ignored_range();
     size_t get_max_level();
     friend class Node;
