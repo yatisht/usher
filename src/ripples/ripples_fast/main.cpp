@@ -138,6 +138,8 @@ int main(int argc, char **argv) {
                 exit(1);
             } else {
                 for (auto anc : T.rsearch(n->identifier, true)) {
+                     if (anc->is_root()) {
+                         continue;
                     nodes_to_consider.insert(anc);
                 }
                 //nodes_to_consider.insert(n);
