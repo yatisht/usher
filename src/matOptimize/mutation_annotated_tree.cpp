@@ -117,7 +117,7 @@ void Mutation_Annotated_Tree::Tree::check_leaves() {
     fprintf(stderr,"===================Node ID so far %zu ===================",node_idx);
     for (const auto node: get_leaves()) {
         auto iter=node_names.find(node->node_id);
-        if(iter==node_names.end()) {
+        if(iter==node_names.end()&&node->parent) {
             fprintf(stderr,"Node ID %zu name not found",node->node_id);
             raise(SIGTRAP);
         }
@@ -721,8 +721,8 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (const Mutation_Annotat
                 }
             }
             // Write subtree to file
-            auto subtree_filename = outdir + preid + "subtree-" + std::to_string(num_subtrees) + ".nh";
-            fprintf(stderr, "Writing subtree %d containg %s to file %s.\n", num_subtrees, node_names.c_str(), subtree_filename.c_str());
+            auto subtree_filename = outdir + preid + "subtree-" + std::to_string(num_subtrees+1) + ".nh";
+            fprintf(stderr, "Writing subtree %d containg %s to file %s.\n", num_subtrees+1, node_names.c_str(), subtree_filename.c_str());
             //FILE* subtree_file = fopen(subtree_filename.c_str(), "w");
             //fprintf(subtree_file, "%s\n", newick.c_str());
             //fclose(subtree_file);
@@ -734,9 +734,9 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (const Mutation_Annotat
 
 
             // Write list of mutations on the subtree to file
-            auto subtree_mutations_filename = outdir + preid + "subtree-" + std::to_string(num_subtrees) + "-mutations.txt";
+            auto subtree_mutations_filename = outdir + preid + "subtree-" + std::to_string(num_subtrees+1) + "-mutations.txt";
 
-            fprintf(stderr, "Writing list of mutations at the nodes of subtree %d to file %s\n", num_subtrees, subtree_mutations_filename.c_str());
+            fprintf(stderr, "Writing list of mutations at the nodes of subtree %d to file %s\n", num_subtrees+1, subtree_mutations_filename.c_str());
             FILE* subtree_mutations_file = fopen(subtree_mutations_filename.c_str(), "w");
 
             for (auto n: new_T.depth_first_expansion()) {

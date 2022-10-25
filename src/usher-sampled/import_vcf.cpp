@@ -288,7 +288,7 @@ struct line_parser {
                 pos = pos * 10 + (*line_in - '0');
                 line_in++;
             }
-            if (pos <= 0) {
+            if (pos < 0) {
                 raise(SIGTRAP);
             }
             line_in++;
