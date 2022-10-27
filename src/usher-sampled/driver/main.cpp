@@ -177,7 +177,7 @@ static int leader_thread(
             fprintf(stderr, "Expect either VCF file or MAPLE file\n");
             exit(EXIT_FAILURE);
         }
-        Sample_Input(options.vcf_filename.c_str(),samples_to_place,tree,position_wise_out,options.override_mutations,samples,samples_in_condensed_nodes);
+        Sample_Input(options.vcf_filename.c_str(),samples_to_place,tree,position_wise_out,options.override_mutations,samples,samples_in_condensed_nodes,options.duplicate_prefix);
     }
     samples_to_place.resize(std::min(samples_to_place.size(),options.first_n_samples));
     if(samples_to_place.empty()){
@@ -395,6 +395,7 @@ int main(int argc, char **argv) {
     ("parsimony_threshold",po::value(&options.parsimony_threshold)->default_value(100000),
      "Optimize after the parsimony score increase by this amount")
     ("first_n_samples",po::value(&options.first_n_samples)->default_value(SIZE_MAX),"[TESTING ONLY] Only place first n samples")
+    ("no-ignore-prefix",po::value<std::string>(&options.duplicate_prefix),"prefix samples already in the tree to force placement")
     //("gdb_pid,g",po::value(&gdb_pids)->multitoken(),"gdb pids for attaching")
     ;
     po::variables_map vm;
