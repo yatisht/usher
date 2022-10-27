@@ -478,7 +478,7 @@ static void accept_fork_loop(int socket_fd, TreeCollectionPtr &trees_ptr,std::at
 static void tree_update_watch(int refresh_period, std::mutex& done_mutex,std::condition_variable& done_cv, bool& done,TreeCollectionPtr &trees_ptr){
     while (true) {
         std::unique_lock<std::mutex> lk(done_mutex);
-        done_cv.wait_for(lk,std::chrono::seconds(refresh_period));
+        done_cv.wait_for(lk,std::chrono::minutes(refresh_period));
         if(done){
             return;
         }
@@ -542,7 +542,7 @@ int main(int argc, char** argv) {
      "then the server will reply with the output of usher terminated by \\004 (ASCII EOT)\n")
     ("threads-per-process,T",po::value<unsigned int>(&num_threads),num_threads_message.c_str())
     ("timeout,t",po::value<int>(&wait_second)->default_value(180),"Timeout in seconds for child process\n")
-    ("reload_peroid,r",po::value<int>(&refresh_period)->default_value(1),"Timeout in seconds to check whether loaded protobuf is outdated\n")
+    ("reload_peroid,r",po::value<int>(&refresh_period)->default_value(1),"Timeout in minutes to check whether loaded protobuf is outdated\n")
     ("pb-to-load,l",po::value<std::vector<std::string>>(&init_pb_to_load)->multitoken()->composing(),"Initial list of protobufs to load (multiple file args can follow)")
     ;
     po::variables_map vm;
