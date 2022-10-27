@@ -62,12 +62,18 @@ void Mutation_Annotated_Tree::Tree::write_newick_string (std::iostream::basic_os
         bool print_internal, bool print_branch_len, bool retain_original_branch_len, bool uncondense_leaves) const {
     TIMEIT();
 
+   write_newick_string_node(*this, ss, this->root, print_internal, print_branch_len);
+}
+void Mutation_Annotated_Tree::write_newick_string_node (const Mutation_Annotated_Tree::Tree& template_tree,std::iostream::basic_ostream& ss, Mutation_Annotated_Tree::Node* node,
+        bool print_internal, bool print_branch_len, bool retain_original_branch_len, bool uncondense_leaves) {
+    TIMEIT();
+
     struct stack_content {
         Node* this_node;
         size_t child_idx;
     };
     std::stack<stack_content> node_stack;
-    node_stack.push({root,0});
+    node_stack.push({node,0});
 
     while (!node_stack.empty()) {
         //puts(ss.str().c_str());
@@ -79,7 +85,7 @@ void Mutation_Annotated_Tree::Tree::write_newick_string (std::iostream::basic_os
             ss<<')';
             print_node(ss,stack_top.this_node, print_branch_len,
                        retain_original_branch_len,  uncondense_leaves,
-                       condensed_nodes,print_internal,node_names);
+                       template_tree.condensed_nodes,print_internal,template_tree.get_node_names());
             node_stack.pop();
             continue;
         }
@@ -96,8 +102,8 @@ void Mutation_Annotated_Tree::Tree::write_newick_string (std::iostream::basic_os
             continue;
         } else {
             print_node(ss,stack_top.this_node, print_branch_len,
-                       retain_original_branch_len,  uncondense_leaves, condensed_nodes
-                       ,print_internal,node_names);
+                       retain_original_branch_len,  uncondense_leaves, template_tree.condensed_nodes
+                       ,print_internal,template_tree.get_node_names());
             node_stack.pop();
             continue;
         }

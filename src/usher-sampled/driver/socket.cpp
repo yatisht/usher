@@ -8,6 +8,7 @@
 #include <cerrno>
 #include <chrono>
 #include <climits>
+#include <condition_variable>
 #include <csignal>
 #include <cstddef>
 #include <cstdio>
@@ -35,8 +36,10 @@
 #include <vector>
 #include <sys/poll.h>
 namespace po = boost::program_options;
-
+std::mutex tree_loading_mutex;
 struct tree_info {
+    boost::filesystem::path canonical_path;
+    std::time_t last_modify_time;
     MAT::Tree tree;
     std::unordered_set<std::string> condensed_nodes;
     std::string path;
@@ -70,6 +73,8 @@ bool prep_single_tree(std::string path, std::shared_ptr<tree_info> &out) {
     fix_parent(out->tree);
     auto tree_size=prep_tree(out->tree);
     out->switch_threshold=std::max((int)(tree_size/(4*num_threads)),10);
+    out->canonical_path=boost::filesystem::canonical(path);
+    out->last_modify_time=boost::filesystem::last_write_time(out->canonical_path);
     for (const auto &temp : out->tree.condensed_nodes) {
         for (const auto &str : temp.second) {
             out->condensed_nodes.emplace(str);
@@ -80,6 +85,7 @@ bool prep_single_tree(std::string path, std::shared_ptr<tree_info> &out) {
 
 typedef std::shared_ptr<std::unordered_map<std::string, std::shared_ptr<tree_info> > > TreeCollectionPtr;
 void reload_trees(TreeCollectionPtr &to_replace, const std::vector<std::string>& paths) {
+    fprintf(stderr, "loading the tree\n");
     tbb::task_scheduler_init init(num_threads);
     auto next = new std::unordered_map<std::string, std::shared_ptr<tree_info> > (paths.size());
     next->reserve(paths.size()*2);
@@ -99,6 +105,7 @@ void reload_trees(TreeCollectionPtr &to_replace, const std::vector<std::string>&
     fprintf(stderr, "finish loading the tree\n");
 }
 void refresh_tree(TreeCollectionPtr &to_replace, std::fstream &tree_paths) {
+    std::lock_guard<std::mutex> lk (tree_loading_mutex);
     std::string buf;
     std::vector<std::string> paths;
     while (std::getline(tree_paths, buf)) {
@@ -452,12 +459,14 @@ static void accept_fork_loop(int socket_fd, TreeCollectionPtr &trees_ptr,std::at
             continue;
         }
         {
+            std::unique_lock<std::mutex> lk(tree_loading_mutex);
             TreeCollectionPtr local_copy = trees_ptr;
             auto pid = fork();
             if (pid == 0) {
                 child_proc(conn_fd, trees_ptr);
             } else {
                 local_copy.reset();
+                lk.unlock();
                 close(conn_fd);
                 pid_to_fd_map.emplace(pid, child_proc_info(conn_fd));
             }
@@ -466,7 +475,48 @@ static void accept_fork_loop(int socket_fd, TreeCollectionPtr &trees_ptr,std::at
     //sleep(wait_miliseconds/1000);
     collect_done(pid_to_fd_map, true,wait_miliseconds);
 }
-
+static void tree_update_watch(int refresh_period, std::mutex& done_mutex,std::condition_variable& done_cv, bool& done,TreeCollectionPtr &trees_ptr){
+    while (true) {
+        std::unique_lock<std::mutex> lk(done_mutex);
+        done_cv.wait_for(lk,std::chrono::seconds(refresh_period));
+        if(done){
+            return;
+        }
+        TreeCollectionPtr local_copy=trees_ptr;
+        bool need_reload=false;
+        for (const auto & iter : *local_copy) {
+            try {
+                if(boost::filesystem::canonical(iter.first)!=iter.second->canonical_path||
+                boost::filesystem::last_write_time(iter.second->canonical_path)!=iter.second->last_modify_time){
+                    need_reload=true;
+                    break;
+                }
+            } catch (boost::filesystem::filesystem_error &e) {
+                fprintf(stderr, "check %s for update got error %s\n", iter.first.c_str(),e.what());
+                need_reload=false;
+                break;
+            }
+        }
+        if(need_reload){
+            tbb::task_scheduler_init init(num_threads);
+            std::lock_guard<std::mutex> lk (tree_loading_mutex);
+            if(local_copy==trees_ptr){
+                fprintf(stderr, "refreshing tree\n");
+                for (auto & iter : *local_copy) {
+                    try {
+                        if(boost::filesystem::canonical(iter.first)!=iter.second->canonical_path||
+                            boost::filesystem::last_write_time(iter.second->canonical_path)!=iter.second->last_modify_time){
+                            prep_single_tree(iter.first, iter.second);
+                    }
+                    } catch (boost::filesystem::filesystem_error &e) {
+                        fprintf(stderr, "check %s for update got error %s\n", iter.first.c_str(),e.what());
+                    }
+                }
+            }
+            init.terminate();
+        }
+    }
+}
 int main(int argc, char** argv) {
     po::options_description desc{"Options"};
     std::string mgr_fifo;
@@ -474,6 +524,7 @@ int main(int argc, char** argv) {
     num_threads=tbb::task_scheduler_init::default_num_threads();
     std::vector<std::string> init_pb_to_load;
     int wait_second;
+    int refresh_period;
     std::string num_threads_message = "Number of threads to use when possible "
                                       "[DEFAULT uses all available cores, " +
                                       std::to_string(num_threads) +
@@ -491,6 +542,7 @@ int main(int argc, char** argv) {
      "then the server will reply with the output of usher terminated by \\004 (ASCII EOT)\n")
     ("threads-per-process,T",po::value<unsigned int>(&num_threads),num_threads_message.c_str())
     ("timeout,t",po::value<int>(&wait_second)->default_value(180),"Timeout in seconds for child process\n")
+    ("reload_peroid,r",po::value<int>(&refresh_period)->default_value(1),"Timeout in seconds to check whether loaded protobuf is outdated\n")
     ("pb-to-load,l",po::value<std::vector<std::string>>(&init_pb_to_load)->multitoken()->composing(),"Initial list of protobufs to load (multiple file args can follow)")
     ;
     po::variables_map vm;
@@ -516,12 +568,23 @@ int main(int argc, char** argv) {
     std::atomic_size_t wait_miliseconds(wait_second*1000);
     auto socket_fd=create_socket(socket_path);
     TreeCollectionPtr trees;
+    std::mutex done_mutex;
+    bool done=false;
+    std::condition_variable done_cv;
     if (!init_pb_to_load.empty()) {
+        std::lock_guard<std::mutex> lk (tree_loading_mutex);
         reload_trees(trees, init_pb_to_load);
         scalable_allocation_command(TBBMALLOC_CLEAN_ALL_BUFFERS, 0);
     }
     std::thread mgr(mgr_thread,std::ref(trees), mgr_fifo, socket_path,std::ref(wait_miliseconds));
+    std::thread tree_age_checker(tree_update_watch,refresh_period, std::ref(done_mutex), std::ref(done_cv), std::ref(done), std::ref(trees));
     accept_fork_loop(socket_fd, trees,wait_miliseconds);
     mgr.join();
+    {
+        std::lock_guard<std::mutex> lk(done_mutex);
+        done=true;
+    }
+    done_cv.notify_all();
+    tree_age_checker.join();
     return EXIT_SUCCESS;
 }
