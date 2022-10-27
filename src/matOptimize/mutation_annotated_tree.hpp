@@ -516,6 +516,9 @@ class Tree {
         all_nodes.resize(std::max(all_nodes.size(),node->node_id+1),nullptr);
         all_nodes[node->node_id]=node;
     }
+    const std::unordered_map<size_t,  std::string>& get_node_names() const{
+        return node_names;
+    }
     void register_node_serial(Node* node,std::string& name) {
         register_node_serial(node);
         node_names.emplace(node->node_id,name);
@@ -664,6 +667,12 @@ void get_random_sample_subtrees(const Mutation_Annotated_Tree::Tree &T,
 bool load_mutation_annotated_tree (std::string filename,Tree& tree);
 void save_mutation_annotated_tree (const Tree& tree, std::string filename);
 void get_sample_mutation_paths (Mutation_Annotated_Tree::Tree* T, std::vector<Node*> samples, std::string mutation_paths_filename);
+Mutation_Annotated_Tree::Node*
+get_subtree_root(const Mutation_Annotated_Tree::Tree &tree,
+                                     const std::vector<Node *> &samples,std::vector<Mutation_Annotated_Tree::Node*>& new_tree_dfs,
+                                     bool keep_clade_annotations=false) ;
+void write_newick_string_node (const Mutation_Annotated_Tree::Tree& template_tree,std::iostream::basic_ostream& ss, Mutation_Annotated_Tree::Node* node,
+        bool print_internal, bool print_branch_len, bool retain_original_branch_len=false, bool uncondense_leaves=false);
 }
 bool check_grand_parent(const Mutation_Annotated_Tree::Node* node,const Mutation_Annotated_Tree::Node* grand_parent);
 nuc_one_hot get_parent_state(Mutation_Annotated_Tree::Node* ancestor,int position);
