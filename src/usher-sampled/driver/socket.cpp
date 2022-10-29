@@ -426,6 +426,7 @@ static void child_proc(int fd, TreeCollectionPtr &trees_ptr) {
                             low_confidence_samples, samples_clade,
                             sample_start_idx, true, f);
     fputs("placing sample end\n", stderr);
+    fclose(placement_stats_file);
     auto dfs = tree.depth_first_expansion();
     clean_up_leaf(dfs);
     final_output(tree, options.out_options, 0, samples_clade, sample_start_idx,

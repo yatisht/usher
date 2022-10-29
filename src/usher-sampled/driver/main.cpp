@@ -310,6 +310,7 @@ static int leader_thread(
             break;
         }
     }
+    fclose(placement_stats_file);
     fprintf(stderr, "Main finised place\n");
     auto dfs=tree.depth_first_expansion();
     clean_up_leaf(dfs);
