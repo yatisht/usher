@@ -39,9 +39,9 @@ static bool no_valid_mut(MAT::Node* node) {
  */
 void clean_up_internal_nodes(MAT::Node* this_node,MAT::Tree& tree,std::unordered_set<size_t>& changed_nodes_local,std::unordered_set<size_t>& node_with_inconsistent_state) {
 
-    std::vector<MAT::Node *> &parent_children = this_node->parent->children;
     std::vector<MAT::Node *> this_node_ori_children = this_node->children;
     if (this_node->parent&&(((!this_node->is_leaf())&&no_valid_mut(this_node)))) {
+        std::vector<MAT::Node *> &parent_children = this_node->parent->children;
         //Remove this node
         this_node->parent->set_self_changed();
         auto iter = std::find(parent_children.begin(), parent_children.end(),
