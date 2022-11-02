@@ -35,6 +35,13 @@
 #include <unordered_set>
 #include <vector>
 #include <sys/poll.h>
+#include <iostream>
+#define BOOST_STACKTRACE_USE_ADDR2LINE
+#include <boost/stacktrace.hpp>
+static void print_stack_trace(int ){
+    std::cout << boost::stacktrace::stacktrace() << std::endl;
+}
+
 namespace po = boost::program_options;
 std::mutex tree_loading_mutex;
 struct tree_info {
@@ -507,7 +514,9 @@ static void tree_update_watch(int refresh_period, std::mutex& done_mutex,std::co
                     try {
                         if(boost::filesystem::canonical(iter.first)!=iter.second->canonical_path||
                             boost::filesystem::last_write_time(iter.second->canonical_path)!=iter.second->last_modify_time){
+                            fprintf(stderr, "reloading tree %s\n",iter.first.c_str());
                             prep_single_tree(iter.first, iter.second);
+                            fprintf(stderr, "finished reloading tree %s\n",iter.first.c_str());
                     }
                     } catch (boost::filesystem::filesystem_error &e) {
                         fprintf(stderr, "check %s for update got error %s\n", iter.first.c_str(),e.what());
@@ -526,6 +535,7 @@ int main(int argc, char** argv) {
     std::vector<std::string> init_pb_to_load;
     int wait_second;
     int refresh_period;
+    signal(SIGEV_SIGNAL, print_stack_trace);
     std::string num_threads_message = "Number of threads to use when possible "
                                       "[DEFAULT uses all available cores, " +
                                       std::to_string(num_threads) +
