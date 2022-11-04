@@ -515,6 +515,7 @@ static void tree_update_watch(int refresh_period, std::mutex& done_mutex,std::co
                         if(boost::filesystem::canonical(iter.first)!=iter.second->canonical_path||
                             boost::filesystem::last_write_time(iter.second->canonical_path)!=iter.second->last_modify_time){
                             fprintf(stderr, "reloading tree %s\n",iter.first.c_str());
+                            iter.second.reset(new tree_info);
                             prep_single_tree(iter.first, iter.second);
                             fprintf(stderr, "finished reloading tree %s\n",iter.first.c_str());
                     }
