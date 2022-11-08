@@ -29,6 +29,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <vector>
+#include "version.hpp"
 #ifdef __linux
 #include <sys/prctl.h>
 #endif
@@ -412,9 +413,9 @@ int main(int argc, char **argv) {
     if (have_error||(options.vcf_filename==""&&(options.diff_file_name==""||options.reference_file_name==""))) {
         if (this_rank==0) {
             if (vm.count("version")) {
-                std::cout << "UShER " << std::endl;
+                std::cout << "UShER (v" << PROJECT_VERSION << ")" << std::endl;
             } else {
-                std::cerr << "UShER " << std::endl;
+                std::cout << "UShER (v" << PROJECT_VERSION << ")" << std::endl;
                 std::cerr << desc << std::endl;
             }
         }

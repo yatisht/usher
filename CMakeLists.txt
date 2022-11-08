@@ -513,8 +513,8 @@ TARGET_LINK_LIBRARIES(ripples-fast PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPO
 
 if(USHER_SERVER)
     TARGET_COMPILE_OPTIONS(usher_server PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
-    TARGET_LINK_LIBRARIES(usher_server PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
-    TARGET_LINK_LIBRARIES(usher-sampled-server PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB  ${MPI_CXX_LIBRARIES} ${MPI_CXX_LINK_FLAGS} ${ISAL_LIB} ) # OpenMP::OpenMP_CXX)
+    TARGET_LINK_LIBRARIES(usher_server PRIVATE stdc++ ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
+    TARGET_LINK_LIBRARIES(usher-sampled-server PRIVATE stdc++ ${CMAKE_DL_LIBS} ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES} ZLIB::ZLIB  ${MPI_CXX_LIBRARIES} ${MPI_CXX_LINK_FLAGS} ${ISAL_LIB} ) # OpenMP::OpenMP_CXX)
     install(TARGETS usher matUtils matOptimize ripples usher_server DESTINATION bin)
 else()
     install(TARGETS usher matUtils matOptimize ripples DESTINATION bin)
