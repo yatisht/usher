@@ -288,7 +288,7 @@ struct line_parser {
                 pos = pos * 10 + (*line_in - '0');
                 line_in++;
             }
-            if (pos <= 0) {
+            if (pos < 0) {
                 raise(SIGTRAP);
             }
             line_in++;
@@ -424,11 +424,18 @@ static void map_names(MAT::Tree &tree,std::vector<Sample_Muts> &sample_mutations
         sample_mutations[idx].sample_idx=tree.map_samp_name_only(sample_names[idx]);
     }
 }
+static void add_sample_to_place(MAT::Tree &tree, std::string& name,
+std::vector<long>& sample_idx,size_t field_idx, std::vector<Sample_Muts> &sample_mutations){
+    auto new_samp_idx=tree.map_samp_name_only(name);
+    sample_idx[field_idx] = sample_mutations.size();
+    sample_mutations.emplace_back();
+    sample_mutations.back().sample_idx=new_samp_idx;
+}
 template <typename infile_t>
 static void process(infile_t &fd, std::vector<Sample_Muts> &sample_mutations,
                     MAT::Tree &tree,mut_container_t& mutations_out,
                     bool override,std::vector<std::string>& fields,
-                    const std::unordered_set<std::string>& samples_in_condensed_nodes) {
+                    const std::unordered_set<std::string>& samples_in_condensed_nodes, std::string duplicate_prefix) {
     read_header(fd, fields);
     tbb::flow::graph input_graph;
     Sampled_Tree_Mutations_t tree_mutations;
@@ -444,18 +451,23 @@ static void process(infile_t &fd, std::vector<Sample_Muts> &sample_mutations,
         }
         auto node=tree.get_node(fields[field_idx]);
         if (node != nullptr) {
-            if (override) {
+            if(duplicate_prefix!=""){
+                std::string name=duplicate_prefix+fields[field_idx];
+                add_sample_to_place(tree, name, sample_idx, field_idx, sample_mutations);
+            }else if (override) {
                 sample_idx[field_idx]=-node->node_id;
             } else {
                 fprintf(stderr, "WARNING: Sample %s already in the tree! Ignoring.\n\n", fields[field_idx].c_str());
             }
         } else if (samples_in_condensed_nodes.find(fields[field_idx])!=samples_in_condensed_nodes.end()) {
-            fprintf(stderr, "WARNING: Sample %s already in the tree! (condensed node) Ignoring.\n\n", fields[field_idx].c_str());
+            if(duplicate_prefix!=""){
+                std::string name=duplicate_prefix+fields[field_idx];
+                add_sample_to_place(tree, name, sample_idx, field_idx, sample_mutations);
+            }else{
+                fprintf(stderr, "WARNING: Sample %s already in the tree! (condensed node) Ignoring.\n\n", fields[field_idx].c_str());
+            }
         } else {
-            auto new_samp_idx=tree.map_samp_name_only(fields[field_idx]);
-            sample_idx[field_idx] = sample_mutations.size();
-            sample_mutations.emplace_back();
-            sample_mutations.back().sample_idx=new_samp_idx;
+            add_sample_to_place(tree, fields[field_idx], sample_idx, field_idx, sample_mutations);
         }
     }
     mutations_out.resize(MAT::Mutation::refs.size());
@@ -469,8 +481,8 @@ static void process(infile_t &fd, std::vector<Sample_Muts> &sample_mutations,
     size_t single_line_size;
     parser.try_put(try_get_first_line(fd, single_line_size));
     size_t first_approx_size =
-        std::min(CHUNK_SIZ, ONE_GB / single_line_size) - 2;
-    read_size = std::max(ONE_MB/single_line_size, first_approx_size * single_line_size);
+        std::min(CHUNK_SIZ, ONE_GB / single_line_size);
+    read_size = first_approx_size * single_line_size;
     alloc_size = (first_approx_size + 2) * single_line_size;
     tbb::concurrent_bounded_queue<std::pair<char *, uint8_t *>> queue;
     tbb::flow::source_node<line_start_later> line(input_graph,
@@ -502,7 +514,7 @@ static void process(infile_t &fd, std::vector<Sample_Muts> &sample_mutations,
 void Sample_Input(const char *name, std::vector<Sample_Muts> &sample_mutations,
                   MAT::Tree &tree,mut_container_t& position_wise_out
                   ,bool override,std::vector<std::string>& fields
-                  ,const std::unordered_set<std::string>& samples_in_condensed_nodes) {
+                  ,const std::unordered_set<std::string>& samples_in_condensed_nodes,std::string duplicate_prefix) {
     assigned_count = 0;
     std::atomic<bool> done(false);
     std::mutex done_mutex;
@@ -511,11 +523,11 @@ void Sample_Input(const char *name, std::vector<Sample_Muts> &sample_mutations,
     std::string vcf_filename(name);
     if (vcf_filename.find(".gz\0") != std::string::npos) {
         gzip_input_source fd(name);
-        process(fd, sample_mutations, tree,position_wise_out,override,fields,samples_in_condensed_nodes);
+        process(fd, sample_mutations, tree,position_wise_out,override,fields,samples_in_condensed_nodes,duplicate_prefix);
         delete fd.state;
     } else {
         raw_input_source fd(name);
-        process(fd, sample_mutations, tree,position_wise_out,override,fields,samples_in_condensed_nodes);
+        process(fd, sample_mutations, tree,position_wise_out,override,fields,samples_in_condensed_nodes,duplicate_prefix);
     }
     done = true;
     progress_bar_cv.notify_all();

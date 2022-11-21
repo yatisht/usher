@@ -1,5 +1,6 @@
 #include <atomic>
 #include <cstddef>
+#include <string>
 #define USHER
 #include "src/matOptimize/mutation_annotated_tree.hpp"
 #include "src/matOptimize/Fitch_Sankoff.hpp"
@@ -22,6 +23,7 @@ namespace MAT = Mutation_Annotated_Tree;
 #else
 #define mpi_trace_print(...)
 #endif
+extern int switch_to_serial_threshold;
 void check_order(MAT::Mutations_Collection& in);
 struct To_Place_Sample_Mutation {
     int position;
@@ -74,7 +76,7 @@ struct Clade_info {
 void Sample_Input(const char *name, std::vector<Sample_Muts> &sample_mutations,
                   MAT::Tree &tree,std::vector<mutated_t>&,bool,
                   std::vector<std::string>& fields
-                  ,const std::unordered_set<std::string>& samples_in_condensed_nodes);
+                  ,const std::unordered_set<std::string>& samples_in_condensed_nodes, std::string duplicate_prefix="");
 #ifndef NDEBUG
 Mutation_Set get_mutations(const MAT::Node *main_tree_node);
 void check_descendant_nuc(const MAT::Node* node);
@@ -89,9 +91,11 @@ struct output_options {
     std::string dout_filename;
     bool detailed_clades;
     bool redo_FS_Min_Back_Mutations;
+    bool suppress_whole_newick;
 };
 bool final_output(MAT::Tree& T,const output_options& options,int t_idx,std::vector<Clade_info>& assigned_clades,
-                  size_t sample_start_idx,size_t sample_end_idx,std::vector<std::string>& low_confidence_samples,std::vector<mutated_t>& position_wise_out);
+                  size_t sample_start_idx,size_t sample_end_idx,std::vector<std::string>& low_confidence_samples,
+                  std::vector<mutated_t>& position_wise_out, bool finish_mpi=true);
 void place_sample_leader(std::vector<Sample_Muts> &sample_to_place,
                          MAT::Tree &main_tree, int batch_size,
                          std::atomic_size_t &curr_idx,
@@ -133,6 +137,7 @@ struct Leader_Thread_Options {
     float desired_optimization_msec;
     int initial_optimization_radius;
     int last_optimization_minutes;
+    std::string duplicate_prefix;
     std::string vcf_filename;
     bool no_add;
     std::string diff_file_name;
@@ -165,7 +170,7 @@ void place_sample_sequential(
     std::vector<Clade_info> &samples_clade, size_t sample_start_idx,
     bool do_print, FILE *printer_out);
 void clean_up_leaf(std::vector<MAT::Node*>& dfs);
-void prep_tree(MAT::Tree &tree);
+int prep_tree(MAT::Tree &tree);
 void load_diff_for_usher(
     const char *input_path,std::vector<Sample_Muts>& all_samples,
     std::vector<mutated_t>& position_wise_out, MAT::Tree &tree,

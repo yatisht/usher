@@ -29,6 +29,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <vector>
+#include "version.hpp"
 #ifdef __linux
 #include <sys/prctl.h>
 #endif
@@ -177,7 +178,7 @@ static int leader_thread(
             fprintf(stderr, "Expect either VCF file or MAPLE file\n");
             exit(EXIT_FAILURE);
         }
-        Sample_Input(options.vcf_filename.c_str(),samples_to_place,tree,position_wise_out,options.override_mutations,samples,samples_in_condensed_nodes);
+        Sample_Input(options.vcf_filename.c_str(),samples_to_place,tree,position_wise_out,options.override_mutations,samples,samples_in_condensed_nodes,options.duplicate_prefix);
     }
     samples_to_place.resize(std::min(samples_to_place.size(),options.first_n_samples));
     if(samples_to_place.empty()){
@@ -274,7 +275,9 @@ static int leader_thread(
     }
     while (true) {
         clean_tree_for_placement(tree);
-        prep_tree(tree);
+        auto tree_size=prep_tree(tree);
+        switch_to_serial_threshold=std::max((int)(tree_size*batch_size_per_process/(2*num_threads)),10);
+        fprintf(stderr, "switch to serial search when there are less than %d descendants\n", switch_to_serial_threshold);
         if (process_count>1) {
             fprintf(stderr, "Main sending tree\n");
             tree.MPI_send_tree();
@@ -308,6 +311,7 @@ static int leader_thread(
             break;
         }
     }
+    fclose(placement_stats_file);
     fprintf(stderr, "Main finised place\n");
     auto dfs=tree.depth_first_expansion();
     clean_up_leaf(dfs);
@@ -393,6 +397,7 @@ int main(int argc, char **argv) {
     ("parsimony_threshold",po::value(&options.parsimony_threshold)->default_value(100000),
      "Optimize after the parsimony score increase by this amount")
     ("first_n_samples",po::value(&options.first_n_samples)->default_value(SIZE_MAX),"[TESTING ONLY] Only place first n samples")
+    ("no-ignore-prefix",po::value<std::string>(&options.duplicate_prefix),"prefix samples already in the tree to force placement")
     //("gdb_pid,g",po::value(&gdb_pids)->multitoken(),"gdb pids for attaching")
     ;
     po::variables_map vm;
@@ -408,9 +413,9 @@ int main(int argc, char **argv) {
     if (have_error||(options.vcf_filename==""&&(options.diff_file_name==""||options.reference_file_name==""))) {
         if (this_rank==0) {
             if (vm.count("version")) {
-                std::cout << "UShER " << std::endl;
+                std::cout << "UShER (v" << PROJECT_VERSION << ")" << std::endl;
             } else {
-                std::cerr << "UShER " << std::endl;
+                std::cout << "UShER (v" << PROJECT_VERSION << ")" << std::endl;
                 std::cerr << desc << std::endl;
             }
         }
