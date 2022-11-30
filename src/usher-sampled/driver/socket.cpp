@@ -57,6 +57,7 @@ struct tree_info {
     ~tree_info() {
         fprintf(stderr, "deleting nodes\n");
         tree.delete_nodes();
+        expanded_tree.delete_nodes();
     }
 };
 struct child_proc_info {
@@ -414,6 +415,7 @@ static void child_proc(int fd, TreeCollectionPtr &trees_ptr) {
         }
         if (options.out_options.detailed_clades) {
             int num_annotation=tree.get_num_annotations();
+            fprintf(stderr, "tree have %d annotations \n", num_annotation);
             auto annotations_filename =
                 options.out_options.outdir + "/clades.txt";
             FILE *annotations_file = fopen(annotations_filename.c_str(), "w");
