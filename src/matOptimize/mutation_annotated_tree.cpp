@@ -236,27 +236,10 @@ void Mutation_Annotated_Tree::get_sample_mutation_paths(
         std::stack<std::string> mutation_stack;
         std::string curr_node_mutation_string;
 
-        // Mutations on the added sample
-        auto curr_node_mutations = sample_node->mutations;
-        if (curr_node_mutations.size() > 0) {
-            curr_node_mutation_string =
-                T->get_node_name_for_log_output(sample_node->node_id) + ":";
-            size_t num_mutations = curr_node_mutations.size();
-            for (size_t k = 0; k < num_mutations; k++) {
-                curr_node_mutation_string +=
-                    curr_node_mutations[k].get_string();
-                if (k < num_mutations - 1) {
-                    curr_node_mutation_string += ',';
-                } else {
-                    curr_node_mutation_string += ' ';
-                }
-            }
-            mutation_stack.push(curr_node_mutation_string);
-        }
         auto anc_node = sample_node;
         // Mutations on the ancestors of added sample
         while (anc_node) {
-            curr_node_mutations = anc_node->mutations;
+            auto curr_node_mutations = anc_node->mutations;
             if (curr_node_mutations.size() > 0) {
                 curr_node_mutation_string =
                     T->get_node_name_for_log_output(anc_node->node_id) + ":";
