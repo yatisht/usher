@@ -48,6 +48,7 @@ struct tree_info {
     boost::filesystem::path canonical_path;
     std::time_t last_modify_time;
     MAT::Tree tree;
+    MAT::Tree expanded_tree;
     std::unordered_set<std::string> condensed_nodes;
     std::string path;
     int switch_threshold;
@@ -56,6 +57,7 @@ struct tree_info {
     ~tree_info() {
         fprintf(stderr, "deleting nodes\n");
         tree.delete_nodes();
+        expanded_tree.delete_nodes();
     }
 };
 struct child_proc_info {
@@ -78,6 +80,8 @@ bool prep_single_tree(std::string path, std::shared_ptr<tree_info> &out) {
         return false;
     }
     fix_parent(out->tree);
+    out->expanded_tree=out->tree.copy_tree();
+    out->expanded_tree.uncondense_leaves();
     auto tree_size=prep_tree(out->tree);
     out->switch_threshold=std::max((int)(tree_size/(4*num_threads)),10);
     out->canonical_path=boost::filesystem::canonical(path);
@@ -246,7 +250,7 @@ static void collect_done(std::unordered_map<int, child_proc_info> &pid_to_fd_map
     }
 }
 char cmd[] = "usher";
-std::string get_options(FILE *f, Leader_Thread_Options &options) {
+std::string get_options(FILE *f, Leader_Thread_Options &options,std::string& extract_from_existing) {
     std::vector<char *> args({cmd});
     while (true) {
         char *buf = NULL;
@@ -272,9 +276,11 @@ std::string get_options(FILE *f, Leader_Thread_Options &options) {
     options.print_parsimony_scores=false;
     fputs("start args parsing", stderr);
     desc.add_options()(
-        "vcf,v", po::value<std::string>(&options.vcf_filename)->required(),
-        "Input VCF file (in uncompressed or gzip-compressed .gz format) "
-        "[REQUIRED]")(
+        "vcf,v", po::value<std::string>(&options.vcf_filename),
+        "Input VCF file (in uncompressed or gzip-compressed .gz format)")
+        ("existing_samples", po::value<std::string>(&extract_from_existing),
+        "extract from existing samples")
+        (
             "outdir,d",
             po::value<std::string>(&options.out_options.outdir)->default_value("."),
             "Output directory to dump output and log files [DEFAULT uses current "
@@ -374,7 +380,8 @@ std::string get_options(FILE *f, Leader_Thread_Options &options) {
 static void child_proc(int fd, TreeCollectionPtr &trees_ptr) {
     FILE *f = fdopen(fd, "a+");
     Leader_Thread_Options options;
-    auto idx = get_options(f, options);
+    std::string existing_samples;
+    auto idx = get_options(f, options,existing_samples);
     if(idx==""){
         exit(EXIT_FAILURE);
     }
@@ -389,56 +396,113 @@ static void child_proc(int fd, TreeCollectionPtr &trees_ptr) {
         fclose(f);
         exit(EXIT_FAILURE);
     }
-    fputs("getting tree\n", stderr);
-    MAT::Tree &tree = iter->second->tree;
-    fputs("got tree\n", stderr);
-    std::vector<Sample_Muts> samples_to_place;
     tbb::task_scheduler_init init(num_threads);
-    std::vector<mutated_t> position_wise_out;
-    std::vector<mutated_t> position_wise_out_dup;
-    std::vector<std::string> samples;
-    std::unordered_set<std::string> &samples_in_condensed_nodes =
-        iter->second->condensed_nodes;
-    fputs("got condensed_nodes, start parsing vcf\n", stderr);
-    Sample_Input(options.vcf_filename.c_str(), samples_to_place, tree,
-                 position_wise_out, false, samples, samples_in_condensed_nodes,options.duplicate_prefix);
-    fputs("end parsing vcf\n", stderr);
-    samples_to_place.resize(
-        std::min(samples_to_place.size(), options.first_n_samples));
-    size_t sample_start_idx = samples_to_place[0].sample_idx;
-    size_t sample_end_idx = samples_to_place.back().sample_idx + 1;
-    std::vector<std::string> low_confidence_samples;
-    std::vector<Clade_info> samples_clade(samples_to_place.size());
-    switch_to_serial_threshold=iter->second->switch_threshold;
-    fprintf(stderr, "switch to serial search if less than %d descendant\n", switch_to_serial_threshold);
-    for (auto &temp : samples_clade) {
-        temp.valid = false;
-    }
-    if (samples_to_place.empty()) {
-        fprintf(f, "Found no new samples\n");
-        fputc(4, f);
+    if (existing_samples != "") {
+        MAT::Tree &tree = iter->second->expanded_tree;
+        std::fstream sample_file(existing_samples);
+        std::string sample_name;
+        std::vector<MAT::Node *> nodes_to_extract;
+        while (sample_file) {
+            std::getline(sample_file, sample_name);
+            if (sample_name != "") {
+                auto node = tree.get_node(sample_name);
+                if (!node) {
+                    fprintf(f, "node %s do not exist\n", sample_name.c_str());
+                } else {
+                    nodes_to_extract.push_back(node);
+                }
+            }
+        }
+        if (options.out_options.detailed_clades) {
+            int num_annotation=tree.get_num_annotations();
+            fprintf(stderr, "tree have %d annotations \n", num_annotation);
+            auto annotations_filename =
+                options.out_options.outdir + "/clades.txt";
+            FILE *annotations_file = fopen(annotations_filename.c_str(), "w");
+            for (auto node : nodes_to_extract) {
+                fprintf(
+                    annotations_file, "%s",
+                    tree.get_node_name_for_log_output(node->node_id).c_str());
+                for (int clade_idx = 0; clade_idx < num_annotation;
+                     clade_idx++) {
+                    fprintf(annotations_file, "\t%s",
+                            tree.get_clade_assignment(node, clade_idx, true)
+                                .c_str());
+                }
+                fprintf(annotations_file, "\n");
+            }
+            fclose(annotations_file);
+        }
+        if ((options.out_options.print_subtrees_single > 1)) {
+            fprintf(stderr,
+                    "Computing the single subtree for added samples with %zu "
+                    "random leaves. \n\n",
+                    options.out_options.print_subtrees_single);
+            MAT::get_random_single_subtree(
+                tree, nodes_to_extract, options.out_options.outdir, options.out_options.print_subtrees_single,
+                0, false, options.out_options.retain_original_branch_len);
+        }
+        // check_leaves(T);
+        if ((options.out_options.print_subtrees_size > 1)) {
+            fprintf(stderr, "Computing subtrees for added samples. \n\n");
+            MAT::get_random_sample_subtrees(
+                tree, nodes_to_extract, options.out_options.outdir, options.out_options.print_subtrees_size, 0,
+                false, options.out_options.retain_original_branch_len);
+        }
+
+    } else {
+        MAT::Tree &tree = iter->second->tree;
+        std::vector<Sample_Muts> samples_to_place;
+        std::vector<mutated_t> position_wise_out;
+        std::vector<mutated_t> position_wise_out_dup;
+        std::vector<std::string> samples;
+        std::unordered_set<std::string> &samples_in_condensed_nodes =
+            iter->second->condensed_nodes;
+        fputs("got condensed_nodes, start parsing vcf\n", stderr);
+        Sample_Input(options.vcf_filename.c_str(), samples_to_place, tree,
+                     position_wise_out, false, samples,
+                     samples_in_condensed_nodes, options.duplicate_prefix);
+        fputs("end parsing vcf\n", stderr);
+        samples_to_place.resize(
+            std::min(samples_to_place.size(), options.first_n_samples));
+        size_t sample_start_idx = samples_to_place[0].sample_idx;
+        size_t sample_end_idx = samples_to_place.back().sample_idx + 1;
+        std::vector<std::string> low_confidence_samples;
+        std::vector<Clade_info> samples_clade(samples_to_place.size());
+        switch_to_serial_threshold = iter->second->switch_threshold;
+        fprintf(stderr, "switch to serial search if less than %d descendant\n",
+                switch_to_serial_threshold);
+        for (auto &temp : samples_clade) {
+            temp.valid = false;
+        }
+        if (samples_to_place.empty()) {
+            fprintf(f, "Found no new samples\n");
+            fputc(4, f);
+            fputc('\n', f);
+            fclose(f);
+            exit(EXIT_FAILURE);
+        }
+        std::string placement_stats_filename =
+            options.out_options.outdir + "/placement_stats.tsv";
+        FILE *placement_stats_file =
+            fopen(placement_stats_filename.c_str(), "w");
+        // auto reordered =
+        fputs("sorting sample\n", stderr);
+        sort_samples(options, samples_to_place, tree, sample_start_idx);
+        fputs("placing sample\n", stderr);
+        place_sample_sequential(samples_to_place, tree, false,
+                                placement_stats_file, options.max_parsimony,
+                                options.max_uncertainty, low_confidence_samples,
+                                samples_clade, sample_start_idx, true, f);
+        fputs("placing sample end\n", stderr);
+        fclose(placement_stats_file);
+        auto dfs = tree.depth_first_expansion();
+        clean_up_leaf(dfs);
+        final_output(tree, options.out_options, 0, samples_clade,
+                     sample_start_idx, sample_end_idx, low_confidence_samples,
+                     position_wise_out, false);
         fputc('\n', f);
-        fclose(f);
-        exit(EXIT_FAILURE);
     }
-    std::string placement_stats_filename =
-        options.out_options.outdir + "/placement_stats.tsv";
-    FILE *placement_stats_file = fopen(placement_stats_filename.c_str(), "w");
-    //auto reordered =
-    fputs("sorting sample\n", stderr);
-    sort_samples(options, samples_to_place, tree, sample_start_idx);
-    fputs("placing sample\n", stderr);
-    place_sample_sequential(samples_to_place, tree, false, placement_stats_file,
-                            options.max_parsimony, options.max_uncertainty,
-                            low_confidence_samples, samples_clade,
-                            sample_start_idx, true, f);
-    fputs("placing sample end\n", stderr);
-    fclose(placement_stats_file);
-    auto dfs = tree.depth_first_expansion();
-    clean_up_leaf(dfs);
-    final_output(tree, options.out_options, 0, samples_clade, sample_start_idx,
-                 sample_end_idx, low_confidence_samples, position_wise_out,false);
-    fputc('\n', f);
     fputc(4, f);
     fputc('\n', f);
     fprintf(stderr, "done\n");
