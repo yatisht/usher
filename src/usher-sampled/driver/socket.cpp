@@ -18,6 +18,7 @@
 #include <fstream>
 #include <functional>
 #include <iomanip>
+#include <ios>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -399,7 +400,7 @@ static void child_proc(int fd, TreeCollectionPtr &trees_ptr) {
     tbb::task_scheduler_init init(num_threads);
     if (existing_samples != "") {
         MAT::Tree &tree = iter->second->expanded_tree;
-        std::fstream sample_file(existing_samples);
+        std::fstream sample_file(existing_samples,std::ios_base::in);
         std::string sample_name;
         std::vector<MAT::Node *> nodes_to_extract;
         while (sample_file) {
