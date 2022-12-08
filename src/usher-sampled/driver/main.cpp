@@ -429,6 +429,7 @@ int main(int argc, char **argv) {
     if (options.initial_optimization_radius<=0) {
         options.parsimony_threshold=INT_MAX;
     }
+    num_threads=std::max(2,num_threads);
     options.desired_optimization_msec=optimiation_minutes*60000;
     fprintf(stderr, "Num threads %d\n",num_threads);
 #ifdef __linux
