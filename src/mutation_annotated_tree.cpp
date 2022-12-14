@@ -727,6 +727,12 @@ void Mutation_Annotated_Tree::Node::add_mutation (Mutation mut) {
         }
         //reversal mutation
         else {
+            if (iter->mut_nuc != mut.par_nuc) {
+                fprintf(stderr, "ERROR: add_mutation: consecutive mutations at same position "
+                        "disagree on nuc (%s > %s) -- called out of order?\n",
+                        iter->get_string().c_str(), mut.get_string().c_str());
+                exit(1);
+            }
             std::vector<Mutation> tmp;
             for (auto m: mutations) {
                 if (m.position != iter->position) {
@@ -1287,10 +1293,16 @@ void Mutation_Annotated_Tree::Tree::collapse_tree() {
         //If internal node has one child, the child can be moved up one level
         else if (node->children.size() == 1) {
             auto child = node->children.front();
-            auto parent = node->parent;
-            for (auto m: mutations) {
-                child->add_mutation(m.copy());
+            // Preserve chronological order expected by add_mutation by adding child's mutations
+            // to node instead of vice versa, then move node's updated mutations to child.
+            for (auto m: child->mutations) {
+                node->add_mutation(m.copy());
             }
+            child->mutations.clear();
+            for (auto m: node->mutations) {
+                child->mutations.emplace_back(m.copy());
+            }
+            auto parent = node->parent;
             move_node(child->identifier, parent->identifier, false);
         }
     }
