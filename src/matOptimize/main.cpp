@@ -21,7 +21,6 @@
 #include <iterator>
 #include <limits>
 #include <mpi.h>
-#include <pstl/glue_algorithm_defs.h>
 #include <tbb/concurrent_vector.h>
 #include <tbb/task.h>
 #include <cstdio>
