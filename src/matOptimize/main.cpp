@@ -17,9 +17,11 @@
 #include <ctime>
 //#include <malloc.h>
 #include <fstream>
+#include <ios>
 #include <iterator>
 #include <limits>
 #include <mpi.h>
+#include <pstl/glue_algorithm_defs.h>
 #include <tbb/concurrent_vector.h>
 #include <tbb/task.h>
 #include <cstdio>
@@ -111,6 +113,7 @@ int main(int argc, char **argv) {
     std::string profitable_src_log;
     std::string ref_file;
     std::string transposed_vcf_path;
+    std::string black_list_node_file;
     float search_proportion=2;
     int rand_sel_seed=0;
     unsigned int max_optimize_hours;
@@ -151,6 +154,7 @@ int main(int argc, char **argv) {
     ("node_proportion,z",po::value(&search_proportion)->default_value(2),"the proportion of nodes to search")
     ("node_sel,y",po::value(&rand_sel_seed),"Random seed for selecting nodes to search")
     ("drift_nwk_file,b",po::value(&intermediate_nwk_out)->default_value(""),"Newick filename stem for drifting")
+    ("black_list_node_file",po::value(&black_list_node_file)->default_value(""),"Nodes that won't be moved")
     ("no_reduce_back_mutations,c","skip FS that reduce back mutations in the end")
     ("help,h", "Print help messages");
     auto search_end_time=std::chrono::steady_clock::time_point::max();
@@ -339,6 +343,27 @@ int main(int argc, char **argv) {
             save_final_tree(t, output_path);
             return 0;
         }
+        std::unordered_set<size_t> node_id_to_ignore;
+        if (black_list_node_file!="") {
+            std::fstream f(black_list_node_file,std::ios::in);
+            std::string temp;
+            if(!f){
+                auto err_string="unable to open ignored nodes file"+black_list_node_file;
+                perror(err_string.c_str());
+            }
+            while (f) {
+                std::getline(f,temp);
+                if (temp=="") {
+                    continue;
+                }
+                auto node_id=t.get_node(temp);
+                if (node_id) {
+                    node_id_to_ignore.insert(node_id->node_id);
+                }else {
+                    fprintf(stderr, "ignored node %s not in the tree\n", temp.c_str());
+                }
+            }
+        }
         size_t new_score;
         size_t score_before;
         int stalled = -1;
@@ -374,6 +399,12 @@ int main(int argc, char **argv) {
                 search_all_dir=true;
             }
             find_nodes_to_move(bfs_ordered_nodes, nodes_to_search,search_all_nodes,search_all_dir,radius,t);
+            if(!node_id_to_ignore.empty()){
+                nodes_to_search.erase(std::remove_if(nodes_to_search.begin(), nodes_to_search.end(), 
+                    [&node_id_to_ignore](MAT::Node* node){
+                        return node_id_to_ignore.find(node->node_id)!=node_id_to_ignore.end();
+                    }),nodes_to_search.end());
+            }
             if (search_proportion<1) {
                 std::vector<MAT::Node *> nodes_to_search_temp;
                 nodes_to_search_temp.reserve(nodes_to_search.size()*search_proportion);
