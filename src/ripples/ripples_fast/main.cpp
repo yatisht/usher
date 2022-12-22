@@ -279,13 +279,17 @@ Ripple_Result_Pack* Ripple_Pipeline::operator()(MAT::Node* node_to_consider) con
             pruned_sample.add_mutation(m);
         }
     }
+    auto parsimony_threshold=orig_parsimony - parsimony_improvement;
+    if (parsimony_threshold<0) {
+        return (new Ripple_Result_Pack{std::vector<Recomb_Interval>(),node_to_consider,orig_parsimony});
+    }
     //==== new mapper
     Ripples_Mapper_Output_Interface mapper_out;
     ripples_mapper(pruned_sample, mapper_out, nodes_to_seach.size(),index_map,do_parallel, traversal_track,tree_height,T.root,node_to_consider);
     //==== END new mapper
     tbb::concurrent_vector<Recomb_Interval> valid_pairs_con;
     ripplrs_merger(pruned_sample, index_map,nodes_to_seach, nodes_to_seach.size(),
-                   orig_parsimony - parsimony_improvement, T,
+                   parsimony_threshold, T,
                    valid_pairs_con, mapper_out, num_threads, branch_len,
                    min_range, max_range);
     std::vector<Recomb_Interval> temp(std::vector<Recomb_Interval>(valid_pairs_con.begin(),valid_pairs_con.end()));
