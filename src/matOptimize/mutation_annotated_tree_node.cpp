@@ -31,6 +31,7 @@ Mutation_Annotated_Tree::Node::Node (size_t id) {
 Mutation_Annotated_Tree::Node::Node(const Node &other, Node *parent, Tree *tree,bool copy_mutations)
     :  branch_length(other.branch_length),
        node_id(other.node_id), parent(parent) {
+    clade_annotations=other.clade_annotations;
     children.reserve(other.children.size());
     if (copy_mutations) {
         mutations=other.mutations;

@@ -3,13 +3,15 @@
 #include <algorithm>
 #include <cassert>
 #include <stdio.h>
-#include <emmintrin.h>
 #include <vector>
+#ifdef __SSE2__
+#include <emmintrin.h>
 typedef unsigned short __v8hu __attribute__((__vector_size__(16)));
 typedef  short __v8h __attribute__((__vector_size__(16)));
 typedef  int __v4i __attribute__((__vector_size__(16)));
 typedef char __v16b __attribute__((__vector_size__(16)));
 typedef unsigned short __v8hu_u __attribute__((__vector_size__(16), __aligned__(1)));
+#endif
 static int acceptor (const Mut_Count_Out_t &counts, size_t i, size_t j,
                      size_t curr_node_idx, size_t node_size,
                      size_t num_mutations) {
@@ -29,6 +31,7 @@ static int donor(const Mut_Count_Out_t &counts, size_t i, size_t j,
            (counts[i * node_size + curr_node_idx].count_before_exclusive());
 }
 
+#ifdef __SSE2__
 static void push_val(std::vector<int> &filtered_idx,
                      std::vector<unsigned short>& filtered_par_score,
                      int start_idx, int mask, __v8hu par_score) {
@@ -56,6 +59,7 @@ static unsigned short min_8(__v8h in) {
 #endif
     return out;
 }
+#endif
 static std::pair<int,int> filter(const Ripples_Mapper_Output_Interface &out_ifc, size_t i,
                                  size_t j, size_t node_size, size_t num_mutations,
                                  int idx_start,int idx_end,
@@ -64,7 +68,8 @@ static std::pair<int,int> filter(const Ripples_Mapper_Output_Interface &out_ifc,
                                  std::vector<int> &acceptor_filtered_idx,
                                  std::vector<unsigned short> &acceptor_filtered_par_score,
                                  int pasimony_threshold) {
-    /*int donor_min_par = pasimony_threshold + 1;
+    #ifndef __SSE2__
+    int donor_min_par = pasimony_threshold + 1;
     int acceptor_min_par = pasimony_threshold + 1;
     const auto& counts = out_ifc.mut_count_out;
     for (; idx_start < idx_end;
@@ -84,7 +89,8 @@ static std::pair<int,int> filter(const Ripples_Mapper_Output_Interface &out_ifc,
             acceptor_filtered_idx.push_back(idx_start);
             acceptor_filtered_par_score.push_back(acceptor_par);
         }
-    }*/
+    }
+    #else
 #ifndef NDEBUG
     int donor_par_min_debug= pasimony_threshold + 1;
     int acceptor_par_min_debug= pasimony_threshold + 1;
@@ -181,7 +187,7 @@ static std::pair<int,int> filter(const Ripples_Mapper_Output_Interface &out_ifc,
     auto acceptor_min_par=min_8(acceptor_min_par_vec);
     assert(donor_min_par==donor_par_min_debug);
     assert(acceptor_min_par==acceptor_par_min_debug);
-
+    #endif
     return std::make_pair(donor_min_par,acceptor_min_par);
 }
 static void threshold_parsimony(const Ripples_Mapper_Output_Interface &out_ifc,
