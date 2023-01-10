@@ -503,6 +503,7 @@ std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::unordered_m
     std::unordered_map<std::string, std::set<MAT::Mutation>> codon_to_nt_map;
     std::unordered_map<std::string, std::string> codon_to_changestring_map;
     std::unordered_map<std::string, char> orig_proteins;
+    std::unordered_map<std::string, std::string> orig_codons;
     std::vector<std::shared_ptr<Codon>> affected_codons;
 
     for (auto &m : mutations) {
@@ -526,12 +527,23 @@ std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::unordered_m
                     affected_codons.push_back(codon_ptr);
                 }
                 std::string original_codon = codon_ptr->nucleotides;
-                //then update it again to match the mutated state
-                codon_ptr->mutate(pos, mutated_nuc);
                 // store a string representing the original and new codons in nucleotides
                 // this may incorporate multiple nucleotide mutations, just accounting for the original and end states.
+                auto codon_it = orig_codons.find(codon_id);
+                if (codon_it != orig_codons.end()) {
+                    //if we've already mutated this codon, we need to go back to the original.
+                    //do NOT update the original in the map. 
+                    original_codon = codon_it->second;
+                } else {
+                    //otherwise, just store it.
+                    orig_codons.insert({codon_id, original_codon});
+                }
+                //then update it again to match the mutated state
+                codon_ptr->mutate(pos, mutated_nuc);
                 std::string changestring = original_codon + ">" + codon_ptr->nucleotides;
-                codon_to_changestring_map.insert({codon_id, changestring});
+                // codon_to_changestring_map.insert({codon_id, changestring});
+                //then overwrite the old one with the updated value. 
+                codon_to_changestring_map[codon_id] = changestring;
                 // Build a map of codons and their associated nt mutations
                 auto to_nt_it = codon_to_nt_map.find(codon_id);
                 if (to_nt_it == codon_to_nt_map.end()) {
