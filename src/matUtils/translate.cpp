@@ -501,8 +501,9 @@ std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::unordered_m
     std::string cchange_string = "";
     std::sort(mutations.begin(), mutations.end());
     std::unordered_map<std::string, std::set<MAT::Mutation>> codon_to_nt_map;
-    std::unordered_map<std::string, std::string> codon_to_changestring_map;
+    std::unordered_map<std::string, std::string> latest_codon_map;
     std::unordered_map<std::string, char> orig_proteins;
+    std::unordered_map<std::string, std::string> orig_codons;
     std::vector<std::shared_ptr<Codon>> affected_codons;
 
     for (auto &m : mutations) {
@@ -525,13 +526,15 @@ std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::unordered_m
                 if (std::find(affected_codons.begin(), affected_codons.end(), codon_ptr) == affected_codons.end()) {
                     affected_codons.push_back(codon_ptr);
                 }
-                std::string original_codon = codon_ptr->nucleotides;
-                //then update it again to match the mutated state
+                auto codon_it = orig_codons.find(codon_id);
+                if (codon_it == orig_codons.end()) {
+                    // store the original, unedited codon for later reference ala the protein code above. 
+                    orig_codons.insert({codon_id, codon_ptr->nucleotides});
+                }
+                //then update it to match the mutated state
                 codon_ptr->mutate(pos, mutated_nuc);
-                // store a string representing the original and new codons in nucleotides
-                // this may incorporate multiple nucleotide mutations, just accounting for the original and end states.
-                std::string changestring = original_codon + ">" + codon_ptr->nucleotides;
-                codon_to_changestring_map.insert({codon_id, changestring});
+                //store updated codon information, overwriting any existing entry such that the stored codon is the latest version.
+                latest_codon_map[codon_id] = codon_ptr->nucleotides;
                 // Build a map of codons and their associated nt mutations
                 auto to_nt_it = codon_to_nt_map.find(codon_id);
                 if (to_nt_it == codon_to_nt_map.end()) {
@@ -563,8 +566,7 @@ std::string do_mutations(std::vector<MAT::Mutation> &mutations, std::unordered_m
             nuc_string.resize(nuc_string.length() - 1); // remove trailing ','
             nuc_string += ';';
         }
-        std::string changestring = codon_to_changestring_map.find(codon_id)->second;
-        cchange_string += changestring + ";";
+        cchange_string += orig_codons.find(codon_id)->second + ">" + latest_codon_map.find(codon_id)->second + ";";
     }
 
     if (!nuc_string.empty() && nuc_string.back() == ';') {

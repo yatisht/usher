@@ -113,8 +113,6 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
      "Set to write all final stored metadata to a tsv.")
     ("whitelist,L", po::value<std::string>()->default_value(""),
      "Pass a list of samples, one per line, to always retain regardless of any other parameters.")
-    ("node-stats", po::value<std::string>()->default_value(""),
-     "Write a tsv file of the total leaf count and total mutations for each internal node.")
     ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
     ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
@@ -204,7 +202,6 @@ void extract_main (po::parsed_options parsed) {
     std::string gtf_filename = dir_prefix + vm["input-gtf"].as<std::string>();
     std::string fasta_filename = dir_prefix + vm["input-fasta"].as<std::string>();
     std::string dump_metadata = dir_prefix + vm["dump-metadata"].as<std::string>();
-    std::string node_stats_filename = dir_prefix + vm["node-stats"].as<std::string>();
 
 
     std::vector<std::string> additional_meta_fields;
@@ -215,7 +212,7 @@ void extract_main (po::parsed_options parsed) {
     uint32_t num_threads = vm["threads"].as<uint32_t>();
     //check that at least one of the output filenames (things which take dir_prefix)
     //are set before proceeding.
-    std::vector<std::string> outs = {sample_path_filename, clade_path_filename, all_path_filename, tree_filename, vcf_filename, output_mat_filename, output_tax_filename, json_filename, used_sample_filename, node_stats_filename};
+    std::vector<std::string> outs = {sample_path_filename, clade_path_filename, all_path_filename, tree_filename, vcf_filename, output_mat_filename, output_tax_filename, json_filename, used_sample_filename};
     if (!std::any_of(outs.begin(), outs.end(), [=](std::string f) {
     return f != dir_prefix;
 }) &&
@@ -803,17 +800,6 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         submet["selected_for"] = ranmap;
         catmeta.emplace_back(submet);
     }
-
-    if (node_stats_filename != dir_prefix) {
-        timer.Start();
-        fprintf(stderr, "Writing node stats to %s\n", node_stats_filename.c_str());
-        std::ofstream outfile (node_stats_filename);
-        size_t leaf_count_total, mut_count_total;
-        print_node_stats(T.root, leaf_count_total, mut_count_total, outfile);
-        outfile.close();
-        fprintf(stderr, "Completed in %ld msec\n\n", timer.Stop());
-    }
-
     //last step is to convert the subtree to other file formats
     if (vcf_filename != dir_prefix) {
         fprintf(stderr, "Generating VCF of final tree\n");
