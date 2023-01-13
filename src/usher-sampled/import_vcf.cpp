@@ -359,7 +359,7 @@ struct line_parser {
 // tokenize header, get sample name
 template <typename infile_t>
 static void read_header(infile_t &fd, std::vector<std::string> &out) {
-    char in = fd.getc();
+    int in = fd.getc();
     in = fd.getc();
     bool second_char_pong = (in == '#');
 
@@ -376,7 +376,7 @@ static void read_header(infile_t &fd, std::vector<std::string> &out) {
     while (!eol) {
         std::string field;
         while (in != '\t') {
-            if (in == '\n') {
+            if (in == '\n'||in==EOF) {
                 eol = true;
                 break;
             }
@@ -406,8 +406,11 @@ void print_progress(std::atomic<bool> *done, std::mutex *done_mutex) {
 template <typename infile_t>
 static line_start_later try_get_first_line(infile_t &f, size_t &size) {
     std::string temp;
-    char c;
+    int c;
     while ((c = f.getc()) != '\n') {
+        if (c==-1) {
+            return line_start_later{nullptr,nullptr};
+        }
         temp.push_back(c);
     }
     temp.push_back('\n');
@@ -475,11 +478,13 @@ static void process(infile_t &fd, std::vector<Sample_Muts> &sample_mutations,
         mutations_out.reserve(30000);
     }
     int offset=sample_mutations[0].sample_idx;
+    size_t single_line_size;
+    auto first_line=try_get_first_line(fd, single_line_size);
+    if (first_line.start) {
     line_parser_t parser(
         input_graph, tbb::flow::unlimited,
         line_parser{tree_mutations,mutations_out, sample_idx, sample_mutations.size(),offset});
-    size_t single_line_size;
-    parser.try_put(try_get_first_line(fd, single_line_size));
+    parser.try_put(first_line);
     size_t first_approx_size =
         std::min(CHUNK_SIZ, ONE_GB / single_line_size);
     read_size = first_approx_size * single_line_size;
@@ -490,6 +495,7 @@ static void process(infile_t &fd, std::vector<Sample_Muts> &sample_mutations,
     tbb::flow::make_edge(line, parser);
     fd(queue);
     input_graph.wait_for_all();
+    }
     fprintf(stderr, "Processed all blocks\n");
     fd.unalloc();
     tbb::parallel_for(
