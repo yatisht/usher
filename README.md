@@ -11,7 +11,7 @@
 [![Published in Bioinformatics](https://img.shields.io/badge/Published%20in-Bioinformatics-blue.svg)](https://doi.org/10.1093/bioinformatics/btac401)
 [![Published in Nature](https://img.shields.io/badge/Published%20in-Nature-blue.svg)](https://doi.org/10.1038/s41586-022-05189-9)
 [![DOI](https://zenodo.org/badge/296144053.svg)](https://zenodo.org/badge/latestdoi/296144053)
-
+[![Downloads](https://anaconda.org/bioconda/usher/badges/downloads.svg)](https://bioconda.github.io/recipes/usher/README.html)
 
 
 <img src="/images/usher_logo.png" width="600">
