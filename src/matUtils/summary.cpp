@@ -178,20 +178,17 @@ void write_translate_table(MAT::Tree* T, std::string output_filename, std::strin
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 }
 
-std::map<std::set<MAT::Mutation*>,size_t> count_haplotypes(MAT::Tree* T) {
-    std::map<std::set<MAT::Mutation*>,size_t> hapmap;
+std::map<std::map<size_t,char>,size_t> count_haplotypes(MAT::Tree* T) {
+    std::map<std::map<size_t,char>,size_t> hapmap;
     //naive method. for each sample, rsearch along the history to collect each of its mutations
     //and add those to the set. At the end, add that set to the hapcount keys if its not there, and increment.
     for (auto s: T->get_leaves()) {
-        std::set<MAT::Mutation*> mset;
+        std::map<size_t,char> mset;
         for (auto a: T->rsearch(s->identifier, true)) {
             for (auto m: a->mutations) {
-                for (auto cm: mset){
-                    if ((cm->par_nuc == m.mut_nuc) && (cm->position == m.position)) {
-                        mset.erase(cm);
-                    } else {
-                        mset.insert(&m);
-                    }
+                //the first time a mutation at a position is identified, lock in the haplotype as being the final state of that mutation
+                if (mset.find(m.position) == mset.end()){
+                    mset[m.position] = m.mut_nuc;
                 }
             }
         }
@@ -235,7 +232,8 @@ void write_haplotype_table(MAT::Tree* T, std::string filename) {
     for (auto const &hapc : hapmap) {
         std::ostringstream msetstr;
         for (auto m: hapc.first) {
-            msetstr << m->get_string() << ",";
+            // msetstr << m->get_string() << ",";
+            msetstr << m.first << MAT::get_nuc(m.second) << ",";
         }
         std::string final_str = msetstr.str();
         final_str.pop_back();
