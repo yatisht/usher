@@ -113,6 +113,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
      "Set to write all final stored metadata to a tsv.")
     ("whitelist,L", po::value<std::string>()->default_value(""),
      "Pass a list of samples, one per line, to always retain regardless of any other parameters.")
+    ("load-all-metadata", po::bool_switch(),
+    "Use to load all input metadata from -M regardless of sample selection. Significantly increases memory usage.")
     ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
     ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
@@ -175,6 +177,7 @@ void extract_main (po::parsed_options parsed) {
     bool break_ties = vm["break-ties"].as<bool>();
     bool include_nt = vm["include-nt"].as<bool>();
     size_t distance_threshold = vm["distance-threshold"].as<size_t>();
+    bool load_all = vm["load-all-metadata"].as<bool>();
 
     boost::filesystem::path path(dir_prefix);
     if (!boost::filesystem::exists(path)) {
@@ -630,12 +633,21 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
             metav.push_back(m);
         }
         assert (metav.size() > 0);
-        std::set<std::string> samples_included(samples.begin(), samples.end());
         if (output_tax_filename == dir_prefix) {
             // Don't do this in the case of taxodium pb output
-            for (auto mv: metav) {
-                auto scm = read_metafile(mv, samples_included);
-                catmeta.emplace_back(scm);
+            if (load_all) {
+                //if we're loading all sample data anyways, no need to convert to a set. 
+                std::set<std::string> empty;
+                for (auto mv: metav) {
+                    auto scm = read_metafile(mv, empty, true);
+                    catmeta.emplace_back(scm);
+                }
+            } else {
+                std::set<std::string> samples_included(samples.begin(), samples.end());
+                for (auto mv: metav) {
+                    auto scm = read_metafile(mv, samples_included);
+                    catmeta.emplace_back(scm);
+                }
             }
         }
     }
