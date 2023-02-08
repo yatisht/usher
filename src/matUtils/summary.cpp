@@ -232,7 +232,6 @@ void write_haplotype_table(MAT::Tree* T, std::string filename) {
     for (auto const &hapc : hapmap) {
         std::ostringstream msetstr;
         for (auto m: hapc.first) {
-            // msetstr << m->get_string() << ",";
             msetstr << m.first << MAT::get_nuc(m.second) << ",";
         }
         std::string final_str = msetstr.str();
