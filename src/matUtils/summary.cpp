@@ -184,7 +184,6 @@ std::map<std::map<int,int8_t>,size_t> count_haplotypes(MAT::Tree* T) {
     //count and dynamic implementation dictionaries.
     std::map<hapset,size_t> hapcount;
     std::map<std::string,hapset> hapmap;
-    //proceed in breath first order.
     for (auto s: T->depth_first_expansion()) {
         hapset mset; 
         if (!s->is_root()) {
@@ -251,7 +250,7 @@ void write_haplotype_table(MAT::Tree* T, std::string filename) {
     for (auto const &hapc : hapmap) {
         std::ostringstream msetstr;
         for (auto m: hapc.first) {
-            msetstr << std::to_string(m.first) << MAT::get_nuc(m.second) << ",";
+            msetstr << m.first << MAT::get_nuc(m.second) << ",";
         }
         std::string final_str = msetstr.str();
         final_str.pop_back();
