@@ -184,14 +184,14 @@ std::map<std::map<int,int8_t>,size_t> count_haplotypes(MAT::Tree* T) {
     //count and dynamic implementation dictionaries.
     //dynamic uses pointers to unique haplotypes to save on space.
     std::map<hapset,size_t> hapcount;
-    std::map<std::string,hapset*> hapmap;
+    std::map<std::string,hapset> hapmap;
     //proceed in breath first order.
-    for (auto s: T->breadth_first_expansion()) {
+    for (auto s: T->depth_first_expansion()) {
         //get the parent information, if it exists.
-        hapset mset;
-        auto parent = hapmap.find(s->parent->identifier);
-        if (parent != hapmap.end()) {
-            mset = *parent->second;
+
+        hapset mset; 
+        if (!s->is_root()) {
+            mset = hapmap[s->parent->identifier];
         }
         //update it for this node.
         for (auto m: s->mutations) { 
@@ -205,10 +205,8 @@ std::map<std::map<int,int8_t>,size_t> count_haplotypes(MAT::Tree* T) {
             hapcount[mset]++;
         } else { 
             //otherwise, store the current mset
-            hapmap[s->identifier] = &mset;
+            hapmap[s->identifier] = mset;
         }
-        //free memory- in breadth-first, grandparent information is unneeded, as all of its children have been traversed.
-        hapmap.pop(s->parent->parent->identifier)
     }
     return hapcount;
 }
