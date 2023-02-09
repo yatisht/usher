@@ -182,20 +182,26 @@ std::map<std::map<int,int8_t>,size_t> count_haplotypes(MAT::Tree* T) {
     //define a special type- coordinate-state map.
     typedef std::map<int,int8_t> hapset;
     //count and dynamic implementation dictionaries.
-    //dynamic uses pointers to unique haplotypes to save on space.
     std::map<hapset,size_t> hapcount;
     std::map<std::string,hapset> hapmap;
     //proceed in breath first order.
     for (auto s: T->depth_first_expansion()) {
-        //get the parent information, if it exists.
-
         hapset mset; 
         if (!s->is_root()) {
             mset = hapmap[s->parent->identifier];
         }
         //update it for this node.
-        for (auto m: s->mutations) { 
-            mset[m.position] = m.mut_nuc;
+        for (auto m: s->mutations) {
+            if (m.mut_nuc == m.ref_nuc) {
+                //reversion to reference, get rid of any change at this position.
+                auto iter = mset.find(m.position);
+                if (iter != mset.end()) {
+                    mset.erase(iter);
+                }
+            } else {
+                //update the haplotype.
+                mset[m.position] = m.mut_nuc;
+            }
         }
         //if this node is a leaf, increment the haplotype's counter.
         if (s->is_leaf()) {
