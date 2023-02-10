@@ -23,6 +23,7 @@
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
 #include <tbb/task_scheduler_init.h>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <execinfo.h>
@@ -54,13 +55,52 @@ static void clean_tree_for_placement(MAT::Tree& tree){
 }
 void leader_thread_optimization(MAT::Tree& tree,std::vector<mutated_t>& position_wise_out,
                                 std::atomic_size_t& curr_idx,int& optimization_radius, size_t start_idx,FILE* ignored_file,float desired_optimization_msec,bool is_last) {
+    /*auto nodes=tree.depth_first_expansion();
+    clean_up_leaf(nodes);
+    fprintf(stderr, "init parsimony %zu\n",tree.get_parsimony_score());
+    std::vector<mutated_t> other(MAT::Mutation::refs.size());
+    get_pos_samples_old_tree(tree, other);
+    for (size_t idx=0; idx<other.size(); idx++) {
+        bool have_err=false;
+        std::unordered_map<long, nuc_one_hot> old_map(position_wise_out[idx].begin(),position_wise_out[idx].end());
+        for (const auto& new_mut : other[idx]) {
+            auto iter=old_map.find(new_mut.first);
+            if (iter==old_map.end()) {
+                have_err=true;
+                fprintf(stderr, "pos %zu, sample %s was ref %c, but changed to %c\n",
+                    idx,tree.get_node_name_for_log_output(new_mut.first).c_str(),
+                    MAT::get_nuc(MAT::Mutation::refs[idx]),MAT::get_nuc(new_mut.second));
+            }else {
+                if(iter->second!=new_mut.second&&iter->second!=0xf){
+                    have_err=true;
+                    fprintf(stderr, "pos %zu, sample %s was %c, but changed to %c\n",
+                    idx,tree.get_node_name_for_log_output(new_mut.first).c_str(),
+                    MAT::get_nuc(iter->second),MAT::get_nuc(new_mut.second));
+                }
+                old_map.erase(iter);
+            }
+        }
+        for (const auto & new_mut : old_map) {
+            if(new_mut.second==0xf){
+                continue;
+            }
+            have_err=true;
+            fprintf(stderr, "pos %zu, sample %s was %c, but changed to ref %c\n",
+                idx,tree.get_node_name_for_log_output(new_mut.first).c_str(),
+                MAT::get_nuc(new_mut.second),MAT::get_nuc(MAT::Mutation::refs[idx]));
+        }
+        if(have_err){
+            raise(SIGTRAP);
+        }
+    }*/
     size_t last_parsimony_score=SIZE_MAX;
     std::default_random_engine g;
+    tree.max_level=tree.get_max_level();
     auto optimiation_start=std::chrono::steady_clock::now();
     auto optimization_end=optimiation_start+std::chrono::milliseconds((long)desired_optimization_msec);
     bool timeout=false;
     if (is_last) {
-        optimization_radius=-4;
+        optimization_radius=4;
     }
     bool is_first=true;
     do  {
@@ -81,9 +121,6 @@ void leader_thread_optimization(MAT::Tree& tree,std::vector<mutated_t>& position
             }
         }
         is_first=false;
-        if (is_last) {
-            optimization_radius=-optimization_radius;
-        }
         fprintf(stderr, "Main parsimony score %zu",tree.get_parsimony_score());
         fprintf(stderr, "Main sent optimization prep done\n");
         std::vector<size_t> node_to_search_idx;
@@ -113,15 +150,18 @@ void leader_thread_optimization(MAT::Tree& tree,std::vector<mutated_t>& position
             distributed = false;
             auto new_parsimony_score=tree.get_parsimony_score();
             fprintf(stderr, "Last parsimony score %lu\n",new_parsimony_score);
-            if(new_parsimony_score>=last_parsimony_score
+            if(new_parsimony_score>last_parsimony_score
                     || std::chrono::steady_clock::now()>optimization_end) {
                 timeout=true;
                 break;
             }
+            if (new_parsimony_score==last_parsimony_score&&optimization_radius>tree.max_level) {
+                timeout=true;
+            }
             last_parsimony_score=new_parsimony_score;
         }
         if (is_last) {
-            optimization_radius=-2*optimization_radius;
+            optimization_radius=2*optimization_radius;
         }
     } while(is_last&&!timeout);
     if (is_last) {
@@ -168,7 +208,6 @@ static int leader_thread(
     tree.uncondense_leaves();
     std::vector<Sample_Muts> samples_to_place;
     std::vector<mutated_t> position_wise_out;
-    std::vector<mutated_t> position_wise_out_dup;
     std::vector<std::string> samples;
     const std::unordered_set<std::string> samples_in_condensed_nodes;
     if(options.diff_file_name!=""&&options.reference_file_name!=""){
@@ -188,10 +227,7 @@ static int leader_thread(
     size_t sample_start_idx=samples_to_place[0].sample_idx;
     size_t sample_end_idx=samples_to_place.back().sample_idx+1;
     fprintf(stderr, "Sample start idx %zu, end index %zu\n",sample_start_idx,sample_end_idx);
-    if (options.tree_in==""&&(!options.no_add)&&(options.initial_optimization_radius>0)) {
-        get_pos_samples_old_tree(tree, position_wise_out);
-    } else if (options.tree_in!="") {
-        position_wise_out_dup=position_wise_out;
+    if (options.tree_in!="") {
         std::unordered_set<std::string> sample_set(samples.begin(),samples.end());
         remove_absent_leaves(tree, sample_set);
         if(tree.root->children.size()){
@@ -207,15 +243,26 @@ static int leader_thread(
     tree.condense_leaves();
     fix_parent(tree);
     tree.check_leaves();
-    if (options.tree_in!="") {
-        for (auto& pos : position_wise_out_dup) {
+    if (options.initial_optimization_radius>0) {
+        for (auto& pos : position_wise_out) {
             pos.erase(std::remove_if(pos.begin(), pos.end(), [sample_start_idx](const std::pair<long, nuc_one_hot>& in) {
                 return in.first<(long)sample_start_idx;
             }),pos.end());
         }
-        get_pos_samples_old_tree(tree, position_wise_out_dup);
-        position_wise_out=std::move(position_wise_out_dup);
+        get_pos_samples_old_tree(tree, position_wise_out);
 
+    }
+    for(size_t idx=0;idx<position_wise_out.size();idx++){
+        bool informative=false;
+        for (const auto &samp : position_wise_out[idx]) {
+            if (samp.second!=0xf) {
+                informative=true;
+                break;
+            }
+        }
+        if (!informative) {
+            position_wise_out[idx].clear();
+        }
     }
     std::vector<std::string> low_confidence_samples;
     std::vector<Clade_info> samples_clade(samples_to_place.size());

@@ -548,6 +548,7 @@ static void load_reference(std::string fasta_fname){
     MAT::Mutation::chromosome_map.emplace(MAT::Mutation::chromosomes[0],0);
     free(seq_name);
     auto read=fgetc(fh);
+    MAT::Mutation::refs.clear();
     MAT::Mutation::refs.push_back(0);
     while (read!=EOF) {
         if (read!='\n') {
