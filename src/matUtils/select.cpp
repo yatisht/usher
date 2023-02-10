@@ -465,7 +465,7 @@ std::unordered_set<std::string> filter_mut_density(Mutation_Annotated_Tree::Tree
     return samples_to_keep;
 }
 
-std::unordered_map<std::string,std::unordered_map<std::string,std::string>> read_metafile(std::string metainf, std::set<std::string> samples_to_use) {
+std::unordered_map<std::string,std::unordered_map<std::string,std::string>> read_metafile(std::string metainf, std::set<std::string> samples_to_use, bool load_all) {
     std::ifstream infile(metainf);
     if (!infile) {
         fprintf(stderr, "ERROR: Could not open the file: %s!\n", metainf.c_str());
@@ -493,7 +493,7 @@ std::unordered_map<std::string,std::unordered_map<std::string,std::string>> read
             first = false;
         } else {
             for (size_t i=1; i < words.size(); i++) {
-                if (samples_to_use.find(words[0]) != samples_to_use.end()) {
+                if ((samples_to_use.find(words[0]) != samples_to_use.end()) || (load_all)) {
                     metamap[keys[i]][words[0]] = words[i];
                 }
             }
