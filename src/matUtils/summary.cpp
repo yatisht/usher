@@ -178,27 +178,48 @@ void write_translate_table(MAT::Tree* T, std::string output_filename, std::strin
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 }
 
-std::map<std::set<std::string>,size_t> count_haplotypes(MAT::Tree* T) {
-    std::map<std::set<std::string>,size_t> hapmap;
-    //naive method. for each sample, rsearch along the history to collect each of its mutations
-    //and add those to the set. At the end, add that set to the hapcount keys if its not there, and increment.
-    for (auto s: T->get_leaves()) {
-        std::set<std::string> mset;
-        for (auto a: T->rsearch(s->identifier, true)) {
-            for (auto m: a->mutations) {
-                mset.insert(m.get_string());
+std::map<std::map<int,int8_t>,size_t> count_haplotypes(MAT::Tree* T) {
+    //define a special type- coordinate-state map.
+    typedef std::map<int,int8_t> hapset;
+    //count and dynamic implementation dictionaries.
+    std::map<hapset,size_t> hapcount;
+    std::map<std::string,hapset> hapmap;
+    for (auto s: T->depth_first_expansion()) {
+        hapset mset; 
+        if (!s->is_root()) {
+            mset = hapmap[s->parent->identifier];
+        }
+        //update it for this node.
+        for (auto m: s->mutations) {
+            if (m.mut_nuc == m.ref_nuc) {
+                //reversion to reference, get rid of any change at this position.
+                auto iter = mset.find(m.position);
+                if (iter != mset.end()) {
+                    mset.erase(iter);
+                }
+            } else {
+                //update the haplotype.
+                mset[m.position] = m.mut_nuc;
             }
         }
-        if (hapmap.find(mset) == hapmap.end()) {
-            hapmap[mset] = 0;
+        //if this node is a leaf, increment the haplotype's counter.
+        if (s->is_leaf()) {
+            if (hapcount.find(mset) == hapcount.end()) {
+                hapcount[mset] = 0;
+            }
+            hapcount[mset]++;
+        } else { 
+            //otherwise, store the current mset
+            hapmap[s->identifier] = mset;
         }
-        hapmap[mset]++;
     }
-    return hapmap;
+    return hapcount;
 }
+
 static uint8_t one_hot_to_two_bit(uint8_t arg) {
     return 31-__builtin_clz((unsigned int)arg);
 }
+
 void print_mut_stats(MAT::Tree* T){
     std::array<int, 16> mut_frequency;
     for ( auto& temp : mut_frequency) {
@@ -229,7 +250,7 @@ void write_haplotype_table(MAT::Tree* T, std::string filename) {
     for (auto const &hapc : hapmap) {
         std::ostringstream msetstr;
         for (auto m: hapc.first) {
-            msetstr << m << ",";
+            msetstr << m.first << MAT::get_nuc(m.second) << ",";
         }
         std::string final_str = msetstr.str();
         final_str.pop_back();
