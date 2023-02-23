@@ -661,6 +661,7 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (const Mutation_Annotat
         trees_to_extract.emplace_back();
         auto& curr_tree=trees_to_extract.back();
         curr_tree.leaves_to_keep.reserve(subtree_size);
+        subtree_size=std::min(subtree_size,T.root->bfs_index-1);
         // Keep moving up the tree till a subtree of required size is
         // found
         auto anc=samples[i];
