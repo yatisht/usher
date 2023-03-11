@@ -243,6 +243,19 @@ static int leader_thread(
     tree.condense_leaves();
     fix_parent(tree);
     tree.check_leaves();
+    bool have_ambiguous_ref=false;
+    for (int position=1; position<MAT::Mutation::refs.size(); position++) {
+        auto nuc=MAT::Mutation::refs[position];
+        if (nuc&(nuc-1)) {
+            fprintf(stderr, "\nWARNING: Ref nuc @ %d : %c is ambiguous\n", position,MAT::get_nt(MAT::Mutation::refs[position]));
+            have_ambiguous_ref=true;
+        }
+    }
+    if (have_ambiguous_ref) {
+        fprintf(stderr, "WARNING: Reference contain ambiguous nucleotide, optimization is disabled\n");
+        options.initial_optimization_radius=0;
+        optimization_radius=0;
+    }
     if (options.initial_optimization_radius>0) {
         for (auto& pos : position_wise_out) {
             pos.erase(std::remove_if(pos.begin(), pos.end(), [sample_start_idx](const std::pair<long, nuc_one_hot>& in) {
