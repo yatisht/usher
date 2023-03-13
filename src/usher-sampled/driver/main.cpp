@@ -155,8 +155,11 @@ void leader_thread_optimization(MAT::Tree& tree,std::vector<mutated_t>& position
                 timeout=true;
                 break;
             }
-            if (new_parsimony_score==last_parsimony_score&&optimization_radius>tree.max_level) {
-                timeout=true;
+            if (new_parsimony_score==last_parsimony_score) {
+                if(optimization_radius>tree.max_level){
+                    timeout=true;
+                }
+                break;
             }
             last_parsimony_score=new_parsimony_score;
         }
