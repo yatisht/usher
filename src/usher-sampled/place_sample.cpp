@@ -365,7 +365,7 @@ struct Print_Thread {
                 MAT::Mutations_Collection sample_mutations;
                 const auto& target=std::get<0>(*in.placement_info)[0];
                 discretize_mutations(target.sample_mutations, target.shared_mutations,
-                                     target.parent_node, sample_mutations);
+                                     target.target_node->parent, sample_mutations);
                 enum_imputed_positions(sample_mutations, placement_stats_file,out_file);
                 delete in.placement_info;
                 return;
@@ -377,7 +377,7 @@ struct Print_Thread {
             MAT::Mutations_Collection sample_mutations;
             const auto& target=std::get<0>(*in.placement_info)[0];
             discretize_mutations(target.sample_mutations, target.shared_mutations,
-                                 target.parent_node, sample_mutations);
+                                 target.target_node->parent, sample_mutations);
             enum_imputed_positions(sample_mutations, placement_stats_file,out_file);
         } else {
             auto sample_node=tree.get_node(sample_idx);
@@ -432,7 +432,7 @@ static void serial_proc_placed_sample( MAT::Tree &main_tree,move_type* in,bool d
     auto target = choose_best(search_result);
     MAT::Mutations_Collection sample_mutations;
     discretize_mutations(target.sample_mutations, target.shared_mutations,
-                         target.parent_node, sample_mutations);
+                         target.target_node->parent, sample_mutations);
     auto out = update_main_tree(
                    sample_mutations, target.splited_mutations, target.shared_mutations,
                    target.target_node, std::get<1>(*in)->sample_idx, main_tree, 0, false);
@@ -517,6 +517,9 @@ static void place_sample_thread(int start_idx, MAT::Tree &main_tree,std::vector<
                 skip=true;
                 break;
             }
+            /*if ((size_t)placement.parent_node==2&&!skip) {
+                raise(SIGTRAP);
+            }*/
         }
         if (skip) {
             continue;
@@ -536,7 +539,7 @@ static void place_sample_thread(int start_idx, MAT::Tree &main_tree,std::vector<
             target.parent_node=nullptr;
         }
         discretize_mutations(target.sample_mutations, target.shared_mutations,
-                             target.parent_node, sample_mutations);
+                             target.target_node->parent, sample_mutations);
         Preped_Sample_To_Place* to_ser;
         if (multi_processing) {
             to_ser=new Preped_Sample_To_Place;
