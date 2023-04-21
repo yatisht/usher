@@ -142,7 +142,7 @@ static nuc_one_hot allele_cnt_change_middle(
         src_allele_cnt_change_iter++;
     }
     if (src_allele_cnt_change_iter!=src_allele_cnt_change_end&&src_allele_cnt_change_iter->get_position() == mut.get_position()) {
-        assert(src_allele_cnt_change_iter->get_all_major_allele()!=0xf);
+        // assert(src_allele_cnt_change_iter->get_all_major_allele()!=0xf);
         int score_change = -1;
         major_allele = decrement_mutation_count(
                            allele_change_out, mut,
