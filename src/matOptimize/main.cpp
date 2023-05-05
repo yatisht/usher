@@ -5,6 +5,7 @@
 #include "src/matOptimize/mutation_annotated_tree.hpp"
 #include "tree_rearrangement_internal.hpp"
 #include <algorithm>
+#include <atomic>
 #include <boost/filesystem/operations.hpp>
 #include <boost/filesystem/path.hpp>
 #include <boost/program_options/value_semantic.hpp>
@@ -21,7 +22,9 @@
 #include <iterator>
 #include <limits>
 #include <mpi.h>
+#include <tbb/blocked_range.h>
 #include <tbb/concurrent_vector.h>
+#include <tbb/parallel_for.h>
 #include <tbb/task.h>
 #include <cstdio>
 #include <fcntl.h>
@@ -123,6 +126,7 @@ int main(int argc, char **argv) {
     float min_improvement;
     bool no_write_intermediate;
     std::string diff_file_path;
+    std::string branch_support_newick_out;
 
     po::options_description desc{"Options"};
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
@@ -132,7 +136,8 @@ int main(int argc, char **argv) {
     ("tree,t", po::value<std::string>(&input_nh_path)->default_value(""), "Input tree file")
     ("threads,T", po::value<uint32_t>(&num_threads)->default_value(num_cores), num_threads_message.c_str())
     ("load-mutation-annotated-tree,i", po::value<std::string>(&input_pb_path)->default_value(""), "Load mutation-annotated tree object")
-    ("save-mutation-annotated-tree,o", po::value<std::string>(&output_path)->required(), "Save output mutation-annotated tree object to the specified filename [REQUIRED]")
+    ("save-mutation-annotated-tree,o", po::value<std::string>(&output_path), "Save output mutation-annotated tree object to the specified filename [REQUIRED]")
+    ("epps_on_branch_len,E", po::value<std::string>(&branch_support_newick_out), "Output a newick with number of equally parsimonious placements on the branch length field ")
     ("radius,r", po::value<int32_t>(&radius)->default_value(-1),
      "Radius in which to restrict the SPR moves.")
     ("profitable-src-log,S", po::value<std::string>(&profitable_src_log)->default_value("/dev/null"),
@@ -189,6 +194,10 @@ int main(int argc, char **argv) {
     if (drift_iterations) {
         min_improvement=0.000000001;
     }
+    if(output_path==""&&branch_support_newick_out==""){
+        fputs("Please either supply output path for protobuf or output EPPs annnotated newick file path",stderr);
+        exit(EXIT_FAILURE);
+    }
     if (max_optimize_hours) {
         search_end_time=std::chrono::steady_clock::now()+std::chrono::hours(max_optimize_hours)-std::chrono::minutes(30);
         fprintf(stderr, "Set max opt time, will stop in %zu minutes\n",std::chrono::duration_cast<std::chrono::minutes>(search_end_time-std::chrono::steady_clock::now()).count());
@@ -196,6 +205,7 @@ int main(int argc, char **argv) {
     Mutation_Annotated_Tree::Tree t;
     if (this_rank==0) {
         //std::string cwd=get_current_dir_name();
+        if(output_path!=""){
         no_write_intermediate=vm.count("do-not-write-intermediate-files");
         try {
             auto output_path_dir_name=boost::filesystem::system_complete(output_path).parent_path();
@@ -216,14 +226,17 @@ int main(int argc, char **argv) {
             close(fd);
         }
 
-        if (intermediate_pb_base_name==""&&(!no_write_intermediate)) {
+        if (intermediate_pb_base_name==""&&(!no_write_intermediate)&&output_path!="") {
             intermediate_pb_base_name=output_path+"intermediateXXXXXX.pb";
             auto fd=mkstemps(const_cast<char*>(intermediate_pb_base_name.c_str()), 3);
             close(fd);
         }
+        }
         std::string intermediate_writing;
         std::string intermediate_template;
-        intermediate_template=intermediate_pb_base_name+"temp_eriting_XXXXXX.pb";
+        if(output_path!=""){
+            intermediate_template=intermediate_pb_base_name+"temp_eriting_XXXXXX.pb";
+        }
         fputs("Summary:\n",stderr);
         if (input_complete_pb_path!="") {
             print_file_info("Continue from", "continuation protobut,-a", input_complete_pb_path);
@@ -329,7 +342,7 @@ int main(int argc, char **argv) {
             //check_samples(t.root, origin_states, &t);
 #endif
             t.populate_ignored_range();
-            if(!no_write_intermediate&&input_complete_pb_path=="") {
+            if(!no_write_intermediate&&input_complete_pb_path==""&&output_path!="") {
                 fputs("Checkpoint initial tree.\n",stderr);
                 intermediate_writing=intermediate_template;
                 make_output_path(intermediate_writing);
@@ -384,6 +397,37 @@ int main(int argc, char **argv) {
         bool allow_drift=false;
         int iteration=1;
         tbb::task_scheduler_init init(num_threads);
+        if(branch_support_newick_out!=""){
+            if(radius<0){
+                radius=2*t.get_max_level();
+            }
+            t.breadth_first_expansion();
+            auto all_nodes=t.depth_first_expansion();
+            adjust_all(t);
+            use_bound=true;
+            std::atomic_size_t searched(0);
+            tbb::parallel_for(tbb::blocked_range<size_t>(0,all_nodes.size()),[&searched,radius,&all_nodes](tbb::blocked_range<size_t> r){
+                for(size_t idx=r.begin();idx<r.end();idx++){
+                    output_t out;
+                    out.moves=new std::vector<Profitable_Moves_ptr_t>;
+                    auto node=all_nodes[idx];
+                    Reachable reachable{true,true};
+                    find_moves_bounded(node, out, radius, true, reachable);
+                    if(out.score_change==-1){
+                        node->branch_length=out.moves->size()+1;
+                    }else {
+                        node->branch_length=out.moves->size();
+                    }
+                    delete out.moves;
+                }
+                searched+=r.size();
+                printf("searched %zu out of %zu\r",searched.load(std::memory_order_relaxed),all_nodes.size());
+
+            });
+            std::fstream out_f(branch_support_newick_out,std::ios::out);
+            out_f<<t.get_newick_string(true,true,true,true);
+            return EXIT_SUCCESS;
+        }
         while(stalled<drift_iterations) {
             bfs_ordered_nodes = t.breadth_first_expansion();
             fputs("Start Finding nodes to move \n",stderr);
