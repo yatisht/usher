@@ -185,7 +185,7 @@ int main(int argc, char **argv) {
             return 0;
         } else
             return 1;
-    }
+    } 
     if (vm.count("no_reduce_back_mutations")) {
         reduce_back_mutations=false;
     } else {
@@ -195,6 +195,20 @@ int main(int argc, char **argv) {
         min_improvement=0.000000001;
     }
     if(output_path==""&&branch_support_newick_out==""){
+        if (this_rank==0) {
+            if (vm.count("version")) {
+                std::cout << "matOptimize (v" << PROJECT_VERSION << ")" << std::endl;
+            } else {
+                std::cerr << "matOptimize (v" << PROJECT_VERSION << ")" << std::endl;
+                std::cerr << desc << std::endl;
+            }
+        }
+        MPI_Finalize();
+        // Return with error code 1 unless the user specifies help
+        if(vm.count("help")) {
+            return 0;
+        } else
+            return 1;
         fputs("Please either supply output path for protobuf or output EPPs annnotated newick file path",stderr);
         exit(EXIT_FAILURE);
     }
