@@ -420,7 +420,8 @@ int main(int argc, char **argv) {
             adjust_all(t);
             use_bound=true;
             std::atomic_size_t searched(0);
-            tbb::parallel_for(tbb::blocked_range<size_t>(0,all_nodes.size()),[&searched,radius,&all_nodes](tbb::blocked_range<size_t> r){
+            auto epp_fh=fopen("epps_dump", "w");;
+            tbb::parallel_for(tbb::blocked_range<size_t>(0,all_nodes.size()),[epp_fh,&t,&searched,radius,&all_nodes](tbb::blocked_range<size_t> r){
                 for(size_t idx=r.begin();idx<r.end();idx++){
                     output_t out;
                     out.moves=new std::vector<Profitable_Moves_ptr_t>;
@@ -432,12 +433,22 @@ int main(int argc, char **argv) {
                     }else {
                         node->branch_length=out.moves->size();
                     }
+                    if(!out.moves->empty()){
+                        std::string out_str=t.get_node_name_for_log_output(node->node_id)+":";
+                        for (const auto& move : *out.moves) {
+                            out_str+=(t.get_node_name_for_log_output(move->get_dst()->node_id)+",");
+                        }
+                        out_str.pop_back();
+                        out_str.push_back('\n');
+                        fputs(out_str.c_str(), epp_fh);
+                    }
                     delete out.moves;
                 }
                 searched+=r.size();
                 printf("searched %zu out of %zu\r",searched.load(std::memory_order_relaxed),all_nodes.size());
 
             });
+            fclose(epp_fh);
             std::fstream out_f(branch_support_newick_out,std::ios::out);
             out_f<<t.get_newick_string(true,true,true,true);
             return EXIT_SUCCESS;
