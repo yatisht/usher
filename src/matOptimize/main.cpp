@@ -33,6 +33,7 @@
 #include <thread>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <unordered_map>
 #include <unordered_set>
 #include <boost/program_options.hpp>
 #include <vector>
@@ -93,6 +94,24 @@ void print_file_info(std::string info_msg,std::string error_msg,const std::strin
     } else {
         perror(("Error accessing "+error_msg+" "+filename+" :").c_str());
         exit(EXIT_FAILURE);
+    }
+}
+static void remove_sibling(size_t node_id,MAT::Tree& t,std::unordered_map<size_t, bool>& filtered){
+    auto this_node=t.get_node(node_id);
+    if(this_node->parent){
+        auto par_node=this_node->parent;
+        auto iter=filtered.find(par_node->node_id);
+        if(iter!=filtered.end()){
+            iter->second=true;
+        }
+        for (auto child : par_node->children) {
+            if(child!=this_node){
+                auto iter=filtered.find(child->node_id);
+                if(iter!=filtered.end()){
+                    iter->second=true;
+                }
+            }
+        }
     }
 }
 int main(int argc, char **argv) {
@@ -428,15 +447,40 @@ int main(int argc, char **argv) {
                     auto node=all_nodes[idx];
                     Reachable reachable{true,true};
                     find_moves_bounded(node, out, radius, true, reachable);
+                    std::unordered_map<size_t, bool> filtered;
                     if(out.score_change==-1){
-                        node->branch_length=out.moves->size()+1;
-                    }else {
-                        node->branch_length=out.moves->size();
+                        filtered.emplace(node->node_id,false);
                     }
-                    if(!out.moves->empty()){
+                    for (const auto& move : *out.moves) {
+                        filtered.emplace(move->dst->node_id,false);
+                    }
+                    if(out.score_change==-1){
+                        remove_sibling(node->node_id, t, filtered);
+                    }
+                    for(auto& node_id_filtered:filtered){
+                        if(node_id_filtered.second){
+                            continue;
+                        }
+                        remove_sibling(node_id_filtered.first, t, filtered);
+                    }
+                    std::vector<size_t> filtered_nodes;
+                    filtered_nodes.reserve(filtered.size());
+                    for (auto& node_id_filtered : filtered) {
+                        if(!node_id_filtered.second){
+                            filtered_nodes.emplace_back(node_id_filtered.first);
+                        }
+                    }
+                    node->branch_length=filtered_nodes.size();
+                    if (node->branch_length<1||filtered_nodes.size()>(out.moves->size()+1)) {
+                        raise(SIGTRAP);
+                    }
+                    if(filtered_nodes.size()>1){
                         std::string out_str=t.get_node_name_for_log_output(node->node_id)+":";
-                        for (const auto& move : *out.moves) {
-                            out_str+=(t.get_node_name_for_log_output(move->get_dst()->node_id)+",");
+                        for (const auto& node_id : filtered_nodes) {
+                            if(node_id==node->node_id){
+                                continue;
+                            }
+                            out_str+=(t.get_node_name_for_log_output(node_id)+",");
                         }
                         out_str.pop_back();
                         out_str.push_back('\n');
