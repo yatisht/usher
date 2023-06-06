@@ -132,7 +132,7 @@ void reassign_states(MAT::Tree& t, Original_State_t& origin_states) {
     std::vector<backward_pass_range> child_idx_range;
     std::vector<forward_pass_range> parent_idx;
     std::vector<std::pair<MAT::Mutation,tbb::concurrent_vector<std::pair<size_t,char>>>> pos_mutated(MAT::Mutation::refs.size());
-    tbb::parallel_for_each(origin_states.begin(),origin_states.end(),[&pos_mutated,t](const std::pair<size_t, Mutation_Set>& sample_mutations) {
+    tbb::parallel_for_each(origin_states.begin(),origin_states.end(),[&pos_mutated,&t](const std::pair<size_t, Mutation_Set>& sample_mutations) {
         for (const MAT::Mutation &m : sample_mutations.second) {
             pos_mutated[m.get_position()].first=m;
             pos_mutated[m.get_position()].second.emplace_back(t.get_node(sample_mutations.first)->bfs_index,m.get_all_major_allele());
