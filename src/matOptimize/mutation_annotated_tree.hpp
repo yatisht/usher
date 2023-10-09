@@ -512,6 +512,13 @@ class Tree {
         node_idx=0;
         all_nodes.clear();
     }
+    void fix_node_idx() {
+        auto dfs = depth_first_expansion();
+        for (auto node: dfs) {
+            node_idx = std::max(node_idx, node->node_id);
+        }
+        node_idx++;
+    }
     void register_node_serial(Node* node) {
         all_nodes.resize(std::max(all_nodes.size(),node->node_id+1),nullptr);
         all_nodes[node->node_id]=node;
