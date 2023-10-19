@@ -345,11 +345,15 @@ move_type* place_sample_fixed_idx(const Traversal_Info &in,
     //debug
     stack.back().lower_bound=0;
 
+    int at_root_parsimony=0;
     for (const auto& mut : mutations) {
         fixed_tree_search_mutation mut_out;
         mut_out.chrom=mut.chrom_idx;
         mut_out.position=mut.position;
         mut_out.mut_nuc=mut.mut_nuc;
+        if(!(mut.mut_nuc&mut.par_nuc)){
+            at_root_parsimony++;
+        }
         if (mut.mut_nuc==0xf) {
             mut_out.range=mut.range;
             base_stack.push_back(mut_out);
@@ -397,6 +401,11 @@ move_type* place_sample_fixed_idx(const Traversal_Info &in,
     mut_out.range=0;
     mut_out.mut_nuc=0xf;
     base_stack.push_back(mut_out);
+    {
+        Main_Tree_Target target;
+        target.sample_mutations=mutations;
+        register_target(target, at_root_parsimony, output, 0, dfs_ordered_nodes);
+    }
 
     for (int cur_idx=1; cur_idx<dfs_end_idx; cur_idx++) {
         const auto & curr_node=in.traversal_track[cur_idx];
