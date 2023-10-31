@@ -51,6 +51,13 @@ struct Mutation {
     inline bool operator< (const Mutation& m) const {
         return ((*this).position < m.position);
     }
+    inline bool operator== (const Mutation& m) const {
+      return ((*this).position == m.position &&
+              (*this).is_missing == m.is_missing &&
+              (*this).chrom == m.chrom &&
+              (*this).par_nuc == m.par_nuc &&
+              (*this).mut_nuc == m.mut_nuc);
+    }
     inline Mutation copy() const {
         Mutation m;
         m.chrom = chrom;
@@ -99,6 +106,7 @@ class Node {
     void add_mutation(Mutation mut);
     void clear_mutations();
     void clear_annotations();
+    Mutation_Annotated_Tree::Node* find_child_with_muts(std::vector<Mutation> &muts);
 };
 
 class Tree {
