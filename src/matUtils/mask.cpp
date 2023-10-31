@@ -71,10 +71,16 @@ void mask_main(po::parsed_options parsed) {
         exit(1);
     }
     // Load input MAT and uncondense tree
+    fprintf(stderr, "Loading input MAT file %s.\n", input_mat_filename.c_str());
+    timer.Start();
     MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
+    fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     //T here is the actual object.
     if (T.condensed_nodes.size() > 0) {
+        fprintf(stderr, "Uncondensing condensed nodes.\n");
+        timer.Start();
         T.uncondense_leaves();
+    fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
 
     // If a restricted samples file was provided, perform masking procedure
@@ -103,12 +109,20 @@ void mask_main(po::parsed_options parsed) {
 
     // Store final MAT to output file
     if (output_mat_filename != "") {
-        fprintf(stderr, "Saving Final Tree\n");
         if (recondense) {
+            timer.Start();
+            fprintf(stderr, "Collapsing tree...\n");
             T.collapse_tree();
+            fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+            timer.Start();
+            fprintf(stderr, "Condensing leaves...\n");
             T.condense_leaves();
+            fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
         }
+        fprintf(stderr, "Saving Final Tree to %s\n", output_mat_filename.c_str());
+        timer.Start();
         MAT::save_mutation_annotated_tree(T, output_mat_filename);
+        fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
 }
 
@@ -211,6 +225,8 @@ void restrictMutationsLocally (std::string mutations_filename, MAT::Tree* T, boo
         delim = ',';
     }
     std::string rootid = T->root->identifier;
+    size_t total_masked = 0;
+    timer.Start();
     while (std::getline(infile, line)) {
         std::vector<std::string> words;
         if (line[line.size()-1] == '\r') {
@@ -236,19 +252,27 @@ void restrictMutationsLocally (std::string mutations_filename, MAT::Tree* T, boo
         }
         // fprintf(stderr, "Masking mutation %s below node %s\n", ml.first.c_str(), ml.second.c_str());
         for (auto n: T->depth_first_expansion(rn)) {
-            std::vector<MAT::Mutation> nmuts;
+            // The expected common case is to not match any mutations and have nothing to remove.
+            std::vector<MAT::Mutation> muts_to_remove;
             for (auto& mut: n->mutations) {
                 if (match_mutations(mutobj, &mut)) {
                     instances_masked++;
-                } else {
-                    nmuts.push_back(mut);
+                    muts_to_remove.push_back(mut);
                 }
             }
-            n->mutations = nmuts;
+            for (auto mut: muts_to_remove) {
+                auto iter = std::find(n->mutations.begin(), n->mutations.end(), mut);
+                n->mutations.erase(iter);
+            }
         }
+        total_masked += instances_masked;
     }
+    fprintf(stderr, "Completed in %ld msec \n", timer.Stop());
     infile.close();
+    fprintf(stderr, "Masked a total of %lu mutations.  Collapsing tree...\n", total_masked);
+    timer.Start();
     T->collapse_tree();
+    fprintf(stderr, "Completed in %ld msec \n", timer.Stop());
 }
 
 void restrictSamples (std::string samples_filename, MAT::Tree& T) {
@@ -356,6 +380,43 @@ void restrictSamples (std::string samples_filename, MAT::Tree& T) {
     }
 }
 
+std::unordered_set<std::string> mutation_set_from_node(MAT::Tree* T, MAT::Node* node, bool include_node, bool include_ancestors) {
+    std::unordered_set<std::string> mutations;
+    if (include_ancestors) {
+        for (auto an: T->rsearch(node->identifier, include_node)) {
+            for (auto mut: an->mutations) {
+                if (mut.is_masked()) {
+                    continue;
+                }
+                MAT::Mutation mut_opposite = mut.copy();
+                //we check for whether this mutation is going to negate with something in the set
+                //by identifying its opposite and checking whether the opposite is already present on the traversal.
+                mut_opposite.par_nuc = mut.mut_nuc;
+                mut_opposite.mut_nuc = mut.par_nuc;
+                auto cml = mutations.find(mut_opposite.get_string());
+                if (cml != mutations.end()) {
+                    mutations.erase(cml);
+                } else {
+                    mutations.insert(mut.get_string());
+                }
+            }
+        }
+    } else if (include_node) {
+        for (auto mut: node->mutations) {
+            if (mut.is_masked()) {
+                continue;
+            }
+            mutations.insert(mut.get_string());
+        }
+    } else {
+        fprintf(stderr, "ERROR: mutation_set_from_node: at least one of include_node and include_ancestors should be true.\n");
+        exit(1);
+    }
+    return mutations;
+}
+
+
+
 void moveNodes (std::string node_filename, MAT::Tree* T) {
     // Function to move nodes between two identical placement paths. That is, move the target node so that is a child of the indicated new parent node,
     // but the current placement and new placement must involve exactly the same set of mutations for the move to be allowed.
@@ -394,49 +455,61 @@ void moveNodes (std::string node_filename, MAT::Tree* T) {
         }
         //accumulate the set of mutations belonging to the current and the new placement
         //not counting mutations belonging to the target, but counting ones to the putative new parent.
-        std::unordered_set<std::string> curr_mutations;
-        std::unordered_set<std::string> new_mutations;
-        for (auto an: T->rsearch(mn->identifier, false)) {
-            for (auto mut: an->mutations) {
-                if (mut.is_masked()) {
-                    continue;
-                }
-                MAT::Mutation mut_opposite = mut.copy();
-                //we check for whether this mutation is going to negate with something in the set
-                //by identifying its opposite and checking whether the opposite is already present on the traversal.
-                mut_opposite.par_nuc = mut.mut_nuc;
-                mut_opposite.mut_nuc = mut.par_nuc;
-                auto cml = curr_mutations.find(mut_opposite.get_string());
-                if (cml != curr_mutations.end()) {
-                    curr_mutations.erase(cml);
+        std::unordered_set<std::string> curr_mutations = mutation_set_from_node(T, mn, false, true);
+        std::unordered_set<std::string> new_mutations = mutation_set_from_node(T, np, true, true);
+        if (curr_mutations == new_mutations) {
+            //we can now proceed with the move.
+            T->move_node(mn->identifier, np->identifier);
+            fprintf(stderr, "Move of node %s to node %s successful.\n", words[0].c_str(), words[1].c_str());
+        } else {
+            // Not quite the same; figure out whether we need to add a node under new parent.
+            fprintf(stderr, "The current (%s) and new (%s) node paths do not involve the same set of mutations.\n",
+                    mn->identifier.c_str(), np->identifier.c_str());
+
+            std::unordered_set<std::string> extra_mutations;
+            size_t curr_in_new_count = 0;
+            for (auto mut: curr_mutations) {
+                if (new_mutations.find(mut) != new_mutations.end()) {
+                    curr_in_new_count++;
                 } else {
-                    curr_mutations.insert(mut.get_string());
+                    extra_mutations.insert(mut);
                 }
             }
-        }
-        for (auto an: T->rsearch(np->identifier, true)) {
-            for (auto mut: an->mutations) {
-                if (mut.is_masked()) {
-                    continue;
-                }
-                MAT::Mutation mut_opposite = mut.copy();
-                mut_opposite.par_nuc = mut.mut_nuc;
-                mut_opposite.mut_nuc = mut.par_nuc;
-                auto cml = new_mutations.find(mut_opposite.get_string());
-                if (cml != new_mutations.end()) {
-                    new_mutations.erase(cml);
-                } else {
-                    new_mutations.insert(mut.get_string());
+            if (extra_mutations.size() == 0 || curr_in_new_count != new_mutations.size()) {
+              fprintf(stderr, "ERROR: the new parent (%s) has mutations not found in the current node (%s); %ld in common, %ld in new\n",
+                      np->identifier.c_str(), mn->identifier.c_str(), curr_in_new_count, new_mutations.size());
+              exit(1);
+            }
+            // Look for a child of np that already has extra_mutations.  If there is such a child
+            // then move mn to that child.  Otherwise add those mutations to mn and move it to np.
+            MAT::Node *child_with_muts = NULL;
+            for (auto child: np->children) {
+              std::unordered_set<std::string> mut_set = mutation_set_from_node(T, child, true, false);
+                if (mut_set == extra_mutations) {
+                    child_with_muts = child;
+                    fprintf(stderr, "Found child with extra_mutations: %s\n", child->identifier.c_str());
+                    break;
                 }
             }
+            if (child_with_muts != NULL) {
+                T->move_node(mn->identifier, child_with_muts->identifier);
+            } else {
+                // Preserve chronological order expected by add_mutation by adding mn's mutations
+                // after extra_mutations instead of vice versa.
+                std::vector<MAT::Mutation>mn_mutations;
+                for (auto mut: mn->mutations) {
+                    mn_mutations.push_back(mut);
+                }
+                mn->mutations.clear();
+                for (auto mut: extra_mutations) {
+                    mn->add_mutation(*(MAT::mutation_from_string(mut)));
+                }
+                for (auto mut: mn_mutations) {
+                    mn->add_mutation(mut);
+                }
+                T->move_node(mn->identifier, np->identifier);
+            }
         }
-        if (curr_mutations != new_mutations) {
-            fprintf(stderr, "ERROR: The current and new placement paths do not involve the same set of mutations. Exiting\n");
-            exit(1);
-        }
-        //we can now proceed with the move.
-        T->move_node(mn->identifier, np->identifier);
-        fprintf(stderr, "Move of node %s to node %s successful.\n", words[0].c_str(), words[1].c_str());
     }
     fprintf(stderr, "All requested moves complete.\n");
 }
