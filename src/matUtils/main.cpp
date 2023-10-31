@@ -4,6 +4,7 @@
 #include "extract.hpp"
 #include "merge.hpp"
 #include "introduce.hpp"
+#include "fix.hpp"
 #include "version.hpp"
 #include <cstddef>
 
@@ -12,7 +13,7 @@ Timer timer;
 int main (int argc, char** argv) {
     po::options_description global("Command options");
     global.add_options()
-    ("command", po::value<std::string>(), "Command to execute. Valid options are annotate, mask, extract, uncertainty, and summary.")
+    ("command", po::value<std::string>(), "Command to execute. Valid options are annotate, mask, extract, uncertainty, introduce, fix, merge, version, and summary.")
     ("subargs", po::value<std::vector<std::string> >(), "Command-specific arguments.");
     po::positional_options_description pos;
     pos.add("command",1 ).add("subargs", -1);
@@ -20,7 +21,7 @@ int main (int argc, char** argv) {
     po::variables_map vm;
     po::parsed_options parsed = po::command_line_parser(argc, argv).options(global).positional(pos).allow_unregistered().run();
     //this help string shows up over and over, lets just define it once
-    std::string cnames[] = {"COMMAND","summary","extract","annotate","uncertainty","introduce", "merge", "mask", "version"};
+    std::string cnames[] = {"COMMAND","summary","extract","annotate","uncertainty","introduce", "merge", "mask", "fix", "version"};
     std::string chelp[] = {
         "DESCRIPTION\n\n",
         "calculates basic statistics and counts samples, mutations, and clades in the input MAT\n\n",
@@ -30,6 +31,7 @@ int main (int argc, char** argv) {
         "given sample region information, heuristically identifies points of geographic introduction along the phylogeny\n\n",
         "merge all samples of two input MAT files into a single output MAT \n\n",
         "masks the input samples\n\n",
+        "fixes grandparent-reversion structures\n\n",
         "display version number\n\n"
     };
     try {
@@ -57,6 +59,8 @@ int main (int argc, char** argv) {
         introduce_main(parsed);
     } else if (cmd == "mask") {
         mask_main(parsed);
+    } else if (cmd == "fix") {
+        fix_main(parsed);
     } else if (cmd == "version") {
         std::cerr << "matUtils (v" << PROJECT_VERSION << ")" << std::endl;
     } else if (cmd == "help") {
