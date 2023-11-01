@@ -8,7 +8,8 @@ on:
 
 env:
   BUILD_TYPE: Release
-  
+
+jobs:  
   ubuntu-20-04:
     runs-on: ubuntu-20.04
     steps:
