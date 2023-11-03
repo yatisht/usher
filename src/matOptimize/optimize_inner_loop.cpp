@@ -25,7 +25,7 @@ size_t optimize_inner_loop(std::vector<MAT::Node*>& nodes_to_search,MAT::Tree& t
     static std::chrono::steady_clock::time_point last_save_time=std::chrono::steady_clock::now();
     auto save_period=std::chrono::minutes(minutes_between_save);
     bool isfirst_this_iter=true;
-    size_t new_score;
+    size_t new_score{};
      while (!nodes_to_search.empty()) {
                 auto dfs_ordered_nodes=t.depth_first_expansion();
                 std::mt19937_64 rng;

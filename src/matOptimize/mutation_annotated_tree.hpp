@@ -387,7 +387,7 @@ class Mutations_Collection {
     }
 };
 struct copyable_atomic_uint8_t: public std::atomic_int8_t {
-    copyable_atomic_uint8_t()=default;
+    copyable_atomic_uint8_t() : std::atomic_int8_t{0} {};
     copyable_atomic_uint8_t (copyable_atomic_uint8_t& other) {
         this->store(other.load());
     }
