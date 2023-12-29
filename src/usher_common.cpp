@@ -451,6 +451,11 @@ int usher_common(std::string dout_filename, std::string outdir, uint32_t max_tre
                     fprintf(stderr, "Current tree size (#nodes): %zu\tSample name: %s\tParsimony score: %d\tNumber of parsimony-optimal placements: %zu\n", total_nodes, sample.c_str(), \
                             best_set_difference, num_best);
                     fprintf(placement_stats_file, "%s\t%d\t%zu\t", sample.c_str(), best_set_difference, num_best);
+		    // if no-add option is used, also print 
+		    // the best node identifier
+		    if (no_add) {
+			    fprintf(placement_stats_file, "%s\t", best_node->identifier.c_str());
+		    }
                     // Prints a warning message if 2 or more
                     // parsimony-optimal placements found
                     if (num_best > 1) {
