@@ -520,6 +520,7 @@ void write_json_from_mat(MAT::Tree* T, std::string output_filename, std::vector<
         {
             "tree",{
                 {"name","wrapper"},
+                {"node_attrs",{ {"div",0} }}
             }
         }
     };
