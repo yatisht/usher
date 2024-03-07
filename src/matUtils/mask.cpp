@@ -24,6 +24,10 @@ po::variables_map parse_mask_command(po::parsed_options parsed) {
      "Name of a TSV or CSV containing mutations to be masked in the first column and locations to mask downstream from in the second. If only one column is passed, all instances of that mutation on the tree are masked.")
     ("condense-tree,c", po::bool_switch(),
      "Use to recondense the tree before saving.")
+    ("snp-distance,d", po::value<uint32_t>()->default_value(0),
+     "SNP distance between a sample and the internal node which will have all descendents masked for missing data.")
+    ("diff-file,f", po::value<std::string>()->default_value(""),
+    "Diff files for samples contained in the tree. Samples not included will not be considered in masking.")
     ("move-nodes,M", po::value<std::string>()->default_value(""),
      "Name of the TSV file containing names of the nodes to be moved and their new parents. Use to move nodes around the tree between paths containing identical sets of mutations.")
     ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
@@ -31,6 +35,7 @@ po::variables_map parse_mask_command(po::parsed_options parsed) {
     // Collect all the unrecognized options from the first pass. This will include the
     // (positional) command name, so we need to erase that.
     std::vector<std::string> opts = po::collect_unrecognized(parsed.options, po::include_positional);
+    //std::cout << "opts: " << opts << std::endl;
     opts.erase(opts.begin());
 
     // Run the parser, with try/catch for help
@@ -40,6 +45,7 @@ po::variables_map parse_mask_command(po::parsed_options parsed) {
                   .run(), vm);
         po::notify(vm);
     } catch(std::exception &e) {
+        fprintf(stderr, "stuck here\n");
         std::cerr << filt_desc << std::endl;
         // Return with error code 1 unless the user specifies help
         if (vm.count("help"))
@@ -61,15 +67,24 @@ void mask_main(po::parsed_options parsed) {
     bool simplify = vm["simplify"].as<bool>();
     std::string rename_filename = vm["rename-samples"].as<std::string>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
-
+    uint32_t snp_distance = vm["snp-distance"].as<uint32_t>();
+    std::string diff_file = vm["diff-file"].as<std::string>();
     tbb::task_scheduler_init init(num_threads);
+    fprintf(stderr, "made it to main function");
 
     //check for mutually exclusive arguments
+    //LILY: make sure you check for need for exclusivity of your function 
     if ((simplify) & (rename_filename != "")) {
         //doesn't make any sense to rename nodes after you just scrambled their names. Or to rename them, then scramble them.
         fprintf(stderr, "ERROR: Sample renaming and simplification are mutually exclusive operations. Review argument choices\n");
         exit(1);
     }
+    if ((snp_distance > 0) & (diff_file == "")) {
+        //doesn't make any sense to rename nodes after you just scrambled their names. Or to rename them, then scramble them.
+        fprintf(stderr, "ERROR: Must provide diff file of samples for local masking. Review argument choices\n");
+        exit(1);
+    }
+     
     // Load input MAT and uncondense tree
     fprintf(stderr, "Loading input MAT file %s.\n", input_mat_filename.c_str());
     timer.Start();
@@ -107,6 +122,11 @@ void mask_main(po::parsed_options parsed) {
         moveNodes(move_nodes_filename, &T);
     }
 
+    if (snp_distance != 0) {
+        fprintf(stderr, "made it to here");
+        localMask(snp_distance, &T, diff_file);
+    }
+
     // Store final MAT to output file
     if (output_mat_filename != "") {
         if (recondense) {
@@ -124,6 +144,39 @@ void mask_main(po::parsed_options parsed) {
         MAT::save_mutation_annotated_tree(T, output_mat_filename);
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
+}
+
+int readDiff (const std::string& diff_file) {
+    fprintf(stderr, "made it to readDiff");
+
+    std::ifstream file(diff_file);
+    
+    // Check if the file is opened successfully
+    if (!file.is_open()) {
+        std::cerr << "Error opening file." << std::endl;
+        return 1; // Return an error code
+    }
+
+    // Read the file line by line
+    std::string line;
+    while (std::getline(file, line)) {
+        // Process each line (in this example, simply print it)
+        std::cout << line << std::endl;
+    }
+    
+    // Close the file
+    file.close();
+    
+}
+
+void localMask (uint32_t& snp_distance, MAT::Tree* T, std::string diff_file) {
+    fprintf(stderr, "oh shit this works %i.\n", snp_distance);
+    readDiff(diff_file);
+    auto all_leaves = T->get_leaves();
+    //for (auto l: all_leaves) {
+        //std::cout << "Data type of l: " << typeid(l).name() << std::endl;
+        //std::cout << " l: " << l->parent->identifier << std::endl;
+        //}
 }
 
 void simplify_tree(MAT::Tree* T) {
@@ -513,3 +566,5 @@ void moveNodes (std::string node_filename, MAT::Tree* T) {
     }
     fprintf(stderr, "All requested moves complete.\n");
 }
+
+
