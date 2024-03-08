@@ -2,6 +2,8 @@
 #include <random>
 #include <algorithm>
 
+using namespace std;
+
 po::variables_map parse_mask_command(po::parsed_options parsed) {
 
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
@@ -146,9 +148,44 @@ void mask_main(po::parsed_options parsed) {
     }
 }
 
-int readDiff (const std::string& diff_file) {
+std::map<std::string, std::vector<std::string>> readDiff (const std::string& diff_file) {
     fprintf(stderr, "made it to readDiff");
+    std::map<std::string, std::vector<std::string>> data;
 
+
+    try {
+        std::ifstream file(diff_file);
+        if (!file.is_open()) {
+            throw std::runtime_error("Error opening file: " + diff_file);
+        }
+
+        std::string line;
+        while (std::getline(file, line)) {
+            // Parse the line and store data in the map (example)
+            // For demonstration, assume each line contains key-value pairs separated by '='
+            size_t pos = line.find('\t');
+            if (pos != std::string::npos) {
+                std::string key = line.substr(0, pos);
+                std::string value = line.substr(pos + 1);
+                if (key == "-") {
+                    std::cout << "Key: " << key << ", Value: " << value << std::endl;
+                }
+
+                //fprintf(stderr, "oh shit this works %s, %s.\n", key, value);
+                //data[key] = value;
+            }
+        }
+
+        file.close();
+    } catch (const std::exception& e) {
+        std::cerr << "Exception caught while reading file: " << e.what() << std::endl;
+        throw;  // Re-throw the exception to be handled where the function is called
+    }
+
+    //return data;
+}
+
+/*
     std::ifstream file(diff_file);
     
     // Check if the file is opened successfully
@@ -168,6 +205,7 @@ int readDiff (const std::string& diff_file) {
     file.close();
     
 }
+*/
 
 void localMask (uint32_t& snp_distance, MAT::Tree* T, std::string diff_file) {
     fprintf(stderr, "oh shit this works %i.\n", snp_distance);

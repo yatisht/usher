@@ -8,4 +8,4 @@ void restrictMutationsLocally (std::string mutations_filename, MAT::Tree* T, boo
 void renameSamples(std::string rename_filename, MAT::Tree& T);
 void moveNodes (std::string node_filename, MAT::Tree* T);
 void localMask (uint32_t& snp_distance, MAT::Tree* T, std::string diff_file);
-int readDiff (const std::string& diff_file);
+std::map<std::string, std::vector<std::string>> readDiff (const std::string& diff_file);
