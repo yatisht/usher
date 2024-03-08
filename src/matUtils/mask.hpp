@@ -1,4 +1,6 @@
 #include "common.hpp"
+#include <sstream>
+#include <string>
 
 po::variables_map parse_mask_command(po::parsed_options parsed);
 void mask_main(po::parsed_options parsed);

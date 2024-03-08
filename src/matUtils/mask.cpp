@@ -160,21 +160,59 @@ std::map<std::string, std::vector<std::string>> readDiff (const std::string& dif
         }
 
         std::string line;
+        
         while (std::getline(file, line)) {
             // Parse the line and store data in the map (example)
             // For demonstration, assume each line contains key-value pairs separated by '='
+            
+            std::vector<std::string> substrings;
+            size_t startPos = 0;
+            size_t endPos;
+            // Find the position of the first occurrence of the separator
+            while ((endPos = line.find('\t', startPos)) != std::string::npos) {
+                // Extract the substring between startPos and endPos and add it to the substrings vector
+                //std::string cell = line.substr(startPos, endPos - startPos)
+                
+                substrings.push_back(line.substr(startPos, endPos - startPos));
+                //std::cout << line.substr(startPos, endPos - startPos) << endl;
+                //std::cout << "Vector contents: " << endl;
+                
+
+
+                // Update startPos to the position after the separator
+                startPos = endPos + 1;
+                //std::cout << "start " << startPos << " " << "end: " << endPos << " " << "line " << line << std::endl;
+                
+                
+            }
+        
+
+            // Extract the substring after the last occurrence of the separator
+            substrings.push_back(line.substr(startPos));
+            //std::cout << "Vector contents: " << endl;
+            /*for (const auto& word : substrings) {
+                    std::cout << word << endl;
+                }
+                */
+            /*
             size_t pos = line.find('\t');
             if (pos != std::string::npos) {
                 std::string key = line.substr(0, pos);
-                std::string value = line.substr(pos + 1);
+                std::string position = line.substr(pos + 1, pos +2);
+                std::string length = line.substr(pos + 3);
                 if (key == "-") {
-                    std::cout << "Key: " << key << ", Value: " << value << std::endl;
+                    std::cout << "Key: " << key << ", Value: " << position << 'len' << length << std::endl;
                 }
 
                 //fprintf(stderr, "oh shit this works %s, %s.\n", key, value);
                 //data[key] = value;
-            }
+            }*/
+                
         }
+        //std::cout << "Vector contents: " << endl;
+        //for (const auto& word : substrings) {
+        //    std::cout << word << endl;
+        //    }
 
         file.close();
     } catch (const std::exception& e) {
@@ -182,7 +220,7 @@ std::map<std::string, std::vector<std::string>> readDiff (const std::string& dif
         throw;  // Re-throw the exception to be handled where the function is called
     }
 
-    //return data;
+    return data;
 }
 
 /*
