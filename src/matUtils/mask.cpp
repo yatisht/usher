@@ -26,8 +26,8 @@ po::variables_map parse_mask_command(po::parsed_options parsed) {
      "Name of a TSV or CSV containing mutations to be masked in the first column and locations to mask downstream from in the second. If only one column is passed, all instances of that mutation on the tree are masked.")
     ("condense-tree,c", po::bool_switch(),
      "Use to recondense the tree before saving.")
-    ("snp-distance,d", po::value<uint32_t>()->default_value(0),
-     "SNP distance between a sample and the internal node which will have all descendents masked for missing data.")
+    //("snp-distance,d", po::value<uint32_t>()->default_value(0),
+    // "SNP distance between a sample and the internal node which will have all descendents masked for missing data.")
     ("max-snp-distance,D", po::value<uint32_t>()->default_value(0),
      "Maximum distance past snp-distance that can be used to find a local ancestor, if local ancestor exists past the max-SNP-distance, program will look for local ancestor within bounds.")
     ("diff-file,f", po::value<std::string>()->default_value(""),
@@ -71,7 +71,7 @@ void mask_main(po::parsed_options parsed) {
     bool simplify = vm["simplify"].as<bool>();
     std::string rename_filename = vm["rename-samples"].as<std::string>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
-    uint32_t snp_distance = vm["snp-distance"].as<uint32_t>();
+    //uint32_t snp_distance = vm["snp-distance"].as<uint32_t>();
     uint32_t max_snp_distance = vm["max-snp-distance"].as<uint32_t>();
     std::string diff_file = vm["diff-file"].as<std::string>();
     tbb::task_scheduler_init init(num_threads);
@@ -84,7 +84,7 @@ void mask_main(po::parsed_options parsed) {
         fprintf(stderr, "ERROR: Sample renaming and simplification are mutually exclusive operations. Review argument choices\n");
         exit(1);
     }
-    if ((snp_distance > 0) & (diff_file == "")) {
+    if ((max_snp_distance > 0) & (diff_file == "")) {
         //doesn't make any sense to rename nodes after you just scrambled their names. Or to rename them, then scramble them.
         fprintf(stderr, "ERROR: Must provide diff file of samples for local masking. Review argument choices\n");
         exit(1);
@@ -127,9 +127,9 @@ void mask_main(po::parsed_options parsed) {
         moveNodes(move_nodes_filename, &T);
     }
 
-    if (snp_distance > 0) {
+    if (max_snp_distance > 0) {
         fprintf(stderr, "made it to here");
-        localMask(snp_distance, max_snp_distance, T, diff_file);
+        localMask(max_snp_distance, T, diff_file);
     }
 
     // Store final MAT to output file
@@ -269,6 +269,80 @@ std::map<std::string, std::map<int, int>> readDiff (const std::string& diff_file
     return data;
 }
 
+void dfs(MAT::Node* l, int bl, Mutation_Annotated_Tree::Node* node, std::map<std::string, std::map<int, int>>& diff_data, uint32_t snp_distance) {
+    // Initialize a set to keep track of visited nodes
+    //visited <- empty set
+    //MAT::Node* anc_node = node;
+    int distance_from_l = bl;
+    std::set<std::string> visited;
+    //std::vector<std::tuple<int, int>> missing;
+    //std::vector<std::tuple<int, int>> new_missing;
+    //fprintf(stderr, "dfs.\n");
+    std::cout <<   "dfs current node " << node->identifier << std::endl;
+    // Call the recursive DFS function
+    /*
+    for (auto i: diff_data[node->identifier]) {
+        //subtreeMask(node);
+        std::cout <<   "diff data" << i.first << std::endl;
+        std::cout <<   "diff data" << i.second << std::endl;
+    }
+    */
+    dfsUtil(l, distance_from_l, node, diff_data, visited, snp_distance);
+}
+
+// Define a utility function for DFS traversal
+void dfsUtil(MAT::Node* l, int distance_from_l, Mutation_Annotated_Tree::Node* node, std::map<std::string, std::map<int, int>>& diff_data, std::set<std::string>& visited, uint32_t snp_distance) {
+    // Mark the current node as visited
+    
+    visited.insert(node->identifier);
+
+    //std::cout << "Length of the set: " << visited.size() << std::endl;
+    //std::cout << "ancestor node: " << anc_node->identifier << std::endl;
+    std::cout << "dfsutil current node " << node->identifier << std::endl;
+    //fprintf(stderr, "dfsutil.\n");
+
+
+    //process node here
+    // Perform any operation on the current node
+    // (e.g., print its value, process it, etc.)
+   //processNode(node, anc_node, new_missing, missing, diff_data);
+    
+    // Explore all adjacent nodes of the current node
+    for (auto c: node->children) {
+        //subtreeMask(node);
+        if (c-> identifier != l->identifier) {
+            std::cout <<   "made it to here" << c->identifier << std::endl;
+
+            std::cout <<   "child of node " << node->identifier << ": " << c->identifier << std::endl;
+            std::cout <<   "child branch length: " << c->branch_length << std::endl;
+            std::cout <<   "old branch length: " << distance_from_l << std::endl;
+            int new_bl = distance_from_l + c->branch_length;
+            //bl+=c->branch_length;
+            std::cout <<   "new branch length: " << distance_from_l << std::endl;
+            
+            std::cout <<   c->identifier << "total distance from l " << l-> identifier << ": " << new_bl << std::endl;
+            
+            if (visited.find(c->identifier) == visited.end() || c->is_leaf() == false ) {
+                std::cout <<   "unvisited: " << c->identifier << std::endl;    
+                for (std::string element : visited) {
+                    std::cout << element << ", ";
+                }
+                std::cout << std::endl;
+
+                std::cout << "new node" << c->identifier << std::endl;
+                dfsUtil(l, new_bl, c, diff_data, visited, snp_distance);
+            }
+        }
+    /*
+    for each neighbor in graph[currentNode]:
+        
+        if neighbor not in visited:
+            // Recursive call to DFSUtil for unvisited neighbors
+            dfsUtil(graph, neighbor, visited)
+            */
+    }
+}
+
 /*
     std::ifstream file(diff_file);
     
@@ -290,27 +364,31 @@ std::map<std::string, std::map<int, int>> readDiff (const std::string& diff_file
     
 }
 */
+
+//old version, subtree focused 
+/*
 void dfs(Mutation_Annotated_Tree::Node* node, std::map<std::string, std::map<int, int>>& diff_data) {
     // Initialize a set to keep track of visited nodes
     //visited <- empty set
     MAT::Node* anc_node = node;
     std::set<std::string> visited;
     std::vector<std::tuple<int, int>> missing;
+    std::vector<std::tuple<int, int>> new_missing;
     fprintf(stderr, "dfs.\n");
     std::cout <<   "node" << node->identifier << std::endl;
     // Call the recursive DFS function
-    /*
-    for (auto i: diff_data[node->identifier]) {
+    
+    //for (auto i: diff_data[node->identifier]) {
         //subtreeMask(node);
-        std::cout <<   "diff data" << i.first << std::endl;
-        std::cout <<   "diff data" << i.second << std::endl;
+    //    std::cout <<   "diff data" << i.first << std::endl;
+    //    std::cout <<   "diff data" << i.second << std::endl;
     }
-    */
-    dfsUtil(node, anc_node, diff_data, missing, visited);
+    
+    dfsUtil(node, anc_node, diff_data, new_missing, missing, visited);
 }
 
 // Define a utility function for DFS traversal
-void dfsUtil(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tree::Node* anc_node, std::map<std::string, std::map<int, int>>& diff_data, std::vector<std::tuple<int, int>>& missing, std::set<std::string>& visited) {
+void dfsUtil(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tree::Node* anc_node, std::map<std::string, std::map<int, int>>& diff_data, std::vector<std::tuple<int, int>>& new_missing,  std::vector<std::tuple<int, int>>& missing, std::set<std::string>& visited) {
     // Mark the current node as visited
     
     visited.insert(node->identifier);
@@ -324,37 +402,39 @@ void dfsUtil(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tree::Node*
     //process node here
     // Perform any operation on the current node
     // (e.g., print its value, process it, etc.)
-    processNode(node, anc_node, missing, diff_data);
+    processNode(node, anc_node, new_missing, missing, diff_data);
     
     // Explore all adjacent nodes of the current node
     for (auto c: node->children) {
         //subtreeMask(node);
         std::cout <<   "child" << c->identifier << std::endl;
         if (visited.find(c->identifier) == visited.end()) {
-            dfsUtil(c, anc_node, diff_data, missing, visited);
+            dfsUtil(c, anc_node, diff_data, new_missing, missing, visited);
         }
-    /*
-    for each neighbor in graph[currentNode]:
+    
+    //for each neighbor in graph[currentNode]:
         
-        if neighbor not in visited:
+        //if neighbor not in visited:
             // Recursive call to DFSUtil for unvisited neighbors
-            dfsUtil(graph, neighbor, visited)
-            */
+        //    dfsUtil(graph, neighbor, visited)
+            
     }
 }
+*/
 // Define a function to process a visited node
-
-void processNode(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tree::Node* anc_node, std::vector<std::tuple<int, int>>& missing, std::map<std::string, std::map<int, int>>& diff_data) {
+// collect all MISSING INFORMATION from a subtree
+void processNode(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tree::Node* anc_node, std::vector<std::tuple<int, int>>& new_missing, std::vector<std::tuple<int, int>>& missing, std::map<std::string, std::map<int, int>>& diff_data) {
     //int missing_len = diff_data[anc_node->identifier].size();
     //int muts_len = node->mutations.size();
     //auto missing_counter = diff_data[anc_node->identifier].begin();
-    int muts_counter = 0;
+    int temp_counter = 0;
     int missing_counter = 0;
+    int new_missing_idx = 0;
     std::vector<std::tuple<int, int>> temp_list;
 
-    std::cout << "ancestor node: " << anc_node->identifier << std::endl;
-    std::cout << "current node " << node->identifier << std::endl;
-    std::cout << "missing size " << missing.size() << std::endl;
+    //std::cout << "ancestor node: " << anc_node->identifier << std::endl;
+    //std::cout << "current node " << node->identifier << std::endl;
+    //std::cout << "missing size " << missing.size() << std::endl;
 
     if (missing.size() == 0){
         for (auto i: diff_data[node->identifier]) {
@@ -369,12 +449,73 @@ void processNode(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tree::N
         }
         std::cout << "temp size " << temp_list.size() << std::endl;
 
-        while (muts_counter < temp_list.size() or missing_counter < missing.size()){
-            std::cout << "mut counter " << muts_counter << std::endl;
-            std::cout << "temp size " << temp_list.size() << std::endl;
+        while (temp_counter < temp_list.size() or missing_counter < missing.size()){
+            //no new missing to add 
+            if (temp_list.size() == 0) {
+                break;
+            }
+            //iterate through both lists still 
+            if (temp_counter < temp_list.size() and missing_counter < missing.size()){
+                int temp_start = std::get<0>(temp_list[temp_counter]);
+                int temp_end = temp_start + std::get<1>(temp_list[temp_counter]);
+                int missing_start = std::get<0>(missing[missing_counter]);
+                int missing_end = missing_start + std::get<1>(missing[missing_counter]);
+                std::cout << "temp start " << temp_start << std::endl;
+                std::cout << "temp end " << temp_end << std::endl;
+                std::cout << "temp len " << std::get<1>(temp_list[temp_counter]) << std::endl;
+                std::cout << "missing start " << missing_start << std::endl;
+                std::cout << "missing end " << missing_end << std::endl;
+                //temp and missing fully overlap with temp inside
+                // missing doesnt need to be modified bc temp is included
+                if (temp_start >= missing_start and temp_end <= missing_end) {
+                    // may need to make this fancier later
+                    std::cout << "temp is fully inside missing " << missing_end << std::endl;
+                    new_missing.push_back(missing[missing_counter]);
+                    new_missing_idx += 1;
+                    temp_counter += 1;
+                    missing_counter += 1;
+                }
+                //full overlap of temp and missing with missing inside
+                // missing needs to be modified with temp start and temp end
+                else if (temp_start <= missing_start and temp_end >= missing_end) {
+                    std::cout << "temp start " << temp_start << std::endl;
+                    std::cout << "temp end " << temp_end << std::endl;
+                    // might have to make this fancier later 
+                    std::cout << "missing is fully inside temp " << std::endl;
+                    std::cout << "before missing beg " << missing_start << std::endl;
+                    std::cout << "before missing end" << missing_end<< std::endl;
+                    new_missing.push_back(std::make_tuple(temp_start, std::get<1>(temp_list[temp_counter])));
+                    new_missing_idx += 1;
+                    temp_counter += 1;
+                    missing_counter += 1;
+                    std::cout << "after missing beg " << std::get<0>(new_missing[-1]) << std::endl;
+                    std::cout << "after  missing end" << std::get<1>(new_missing[-1]) << std::endl;
+                }
+                else if (temp_start < missing_start){
+                    //logging.debug('line less than mask')
+                    new_missing.push_back(std::make_tuple(temp_start, std::get<1>(temp_list[temp_counter])));
+                    temp_counter += 1;
+
+                }
+
+                
+                
+            }
+
+            // this part is temporary to prevent inf loop
+            std::cout << "mut counter " << temp_counter << std::endl;
+            //std::cout << "temp size " << temp_list.size() << std::endl;
             std::cout << "missing counter " << missing_counter << std::endl;
-            std::cout << "missing size " << missing.size() << std::endl;
-            break;
+            //std::cout << "missing size " << missing.size() << std::endl;
+            //std::cout << "missing: " << std::get<0>(missing[missing_counter]) << ", " << std::get<1>(missing[missing_counter]) << std::endl;
+            //std::cout << "temp: " << std::get<0>(temp_list[temp_counter]) << ", " << std::get<1>(temp_list[temp_counter]) << std::endl;
+            //temp_counter += 1;
+            //missing_counter += 1;
+            if (temp_counter == 5){
+                break;
+                //int temp_start = std::get<0>(temp_list[temp_counter]);
+            }
+            
 
 
 
@@ -467,6 +608,222 @@ void subtreeMask (Mutation_Annotated_Tree::Node* node, std::map<std::string, std
 }
 */
 
+//different version of masking, not subtree, just max distance 
+void localMask (uint32_t max_snp_distance, MAT::Tree& T, std::string diff_file) {
+    std::map<std::string, std::map<int, int>> diff_data = readDiff(diff_file);
+    auto all_leaves = T.get_leaves();
+    for (auto l: all_leaves) {
+        //std::cout << "Data type of l: " << typeid(l).name() << std::endl;
+        std::string samp = l->identifier;
+        int bl = l->branch_length;
+        MAT::Node* current_node = l->parent;
+        //MAT::Node* parent = l
+        std::cout << "sample: " << samp << std::endl;
+        //std::cout <<   "made it here - lk - current node init " << current_node->identifier  << std::endl;
+        //std::cout << " branch len " << l -> branch_length << std::endl;
+        
+        //skip samples coming from root
+        /*
+        if ((*current_node->parent).is_root()) {
+            std::cout <<   "skipped" << current_node->identifier << std::endl;
+            continue;
+        }
+        */
+
+        //find ancestor node
+        //need to make a catch so that max_snp-_dist isnt 0 when snp distance is > 0
+        // allows for checking all nearby neibors as long as comman anc is less than max branch distance away
+        
+        //this determines how many nodes deep we can go before maxing branch length 
+        while (bl < max_snp_distance) {
+            //add current branch to total branch length
+            //int current_branch = current_node->branch_length; 
+            
+            std::cout << "current node" << current_node->identifier << std::endl;
+            std::cout << "branch len" << bl << std::endl;
+            //std::cout << "current branch" << current_branch << std::endl;
+            
+
+            //make this catch things with root ancestor node 
+            if (current_node->parent == NULL) {
+                std::cout <<   "ROOOOOOTTTTTT"  << std::endl;
+                break;
+            }
+            
+            //update current node to parent if branch length is not met 
+            
+            //else if ((bl + current_branch ) < snp_distance) 
+            else {
+                //bl += current_branch;
+                //std::cout << "is this the right branch?" << current_node->parent->branch_length << std::endl;
+                std::cout <<  "leaf node" << l->identifier << std::endl;
+                std::cout <<  "old current node" << current_node->identifier << std::endl;
+                std::cout << "old branch len" << bl << std::endl;
+                //std::cout << "old current branch" << current_branch << std::endl;
+                
+                
+                if (bl + current_node->branch_length > max_snp_distance) {
+                    current_node = current_node->parent;
+                    bl += current_node->branch_length;
+                    std::cout <<  "leaf node (this shouldn't change)" << l->identifier << std::endl;
+                    std::cout << "new current node" << current_node->identifier << std::endl;
+                    std::cout << "new branch len (should stay the same)" << bl << std::endl;
+                    //current branch shouldn't change 
+                    std::cout << "new current branch (this should probably change)" << current_node->branch_length << std::endl;
+                    
+                    //if more nodes can be checked, update bl, if not, exit while loop
+                    //if (bl + current_node->branch_length < snp_distance) {
+                    
+                    
+                }
+
+                else {
+                    break;
+                }
+                //}
+                //else {
+                //    break;
+                //}
+
+
+                //std::cout << " branch len " << bl << std::endl;
+                //std::cout << " new node" << current_node->identifier << std::endl;
+            }
+            /*
+            else {
+                //std::cout << " done " << l->identifier << bl << std::endl;
+                //std::cout << " branch len " << bl << std::endl;
+                //std::cout << " new node" << current_node->identifier << std::endl;
+                break;
+            }
+            */
+            
+            //std::cout <<   "made it here - lk"  << std::endl;
+            //break;
+
+            
+        }
+        std::cout <<  "dfs call leaf node" << l->identifier << std::endl;
+        std::cout <<  "dfs call branch length" << bl << std::endl;
+        std::cout <<  "dfs call current node " << current_node -> identifier << std::endl;
+        dfs(l, bl, current_node, diff_data, max_snp_distance);
+        //std::cout << " done " << l->identifier << bl << std::endl;
+        //std::cout << " branch len " << bl << std::endl;
+        //std::cout << " new node" << current_node->identifier << std::endl;
+        
+        //add a warning for this?
+        
+        /*
+        if ((current_node->children).size() >20 ) {
+            std::cout <<  "LOTS" << (current_node->children).size() << std::endl;
+        }
+        */
+        
+        //need a function here to collect all missing data, 
+        //dont pass diff data to dfs, pass a map of all missing data in the subtree
+
+        //need error checking to confirm this is the ancestor node we want 
+        //subtreeMask(current_node, diff_data);
+        
+        //old version: dfs done after anc node identified 
+        //dfs(current_node, diff_data);
+
+        //std::cout << " l: " << samp << std::endl;
+        //for (const auto& word : diff_data[samp]) {
+        //    std::cout << "pos " << word.first << " " << "len " << word.second << endl;
+            //for (const auto& pos : word.second) {
+            //    std::cout << "pos" << pos.first << '\t' << pos.second << endl;
+        //    }
+        //break;
+        }
+}
+
+
+/*
+void localMask (uint32_t snp_distance, uint32_t max_snp_distance, MAT::Tree& T, std::string diff_file) {
+    std::map<std::string, std::map<int, int>> diff_data = readDiff(diff_file);
+    auto all_leaves = T.get_leaves();
+    for (auto l: all_leaves) {
+        //std::cout << "Data type of l: " << typeid(l).name() << std::endl;
+        std::string samp = l->identifier;
+        int bl = 0;
+        MAT::Node* current_node = l;
+        //MAT::Node* parent = l
+        //std::cout << "Type of current_node: " << typeid(*current_node).name() << std::endl;
+        //std::cout <<   "made it here - lk - current node init " << current_node->identifier  << std::endl;
+        //std::cout << " branch len " << l -> branch_length << std::endl;
+        
+        //skip samples coming from root
+        
+        //if ((*current_node->parent).is_root()) {
+        //    std::cout <<   "skipped" << current_node->identifier << std::endl;
+        //    continue;
+        //}
+        
+
+        //find ancestor node
+        //need to make a catch so that max_snp-_dist isnt 0 when snp distance is > 0
+        while (bl <= max_snp_distance) {
+            //add current branch to total branch length
+            int current_branch = current_node->branch_length; 
+            
+            //std::cout << " node" << current_node->identifier << std::endl;
+
+            //make this catch things with root ancestor node 
+            if (current_node->parent->parent == NULL) {
+                std::cout <<   "ROOOOOOTTTTTT"  << std::endl;
+            }
+
+            //std::cout << " node" << current_node->parent->identifier << std::endl;
+            //l = l -> parent;
+            //std::cout << "Type of current_node: " << typeid(*current_node).name() << std::endl;
+            
+            //update current node to parent if branch length is not met 
+            if ((bl + current_branch ) < snp_distance) {
+                bl += current_branch;
+                current_node = current_node->parent;
+                //std::cout << " branch len " << bl << std::endl;
+                //std::cout << " new node" << current_node->identifier << std::endl;
+            }
+
+            else {
+                //std::cout << " done " << l->identifier << bl << std::endl;
+                //std::cout << " branch len " << bl << std::endl;
+                //std::cout << " new node" << current_node->identifier << std::endl;
+                break;
+            }
+            
+            //std::cout <<   "made it here - lk"  << std::endl;
+            //break;
+
+            
+        }
+        std::cout << " done " << l->identifier << bl << std::endl;
+        std::cout << " branch len " << bl << std::endl;
+        std::cout << " new node" << current_node->identifier << std::endl;
+        //add a warning for this?
+        if ((current_node->children).size() >20 ) {
+            std::cout <<  "LOTS" << (current_node->children).size() << std::endl;
+        }
+        
+        //need a function here to collect all missing data, 
+        //dont pass diff data to dfs, pass a map of all missing data in the subtree
+
+        //need error checking to confirm this is the ancestor node we want 
+        //subtreeMask(current_node, diff_data);
+        dfs(current_node, diff_data);
+        //std::cout << " l: " << samp << std::endl;
+        //for (const auto& word : diff_data[samp]) {
+        //    std::cout << "pos " << word.first << " " << "len " << word.second << endl;
+            //for (const auto& pos : word.second) {
+            //    std::cout << "pos" << pos.first << '\t' << pos.second << endl;
+        //    }
+        //break;
+        }
+}
+*/
+//old version below 
+/*
 void localMask (uint32_t snp_distance, uint32_t max_snp_distance, MAT::Tree& T, std::string diff_file) {
     std::map<std::string, std::map<int, int>> diff_data = readDiff(diff_file);
     auto all_leaves = T.get_leaves();
@@ -546,6 +903,7 @@ void localMask (uint32_t snp_distance, uint32_t max_snp_distance, MAT::Tree& T, 
         //break;
         }
 }
+*/
 
 void simplify_tree(MAT::Tree* T) {
     /*
