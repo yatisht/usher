@@ -294,7 +294,12 @@ void dfs(MAT::Node* l, int bl, Mutation_Annotated_Tree::Node* node, std::map<std
 void dfsUtil(MAT::Node* l, int distance_from_l, Mutation_Annotated_Tree::Node* node, std::map<std::string, std::map<int, int>>& diff_data, std::set<std::string>& visited, uint32_t snp_distance) {
     // Mark the current node as visited
     
-    visited.insert(node->identifier);
+    
+    std::cout <<   "VISITEDDDDDD" << std::endl;    
+    for (std::string element : visited) {
+        std::cout << element << ", ";
+    }
+    std::cout << std::endl;
 
     //std::cout << "Length of the set: " << visited.size() << std::endl;
     //std::cout << "ancestor node: " << anc_node->identifier << std::endl;
@@ -330,6 +335,7 @@ void dfsUtil(MAT::Node* l, int distance_from_l, Mutation_Annotated_Tree::Node* n
                 std::cout << std::endl;
 
                 std::cout << "new node" << c->identifier << std::endl;
+                visited.insert(node->identifier);
                 dfsUtil(l, new_bl, c, diff_data, visited, snp_distance);
             }
         }
@@ -616,7 +622,7 @@ void localMask (uint32_t max_snp_distance, MAT::Tree& T, std::string diff_file) 
         //std::cout << "Data type of l: " << typeid(l).name() << std::endl;
         std::string samp = l->identifier;
         int bl = l->branch_length;
-        MAT::Node* current_node = l->parent;
+        MAT::Node* current_node = l;
         //MAT::Node* parent = l
         std::cout << "sample: " << samp << std::endl;
         //std::cout <<   "made it here - lk - current node init " << current_node->identifier  << std::endl;
@@ -662,10 +668,11 @@ void localMask (uint32_t max_snp_distance, MAT::Tree& T, std::string diff_file) 
                 //std::cout << "old current branch" << current_branch << std::endl;
                 
                 
-                if (bl + current_node->branch_length > max_snp_distance) {
+                if (bl + current_node->parent->branch_length > max_snp_distance) {
                     std::cout <<  "old bl " << bl << std::endl;
-                    bl += current_node->branch_length;
                     current_node = current_node->parent;
+                    bl += current_node->branch_length;
+                    
                     
                     std::cout <<  "new current node " << current_node->identifier << std::endl;
                     std::cout <<  "current node branch len" << current_node->branch_length << std::endl;
@@ -675,7 +682,11 @@ void localMask (uint32_t max_snp_distance, MAT::Tree& T, std::string diff_file) 
                     std::cout << "new branch len (should stay the same)" << bl << std::endl;
                     //current branch shouldn't change 
                     std::cout << "new current branch (this should probably change)" << current_node->branch_length << std::endl;
-                    
+                    std::cout <<  "dfs call leaf node" << l->identifier << std::endl;
+                    std::cout <<  "dfs call branch length" << bl << std::endl;
+                    std::cout <<  "dfs call current node " << current_node -> identifier << std::endl;
+        
+                    dfs(l, bl, current_node, diff_data, max_snp_distance);
                     //if more nodes can be checked, update bl, if not, exit while loop
                     //if (bl + current_node->branch_length < snp_distance) {
                     
@@ -683,6 +694,7 @@ void localMask (uint32_t max_snp_distance, MAT::Tree& T, std::string diff_file) 
                 }
 
                 else {
+                    current_node = current_node->parent;
                     break;
                 }
                 //}
@@ -711,7 +723,7 @@ void localMask (uint32_t max_snp_distance, MAT::Tree& T, std::string diff_file) 
         std::cout <<  "dfs call leaf node" << l->identifier << std::endl;
         std::cout <<  "dfs call branch length" << bl << std::endl;
         std::cout <<  "dfs call current node " << current_node -> identifier << std::endl;
-        
+
         dfs(l, bl, current_node, diff_data, max_snp_distance);
         //std::cout << " done " << l->identifier << bl << std::endl;
         //std::cout << " branch len " << bl << std::endl;
