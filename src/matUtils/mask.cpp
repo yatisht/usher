@@ -322,7 +322,7 @@ void dfsUtil(MAT::Node* l, int distance_from_l, Mutation_Annotated_Tree::Node* n
             
             std::cout <<   c->identifier << "total distance from l " << l-> identifier << ": " << new_bl << std::endl;
             
-            if (visited.find(c->identifier) == visited.end() || c->is_leaf() == false ) {
+            if (visited.find(c->identifier) == visited.end() && c->is_leaf() == false ) {
                 std::cout <<   "unvisited: " << c->identifier << std::endl;    
                 for (std::string element : visited) {
                     std::cout << element << ", ";
@@ -663,8 +663,13 @@ void localMask (uint32_t max_snp_distance, MAT::Tree& T, std::string diff_file) 
                 
                 
                 if (bl + current_node->branch_length > max_snp_distance) {
-                    current_node = current_node->parent;
+                    std::cout <<  "old bl " << bl << std::endl;
                     bl += current_node->branch_length;
+                    current_node = current_node->parent;
+                    
+                    std::cout <<  "new current node " << current_node->identifier << std::endl;
+                    std::cout <<  "current node branch len" << current_node->branch_length << std::endl;
+                    
                     std::cout <<  "leaf node (this shouldn't change)" << l->identifier << std::endl;
                     std::cout << "new current node" << current_node->identifier << std::endl;
                     std::cout << "new branch len (should stay the same)" << bl << std::endl;
@@ -706,6 +711,7 @@ void localMask (uint32_t max_snp_distance, MAT::Tree& T, std::string diff_file) 
         std::cout <<  "dfs call leaf node" << l->identifier << std::endl;
         std::cout <<  "dfs call branch length" << bl << std::endl;
         std::cout <<  "dfs call current node " << current_node -> identifier << std::endl;
+        
         dfs(l, bl, current_node, diff_data, max_snp_distance);
         //std::cout << " done " << l->identifier << bl << std::endl;
         //std::cout << " branch len " << bl << std::endl;
