@@ -671,7 +671,7 @@ void localMask (uint32_t max_snp_distance, MAT::Tree& T, std::string diff_file) 
                 //std::cout << "old current branch" << current_branch << std::endl;
                 
                 
-                if (bl + current_node->parent->branch_length > max_snp_distance) {
+                if (bl + current_node->parent->branch_length < max_snp_distance) {
                     std::cout <<  "old bl " << bl << std::endl;
                     current_node = current_node->parent;
                     
