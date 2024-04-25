@@ -269,12 +269,15 @@ std::map<std::string, std::map<int, int>> readDiff (const std::string& diff_file
     return data;
 }
 
-void dfs(MAT::Node* l, int bl, Mutation_Annotated_Tree::Node* node, std::map<std::string, std::map<int, int>>& diff_data, uint32_t snp_distance) {
+void dfs(MAT::Node* l, int bl, Mutation_Annotated_Tree::Node* node, std::map<std::string, std::map<int, int>>& diff_data, uint32_t snp_distance, std::set<std::string>& visited) {
     // Initialize a set to keep track of visited nodes
     //visited <- empty set
     //MAT::Node* anc_node = node;
     int distance_from_l = bl;
-    std::set<std::string> visited;
+
+    //old method
+    //std::set<std::string> visited;
+    
     //std::vector<std::tuple<int, int>> missing;
     //std::vector<std::tuple<int, int>> new_missing;
     //fprintf(stderr, "dfs.\n");
@@ -294,7 +297,7 @@ void dfs(MAT::Node* l, int bl, Mutation_Annotated_Tree::Node* node, std::map<std
 void dfsUtil(MAT::Node* l, int distance_from_l, Mutation_Annotated_Tree::Node* node, std::map<std::string, std::map<int, int>>& diff_data, std::set<std::string>& visited, uint32_t snp_distance) {
     // Mark the current node as visited
     
-    
+    //visited.insert(node->identifier);
     std::cout <<   "VISITEDDDDDD" << std::endl;    
     for (std::string element : visited) {
         std::cout << element << ", ";
@@ -314,7 +317,7 @@ void dfsUtil(MAT::Node* l, int distance_from_l, Mutation_Annotated_Tree::Node* n
     
     // Explore all adjacent nodes of the current node
     for (auto c: node->children) {
-        //subtreeMask(node);
+        std::cout <<   "made it to here" << c->identifier << std::endl;
         if (c-> identifier != l->identifier) {
             std::cout <<   "made it to here" << c->identifier << std::endl;
 
@@ -326,7 +329,7 @@ void dfsUtil(MAT::Node* l, int distance_from_l, Mutation_Annotated_Tree::Node* n
             std::cout <<   "new branch length: " << distance_from_l << std::endl;
             
             std::cout <<   c->identifier << "total distance from l " << l-> identifier << ": " << new_bl << std::endl;
-            
+            visited.insert(node->identifier);
             if (visited.find(c->identifier) == visited.end() && c->is_leaf() == false ) {
                 std::cout <<   "unvisited: " << c->identifier << std::endl;    
                 for (std::string element : visited) {
@@ -335,7 +338,6 @@ void dfsUtil(MAT::Node* l, int distance_from_l, Mutation_Annotated_Tree::Node* n
                 std::cout << std::endl;
 
                 std::cout << "new node" << c->identifier << std::endl;
-                visited.insert(node->identifier);
                 dfsUtil(l, new_bl, c, diff_data, visited, snp_distance);
             }
         }
@@ -620,6 +622,7 @@ void localMask (uint32_t max_snp_distance, MAT::Tree& T, std::string diff_file) 
     auto all_leaves = T.get_leaves();
     for (auto l: all_leaves) {
         //std::cout << "Data type of l: " << typeid(l).name() << std::endl;
+        std::set<std::string> visited;
         std::string samp = l->identifier;
         int bl = l->branch_length;
         MAT::Node* current_node = l;
@@ -671,7 +674,7 @@ void localMask (uint32_t max_snp_distance, MAT::Tree& T, std::string diff_file) 
                 if (bl + current_node->parent->branch_length > max_snp_distance) {
                     std::cout <<  "old bl " << bl << std::endl;
                     current_node = current_node->parent;
-                    bl += current_node->branch_length;
+                    
                     
                     
                     std::cout <<  "new current node " << current_node->identifier << std::endl;
@@ -686,7 +689,8 @@ void localMask (uint32_t max_snp_distance, MAT::Tree& T, std::string diff_file) 
                     std::cout <<  "dfs call branch length" << bl << std::endl;
                     std::cout <<  "dfs call current node " << current_node -> identifier << std::endl;
         
-                    dfs(l, bl, current_node, diff_data, max_snp_distance);
+                    dfs(l, bl, current_node, diff_data, max_snp_distance, visited);
+                    bl += current_node->branch_length;
                     //if more nodes can be checked, update bl, if not, exit while loop
                     //if (bl + current_node->branch_length < snp_distance) {
                     
@@ -724,7 +728,7 @@ void localMask (uint32_t max_snp_distance, MAT::Tree& T, std::string diff_file) 
         std::cout <<  "dfs call branch length" << bl << std::endl;
         std::cout <<  "dfs call current node " << current_node -> identifier << std::endl;
 
-        dfs(l, bl, current_node, diff_data, max_snp_distance);
+        dfs(l, bl, current_node, diff_data, max_snp_distance, visited);
         //std::cout << " done " << l->identifier << bl << std::endl;
         //std::cout << " branch len " << bl << std::endl;
         //std::cout << " new node" << current_node->identifier << std::endl;
