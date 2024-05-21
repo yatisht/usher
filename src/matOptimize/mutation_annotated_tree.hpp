@@ -302,7 +302,7 @@ class Mutations_Collection {
     }
     void push_back(const Mutation& m) {
         if (m.get_position()>=(int)(Mutation::refs.size()+1)&&m.get_position()!=INT_MAX) {
-            fprintf(stderr, "strange size \n");
+            fprintf(stderr, "strange size %d >= %d\n", m.get_position(), (int)(Mutation::refs.size()+1));
             raise(SIGTRAP);
         }
         if (!mutations.empty()) {
@@ -658,12 +658,14 @@ void get_random_single_subtree(const Mutation_Annotated_Tree::Tree &T,
                                std::vector<Node*> samples,
                                std::string outdir, size_t subtree_size,
                                size_t tree_idx = 0, bool use_tree_idx = false,
-                               bool retain_original_branch_len = false);
+                               bool retain_original_branch_len = false,
+                               std::vector<Node*> anchor_samples = std::vector<Node*>());
 void get_random_sample_subtrees(const Mutation_Annotated_Tree::Tree &T,
                                 std::vector<Node*> samples,
                                 std::string outdir, size_t subtree_size,
                                 size_t tree_idx = 0, bool use_tree_idx = false,
-                                bool retain_original_branch_len = false);
+                                bool retain_original_branch_len = false,
+                                std::vector<Node*> anchor_samples = std::vector<Node*>());
 bool load_mutation_annotated_tree (std::string filename,Tree& tree);
 void save_mutation_annotated_tree (const Tree& tree, std::string filename);
 void get_sample_mutation_paths (Mutation_Annotated_Tree::Tree* T, std::vector<Node*> samples, std::string mutation_paths_filename);

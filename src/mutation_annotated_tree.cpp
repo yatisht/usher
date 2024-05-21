@@ -1690,7 +1690,7 @@ void Mutation_Annotated_Tree::clear_tree(Mutation_Annotated_Tree::Tree& T) {
     }
 }
 
-void Mutation_Annotated_Tree::get_random_single_subtree (Mutation_Annotated_Tree::Tree* T, std::vector<std::string> samples, std::string outdir, size_t subtree_size, size_t tree_idx, bool use_tree_idx, bool retain_original_branch_len) {
+void Mutation_Annotated_Tree::get_random_single_subtree (Mutation_Annotated_Tree::Tree* T, std::vector<std::string> samples, std::string outdir, size_t subtree_size, size_t tree_idx, bool use_tree_idx, bool retain_original_branch_len, std::vector<std::string> anchor_samples) {
     //timer.Start();
     std::string preid = "/";
     if (use_tree_idx) {
@@ -1716,6 +1716,9 @@ void Mutation_Annotated_Tree::get_random_single_subtree (Mutation_Annotated_Tree
         leaves_to_keep.emplace_back(l->identifier);
     }
 
+    // Add "anchor samples" (if any)
+    leaves_to_keep.insert(leaves_to_keep.end(), anchor_samples.begin(), anchor_samples.end());
+
     auto new_T = Mutation_Annotated_Tree::get_subtree(*T, leaves_to_keep);
 
     // Rotate tree for display
@@ -1723,8 +1726,11 @@ void Mutation_Annotated_Tree::get_random_single_subtree (Mutation_Annotated_Tree
 
     // Write subtree to file
     auto subtree_filename = outdir + preid + "single-subtree.nh";
-    fprintf(stderr, "Writing single subtree with %zu randomly added leaves to file %s.\n", subtree_size, subtree_filename.c_str());
-
+    if (anchor_samples.size() > 0) {
+        fprintf(stderr, "Writing single subtree with %zu randomly added leaves and %zu anchor samples to file %s.\n", subtree_size, anchor_samples.size(), subtree_filename.c_str());
+    } else {
+        fprintf(stderr, "Writing single subtree with %zu randomly added leaves to file %s.\n", subtree_size, subtree_filename.c_str());
+    }
     std::ofstream subtree_file(subtree_filename.c_str(), std::ofstream::out);
     std::stringstream newick_ss;
     write_newick_string(newick_ss, new_T, new_T.root, true, true, retain_original_branch_len);
@@ -1776,7 +1782,7 @@ void Mutation_Annotated_Tree::get_random_single_subtree (Mutation_Annotated_Tree
     }
 }
 
-void Mutation_Annotated_Tree::get_random_sample_subtrees (Mutation_Annotated_Tree::Tree* T, std::vector<std::string> samples, std::string outdir, size_t subtree_size, size_t tree_idx, bool use_tree_idx, bool retain_original_branch_len) {
+void Mutation_Annotated_Tree::get_random_sample_subtrees (Mutation_Annotated_Tree::Tree* T, std::vector<std::string> samples, std::string outdir, size_t subtree_size, size_t tree_idx, bool use_tree_idx, bool retain_original_branch_len, std::vector<std::string> anchor_samples) {
     fprintf(stderr, "Computing subtrees for %ld samples. \n\n", samples.size());
     std::string preid = "/";
     if (use_tree_idx) {
@@ -1902,6 +1908,9 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (Mutation_Annotated_Tre
                     leaves_to_keep.emplace_back(l->identifier);
                 }
             }
+
+            // Add "anchor samples" (if any)
+            leaves_to_keep.insert(leaves_to_keep.end(), anchor_samples.begin(), anchor_samples.end());
 
             auto new_T = Mutation_Annotated_Tree::get_subtree(*T, leaves_to_keep);
 

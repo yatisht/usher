@@ -618,6 +618,25 @@ void print_annotation(const MAT::Tree &T, const output_options &options,
 
     fclose(annotations_file);
 }
+
+std::vector<MAT::Node*>read_sample_nodes(std::string samples_file, MAT::Tree &T, FILE *f) {
+    std::vector<MAT::Node*> sample_nodes;
+    std::fstream sample_file(samples_file,std::ios_base::in);
+    std::string sample_name;
+    while (sample_file) {
+        std::getline(sample_file, sample_name);
+        if (sample_name != "") {
+            auto node = T.get_node(sample_name);
+            if (!node) {
+                fprintf(f, "node %s in file %s does not exist\n", sample_name.c_str(), samples_file.c_str());
+            } else {
+                sample_nodes.push_back(node);
+            }
+        }
+    }
+    return sample_nodes;
+}
+
 bool final_output(MAT::Tree &T, const output_options &options, int t_idx,
                   std::vector<Clade_info> &assigned_clades,
                   size_t sample_start_idx, size_t sample_end_idx,
@@ -690,13 +709,17 @@ bool final_output(MAT::Tree &T, const output_options &options, int t_idx,
 
         // fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
+    std::vector<MAT::Node*> anchor_sample_nodes;
+    if (options.anchor_samples_file != "") {
+        anchor_sample_nodes = read_sample_nodes(options.anchor_samples_file, T, stderr);
+    }
     //check_leaves(T);
     if ((options.print_subtrees_single > 1) ) {
         fprintf(stderr, "Computing the single subtree for added samples with %zu random leaves. \n\n", options.print_subtrees_single);
         //timer.Start();
         // For each final tree, write a subtree of user-specified size around
         // each newly placed sample in newick format
-        MAT::get_random_single_subtree(T, targets, options.outdir, options.print_subtrees_single, t_idx, use_tree_idx, options.retain_original_branch_len);
+        MAT::get_random_single_subtree(T, targets, options.outdir, options.print_subtrees_single, t_idx, use_tree_idx, options.retain_original_branch_len, anchor_sample_nodes);
         //fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
     //check_leaves(T);
@@ -706,7 +729,7 @@ bool final_output(MAT::Tree &T, const output_options &options, int t_idx,
         // For each final tree, write a subtree of user-specified size around
         // each newly placed sample in newick format
         //timer.Start();
-        MAT::get_random_sample_subtrees(T, targets, options.outdir, options.print_subtrees_size, t_idx, use_tree_idx, options.retain_original_branch_len);
+        MAT::get_random_sample_subtrees(T, targets, options.outdir, options.print_subtrees_size, t_idx, use_tree_idx, options.retain_original_branch_len, anchor_sample_nodes);
         //fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
 
