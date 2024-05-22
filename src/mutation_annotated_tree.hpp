@@ -175,8 +175,8 @@ Tree get_tree_copy(const Tree& tree, const std::string& identifier="");
 
 Node* LCA (const Tree& tree, const std::string& node_id1, const std::string& node_id2);
 Tree get_subtree (const Tree& tree, const std::vector<std::string>& samples, bool keep_clade_annotations=false);
-void get_random_single_subtree (Mutation_Annotated_Tree::Tree* T, std::vector<std::string> samples, std::string outdir, size_t subtree_size, size_t tree_idx = 0, bool use_tree_idx = false, bool retain_original_branch_len = false);
-void get_random_sample_subtrees (Mutation_Annotated_Tree::Tree* T, std::vector<std::string> samples, std::string outdir, size_t subtree_size, size_t tree_idx = 0, bool use_tree_idx = false, bool retain_original_branch_len = false);
+void get_random_single_subtree (Mutation_Annotated_Tree::Tree* T, std::vector<std::string> samples, std::string outdir, size_t subtree_size, size_t tree_idx = 0, bool use_tree_idx = false, bool retain_original_branch_len = false, std::vector<std::string> anchor_samples = std::vector<std::string>());
+void get_random_sample_subtrees (Mutation_Annotated_Tree::Tree* T, std::vector<std::string> samples, std::string outdir, size_t subtree_size, size_t tree_idx = 0, bool use_tree_idx = false, bool retain_original_branch_len = false, std::vector<std::string> anchor_samples = std::vector<std::string>());
 void get_sample_mutation_paths (Mutation_Annotated_Tree::Tree* T, std::vector<std::string> samples, std::string mutation_paths_filename);
 void clear_tree(Tree& tree);
 

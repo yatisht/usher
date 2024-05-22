@@ -81,6 +81,9 @@ void Sample_Input(const char *name, std::vector<Sample_Muts> &sample_mutations,
 Mutation_Set get_mutations(const MAT::Node *main_tree_node);
 void check_descendant_nuc(const MAT::Node* node);
 #endif
+
+std::vector<MAT::Node*>read_sample_nodes(std::string samples_file, MAT::Tree &T, FILE *f);
+
 struct output_options {
     bool print_uncondensed_tree;
     std::string outdir;
@@ -92,6 +95,7 @@ struct output_options {
     bool detailed_clades;
     bool redo_FS_Min_Back_Mutations;
     bool suppress_whole_newick;
+    std::string anchor_samples_file;
 };
 bool final_output(MAT::Tree& T,const output_options& options,int t_idx,std::vector<Clade_info>& assigned_clades,
                   size_t sample_start_idx,size_t sample_end_idx,std::vector<std::string>& low_confidence_samples,

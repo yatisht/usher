@@ -281,6 +281,8 @@ std::string get_options(FILE *f, Leader_Thread_Options &options,std::string& ext
         "Input VCF file (in uncompressed or gzip-compressed .gz format)")
         ("existing_samples", po::value<std::string>(&extract_from_existing),
         "extract from existing samples")
+        ("anchor_samples", po::value<std::string>(&options.out_options.anchor_samples_file),
+         "add samples from file to generated subtree(s)")
         (
             "outdir,d",
             po::value<std::string>(&options.out_options.outdir)->default_value("."),
@@ -400,19 +402,10 @@ static void child_proc(int fd, TreeCollectionPtr &trees_ptr) {
     tbb::task_scheduler_init init(num_threads);
     if (existing_samples != "") {
         MAT::Tree &tree = iter->second->expanded_tree;
-        std::fstream sample_file(existing_samples,std::ios_base::in);
-        std::string sample_name;
-        std::vector<MAT::Node *> nodes_to_extract;
-        while (sample_file) {
-            std::getline(sample_file, sample_name);
-            if (sample_name != "") {
-                auto node = tree.get_node(sample_name);
-                if (!node) {
-                    fprintf(f, "node %s do not exist\n", sample_name.c_str());
-                } else {
-                    nodes_to_extract.push_back(node);
-                }
-            }
+        std::vector<MAT::Node *> nodes_to_extract = read_sample_nodes(existing_samples, tree, f);
+        std::vector<MAT::Node *> anchor_sample_nodes;
+        if (options.out_options.anchor_samples_file != "") {
+            anchor_sample_nodes = read_sample_nodes(options.out_options.anchor_samples_file, tree, f);
         }
         if (options.out_options.detailed_clades) {
             int num_annotation=tree.get_num_annotations();
@@ -441,14 +434,14 @@ static void child_proc(int fd, TreeCollectionPtr &trees_ptr) {
                     options.out_options.print_subtrees_single);
             MAT::get_random_single_subtree(
                 tree, nodes_to_extract, options.out_options.outdir, options.out_options.print_subtrees_single,
-                0, false, options.out_options.retain_original_branch_len);
+                0, false, options.out_options.retain_original_branch_len, anchor_sample_nodes);
         }
         // check_leaves(T);
         if ((options.out_options.print_subtrees_size > 1)) {
             fprintf(stderr, "Computing subtrees for added samples. \n\n");
             MAT::get_random_sample_subtrees(
                 tree, nodes_to_extract, options.out_options.outdir, options.out_options.print_subtrees_size, 0,
-                false, options.out_options.retain_original_branch_len);
+                false, options.out_options.retain_original_branch_len, anchor_sample_nodes);
         }
 
     } else {

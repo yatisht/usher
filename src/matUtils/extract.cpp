@@ -97,6 +97,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
      "Use to produce an usher-style minimum set of subtrees of the indicated size which include all of the selected samples. Produces .nh and .txt files.")
     ("usher-clades-txt", po::bool_switch(),
      "When producing usher-style subtree(s), also write an usher-style clades.txt file with clade annotations for selected samples, if the tree has clade annotations.")
+    ("usher-anchor-samples", po::value<std::string>()->default_value(""),
+     "Add samples from file to usher-style subtree(s) (e.g. to provide larger-scale context by including well-known vaccine strains)")
     ("add-random,W", po::value<size_t>()->default_value(0),
      "Add exactly W samples at random to your selection. Affected by -Z and overridden by -z.")
     ("select-nearest,Y", po::value<size_t>()->default_value(0),
@@ -168,6 +170,7 @@ void extract_main (po::parsed_options parsed) {
     size_t usher_single_subtree_size = vm["usher-single-subtree-size"].as<size_t>();
     size_t usher_minimum_subtrees_size = vm["usher-minimum-subtrees-size"].as<size_t>();
     bool usher_clades_txt = vm["usher-clades-txt"].as<bool>();
+    std::string usher_anchor_samples = vm["usher-anchor-samples"].as<std::string>();
     size_t setsize = vm["set-size"].as<size_t>();
     size_t minimum_subtrees_size = vm["minimum-subtrees-size"].as<size_t>();
     bool limit_lca = vm["limit-to-lca"].as<bool>();
@@ -494,11 +497,24 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
     //if usher-style subtree output is requested,
     //produce that.
 
+    std::vector<std::string> anchor_samples;
+    if (usher_anchor_samples != "") {
+        if (usher_minimum_subtrees_size > 0 || usher_single_subtree_size) {
+            anchor_samples = read_sample_names(usher_anchor_samples);
+            if (anchor_samples.size() == 0) {
+                fprintf(stderr, "ERROR: --usher-anchor-samples file is empty or unparseable!");
+                exit(1);
+            }
+        } else {
+          fprintf(stderr, "ERROR: --usher-anchor-samples may be used only together with --usher-minimum-subtrees-size/-x and/or --usher-single-subtree-size/-X\n");
+          exit(1);
+        }
+    }
     if (usher_minimum_subtrees_size > 0) {
         timer.Start();
         fprintf(stderr, "Random minimum sample subtrees of size %ld requested.\n", usher_minimum_subtrees_size);
         if (samples.size() > 0) {
-            MAT::get_random_sample_subtrees(&T, samples, dir_prefix, usher_minimum_subtrees_size, 0, false, retain_branch);
+            MAT::get_random_sample_subtrees(&T, samples, dir_prefix, usher_minimum_subtrees_size, 0, false, retain_branch, anchor_samples);
         } else {
             fprintf(stderr, "ERROR: Minimum sample subtree output requested with no valid samples! Check selection parameters\n");
             exit(1);
@@ -509,7 +525,7 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         timer.Start();
         fprintf(stderr, "Random single encompassing subtree of size %ld requested.\n", usher_single_subtree_size);
         if (samples.size() > 0) {
-            MAT::get_random_single_subtree(&T, samples, dir_prefix, usher_single_subtree_size, 0, false, retain_branch);
+            MAT::get_random_single_subtree(&T, samples, dir_prefix, usher_single_subtree_size, 0, false, retain_branch, anchor_samples);
         } else {
             fprintf(stderr, "ERROR: Encompassing subtree output requested with no valid samples! Check selection parameters\n");
             exit(1);
