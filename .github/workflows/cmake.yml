@@ -38,8 +38,8 @@ jobs:
         ./build/ripples --help
         command -v mafft
 
-  macOS-latest:
-    runs-on: macOS-latest
+  macOS-13:
+    runs-on: macos-13
     steps:
     - uses: actions/checkout@master
     - name: install pre-reqs and build
