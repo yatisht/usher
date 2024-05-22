@@ -301,6 +301,14 @@ else()
         ${PROTO_HDRS}
         )
 
+    add_executable(ripples-fast
+        src/mutation_annotated_tree.cpp
+        src/usher_mapper.cpp
+        ${RIPPLES_FAST_SRCS}
+        ${PROTO_SRCS}
+        ${PROTO_HDRS}
+        )
+	
     add_executable(usher-sampled
         ${USHER_SAMPLED_SRCS}
         ${PROTO_SRCS}
