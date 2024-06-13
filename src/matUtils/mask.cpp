@@ -690,13 +690,142 @@ void nodeComp(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tree::Node
 
 }
 
+/*
+void combine_missing(Mutation_Annotated_Tree::Node* node, std::list<std::pair<int, int>>& missing_data, std::map<std::string, std::map<int, int>>& diff_data) {
+    auto data_len = missing_data.size(); 
+    auto data_iterator = missing_data.begin();
+    auto missing_len = diff_data[node->identifier].size();
+    auto missing_iterator = diff_data[node->identifier].begin();
+    std::cout <<   "missing len" << missing_len << std::endl;
+    std::cout <<   "missing_iterator" << missing_iterator->first << std::endl;
+    if (data_len == 0) {
+        while (missing_iterator != diff_data[node->identifier].end() ) {
+            int missing_start = missing_iterator->first;
+            int missing_end = missing_start + missing_iterator->second;
+            //missing_data[missing_start] = missing_iterator->second;
+            missing_data.emplace_back(missing_start, missing_iterator->second);
+            missing_iterator ++;
+        }
+    }
+    
+    else {
+        //pick up here thurs 6/13
+        //create data map by merging new to existing, submit that to nodecomp
+        std::cout <<   "YAY" << missing_data.size() << std::endl;
+        std::cout <<   "YAY" << data_iterator->first << std::endl;
+        std::cout <<   "YAY" << missing_iterator->first << " " << missing_iterator->second << std::endl;
+
+        
+        while (missing_iterator != diff_data[node->identifier].end() && data_iterator != missing_data.end()) {
+            
+            int missing_start = missing_iterator->first;
+            int missing_end = missing_start + missing_iterator->second;
+            int data_start = data_iterator->first;
+            int data_end = data_iterator->second;
+            std::cout << "current missing data " << data_start << " " << data_end << std::endl;
+
+            //missing_data[missing_start] = missing_iterator->second;
+            */
+            /*    
+            if (data_start >= missing_start && data_end <= missing_end) {
+            // may need to make this fancier later
+            std::cout << "current data is fully inside missing " << std::endl;
+            //delete mutation here
+            //probably store in a list too
+            std::cout << "current data: " <<  << " from" << node->identifier << " leaf is " << leaf->identifier << std::endl;
+            std::cout << "node id before delete" << node_it->get_string() << std::endl; // Prints the type of x
+
+            //del_muts.push_back(node->mutations[node_counter]);
+            //node->mutations.erase(node_it);
+            //std::cout << "CURRENTIT " << node_it->get_string() << std::endl;
+            std::cout << "node id AFTERDELETE " << node_it->get_string() << std::endl;
+
+
+            //add one to mutation index (there might be more mutations in missing region so dont index down missing)
+            //node_counter -= 1;
+
+            //do i need to decrement if i delete node_it? 
+            //POSSIBLE ERROR HERE
+            */
+            
+        
+            /*
+            missing_iterator ++;
+            data_iterator ++;
+
+    }
+    
+    //for (auto i: missing_data) {
+    //    std::cout <<   "missing_data" << i.first << " " << i.second << std::endl;
+    //    }
+    }
+}
+*/    
+
+
+//this switches leaf and node and i dont like it 
+
 void getDistance(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tree::Node* leaf, Mutation_Annotated_Tree::Node* mrca, std::map<std::string, std::map<int, int>>& diff_data) {
     //std::map<int, int> missing = diff_data[node->identifier];
     std::cout <<   "MADE IT TO GET DISTANCE" << std::endl;
     
     //node is the starting leaf, we are deleting mutations from the starting leaf
     auto current_node = node; 
-    /*
+    //using IntPair = ;
+
+    // Create a list of pairs
+    std::list<std::pair<int, int>> missing_data;
+    //std::map<int, int> missing_data;
+
+    
+    
+    while (current_node->identifier != mrca->identifier ) {
+        nodeComp(current_node, leaf, diff_data);
+        std::cout << "missing data set before " << missing_data.size() << endl;
+
+        //combine_missing(current_node, missing_data, diff_data);
+        std::cout << "missing data set after " << missing_data.size() << endl;
+
+        std::cout << "current_node" << current_node->identifier << endl;
+        current_node = current_node->parent;
+        std::cout << "current_node" << current_node->identifier << endl;
+        std::cout << "mrca " << mrca->identifier << endl;
+        //if (current_node->identifier != mrca->identifier ) {
+        //}
+    } 
+    std::cout <<   "OTHER SIDE" << std::endl;
+
+    current_node = leaf->parent; 
+    std::cout << "OTHER SIDE NODE" << current_node->identifier << std::endl;
+    while (current_node->identifier != mrca->identifier ) {
+        std::cout << "OTHER SIDE WHILE LOOP" << std::endl;
+        nodeComp(current_node, leaf, diff_data);
+        //combine_missing(current_node, missing_data, diff_data);
+
+        std::cout << "current_node" << current_node->identifier << endl;
+        current_node = current_node->parent;
+        std::cout << "current_node" << current_node->identifier << endl;
+        std::cout << "mrca" << mrca->identifier << endl;
+        //if (current_node->identifier != mrca->identifier ) {
+        //}
+    } 
+
+    //combine_missing(mrca, missing_data, diff_data);
+    nodeComp(mrca, leaf, diff_data);
+
+    
+
+    //this code assumes that all mutations entered are snps, will not work if mutations are longer than 1bp (which is currently usher's capability)
+    
+}
+/*
+void getDistance(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tree::Node* leaf, Mutation_Annotated_Tree::Node* mrca, std::map<std::string, std::map<int, int>>& diff_data) {
+    //std::map<int, int> missing = diff_data[node->identifier];
+    std::cout <<   "MADE IT TO GET DISTANCE" << std::endl;
+    
+    //node is the starting leaf, we are deleting mutations from the starting leaf
+    auto current_node = node; 
+    
     std::cout <<   "MUTATIONS " << node->identifier << std::endl;
     for (const auto& mut: node->mutations) {
             std::cout << "pos" << mut.get_string() << endl;
@@ -706,7 +835,7 @@ void getDistance(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tree::N
             std::cout << "pos" << mut.is_missing << endl;
 
     }
-    */
+    
     while (current_node->identifier != mrca->identifier ) {
         nodeComp(current_node, leaf, diff_data);
         std::cout << "current_node" << current_node->identifier << endl;
@@ -737,6 +866,7 @@ void getDistance(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tree::N
     //this code assumes that all mutations entered are snps, will not work if mutations are longer than 1bp (which is currently usher's capability)
     
 }
+*/
     //for (auto c: node->children) {
         /*
         while (temp_counter < temp_list.size() or missing_counter < missing.size()){
