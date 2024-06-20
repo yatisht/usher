@@ -479,7 +479,8 @@ void processNode(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tree::N
 
 void nodeComp(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tree::Node* leaf, std::map<std::string, std::map<int, int>>& diff_data) {
 
-    //need to fix this 
+    //we are assessing the node mutations and the leaf missing 
+    //this should be consistent thorugh whole code
     int node_len = node->mutations.size();
     std::cout <<   "node len " << node_len << std::endl;
 
@@ -495,6 +496,8 @@ void nodeComp(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tree::Node
     */
     // the number of missing data points in a leaf, in a map
     //delete? 
+    std::cout <<   "leaf??" << leaf->identifier << std::endl;
+
     auto leaf_len = diff_data[leaf->identifier].size();
     // this is my iterator through the nodes
     //node counter goes up
@@ -514,13 +517,14 @@ void nodeComp(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tree::Node
     // a separate iterator for the
     //prob dont need this?  
     auto node_it = node->mutations.end();
+
+    //decrement to start in the right place
     node_it --;
     leaf_counter --;
 
-    //for (const auto& muttys: node->mutations) {
-    //        std::cout << "muttys" << muttys.get_string() << endl;
-    //}
-    //std::cout << "node id type" << typeid(node_it).name() << std::endl; // Prints the type of x
+    for (const auto& muttys: node->mutations) {
+            std::cout << "muttys" << muttys.get_string() << endl;
+    }
 
     //i want to make this 
     //will delete this at some point 
@@ -765,41 +769,60 @@ void combine_missing(Mutation_Annotated_Tree::Node* node, std::list<std::pair<in
 
 //this switches leaf and node and i dont like it 
 
-void getDistance(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tree::Node* leaf, Mutation_Annotated_Tree::Node* mrca, std::map<std::string, std::map<int, int>>& diff_data) {
+void getDistance(Mutation_Annotated_Tree::Node* leaf, Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tree::Node* mrca, std::map<std::string, std::map<int, int>>& diff_data) {
     //std::map<int, int> missing = diff_data[node->identifier];
     std::cout <<   "MADE IT TO GET DISTANCE" << std::endl;
     
-    //node is the starting leaf, we are deleting mutations from the starting leaf
+    //node is the neighbor, we are starting with deleting mutations from the neighbor
+    //then we go up the path towards the mrca, deleting mutations that are in missing regions of leaf
     auto current_node = node; 
     //using IntPair = ;
+    std::set<std::string> visited;
+
 
     // Create a list of pairs
+    //dont need this i dont think?
     std::list<std::pair<int, int>> missing_data;
     //std::map<int, int> missing_data;
 
-    
-    
+    //for the path on the opposite side of the mrca from the leaf
     while (current_node->identifier != mrca->identifier ) {
-        nodeComp(current_node, leaf, diff_data);
-        std::cout << "missing data set before " << missing_data.size() << endl;
+        if (visited.find(current_node->identifier) != visited.end()){
+            std::cout << "missing data set before " << missing_data.size() << endl;
+            nodeComp(current_node, leaf, diff_data);
+            visited.insert(current_node->identifier);
+            std::cout << "missing data set after " << missing_data.size() << endl;
 
-        //combine_missing(current_node, missing_data, diff_data);
-        std::cout << "missing data set after " << missing_data.size() << endl;
+        }
+        else {
+            std::cout << "SKIPPED YAY " << endl;
 
+        }
         std::cout << "current_node" << current_node->identifier << endl;
         current_node = current_node->parent;
         std::cout << "current_node" << current_node->identifier << endl;
-        std::cout << "mrca " << mrca->identifier << endl;
-        //if (current_node->identifier != mrca->identifier ) {
-        //}
-    } 
-    std::cout <<   "OTHER SIDE" << std::endl;
 
+    } 
+
+    //when we hit the mrca, we move to the other side, the leaf side 
+    std::cout <<   "OTHER SIDE" << std::endl;
+    //we dont need to include the leaf bc those mutations already dont exist
     current_node = leaf->parent; 
     std::cout << "OTHER SIDE NODE" << current_node->identifier << std::endl;
     while (current_node->identifier != mrca->identifier ) {
         std::cout << "OTHER SIDE WHILE LOOP" << std::endl;
-        nodeComp(current_node, leaf, diff_data);
+        if (visited.find(current_node->identifier) != visited.end()){
+            std::cout << "missing data set before " << missing_data.size() << endl;
+            nodeComp(current_node, leaf, diff_data);
+            visited.insert(current_node->identifier);
+            std::cout << "missing data set after " << missing_data.size() << endl;
+
+        }
+        else {
+            std::cout << "SKIPPED YAY " << missing_data.size() << endl;
+
+        }
+        //nodeComp(current_node, leaf, diff_data);
         //combine_missing(current_node, missing_data, diff_data);
 
         std::cout << "current_node" << current_node->identifier << endl;
@@ -811,6 +834,7 @@ void getDistance(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tree::N
     } 
 
     //combine_missing(mrca, missing_data, diff_data);
+    //do the mrca last
     nodeComp(mrca, leaf, diff_data);
 
     
@@ -963,57 +987,68 @@ void getDistance(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tree::N
 
 //different version of masking, not subtree, just max distance 
 void localMask (uint32_t max_snp_distance, MAT::Tree& T, std::string diff_file, std::string filename, uint32_t num_threads) {
+    //collect all missing data for each leaf
     std::map<std::string, std::map<int, int>> diff_data = readDiff(diff_file);
+    //idk if i need this
     std::set<std::string> leaves;
+    //retrieve leaves 
     auto all_leaves = T.get_leaves();
-    #pragma omp parallel for num_threads(num_threads)
+
+    //i dont think parallel should happen here
+    //#pragma omp parallel for num_threads(num_threads)
     for (auto l: all_leaves) {
+
+        //turn this into a way to avoid recomparing a node to a set of missing data
         std::set<std::string> visited;
+        //string of node id maybe delete
         std::string samp = l->identifier;
+        //retrieve leaf branch length, do i need this? 
         int bl = l->branch_length;
+        //set current node == leaf , do i need this? 
         MAT::Node* current_node = l;
+        //error check,delete eventually
         std::cout << "sample: " << samp << std::endl;
 
         //need? 
-        leaves.insert(l->identifier);
-        //if (diff_data[samp].size() > 0) {
+        //leaves.insert(l->identifier);
+        //note that my leaf is going to be masking all nodes on the path between it and it's closest neighbors
+        //i.e. i care about the missing data from my leaf, NOT the mutations        
         
         //determine if branchlen immediately disqualifies leaf from masking
-        if (l->branch_length < max_snp_distance) {
+        if (l->branch_length < max_snp_distance && diff_data.find(samp) != diff_data.end() ) {
 
         //get nearest neighbors of leaf
         std::pair<std::vector<std::string>, size_t> neighbors = get_closest_samples(&T, l->identifier, true, max_snp_distance);            
+        
+        //iterate through neibours, is there a better way to do this? 
+        //can i parallelize this? 
         std::cout <<   "NEIGBORS of " << l->identifier << std::endl; 
-
-
+        
         //const int num_threads = 4; // You can adjust this based on your system
-
         //#pragma omp parallel for num_threads(num_threads)
         // iterate through nearest neighbors, figure out LCA between them
         for (const auto& neigh : neighbors.first) {
-            //std::vector<std::string> current_samples = {l->identifier, leaf};
+            //identifier for neighbor
             std::cout << neigh << std::endl;
+            //get mrca for neighbor and leaf so we can find path between
             auto mrca = MAT::LCA(T, l->identifier, neigh);
-            //auto mrca = MAT::get_subtree(T, current_samples).root;
-            //std::cout << "MRCA: " << mrca << std::endl;
+
             //send leaf node and neighbor node to next function
+            //i thnk i need to add visited to getDistance function
+            //i need leaf and node to be treated as follows: i care about missing data for leaf,
+            //i care about mutation data for node in get distance, leaf comes first and node comes second 
+            //regarless of how they are subsequently named 
             getDistance(l, T.get_node(neigh), mrca, diff_data);
             }
+        }
+        else {
+            std::cout <<   "SAMPLE doesnt exist " << l->identifier << std::endl; 
+
         }
         //}
         }
 
-        //std::cout <<   "made it here - lk - current node init " << current_node->identifier  << std::endl;
-        //std::cout << " branch len " << l -> branch_length << std::endl;
         
-        //skip samples coming from root
-        /*
-        if ((*current_node->parent).is_root()) {
-            std::cout <<   "skipped" << current_node->identifier << std::endl;
-            continue;
-        }
-        */
-
         //find ancestor node
         //need to make a catch so that max_snp-_dist isnt 0 when snp distance is > 0
         // allows for checking all nearby neibors as long as comman anc is less than max branch distance away
