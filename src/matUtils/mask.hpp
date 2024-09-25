@@ -17,6 +17,6 @@ std::map<std::string, std::map<int, int>> readDiff (const std::string& diff_file
 //void traverseFromLeafParentToMRCA(Mutation_Annotated_Tree::Node* leaf, Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tree::Node* mrca, std::map<std::string, std::map<int, int>>& diff_data, std::list<std::pair<int, int>>& missing_data);
 
 void nodeComp(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tree::Node* leaf, std::map<std::string, std::map<int, int>>& diff_data, std::list<std::pair<int, int>>& missing_data);
-bool prev_check(std::pair<int, int> prev, std::pair<int, int> line);
+bool prev_check(std::pair<int, int>& prev, std::pair<int, int> line);
 void combine_missing(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tree::Node* leaf, std::list<std::pair<int, int>>& missing_data, std::map<std::string, std::map<int, int>>& diff_data); 
 void getDistance(Mutation_Annotated_Tree::Node* leaf, Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tree::Node* mrca, std::map<std::string, std::map<int, int>>& diff_data, std::map<std::string, std::set<std::string>>& comparisons);
