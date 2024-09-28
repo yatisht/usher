@@ -170,6 +170,9 @@ void reroot_tree(MAT::Tree* T, std::string rnid) {
         fprintf(stderr, "ERROR: New root selection not found in tree. Exiting\n");
         exit(1);
     }
+    // The new root will not be a leaf when we are done, but keep track of whether it started
+    // as a leaf.
+    bool new_root_was_leaf = (norder[0]->children.size() == 0);
     if (T->root->mutations.size() != 0) {
         // The way mutations are handled below assumes that the root and reference are synonymous,
         // and as we change the rooting of the tree, we change the mutations to reflect that the
@@ -220,6 +223,30 @@ void reroot_tree(MAT::Tree* T, std::string rnid) {
             std::swap(mut.par_nuc, mut.mut_nuc);
             mut.ref_nuc = mut.par_nuc;
         }
+    }
+    // If the new root, norder.back(), was a leaf, then its identity would be lost by changing it
+    // to an internal node because internal node IDs are not written when saving.  Also, the tree
+    // now has one fewer leaf.  Add a new leaf on root to keep the original leaf identity.
+    MAT::Node* new_root = norder.back();
+    if (new_root_was_leaf) {
+        fprintf(stderr, "New root was a leaf node; retaining it as leaf node on new root internal node.\n");
+        T->rename_node(rnid, "new_root_" + rnid);
+        T->create_node(rnid, new_root, 0.0);
+    }
+    // If the original root, norder[0], has no remaining children, then it has changed from an
+    // internal node (with name node_1) to a leaf node.  But if a leaf node has the name node_1,
+    // there will be a fatal error from MAT::create_node (node_1 already in the tree) during
+    // parsing of the Newick string.  To prevent that error, assign a new name to the new leaf node.
+    MAT::Node* old_root = norder[0];
+    if (old_root->children.size() == 0) {
+        std::string new_name = "former_root";
+        int uid = 1;
+        while (T->get_node(new_name) != NULL) {
+            new_name = "former_root_" + std::to_string(uid++);
+        }
+        fprintf(stderr, "Former root has become a leaf node; assigning new name '%s'.\n",
+                new_name.c_str());
+        T->rename_node(old_root->identifier, new_name);
     }
     assert (T->get_node(rnid)->is_root());
     apply_ref_changes(T->root, ref_changes);
