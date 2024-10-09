@@ -6,7 +6,6 @@ RUN apt-get update && apt-get install -yq --no-install-recommends \
     git wget \
     ca-certificates \
     sudo python3 python3-pip
-RUN apt-get upgrade -y sed
 # faSomeRecords and faSize are needed for the UShER WDL workflow 
 WORKDIR /HOME/kentsource
 RUN wget http://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64/faSomeRecords
