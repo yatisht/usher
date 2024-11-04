@@ -31,9 +31,9 @@ po::variables_map parse_mask_command(po::parsed_options parsed) {
     //("snp-distance,d", po::value<uint32_t>()->default_value(0),
     // "SNP distance between a sample and the internal node which will have all descendents masked for missing data.")
     ("max-snp-distance,D", po::value<uint32_t>()->default_value(0),
-     "Maximum distance past snp-distance that can be used to find a local ancestor, if local ancestor exists past the max-SNP-distance, program will look for local ancestor within bounds.")
-    ("diff-file,f", po::value<std::string>()->default_value(""),
-    "Diff files for samples contained in the tree. Samples not included will not be considered in masking.")
+     "Maximum distance allowed between neigboring samples that will be processed for post-placement sample masking.")
+    ("maple-file,f", po::value<std::string>()->default_value(""),
+    "Concatenated, MAPLE-formatted variant file containing phylogeny samples to be checked for post-placement sample masking. Samples not included in file will not be checked for masking. To be used with -D flag")
     //("ignore-positions-file,p", po::value<std::string>()->default_value(""),
     //"Diff files for samples contained in the tree. Samples not included will not be considered in masking.")
     ("move-nodes,M", po::value<std::string>()->default_value(""),
@@ -77,7 +77,7 @@ void mask_main(po::parsed_options parsed) {
     uint32_t num_threads = vm["threads"].as<uint32_t>();
     //uint32_t snp_distance = vm["snp-distance"].as<uint32_t>();
     uint32_t max_snp_distance = vm["max-snp-distance"].as<uint32_t>();
-    std::string diff_file = vm["diff-file"].as<std::string>();
+    std::string diff_file = vm["maple-file"].as<std::string>();
     //std::string pos_file = vm["ignore-positions-file"].as<std::string>();
     tbb::task_scheduler_init init(num_threads);
     fprintf(stderr, "made it to main function");
