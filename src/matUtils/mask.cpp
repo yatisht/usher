@@ -134,7 +134,7 @@ void mask_main(po::parsed_options parsed) {
 
     if (max_snp_distance > 0) {
         bool load_all = true;
-        fprintf(stderr, "made it to here");
+        //fprintf(stderr, "made it to here");
         localMask(max_snp_distance, T, diff_file, output_mat_filename, num_threads);
     }
 
@@ -161,7 +161,6 @@ std::map<std::string, std::map<int, int>> readDiff (const std::string& diff_file
     fprintf(stderr, "Reading Variation Information\n");
     //only storing missing data, stored as position and length of missing
     std::map<std::string, std::map<int, int>> data;
-
     try {
         //open the file
         std::ifstream file(diff_file);
@@ -169,17 +168,13 @@ std::map<std::string, std::map<int, int>> readDiff (const std::string& diff_file
         if (!file.is_open()) {
             throw std::runtime_error("Error opening file: " + diff_file);
         }
-
         std::string line; // initialize line variable to store each line from file
         std::string current_sample; // initialize sample name variable to track samples in file
-        
         //iterate through all lines
         while (std::getline(file, line)) {
-            
             std::vector<std::string> substrings; //store parsed line in a vector
             size_t startPos = 0;
             size_t endPos;
-
             //new sample, set up map
             if (line[0] == '>') {
                 current_sample = line.erase(0,1); // format line to remove '>'
@@ -197,35 +192,27 @@ std::map<std::string, std::map<int, int>> readDiff (const std::string& diff_file
             //Find lines with missing data
             else if (line[0] == '-'){
                 //find tab separators to create substrings
-                while ((endPos = line.find('\t', startPos)) != std::string::npos) {
-                    
+                while ((endPos = line.find('\t', startPos)) != std::string::npos) {    
                     //Extract the substring between startPos and endPos and add it to the substrings vector
-                    substrings.push_back(line.substr(startPos, endPos - startPos));
-                    
+                    substrings.push_back(line.substr(startPos, endPos - startPos));        
                     // Update startPos to the position after the separator
                     startPos = endPos + 1;                    
                 }
-            
             // Extract the substring after the last occurrence of the separator
             substrings.push_back(line.substr(startPos));
-
             //convert substrings to ints and add them to map for current sample
             int position = std::stoi(substrings[1]);
             int length = std::stoi(substrings[2]);
             data[current_sample][position] = length;    
             }
-        }
-        
+        }   
         file.close();
-
     //more file error handling
     } catch (const std::exception& e) {
         std::cerr << "Exception caught while reading file: " << e.what() << std::endl;
         throw;  // Re-throw the exception to be handled where the function is called
     }
-    
     fprintf(stderr, "All missing data retrieved\n");
-
     return data;
 }
 
@@ -234,40 +221,32 @@ void nodeComp(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tree::Node
     compare each node in path between two neighbors to the combined missing data of those two neighbors
     delete mutations that are found in missing regions 
     */
-
     //variables for keeping track of location in data structures
     //start iterators at end to prevent indexing errors
     int node_len = node->mutations.size();
     auto leaf_len = missing_data.size();
     auto leaf_counter = missing_data.end();  
     auto node_it = node->mutations.end();
-
     //decrement to start in the right place
     node_it --;
     leaf_counter --;
-    
-    
     while (true) {        
         //no mutations or missing info, end now dont waste time
         if (node_len == 0 || leaf_len == 0) {
             break;
         }
-        
         //retrieve mutation
         std::string mutation = node_it->get_string();
         //find position of snp, convert to int
         int mut_pos = stoi(mutation.substr(1, mutation.length() - 2));
-
         //get position for missing block
         int missing_start = leaf_counter->first;
         int missing_end = missing_start + leaf_counter->second;
-        
         //check if mutation is inside missing
         //if so, delete mutation from node
         if (mut_pos >= missing_start && mut_pos <= missing_end) {
             //store mutations in a list for records?
             node->mutations.erase(node_it);
-
             //make sure iterator isnt decremented past beginning
             if (node_it != node->mutations.begin()) {
                 node_it --;
@@ -283,7 +262,6 @@ void nodeComp(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tree::Node
             // might have to make this fancier later 
             //std::cout << "mut is fully after missing: node: " << node->identifier << std::endl;
             //std::cout << "mut is fully after missing: leaf: " << leaf->identifier << std::endl;
-            //node_counter --;
             //make sure youre not decrementing into nothing
             if (node_it != node->mutations.begin()) {
                 node_it --;
@@ -293,17 +271,11 @@ void nodeComp(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tree::Node
                 //std::cout << "end of mutations!!!! break " << std::endl;
                 break;
             }
-
-        }
-             
+        }   
         //if mut is before missing, missing needs to decrement to get closer to mut 
         else if (mut_pos < missing_start){
             //std::cout << "mut is fully before missing" << std::endl;
-            //logging.debug('line less than mask')
-            //new_missing.push_back(std::make_tuple(temp_start, std::get<1>(temp_list[temp_counter])));
             
-            //leaf_counter --;
-            //if (leaf_counter != diff_data[leaf->identifier].begin()) {
             if (leaf_counter != missing_data.begin()) {
                 leaf_counter --;
             }
@@ -313,7 +285,6 @@ void nodeComp(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tree::Node
                 break;
             }
             //std::cout << "made it here?" << std::endl;
-        
         }
         else {
             //std::cout << "stuck here" << std::endl;
@@ -325,12 +296,10 @@ bool prev_check(std::pair<int, int>& prev, std::pair<int, int> line) {
     /*
     If prev overlaps the current line, prevents errors in missing_data
     */
-    
     //same values, end evaluation
     if (prev.first == line.first && prev.second == line.second ) {
             return 0;
         }
-
     //check for line start is less than prev end 
     else if ( (prev.first + prev.second) >= line.first) {
         //std::cout <<   "Before OVERLAP PREV " <<  prev.first << " " << prev.first + prev.second << std::endl;
@@ -343,21 +312,16 @@ bool prev_check(std::pair<int, int>& prev, std::pair<int, int> line) {
         //if line extends past prev
         else if (line.first+line.second > prev.first+prev.second) {
             prev.second = line.first+line.second-prev.first;
-            //std::cout <<   "PREV UPDATED" << std::endl;
-
+            //std::cout <<   "PREV UPDATED" << std::endl
         }
-        
         //std::cout <<   "After OVERLAP PREV " <<  prev.first << " " << prev.first + prev.second << std::endl;
         //std::cout <<   "After OVERLAP LINE " <<  line.first << " " << line.first + line.second << std::endl;
-        
         return 1;
     }
     // no overlap
     else {
         return 0;
     }
-
-
 //note this could be written slightly differently, would require more reworking though
 }
 
@@ -370,7 +334,6 @@ void combine_missing(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tre
     auto node_iterator = diff_data[node->identifier].begin();
     auto leaf_len = diff_data[leaf->identifier].size();
     auto leaf_iterator = diff_data[leaf->identifier].begin();
-
     //initialize prev variable, will track previous element in missing_data
     std::pair<int, int> prev = {-1, -1};
     //while one list is still going
@@ -382,7 +345,6 @@ void combine_missing(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tre
                 int node_end = node_start + node_iterator->second;
                 int leaf_start = leaf_iterator->first;
                 int leaf_end = leaf_start + leaf_iterator->second;
-                
                 //for node missing being fully within leaf missing
                 //leaf missing is kept bc it holds all missing info 
                 if (node_start >= leaf_start && node_end <= leaf_end) {
@@ -397,7 +359,6 @@ void combine_missing(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tre
                             //if prev_check returns true THIS NEEDS TO DO SOMETHING
                             //std::cout << "PREVE CHECK TRUE " << "there is overlap " << std::endl;
                             //std::cout <<   "After OVERLAP PREV " <<  prev.first << " " << prev.first + prev.second << std::endl;
-
                         }
                         else {
                             //if prev check returns false, add prev to missing_data, add current leaf missing to prev
@@ -409,7 +370,6 @@ void combine_missing(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tre
                     //leaf missing is not updated bc next node may still be before it 
                     node_iterator ++;
                 }
-                
                 //for leaf missing fully inside node missing
                 //node missing is kept because it holds all missing info 
                 else if (node_start <= leaf_start && node_end >= leaf_end) {
@@ -436,7 +396,6 @@ void combine_missing(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tre
                     //do not update node missing, bc we may still need to compare it to things 
                     leaf_iterator ++;
                 }
-                
                 //node missing overlaps leaf missing on the right
                 //keep leaf start, change end to leaf missing
                 else if (node_start <= leaf_end && node_end > leaf_end) {
@@ -452,7 +411,6 @@ void combine_missing(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tre
                             //if prev is true, prev is updated in prevcheck function
                             //std::cout << "PREVE CHECK TRUE " << "there is overlap " << std::endl;
                             //std::cout <<   "After OVERLAP PREV " <<  prev.first << " " << prev.first + prev.second << std::endl;
-
                         }
                         else {
                             //if prev false, add prev to missing_data and make prev the updated missing region
@@ -463,7 +421,6 @@ void combine_missing(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tre
                     //done with leaf iterator, may still need node iterator for next leaf region
                     leaf_iterator ++;
                 }
-
                 //for leaf missing overlapping node missing on right 
                 //keep node start update end to leaf end
                 else if (node_start < leaf_start && node_end >= leaf_start) {
@@ -477,7 +434,6 @@ void combine_missing(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tre
                             //if prev is true, prev is updated in prevcheck function
                             //std::cout << "PREVE CHECK TRUE " << "there is overlap " << std::endl;
                             //std::cout <<   "After OVERLAP PREV " <<  prev.first << " " << prev.first + prev.second << std::endl;
-
                         }
                         else {
                             //if prev check false, add prev to missing_data and updata prev to current missing region
@@ -488,7 +444,6 @@ void combine_missing(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tre
                     //update node iterator only, leaf missing may need to be compared again
                     node_iterator ++;
                 }
-
                 //for node missing being completely before leaf missing 
                 //add node missing to missing_data 
                 else if (node_end <= leaf_start) {
@@ -500,7 +455,6 @@ void combine_missing(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tre
                             //if prev is true, prev is updated in prevcheck function
                             //std::cout << "PREVE CHECK TRUE " << "there is overlap " << std::endl;
                             //std::cout <<   "After OVERLAP PREV " <<  prev.first << " " << prev.first + prev.second << std::endl;
-
                         }
                         else {
                             //if prev_check false, add prev to missing_data and update prev with node missing
@@ -522,7 +476,6 @@ void combine_missing(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tre
                             //if prev is true, prev is updated in prevcheck function
                             //std::cout << "PREVE CHECK TRUE " << "there is overlap " << std::endl;
                             //std::cout <<   "After OVERLAP PREV " <<  prev.first << " " << prev.first + prev.second << std::endl;
-
                         }
                         else {
                             //add leaf missing to prev
@@ -533,7 +486,6 @@ void combine_missing(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tre
                     //update leaf iterator
                     leaf_iterator ++;
                 }
-                
                 /*
                 else {
                     //this should never come up
@@ -541,7 +493,6 @@ void combine_missing(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tre
                 }
                 */
             }
-
             //if only node list is still going
             else if (node_iterator != diff_data[node->identifier].end()) {
                 int node_start = node_iterator->first;
@@ -564,7 +515,6 @@ void combine_missing(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tre
                 //iterate through nodes                
                 node_iterator ++;
             } 
-            
             //if only leaf list is still going 
             else if (leaf_iterator != diff_data[leaf->identifier].end()) {
                 int leaf_start = leaf_iterator->first;
@@ -576,7 +526,6 @@ void combine_missing(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tre
                     if (prev_check(prev,std::pair<int,int>{leaf_start, leaf_end-leaf_start})) {
                         //if prev is true, prev is updated in prevcheck function
                         //std::cout <<   "After OVERLAP PREV " <<  prev.first << " " << prev.first + prev.second << std::endl;
-
                     }
                     else {
                         missing_data.emplace_back(prev.first, prev.second);
@@ -585,8 +534,8 @@ void combine_missing(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tre
                 }
                 leaf_iterator ++;
             }
-            
             /*
+            //this is meant for error checking
             else {
                     std::cout << "WHAT IS HERE??? not both loops" << std::endl;
                 }
@@ -597,20 +546,21 @@ void combine_missing(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tre
 }
 
 void getDistance(Mutation_Annotated_Tree::Node* leaf, Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tree::Node* mrca, std::map<std::string, std::map<int, int>>& diff_data, std::map<std::string, std::set<std::string>>& comparisons) {
+    /*
+    Traverses path between leaf and neighbor looking for mutations in path that need to be masked because they overlap with missing data
+    in the leaf. 
+    */
     //set node to current_node
     auto current_node = node; 
-
     //before comparing nodes, check if theyve already been compared
     //EFFICIENCY FLAG: if I come back to this in the future, find a faster check than this
     if ( comparisons[leaf->identifier].find(current_node->identifier) == comparisons[leaf->identifier].end() ) {
         //add leaf-node comparison to comparisons to skip redundant comparisons in future
         comparisons[leaf->identifier].insert(node->identifier);
         comparisons[node->identifier].insert(leaf->identifier);
-
         //combine missing data from leaf and its neighbor (current_node)
         std::list<std::pair<int, int>> missing_data;
         combine_missing(node, leaf, missing_data, diff_data);
-        
         //traverse the path from node to mrca
         while (current_node->identifier != mrca->identifier ) {
             //compare current node mutations to the missing data   
@@ -620,9 +570,6 @@ void getDistance(Mutation_Annotated_Tree::Node* leaf, Mutation_Annotated_Tree::N
         } 
         //when we hit the mrca, we move to the other side, the leaf side 
         //we dont need to include the leaf bc those mutations already dont exist?? not true? 
-        
-        //check on this
-        //this might need to be leaf!!!!!!!!!
         current_node = leaf; 
         //traverse path from leaf to mrca
         while (current_node->identifier != mrca->identifier ) {
@@ -630,7 +577,6 @@ void getDistance(Mutation_Annotated_Tree::Node* leaf, Mutation_Annotated_Tree::N
             nodeComp(current_node, leaf, diff_data,missing_data);
             current_node = current_node->parent;
         } 
-        
         //do the mrca last
         nodeComp(mrca, leaf, diff_data,missing_data);
         //change comparisons here?
@@ -644,46 +590,39 @@ void getDistance(Mutation_Annotated_Tree::Node* leaf, Mutation_Annotated_Tree::N
 
 
 void localMask (uint32_t max_snp_distance, MAT::Tree& T, std::string diff_file, std::string filename, uint32_t num_threads) {
-    // main function for post-placement local masking 
+    /*
+    main function for post-placement local masking. finds nearest neighbors within max 
+    SNP distance and checks for mutations that overlap with missing datta in nearby samples
+    */
 
     //collect all missing data for each leaf
     std::map<std::string, std::map<int, int>> diff_data = readDiff(diff_file);
     auto all_leaves = T.get_leaves();
-
     //track comparisons to prevent redundancy
     std::map<std::string, std::set<std::string>> comparisons;
-
     for (auto l: all_leaves) {
-        //string of node id
         std::string samp = l->identifier;
         int bl = l->branch_length;
         MAT::Node* current_node = l;
-        
         //determine if branchlen immediately disqualifies leaf from masking
         if (l->branch_length < max_snp_distance && diff_data.find(samp) != diff_data.end() ) {
-
-        //get nearest neighbors of leaf
-        std::pair<std::vector<std::string>, size_t> neighbors = get_closest_samples(&T, l->identifier, true, max_snp_distance);  
-        
-        // iterate through nearest neighbors, figure out last common ancestor between them
-        for (const auto& neigh : neighbors.first) {
+            //get nearest neighbors of leaf
+            std::pair<std::vector<std::string>, size_t> neighbors = get_closest_samples(&T, l->identifier, true, max_snp_distance);  
             
-            //identifier for neighbor
-            //std::cout << neigh << std::endl;
-            
-            //get mrca for neighbor and leaf so we can find path between
-            auto mrca = MAT::LCA(T, l->identifier, neigh);
+            // iterate through nearest neighbors, figure out last common ancestor between them
+            for (const auto& neigh : neighbors.first) {
+                //get mrca for neighbor and leaf so we can find path between
+                auto mrca = MAT::LCA(T, l->identifier, neigh);
 
-            //send leaf node and neighbor node to next function
-            //leaf node has missing data neighbor node has mutations we want to check
-            getDistance(l, T.get_node(neigh), mrca, diff_data, comparisons);
-            }
+                //send leaf node and neighbor node to next function; leaf node has missing data neighbor node has mutations we want to check
+                getDistance(l, T.get_node(neigh), mrca, diff_data, comparisons);
+                }
         }
         /*
+        #this is if the leaf has a branch len longer than -D, don't need this but good for error checking
         else {
             //std::cout <<   " " << l->identifier << std::endl; 
-
-            std::cout << "branch length" << bl << std::endl; 
+            //std::cout << "branch length" << bl << std::endl; 
         }
         */
     }
