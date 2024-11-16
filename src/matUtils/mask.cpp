@@ -1,7 +1,7 @@
 #include "mask.hpp"
+#include "select.hpp"
 #include <random>
 #include <algorithm>
-#include "maskselect.hpp"
 #include <omp.h>
 
 using namespace std;
