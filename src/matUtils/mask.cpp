@@ -2,7 +2,8 @@
 #include "select.hpp"
 #include <random>
 #include <algorithm>
-#include <omp.h>
+
+//#include <omp.h>
 
 using namespace std;
 
