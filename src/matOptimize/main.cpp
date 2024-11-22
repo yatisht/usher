@@ -283,13 +283,16 @@ int main(int argc, char **argv) {
         } else if (input_nh_path!=""&&input_vcf_path!="") {
             print_file_info("Load starting tree from", "starting tree file,-t", input_nh_path);
             print_file_info("Load sample variant from", "sample vcf,-v", input_vcf_path);
+        } else if (input_nh_path!=""&&diff_file_path!="") {
+            print_file_info("Load starting tree from", "starting tree file,-t", input_nh_path);
+            print_file_info("Load sample variant from", "sample maple/diff,-D", diff_file_path);
         }
         else {
             fputs("Input file not completely specified. Please either \n"
                   "1. Specify an intermediate protobuf from last run with -a to continue optimization, or\n"
                   "2. Specify a usher-compatible protobuf with -i, and both starting tree and sample variants will be extracted from it, or\n"
                   "3. Specify a usher-compatible protobuf with -i for starting tree, and a VCF with -v for sample variants, or\n"
-                  "4. Specify the starting tree in newick format with -t, and a VCF with -v for sample variants.\n",stderr);
+                  "4. Specify the starting tree in newick format with -t, and either a VCF with -v or a Maple/diff with -D for sample variants.\n",stderr);
             std::cerr << desc << std::endl;
             exit(EXIT_FAILURE);
         }
