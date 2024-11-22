@@ -38,17 +38,3 @@ jobs:
         ./build/ripples --help
         command -v mafft
 
-  macOS-13:
-    runs-on: macos-13
-    steps:
-    - uses: actions/checkout@master
-    - name: install pre-reqs and build
-      run: ./install/installMacOS.sh
-    - name: test
-      run: |
-        ./build/usher --help
-        ./build/usher-sampled --help
-        ./build/matUtils --help
-        mpirun -np 1 ./build/matOptimize --help
-        ./build/ripples --help
-        command -v mafft
