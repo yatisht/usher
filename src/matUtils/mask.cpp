@@ -54,7 +54,6 @@ po::variables_map parse_mask_command(po::parsed_options parsed) {
                   .run(), vm);
         po::notify(vm);
     } catch(std::exception &e) {
-        fprintf(stderr, "stuck here\n");
         std::cerr << filt_desc << std::endl;
         // Return with error code 1 unless the user specifies help
         if (vm.count("help"))
