@@ -54,7 +54,6 @@ po::variables_map parse_mask_command(po::parsed_options parsed) {
                   .run(), vm);
         po::notify(vm);
     } catch(std::exception &e) {
-        fprintf(stderr, "stuck here\n");
         std::cerr << filt_desc << std::endl;
         // Return with error code 1 unless the user specifies help
         if (vm.count("help"))
@@ -81,7 +80,6 @@ void mask_main(po::parsed_options parsed) {
     std::string diff_file = vm["maple-file"].as<std::string>();
     //std::string pos_file = vm["ignore-positions-file"].as<std::string>();
     tbb::task_scheduler_init init(num_threads);
-    fprintf(stderr, "made it to main function");
 
     //check for mutually exclusive arguments
     //LILY: make sure you check for need for exclusivity of your function 
@@ -103,15 +101,15 @@ void mask_main(po::parsed_options parsed) {
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     //T here is the actual object.
     if (T.condensed_nodes.size() > 0) {
-        fprintf(stderr, "Uncondensing condensed nodes.\n");
+        fprintf(stderr, "Uncondensing condensed nodes...\n");
         timer.Start();
         T.uncondense_leaves();
-    fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
+        fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
 
     // If a restricted samples file was provided, perform masking procedure
     if (samples_filename != "") {
-        fprintf(stderr, "Performing Masking...\n");
+        fprintf(stderr, "Performing masking...\n");
         restrictSamples(samples_filename, T);
     }
     if (simplify) {
@@ -125,7 +123,7 @@ void mask_main(po::parsed_options parsed) {
 
     // If a rename file was provided, perform renaming procedure
     if (rename_filename != "") {
-        fprintf(stderr, "Performing Renaming\n");
+        fprintf(stderr, "Renaming...\n");
         renameSamples(rename_filename, T);
     }
 
@@ -151,7 +149,7 @@ void mask_main(po::parsed_options parsed) {
             T.condense_leaves();
             fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
         }
-        fprintf(stderr, "Saving Final Tree to %s\n", output_mat_filename.c_str());
+        fprintf(stderr, "Saving final tree to %s\n", output_mat_filename.c_str());
         timer.Start();
         MAT::save_mutation_annotated_tree(T, output_mat_filename);
         fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
@@ -159,7 +157,7 @@ void mask_main(po::parsed_options parsed) {
 }
 
 std::map<std::string, std::map<int, int>> readDiff (const std::string& diff_file) {
-    fprintf(stderr, "Reading Variation Information\n");
+    fprintf(stderr, "Reading variation information...\n");
     //only storing missing data, stored as position and length of missing
     std::map<std::string, std::map<int, int>> data;
     try {
@@ -775,7 +773,7 @@ void restrictMutationsLocally (std::string mutations_filename, MAT::Tree* T, boo
     }
     fprintf(stderr, "Completed in %ld msec \n", timer.Stop());
     infile.close();
-    fprintf(stderr, "Masked a total of %lu mutations.  Collapsing tree...\n", total_masked);
+    fprintf(stderr, "Masked a total of %lu mutations. Collapsing tree...\n", total_masked);
     timer.Start();
     T->collapse_tree();
     fprintf(stderr, "Completed in %ld msec \n", timer.Stop());
@@ -790,7 +788,7 @@ void restrictSamples (std::string samples_filename, MAT::Tree& T) {
     std::unordered_set<std::string> restricted_samples;
     std::string sample;
     while (std::getline(infile, sample)) {
-        fprintf(stderr, "Checking for Sample %s\n", sample.c_str());
+        fprintf(stderr, "Checking for sample %s\n", sample.c_str());
         if (T.get_node(sample) == NULL) {
             fprintf(stderr, "ERROR: Sample missing in input MAT!\n");
             std::cerr << std::endl;
