@@ -80,7 +80,6 @@ void mask_main(po::parsed_options parsed) {
     std::string diff_file = vm["maple-file"].as<std::string>();
     //std::string pos_file = vm["ignore-positions-file"].as<std::string>();
     tbb::task_scheduler_init init(num_threads);
-    fprintf(stderr, "made it to main function");
 
     //check for mutually exclusive arguments
     //LILY: make sure you check for need for exclusivity of your function 
