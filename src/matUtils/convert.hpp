@@ -1,5 +1,6 @@
 #include "common.hpp"
 
+void make_diff (MAT::Tree& T, std::string diff_filename, std::vector<std::string> samples_vec = {});
 void make_vcf (MAT::Tree T, std::string vcf_filename, bool no_genotypes, std::vector<std::string> samples_vec = {});
 void write_json_from_mat(MAT::Tree* T, std::string output_filename, std::vector<std::unordered_map<std::string,std::unordered_map<std::string,std::string>>>* catmeta, std::string title);
 MAT::Tree load_mat_from_json(std::string json_filename);
