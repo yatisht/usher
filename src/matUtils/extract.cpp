@@ -61,6 +61,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
      "Write the path of mutations defining each clade in the subtree to the target file.")
     ("all-paths,A", po::value<std::string>()->default_value(""),
      "Write mutations assigned to each node in the subtree in depth-first traversal order to the target file.")
+    ("write-diff", po::value<std::string>()->default_value(""),
+     "Write MAPLE diff file representing selected subtree. Default is full tree")
     ("write-vcf,v", po::value<std::string>()->default_value(""),
      "Output VCF file representing selected subtree. Default is full tree")
     ("no-genotypes,n", po::bool_switch(),
@@ -197,6 +199,7 @@ void extract_main (po::parsed_options parsed) {
     std::string closest_relatives_filename = dir_prefix + vm["closest-relatives"].as<std::string>();
     std::string within_dist_filename = dir_prefix + vm["within-distance"].as<std::string>();
     std::string tree_filename = dir_prefix + vm["write-tree"].as<std::string>();
+    std::string diff_filename = dir_prefix + vm["write-diff"].as<std::string>();
     std::string vcf_filename = dir_prefix + vm["write-vcf"].as<std::string>();
     std::string output_mat_filename = dir_prefix + vm["write-mat"].as<std::string>();
     std::string output_tax_filename = dir_prefix + vm["write-taxodium"].as<std::string>();
@@ -218,7 +221,7 @@ void extract_main (po::parsed_options parsed) {
     uint32_t num_threads = vm["threads"].as<uint32_t>();
     //check that at least one of the output filenames (things which take dir_prefix)
     //are set before proceeding.
-    std::vector<std::string> outs = {sample_path_filename, clade_path_filename, all_path_filename, tree_filename, vcf_filename, output_mat_filename, output_tax_filename, json_filename, used_sample_filename};
+    std::vector<std::string> outs = {sample_path_filename, clade_path_filename, all_path_filename, tree_filename, diff_filename, vcf_filename, output_mat_filename, output_tax_filename, json_filename, used_sample_filename};
     if (!std::any_of(outs.begin(), outs.end(), [=](std::string f) {
     return f != dir_prefix;
 }) &&
@@ -829,6 +832,10 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         catmeta.emplace_back(submet);
     }
     //last step is to convert the subtree to other file formats
+    if (diff_filename != dir_prefix) {
+        fprintf(stderr, "Generating MAPLE diff of final tree\n");
+        make_diff(subtree, diff_filename, samples);
+    }
     if (vcf_filename != dir_prefix) {
         fprintf(stderr, "Generating VCF of final tree\n");
         make_vcf(subtree, vcf_filename, no_genotypes, samples);
