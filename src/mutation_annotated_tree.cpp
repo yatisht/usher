@@ -225,10 +225,10 @@ void Mutation_Annotated_Tree::write_newick_string (std::stringstream& ss, const 
 
     for (auto n: traversal) {
         size_t level = n->level-level_offset;
-        float branch_length = n->branch_length;
-        if (!retain_original_branch_len) {
-            branch_length = static_cast<float>(n->mutations.size());
-        }
+        //float branch_length = n->branch_length;
+        //band-aid fix that essentially forces !retain_original_branch_len
+        float branch_length = static_cast<float>(n->mutations.size());
+        
         if (curr_level < level) {
             if (!prev_open) {
                 ss << ',';
