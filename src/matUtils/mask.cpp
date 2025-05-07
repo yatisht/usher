@@ -884,33 +884,31 @@ void restrictSamples (std::string samples_filename, MAT::Tree& T) {
     }
 }
 
-std::unordered_set<std::string> mutation_set_from_node(MAT::Tree* T, MAT::Node* node, bool include_node, bool include_ancestors) {
-    std::unordered_set<std::string> mutations;
+std::vector<MAT::Mutation> mutation_set_from_node(MAT::Tree* T, MAT::Node* node, bool include_node, bool include_ancestors) {
+    std::vector<MAT::Mutation> mutations;
     if (include_ancestors) {
-        for (auto an: T->rsearch(node->identifier, include_node)) {
+        std::vector<MAT::Node*> ancestors = T->rsearch(node->identifier, include_node);
+        // Reverse so we proceed from root to node.
+        std::reverse(ancestors.begin(), ancestors.end());
+        // Make a node so we can use the logic in Node::add_mutation to deal with multiple mutations at the same position.
+        MAT::Node tmp_node = MAT::Node();
+        for (auto an: ancestors) {
             for (auto mut: an->mutations) {
                 if (mut.is_masked()) {
                     continue;
                 }
-                MAT::Mutation mut_opposite = mut.copy();
-                //we check for whether this mutation is going to negate with something in the set
-                //by identifying its opposite and checking whether the opposite is already present on the traversal.
-                mut_opposite.par_nuc = mut.mut_nuc;
-                mut_opposite.mut_nuc = mut.par_nuc;
-                auto cml = mutations.find(mut_opposite.get_string());
-                if (cml != mutations.end()) {
-                    mutations.erase(cml);
-                } else {
-                    mutations.insert(mut.get_string());
-                }
+                tmp_node.add_mutation(mut);
             }
+        }
+        for (auto mut: tmp_node.mutations) {
+            mutations.push_back(mut.copy());
         }
     } else if (include_node) {
         for (auto mut: node->mutations) {
             if (mut.is_masked()) {
                 continue;
             }
-            mutations.insert(mut.get_string());
+            mutations.push_back(mut.copy());
         }
     } else {
         fprintf(stderr, "ERROR: mutation_set_from_node: at least one of include_node and include_ancestors should be true.\n");
@@ -919,7 +917,32 @@ std::unordered_set<std::string> mutation_set_from_node(MAT::Tree* T, MAT::Node* 
     return mutations;
 }
 
+void remove_mutation_from_node(MAT::Node *node, MAT::Mutation &mut) {
+    // Find and remove the element of node->mutations that has the same position and mut_nuc as mut.
+    std::vector<MAT::Mutation>::iterator to_remove = node->mutations.end();
+    for (auto iter = node->mutations.begin();  iter != node->mutations.end();  iter++) {
+        MAT::Mutation nodemut = *iter;
+        if (nodemut.position == mut.position && nodemut.mut_nuc == mut.mut_nuc) {
+            to_remove = iter;
+            break;
+        }
+    }
+    if (to_remove == node->mutations.end()) {
+        fprintf(stderr, "ERROR: remove_mutation_from_node: node %s does not have mutation %s\n",
+                node->identifier.c_str(), mut.get_string().c_str());
+        exit(1);
+    }
+    node->mutations.erase(to_remove);
+}
 
+bool mutation_vec_has_position(std::vector<MAT::Mutation>& mutations, int position) {
+    for (auto mut: mutations) {
+        if (mut.position == position) {
+            return true;
+        }
+    }
+    return false;
+}
 
 void moveNodes (std::string node_filename, MAT::Tree* T) {
     // Function to move nodes between two identical placement paths. That is, move the target node so that is a child of the indicated new parent node,
@@ -959,9 +982,9 @@ void moveNodes (std::string node_filename, MAT::Tree* T) {
         }
         //accumulate the set of mutations belonging to the current and the new placement
         //not counting mutations belonging to the target, but counting ones to the putative new parent.
-        std::unordered_set<std::string> curr_mutations = mutation_set_from_node(T, mn, false, true);
-        std::unordered_set<std::string> new_mutations = mutation_set_from_node(T, np, true, true);
-        if (curr_mutations == new_mutations) {
+        std::vector<MAT::Mutation> curr_parent_mutations = mutation_set_from_node(T, mn, false, true);
+        std::vector<MAT::Mutation> new_mutations = mutation_set_from_node(T, np, true, true);
+        if (curr_parent_mutations == new_mutations) {
             //we can now proceed with the move.
             T->move_node(mn->identifier, np->identifier);
             fprintf(stderr, "Move of node %s to node %s successful.\n", words[0].c_str(), words[1].c_str());
@@ -970,28 +993,63 @@ void moveNodes (std::string node_filename, MAT::Tree* T) {
             fprintf(stderr, "The current (%s) and new (%s) node paths do not involve the same set of mutations.\n",
                     mn->identifier.c_str(), np->identifier.c_str());
 
-            std::unordered_set<std::string> extra_mutations;
-            size_t curr_in_new_count = 0;
-            for (auto mut: curr_mutations) {
-                if (new_mutations.find(mut) != new_mutations.end()) {
-                    curr_in_new_count++;
-                } else {
-                    extra_mutations.insert(mut);
+            // Find mutations in the new parent but not in the current parent
+            std::vector<MAT::Mutation> new_parent_extra_muts;
+            for (auto mut: new_mutations) {
+                if (std::find(curr_parent_mutations.begin(), curr_parent_mutations.end(), mut) == curr_parent_mutations.end()) {
+                    new_parent_extra_muts.push_back(mut);
                 }
             }
-            if (extra_mutations.size() == 0 || curr_in_new_count != new_mutations.size()) {
-              fprintf(stderr, "ERROR: the new parent (%s) has mutations not found in the current node (%s); %ld in common, %ld in new\n",
-                      np->identifier.c_str(), mn->identifier.c_str(), curr_in_new_count, new_mutations.size());
-              exit(1);
+            // Find mutations in mn relative to its parent.  Can't just call mutation_set_from_node
+            // with true, false because mn might have a mutation at the same position as one of its
+            // parent's mutations -- we need those combined to get the reference allele as the
+            // ref_nuc/par_nuc for comparison with new_parent_extra_muts.  So get all muts, and then
+            // erase all parental muts to get only the (collapsed) muts on mn.
+            std::vector<MAT::Mutation> curr_node_extra_muts = mutation_set_from_node(T, mn, true, true);
+            for (MAT::Mutation parent_mut: curr_parent_mutations) {
+                auto iter = std::find(curr_node_extra_muts.begin(), curr_node_extra_muts.end(), parent_mut);
+                if (iter != curr_node_extra_muts.end()) {
+                    curr_node_extra_muts.erase(iter);
+                }
             }
-            // Look for a child of np that already has extra_mutations.  If there is such a child
+            // Find mutations in the current parent (mn's parent) but not in the new parent
+            std::vector<MAT::Mutation> curr_parent_extra_muts;
+            for (auto mut: curr_parent_mutations) {
+                if (std::find(new_mutations.begin(), new_mutations.end(), mut) == new_mutations.end()) {
+                  // but discard parental mutations at the same position as in curr_node_extra_muts
+                  // because those were overridden in the node to be moved.
+                  if (! mutation_vec_has_position(curr_node_extra_muts, mut.position)) {
+                      curr_parent_extra_muts.push_back(mut);
+                  }
+                }
+            }
+            // If new parent has mutation(s) not found in current parent: if they are already in
+            // curr_node_extra_muts, then remove from curr_node_extra_muts and mn, otherwise error.
+            for (auto mut: new_parent_extra_muts) {
+                auto iter = std::find(curr_node_extra_muts.begin(), curr_node_extra_muts.end(), mut);
+                if (iter != curr_node_extra_muts.end()) {
+                    curr_node_extra_muts.erase(iter);
+                    remove_mutation_from_node(mn, mut);
+                    fprintf(stderr, "mut %s is in new parent %s but not current parent, but is in current node %s; removed it.\n",
+                            mut.get_string().c_str(), np->identifier.c_str(), mn->identifier.c_str());
+                } else {
+                    fprintf(stderr, "ERROR: new parent %s has mutation %s not found in the current node %s's path.\n",
+                            np->identifier.c_str(), mut.get_string().c_str(), mn->identifier.c_str());
+                    for (auto m: curr_node_extra_muts) {
+                      fprintf(stderr, "%s,", m.get_string().c_str());
+                    }
+                    fprintf(stderr, "\n");
+                    exit(1);
+                }
+            }
+            // Look for a child of np that already has curr_parent_extra_muts.  If there is such a child
             // then move mn to that child.  Otherwise add those mutations to mn and move it to np.
             MAT::Node *child_with_muts = NULL;
             for (auto child: np->children) {
-              std::unordered_set<std::string> mut_set = mutation_set_from_node(T, child, true, false);
-                if (mut_set == extra_mutations) {
+                std::vector<MAT::Mutation> mut_set = mutation_set_from_node(T, child, true, false);
+                if (mut_set == curr_parent_extra_muts) {
                     child_with_muts = child;
-                    fprintf(stderr, "Found child with extra_mutations: %s\n", child->identifier.c_str());
+                    fprintf(stderr, "Found child with curr_parent_extra_muts: %s\n", child->identifier.c_str());
                     break;
                 }
             }
@@ -999,16 +1057,20 @@ void moveNodes (std::string node_filename, MAT::Tree* T) {
                 T->move_node(mn->identifier, child_with_muts->identifier);
             } else {
                 // Preserve chronological order expected by add_mutation by adding mn's mutations
-                // after extra_mutations instead of vice versa.
+                // after curr_parent_extra_muts instead of vice versa.
                 std::vector<MAT::Mutation>mn_mutations;
                 for (auto mut: mn->mutations) {
                     mn_mutations.push_back(mut);
                 }
                 mn->mutations.clear();
-                for (auto mut: extra_mutations) {
-                    mn->add_mutation(*(MAT::mutation_from_string(mut)));
+                for (auto mut: curr_parent_extra_muts) {
+                    fprintf(stderr, "Added current parent's extra mutation %s to node to be moved (%s)\n",
+                            mut.get_string().c_str(), mn->identifier.c_str());
+                    mn->add_mutation(mut);
                 }
                 for (auto mut: mn_mutations) {
+                    fprintf(stderr, "Layering on node to be moved (%s)'s mutation %s\n",
+                            mn->identifier.c_str(), mut.get_string().c_str());
                     mn->add_mutation(mut);
                 }
                 T->move_node(mn->identifier, np->identifier);
