@@ -384,6 +384,10 @@ static void process(MAT::Tree& tree,infile_t& fd) {
                 idx_map.push_back(-1);
                 //exit(EXIT_FAILURE);
             } else {
+                if (inserted_samples.count(fields[idx])) {
+                    fprintf(stderr, "ERROR: sample '%s' appears more than once in the VCF header\n", fields[idx].c_str());
+                    exit(EXIT_FAILURE);
+                }
                 auto res=inserted_samples.insert(fields[idx]);
                 if (res.second) {
                     idx_map.push_back(node->bfs_index);

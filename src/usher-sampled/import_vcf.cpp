@@ -449,8 +449,8 @@ static void process(infile_t &fd, std::vector<Sample_Muts> &sample_mutations,
     for (size_t field_idx = 9; field_idx < fields.size(); field_idx++) {
         auto ins_result=vcf_samples.emplace(fields[field_idx],field_idx);
         if(!ins_result.second) {
-            fprintf(stderr,"sample %s on both column %zu and %zu, taking first column\n",fields[field_idx].c_str(),ins_result.first->second,field_idx);
-            continue;
+            fprintf(stderr,"ERROR: sample '%s' is in both column %zu and %zu of VCF header\n",fields[field_idx].c_str(),ins_result.first->second,field_idx);
+            exit(EXIT_FAILURE);
         }
         auto node=tree.get_node(fields[field_idx]);
         if (node != nullptr) {
