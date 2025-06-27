@@ -334,7 +334,138 @@ std::vector<std::string> get_short_paths (MAT::Tree* T, std::vector<std::string>
     return good_samples;
 }
 
-std::unordered_map<std::string,std::unordered_map<std::string,std::string>> read_metafile(std::string metainf, std::set<std::string> samples_to_use) {
+void prune_except_clade_roots(Mutation_Annotated_Tree::Node* node, std::unordered_set<std::string>& samples_to_prune, std::unordered_set<std::string>& nodes_exempt, std::string& chopped_node, const size_t leaf_count_total, const size_t mut_count_total, const double mut_density) {
+    // Recursively descend node, adding IDs of all leaf descendants of node to samples_to_prune,
+    // unless node is a clade root (in that case print a message for now***) or is in nodes_exempt.
+    bool has_clade_annotation = false;
+    for (auto cann: node->clade_annotations) {
+        if (cann != "") {
+            has_clade_annotation = true;
+            fprintf(stderr, "Sparing node %s (from %s) because it has clade annotation %s\n", node->identifier.c_str(), chopped_node.c_str(), cann.c_str());
+            break;
+        }
+    }
+    if (! has_clade_annotation &&
+        nodes_exempt.find(node->identifier) == nodes_exempt.end()) {
+        if (node->children.size() == 0) {
+            samples_to_prune.insert(node->identifier);
+        } else {
+            for (auto child: node->children) {
+              prune_except_clade_roots(child, samples_to_prune, nodes_exempt, chopped_node, leaf_count_total, mut_count_total, mut_density);
+            }
+        }
+    }
+}
+
+void add_nodes_to_set(Mutation_Annotated_Tree::Node* node, std::unordered_set<std::string>& set) {
+    // Recursively descend node, adding IDs of all internal nodes to set.
+    if (node->children.size() > 0) {
+        set.insert(node->identifier);
+        for (auto child: node->children) {
+            add_nodes_to_set(child, set);
+        }
+    }
+}
+
+void filter_mut_density_helper(Mutation_Annotated_Tree::Node* node, Mutation_Annotated_Tree::Tree* T, const double max_mut_density, const std::unordered_map<std::string, size_t>& node_leaf_counts, size_t& leaf_count, size_t& mut_count, std::unordered_set<std::string>& samples_to_prune, std::unordered_set<std::string>& nodes_exempt) {
+    // Recursively descend node, identifying samples to prune because their branches have too-high
+    // mutation density and no redeeming qualities such as being an annotated clade.
+    if (node->children.size() > 0) {
+        // First, exempt all descendants of clade root nodes with small leaf count from pruning
+        for (auto cann: node->clade_annotations) {
+            if (cann != "") {
+                size_t pre_prune_count = node_leaf_counts.at(node->identifier);
+                if (pre_prune_count < 150) {
+                    add_nodes_to_set(node, nodes_exempt);
+                }
+                break;
+            }
+        }
+        // Internal node: sum up counts of children to get mutation density
+        bool this_node_exempt = (nodes_exempt.find(node->identifier) != nodes_exempt.end());
+        size_t leaf_count_total = 0, mut_count_total = 0, own_mut_count = node->mutations.size();
+        for (auto child: node->children) {
+            if (!this_node_exempt && child->children.size() == 0) {
+                // Special case for leaf child of node that's not already exempt: prune if
+                // leaf mutation count exceeds max_mut_density.
+                size_t child_mut_count = child->mutations.size();
+                if (child_mut_count > max_mut_density) {
+                    samples_to_prune.insert(child->identifier);
+                } else {
+                    leaf_count_total++;
+                    mut_count_total += child_mut_count;
+                }
+            } else {
+                size_t leaf_count_child, mut_count_child;
+                filter_mut_density_helper(child, T, max_mut_density, node_leaf_counts, leaf_count_child, mut_count_child, samples_to_prune, nodes_exempt);
+                leaf_count_total += leaf_count_child;
+                mut_count_total += mut_count_child;
+            }
+        }
+        // If all children have been pruned, then this node has effectively been pruned;
+        // just return zero counts.
+        if (leaf_count_total == 0) {
+            leaf_count = 0;
+            mut_count = 0;
+        } else {
+            // Treat mutations at this node specially for purposes of computing mutation density:
+            // divide by leaf count to avoid penalizing a long branch to a tight cluster.
+            double own_mut_contribution = own_mut_count / (double)leaf_count_total;
+            double mut_density = (own_mut_contribution + mut_count_total) / (double)leaf_count_total;
+            if (mut_density > max_mut_density) {
+                // Remove all descendants of this node (unless exempt) and return zero counts
+                prune_except_clade_roots(node, samples_to_prune, nodes_exempt, node->identifier, leaf_count_total, mut_count_total, mut_density);
+                leaf_count = 0;
+                mut_count = 0;
+            } else {
+                leaf_count = leaf_count_total;
+                // Include own_mut_count in return value without scaling
+                mut_count = mut_count_total + own_mut_count;
+                // Exempt this node from pruning if it has a very low mut_density
+                if (mut_density < 1 / max_mut_density) {
+                    nodes_exempt.insert(node->identifier);
+                }
+            }
+        }
+    } else {
+        // Leaf node: just return counts
+        leaf_count = 1;
+        mut_count = node->mutations.size();
+    }
+}
+
+size_t get_leaf_counts(Mutation_Annotated_Tree::Node* node, std::unordered_map<std::string, size_t>& node_leaf_counts) {
+    // Recursively descend the tree to find and store leaf counts for each node.
+    size_t leaf_count = 0;
+    if (node->children.size() == 0) {
+        leaf_count = 1;
+    } else {
+        for (auto child: node->children) {
+            leaf_count += get_leaf_counts(child, node_leaf_counts);
+        }
+    }
+    node_leaf_counts.insert({node->identifier, leaf_count});
+    return leaf_count;
+}
+
+std::unordered_set<std::string> filter_mut_density(Mutation_Annotated_Tree::Tree* T, std::unordered_set<std::string>& samples_to_check, double max_mut_density) {
+    // Prune branches that have a too-high mutation density, i.e. ratio of total mutations to number
+    // of leaves.  Don't prune annotated clades or branches with very low mutation density.
+    std::unordered_set<std::string> samples_to_prune, nodes_exempt;
+    std::unordered_map<std::string, size_t> node_leaf_counts;
+    get_leaf_counts(T->root, node_leaf_counts);
+    size_t leaf_count, mut_count;
+    filter_mut_density_helper(T->root, T, max_mut_density, node_leaf_counts, leaf_count, mut_count, samples_to_prune, nodes_exempt);
+    std::unordered_set<std::string> samples_to_keep;
+    for (auto sample = samples_to_check.begin();  sample != samples_to_check.end();  sample++) {
+        if (samples_to_prune.find(*sample) == samples_to_prune.end()) {
+            samples_to_keep.insert(*sample);
+        }
+    }
+    return samples_to_keep;
+}
+
+std::unordered_map<std::string,std::unordered_map<std::string,std::string>> read_metafile(std::string metainf, std::set<std::string> samples_to_use, bool load_all) {
     std::ifstream infile(metainf);
     if (!infile) {
         fprintf(stderr, "ERROR: Could not open the file: %s!\n", metainf.c_str());
@@ -362,7 +493,7 @@ std::unordered_map<std::string,std::unordered_map<std::string,std::string>> read
             first = false;
         } else {
             for (size_t i=1; i < words.size(); i++) {
-                if (samples_to_use.find(words[0]) != samples_to_use.end()) {
+                if ((samples_to_use.find(words[0]) != samples_to_use.end()) || (load_all)) {
                     metamap[keys[i]][words[0]] = words[i];
                 }
             }

@@ -354,8 +354,11 @@ void print_progress(std::atomic<bool>* done,std::mutex* done_mutex) {
 template<typename infile_t>
 static line_start_later try_get_first_line(infile_t& f,size_t& size ) {
     std::string temp;
-    char c;
+    int c;
     while ((c=f.getc())!='\n') {
+        if (c==EOF) {
+            return line_start_later{nullptr,nullptr};
+        }
         temp.push_back(c);
     }
     temp.push_back('\n');
@@ -381,6 +384,10 @@ static void process(MAT::Tree& tree,infile_t& fd) {
                 idx_map.push_back(-1);
                 //exit(EXIT_FAILURE);
             } else {
+                if (inserted_samples.count(fields[idx])) {
+                    fprintf(stderr, "ERROR: sample '%s' appears more than once in the VCF header\n", fields[idx].c_str());
+                    exit(EXIT_FAILURE);
+                }
                 auto res=inserted_samples.insert(fields[idx]);
                 if (res.second) {
                     idx_map.push_back(node->bfs_index);
@@ -396,14 +403,15 @@ static void process(MAT::Tree& tree,infile_t& fd) {
         std::vector<forward_pass_range> parent_idx;
         FS_result_per_thread_t output;
         Fitch_Sankoff_prep(bfs_ordered_nodes,child_idx_range, parent_idx);
-        {
+        size_t single_line_size;
+        auto first_line=try_get_first_line(fd, single_line_size);
+        if(first_line.start){
             tbb::flow::graph input_graph;
             line_parser_t parser(input_graph,tbb::flow::unlimited,line_parser{idx_map});
             //feed used buffer back to decompressor
             tbb::flow::function_node<Parsed_VCF_Line*> assign_state(input_graph,tbb::flow::unlimited,Assign_State{child_idx_range,parent_idx,output});
             tbb::flow::make_edge(tbb::flow::output_port<0>(parser),assign_state);
-            size_t single_line_size;
-            parser.try_put(try_get_first_line(fd, single_line_size));
+            parser.try_put(first_line);
             size_t first_approx_size=std::min(CHUNK_SIZ,ONE_GB/single_line_size)-2;
             read_size=first_approx_size*single_line_size;
             alloc_size=(first_approx_size+2)*single_line_size;

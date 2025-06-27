@@ -225,10 +225,10 @@ void Mutation_Annotated_Tree::write_newick_string (std::stringstream& ss, const 
 
     for (auto n: traversal) {
         size_t level = n->level-level_offset;
-        float branch_length = n->branch_length;
-        if (!retain_original_branch_len) {
-            branch_length = static_cast<float>(n->mutations.size());
-        }
+        //float branch_length = n->branch_length;
+        //band-aid fix that essentially forces !retain_original_branch_len
+        float branch_length = static_cast<float>(n->mutations.size());
+        
         if (curr_level < level) {
             if (!prev_open) {
                 ss << ',';
@@ -727,6 +727,12 @@ void Mutation_Annotated_Tree::Node::add_mutation (Mutation mut) {
         }
         //reversal mutation
         else {
+            if (iter->mut_nuc != mut.par_nuc) {
+                fprintf(stderr, "ERROR: add_mutation: consecutive mutations at same position "
+                        "disagree on nuc (%s > %s) -- called out of order?\n",
+                        iter->get_string().c_str(), mut.get_string().c_str());
+                exit(1);
+            }
             std::vector<Mutation> tmp;
             for (auto m: mutations) {
                 if (m.position != iter->position) {
@@ -751,6 +757,27 @@ void Mutation_Annotated_Tree::Node::clear_mutations() {
 
 void Mutation_Annotated_Tree::Node::clear_annotations() {
     clade_annotations.clear();
+}
+
+Mutation_Annotated_Tree::Node* Mutation_Annotated_Tree::Node::find_child_with_muts(std::vector<Mutation_Annotated_Tree::Mutation> &muts) {
+    // If this node has a child with the same mutations as passed-in muts, then return that child;
+    // otherwise return NULL.  This sorts muts and some children's mutations if not already sorted.
+    if (! std::is_sorted(muts.begin(), muts.end())) {
+        std::sort(muts.begin(), muts.end());
+    }
+    size_t muts_size = muts.size();
+    for (Mutation_Annotated_Tree::Node* child: children) {
+        if (child->mutations.size() == muts_size) {
+            if (muts_size > 1 &&
+                ! std::is_sorted(child->mutations.begin(), child->mutations.end())) {
+                std::sort(child->mutations.begin(), child->mutations.end());
+            }
+            if (child->mutations == muts) {
+                return child;
+            }
+        }
+    }
+    return NULL;
 }
 
 /* === Tree === */
@@ -1082,32 +1109,115 @@ void Mutation_Annotated_Tree::Tree::remove_single_child_nodes() {
     }
 }
 
+static void link_parent_child(Mutation_Annotated_Tree::Node *parent,
+                              Mutation_Annotated_Tree::Node *child) {
+    // Establish parent-child links between the given nodes and invalidate child's branch length.
+    child->parent = parent;
+    child->branch_length = -1.0;
+    parent->children.push_back(child);
+}
+
+static void remove_child(Mutation_Annotated_Tree::Tree *T, Mutation_Annotated_Tree::Node *parent,
+                         Mutation_Annotated_Tree::Node *child, bool move_level) {
+    // Remove child from parent; if parent has no remaining children, remove parent from tree.
+    auto iter = std::find(parent->children.begin(), parent->children.end(), child);
+    if (iter == parent->children.end()) {
+        fprintf(stderr, "ERROR: child %s not found in parent %s's children\n",
+                child->identifier.c_str(), parent->identifier.c_str());
+        exit(1);
+    }
+    parent->children.erase(iter);
+    if (parent->children.size() == 0) {
+        T->remove_node(parent->identifier, move_level);
+    }
+}
+
 void Mutation_Annotated_Tree::Tree::move_node (std::string source_id, std::string dest_id, bool move_level) {
+    // Move source to become a child of destination, update all affected nodes' parent pointers and
+    // child lists, and recalculate levels if necessary.
     Node* source = all_nodes[source_id];
     Node* destination = all_nodes[dest_id];
     Node* curr_parent = source->parent;
+    if (curr_parent == destination) {
+        fprintf(stderr, "ERROR: move_node: dest_id=%s but that is already parent of source_id=%s\n",
+                dest_id.c_str(), source_id.c_str());
+        exit(1);
+    }
+    // Node(s) whose level will need to be recalculated after move
+    std::queue<Node*> need_level_update;
 
-    source->parent = destination;
-    source->branch_length = -1.0; // Invalidate source branch length
-
-    destination->children.push_back(source);
-
-    // Remove source from curr_parent
-    auto iter = std::find(curr_parent->children.begin(), curr_parent->children.end(), source);
-    curr_parent->children.erase(iter);
-    if (curr_parent->children.size() == 0) {
-        remove_node(curr_parent->identifier, move_level);
+    // Check for existing child of destination with same mutations as source.
+    Node* dest_existing = destination->find_child_with_muts(source->mutations);
+    if (dest_existing == curr_parent || source->mutations.size() == 0) {
+        dest_existing = NULL;
+    }
+    if (dest_existing == NULL) {
+        // No match with current children of destination; source simply becomes child of destination.
+        link_parent_child(destination, source);
+        remove_child(this, curr_parent, source, move_level);
+        need_level_update.push(source);
+    } else {
+        // destination already has a child with the same non-empty set of mutations as source.
+        // If we simply move source to become a new child of destination then there will be
+        // duplicate children with the same mutations, so don't do that.  The right thing to
+        // do depends on whether source and the existing child are leaf or internal nodes.
+        if (dest_existing->is_leaf()) {
+           if (source->is_leaf()) {
+               // Both source and existing child are leaves; make a new internal node child of
+               // destination with source->mutations and move the leaves to become its children
+               // with no additional mutations.
+               Node *new_internal = create_node(new_internal_node_id(), destination, -1.0);
+               for (auto mut: source->mutations) {
+                   new_internal->add_mutation(mut);
+               }
+               source->mutations.clear();
+               dest_existing->mutations.clear();
+               link_parent_child(new_internal, source);
+               link_parent_child(new_internal, dest_existing);
+               remove_child(this, destination, dest_existing, move_level);
+               remove_child(this, curr_parent, source, move_level);
+               need_level_update.push(new_internal);
+            } else {
+               // source is an internal node and existing child is a leaf; move existing child
+               // into source with no additional mutations and move source into destination.
+               dest_existing->mutations.clear();
+               link_parent_child(source, dest_existing);
+               link_parent_child(destination, source);
+               remove_child(this, destination, dest_existing, move_level);
+               remove_child(this, curr_parent, source, move_level);
+               need_level_update.push(source);
+            }
+        } else {
+            if (source->is_leaf()) {
+                // Existing child is an internal node and source is a leaf; move source into
+                // existing child with no additional mutations.
+                source->mutations.clear();
+                link_parent_child(dest_existing, source);
+                remove_child(this, curr_parent, source, move_level);
+                need_level_update.push(source);
+            } else {
+                // Both source and existing child are internal nodes; move all of source's children
+                // to become children of destination's existing child.
+                // Make copy of source->children vector because the loop removes elements from it
+                auto source_children = source->children;
+                for (auto source_child: source_children) {
+                    // It's not sufficient to link/remove/update here because some of these children
+                    // might have the same mutations as existing children of dest_existing; recurse.
+                    move_node(source_child->identifier, dest_existing->identifier, move_level);
+                }
+                // Removing all children causes source to be removed from tree, so no need to
+                // remove source from curr_parent.
+            }
+        }
     }
 
-    // Update levels of source descendants
-    std::queue<Node*> remaining_nodes;
-    remaining_nodes.push(source);
-    while (remaining_nodes.size() > 0) {
-        Node* curr_node = remaining_nodes.front();
-        remaining_nodes.pop();
+    // Update levels of moved node(s) and descendants
+    while (need_level_update.size() > 0) {
+        Node* curr_node = need_level_update.front();
+        need_level_update.pop();
         curr_node->level = curr_node->parent->level + 1;
         for (auto c: curr_node->children) {
-            remaining_nodes.push(c);
+            need_level_update.push(c);
         }
     }
 }
@@ -1271,29 +1381,46 @@ void Mutation_Annotated_Tree::Tree::uncondense_leaves() {
     condensed_leaves.clear();
 }
 
-void Mutation_Annotated_Tree::Tree::collapse_tree() {
-    auto bfs = breadth_first_expansion();
-
-    for (size_t idx = 1; idx < bfs.size(); idx++) {
-        auto node = bfs[idx];
-        auto mutations = node->mutations;
-        if (mutations.size() == 0) {
-            auto parent = node->parent;
-            auto children = node->children;
-            for (auto child: children) {
-                move_node(child->identifier, parent->identifier, false);
-            }
+static void collapse_tree_r(Mutation_Annotated_Tree::Tree *T, Mutation_Annotated_Tree::Node *node) {
+    // Recursively find nodes with no mutations and move their children up to their parents.
+    // Moved nodes may be removed (if their mutations are redundant with an existing child of
+    // grandparent) so make changes starting from leafmost nodes back to root to avoid referencing
+    // removed nodes.
+    if (node->children.size() > 0) {
+        // Collapse each child of node before deciding what to do with node.
+        // Make a copy of node->children because it can be modified in the loop:
+        auto node_children = node->children;
+        for (auto child: node_children) {
+            collapse_tree_r(T, child);
         }
-        //If internal node has one child, the child can be moved up one level
-        else if (node->children.size() == 1) {
-            auto child = node->children.front();
-            auto parent = node->parent;
-            for (auto m: mutations) {
-                child->add_mutation(m.copy());
+        auto parent = node->parent;
+        if (parent != NULL) {
+            if (node->mutations.size() == 0) {
+                  auto node_children = node->children;
+                  for (auto child: node_children) {
+                      T->move_node(child->identifier, parent->identifier, false);
+                  }
             }
-            move_node(child->identifier, parent->identifier, false);
+            //If internal node has one child, the child can be moved up one level
+            else if (node->children.size() == 1) {
+                auto child = node->children.front();
+                // Preserve chronological order expected by add_mutation by adding child's mutations
+                // to node instead of vice versa, then move node's updated mutations to child.
+                for (auto m: child->mutations) {
+                    node->add_mutation(m.copy());
+                }
+                child->mutations.clear();
+                for (auto m: node->mutations) {
+                    child->mutations.emplace_back(m.copy());
+                }
+                T->move_node(child->identifier, parent->identifier, false);
+            }
         }
     }
+}
+
+void Mutation_Annotated_Tree::Tree::collapse_tree() {
+    collapse_tree_r(this, this->root);
 }
 
 void Mutation_Annotated_Tree::Tree::rotate_for_display(bool reverse) {
@@ -1563,7 +1690,7 @@ void Mutation_Annotated_Tree::clear_tree(Mutation_Annotated_Tree::Tree& T) {
     }
 }
 
-void Mutation_Annotated_Tree::get_random_single_subtree (Mutation_Annotated_Tree::Tree* T, std::vector<std::string> samples, std::string outdir, size_t subtree_size, size_t tree_idx, bool use_tree_idx, bool retain_original_branch_len) {
+void Mutation_Annotated_Tree::get_random_single_subtree (Mutation_Annotated_Tree::Tree* T, std::vector<std::string> samples, std::string outdir, size_t subtree_size, size_t tree_idx, bool use_tree_idx, bool retain_original_branch_len, std::vector<std::string> anchor_samples) {
     //timer.Start();
     std::string preid = "/";
     if (use_tree_idx) {
@@ -1589,6 +1716,9 @@ void Mutation_Annotated_Tree::get_random_single_subtree (Mutation_Annotated_Tree
         leaves_to_keep.emplace_back(l->identifier);
     }
 
+    // Add "anchor samples" (if any)
+    leaves_to_keep.insert(leaves_to_keep.end(), anchor_samples.begin(), anchor_samples.end());
+
     auto new_T = Mutation_Annotated_Tree::get_subtree(*T, leaves_to_keep);
 
     // Rotate tree for display
@@ -1596,8 +1726,11 @@ void Mutation_Annotated_Tree::get_random_single_subtree (Mutation_Annotated_Tree
 
     // Write subtree to file
     auto subtree_filename = outdir + preid + "single-subtree.nh";
-    fprintf(stderr, "Writing single subtree with %zu randomly added leaves to file %s.\n", subtree_size, subtree_filename.c_str());
-
+    if (anchor_samples.size() > 0) {
+        fprintf(stderr, "Writing single subtree with %zu randomly added leaves and %zu anchor samples to file %s.\n", subtree_size, anchor_samples.size(), subtree_filename.c_str());
+    } else {
+        fprintf(stderr, "Writing single subtree with %zu randomly added leaves to file %s.\n", subtree_size, subtree_filename.c_str());
+    }
     std::ofstream subtree_file(subtree_filename.c_str(), std::ofstream::out);
     std::stringstream newick_ss;
     write_newick_string(newick_ss, new_T, new_T.root, true, true, retain_original_branch_len);
@@ -1649,7 +1782,7 @@ void Mutation_Annotated_Tree::get_random_single_subtree (Mutation_Annotated_Tree
     }
 }
 
-void Mutation_Annotated_Tree::get_random_sample_subtrees (Mutation_Annotated_Tree::Tree* T, std::vector<std::string> samples, std::string outdir, size_t subtree_size, size_t tree_idx, bool use_tree_idx, bool retain_original_branch_len) {
+void Mutation_Annotated_Tree::get_random_sample_subtrees (Mutation_Annotated_Tree::Tree* T, std::vector<std::string> samples, std::string outdir, size_t subtree_size, size_t tree_idx, bool use_tree_idx, bool retain_original_branch_len, std::vector<std::string> anchor_samples) {
     fprintf(stderr, "Computing subtrees for %ld samples. \n\n", samples.size());
     std::string preid = "/";
     if (use_tree_idx) {
@@ -1775,6 +1908,9 @@ void Mutation_Annotated_Tree::get_random_sample_subtrees (Mutation_Annotated_Tre
                     leaves_to_keep.emplace_back(l->identifier);
                 }
             }
+
+            // Add "anchor samples" (if any)
+            leaves_to_keep.insert(leaves_to_keep.end(), anchor_samples.begin(), anchor_samples.end());
 
             auto new_T = Mutation_Annotated_Tree::get_subtree(*T, leaves_to_keep);
 

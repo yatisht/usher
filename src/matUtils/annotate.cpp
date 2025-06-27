@@ -246,8 +246,13 @@ void parse_clade_mutations(const std::string& clade_mutations_filename,
             std::vector<std::string> mut_strings;
             MAT::string_split(path_el, ',', mut_strings);
             for (auto mut_string: mut_strings) {
+                if (mut_string == "") {
+                    continue;
+                }
                 MAT::Mutation *mut = MAT::mutation_from_string(mut_string);
                 if (mut == NULL) {
+                    fprintf(stderr, "Unable to parse mutation '%s' for %s element %s\n",
+                            mut_string.c_str(), clade.c_str(), path_el.c_str());
                     got_error = true;
                 } else {
                     if (std::find(mut_positions.begin(), mut_positions.end(), mut->position) != mut_positions.end()) {

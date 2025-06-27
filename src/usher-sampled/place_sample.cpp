@@ -365,7 +365,7 @@ struct Print_Thread {
                 MAT::Mutations_Collection sample_mutations;
                 const auto& target=std::get<0>(*in.placement_info)[0];
                 discretize_mutations(target.sample_mutations, target.shared_mutations,
-                                     target.parent_node, sample_mutations);
+                                     target.target_node->parent, sample_mutations);
                 enum_imputed_positions(sample_mutations, placement_stats_file,out_file);
                 delete in.placement_info;
                 return;
@@ -377,7 +377,7 @@ struct Print_Thread {
             MAT::Mutations_Collection sample_mutations;
             const auto& target=std::get<0>(*in.placement_info)[0];
             discretize_mutations(target.sample_mutations, target.shared_mutations,
-                                 target.parent_node, sample_mutations);
+                                 target.target_node->parent, sample_mutations);
             enum_imputed_positions(sample_mutations, placement_stats_file,out_file);
         } else {
             auto sample_node=tree.get_node(sample_idx);
@@ -432,7 +432,7 @@ static void serial_proc_placed_sample( MAT::Tree &main_tree,move_type* in,bool d
     auto target = choose_best(search_result);
     MAT::Mutations_Collection sample_mutations;
     discretize_mutations(target.sample_mutations, target.shared_mutations,
-                         target.parent_node, sample_mutations);
+                         target.target_node->parent, sample_mutations);
     auto out = update_main_tree(
                    sample_mutations, target.splited_mutations, target.shared_mutations,
                    target.target_node, std::get<1>(*in)->sample_idx, main_tree, 0, false);
@@ -446,7 +446,7 @@ typedef tbb::flow::function_node<Preped_Sample_To_Place *,size_t> placer_node_t;
 typedef tbb::concurrent_bounded_queue<Sample_Muts*> retry_place_t;
 typedef tbb::flow::multifunction_node<Sample_Muts*,tbb::flow::tuple<Sample_Muts*>> Pusher_Node_T;
 typedef tbb::flow::function_node<print_format> Printer_Node_t;
-static void place_sample_thread( MAT::Tree &main_tree,std::vector<MAT::Node *> &deleted_nodes,
+static void place_sample_thread(int start_idx, MAT::Tree &main_tree,std::vector<MAT::Node *> &deleted_nodes,
                                  Placed_move_sended_state& send_queue,found_place_t& found_place_queue,Pusher_Node_T& retry_queue
                                  ,int all_size,std::atomic_bool& stop,std::atomic_size_t& curr_idx,
                                  const int parsimony_increase_threshold, size_t sample_start_idx,bool dry_run,
@@ -454,7 +454,6 @@ static void place_sample_thread( MAT::Tree &main_tree,std::vector<MAT::Node *> &
     int redo=0;
     int total=0;
     int parsimony_increase=0;
-    int start_idx=curr_idx;
     int stop_count=all_size-start_idx;
     while (total<stop_count) {
         move_type* in;
@@ -518,6 +517,9 @@ static void place_sample_thread( MAT::Tree &main_tree,std::vector<MAT::Node *> &
                 skip=true;
                 break;
             }
+            /*if ((size_t)placement.parent_node==2&&!skip) {
+                raise(SIGTRAP);
+            }*/
         }
         if (skip) {
             continue;
@@ -537,7 +539,7 @@ static void place_sample_thread( MAT::Tree &main_tree,std::vector<MAT::Node *> &
             target.parent_node=nullptr;
         }
         discretize_mutations(target.sample_mutations, target.shared_mutations,
-                             target.parent_node, sample_mutations);
+                             target.target_node->parent, sample_mutations);
         Preped_Sample_To_Place* to_ser;
         if (multi_processing) {
             to_ser=new Preped_Sample_To_Place;
@@ -727,6 +729,7 @@ void place_sample_leader(std::vector<Sample_Muts> &sample_to_place,
                          size_t sample_start_idx,std::vector<size_t>* idx_map,
                          bool do_print
                         ) {
+    int start_idx=curr_idx;
     std::vector<MAT::Node *> deleted_nodes;
     size_t node_count=main_tree.depth_first_expansion().size();
     deleted_nodes.reserve(sample_to_place.size());
@@ -787,7 +790,7 @@ void place_sample_leader(std::vector<Sample_Muts> &sample_to_place,
         if (dry_run) {
             send_queue.try_push(nullptr);
         }
-        place_sample_thread(main_tree, deleted_nodes, send_queue, found_queue,
+        place_sample_thread(start_idx,main_tree, deleted_nodes, send_queue, found_queue,
                             init, sample_to_place.size(), stop, curr_idx,
                             parsimony_increase_threshold,
                             sample_start_idx, dry_run,max_parsimony,max_uncertainty,process_count>1,printer_node,do_print);

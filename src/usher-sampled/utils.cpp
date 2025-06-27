@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <functional>
 #include <mpi.h>
 #include <string>
 #include <sys/wait.h>
@@ -32,7 +33,7 @@
 void Min_Back_Fitch_Sankoff(MAT::Node* root_node,const MAT::Mutation& mut_template,
                             std::vector<std::vector<MAT::Mutation>>& mutation_output,mutated_t& positions,size_t dfs_size);
 int set_descendant_count(MAT::Node* root) {
-    size_t child_count=0;
+    size_t child_count=1;
     for (auto child : root->children) {
         child_count+=set_descendant_count(child);
     }
@@ -545,7 +546,6 @@ static int output_newick(MAT::Tree& T,const output_options& options,int t_idx) {
     } else {
         return pid;
     }
-
 }
 void check_leaves(const MAT::Tree& T) {
     for (const auto node :T.depth_first_expansion() ) {
@@ -618,10 +618,29 @@ void print_annotation(const MAT::Tree &T, const output_options &options,
 
     fclose(annotations_file);
 }
+
+std::vector<MAT::Node*>read_sample_nodes(std::string samples_file, MAT::Tree &T, FILE *f) {
+    std::vector<MAT::Node*> sample_nodes;
+    std::fstream sample_file(samples_file,std::ios_base::in);
+    std::string sample_name;
+    while (sample_file) {
+        std::getline(sample_file, sample_name);
+        if (sample_name != "") {
+            auto node = T.get_node(sample_name);
+            if (!node) {
+                fprintf(f, "node %s in file %s does not exist\n", sample_name.c_str(), samples_file.c_str());
+            } else {
+                sample_nodes.push_back(node);
+            }
+        }
+    }
+    return sample_nodes;
+}
+
 bool final_output(MAT::Tree &T, const output_options &options, int t_idx,
                   std::vector<Clade_info> &assigned_clades,
                   size_t sample_start_idx, size_t sample_end_idx,
-                  std::vector<std::string> &low_confidence_samples,std::vector<mutated_t>& position_wise_out) {
+                  std::vector<std::string> &low_confidence_samples,std::vector<mutated_t>& position_wise_out, bool finish_mpi) {
     // If user need uncondensed tree output, write uncondensed tree(s) to
     // file(s)
     //check_leaves(T);
@@ -644,10 +663,13 @@ bool final_output(MAT::Tree &T, const output_options &options, int t_idx,
     fix_condensed_nodes(&T);
     //check_leaves(T);
     //MAT::save_mutation_annotated_tree(T, "before_post_processing.pb");
-    MPI_Finalize();
-    int pid=output_newick(T, options,t_idx);
-    if(!pid){
-        _exit(EXIT_SUCCESS);
+    if(finish_mpi) MPI_Finalize();
+    auto thread=output_newick(T, options,t_idx);
+    if(!thread){
+        _exit(0);
+    }
+    if (T.condensed_nodes.size() > 0) {
+        T.uncondense_leaves();
     }
     // For each final tree write the path of mutations from tree root to the
     // sample for each newly placed sample
@@ -687,13 +709,17 @@ bool final_output(MAT::Tree &T, const output_options &options, int t_idx,
 
         // fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
+    std::vector<MAT::Node*> anchor_sample_nodes;
+    if (options.anchor_samples_file != "") {
+        anchor_sample_nodes = read_sample_nodes(options.anchor_samples_file, T, stderr);
+    }
     //check_leaves(T);
     if ((options.print_subtrees_single > 1) ) {
         fprintf(stderr, "Computing the single subtree for added samples with %zu random leaves. \n\n", options.print_subtrees_single);
         //timer.Start();
         // For each final tree, write a subtree of user-specified size around
         // each newly placed sample in newick format
-        MAT::get_random_single_subtree(T, targets, options.outdir, options.print_subtrees_single, t_idx, use_tree_idx, options.retain_original_branch_len);
+        MAT::get_random_single_subtree(T, targets, options.outdir, options.print_subtrees_single, t_idx, use_tree_idx, options.retain_original_branch_len, anchor_sample_nodes);
         //fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
     //check_leaves(T);
@@ -703,7 +729,7 @@ bool final_output(MAT::Tree &T, const output_options &options, int t_idx,
         // For each final tree, write a subtree of user-specified size around
         // each newly placed sample in newick format
         //timer.Start();
-        MAT::get_random_sample_subtrees(T, targets, options.outdir, options.print_subtrees_size, t_idx, use_tree_idx, options.retain_original_branch_len);
+        MAT::get_random_sample_subtrees(T, targets, options.outdir, options.print_subtrees_size, t_idx, use_tree_idx, options.retain_original_branch_len, anchor_sample_nodes);
         //fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
 
@@ -726,17 +752,14 @@ bool final_output(MAT::Tree &T, const output_options &options, int t_idx,
         }
         fprintf(stderr, "Saving mutation-annotated tree object to file (after condensing identical sequences) %s\n", options.dout_filename.c_str());
         // Recondense tree with new samples
-        check_leaves(T);
-        if (T.condensed_nodes.size() > 0) {
-            T.uncondense_leaves();
-        }
-        check_leaves(T);
+        //check_leaves(T);
+        //check_leaves(T);
         T.condense_leaves();
         MAT::save_mutation_annotated_tree(T, options.dout_filename);
 
         //fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
-    wait(&pid);
+    wait(&thread);
     return true;
 }
 /*static void check_repeats(const std::vector<Sample_Muts>& samples_to_place,size_t sample_start_idx){

@@ -302,7 +302,7 @@ class Mutations_Collection {
     }
     void push_back(const Mutation& m) {
         if (m.get_position()>=(int)(Mutation::refs.size()+1)&&m.get_position()!=INT_MAX) {
-            fprintf(stderr, "strange size \n");
+            fprintf(stderr, "strange size %d >= %d\n", m.get_position(), (int)(Mutation::refs.size()+1));
             raise(SIGTRAP);
         }
         if (!mutations.empty()) {
@@ -533,6 +533,9 @@ class Tree {
         all_nodes.resize(std::max(all_nodes.size(),node->node_id+1),nullptr);
         all_nodes[node->node_id]=node;
     }
+    const std::unordered_map<size_t,  std::string>& get_node_names() const{
+        return node_names;
+    }
     void register_node_serial(Node* node,std::string& name) {
         register_node_serial(node);
         node_names.emplace(node->node_id,name);
@@ -580,6 +583,12 @@ class Tree {
 
     size_t curr_internal_node;
 
+    Tree get_data_no_nodes() const{
+        Tree tree (*this);
+        tree.all_nodes.clear();
+        tree.root=nullptr;
+        return tree;
+    }
     void rename_node(size_t old_nid, std::string new_nid);
     Node* create_node ();
     std::string get_node_name(size_t node_idx) const {
@@ -642,7 +651,7 @@ class Tree {
     void condense_leaves(std::vector<std::string> = std::vector<std::string>());
     void uncondense_leaves();
     std::string get_clade_assignment (const Node* n, int clade_id, bool include_self) const;
-    std::vector<Node*> get_leaves(const Node* n=nullptr) const;
+    std::vector<Node*> get_leaves(Node* n=nullptr) const;
     void populate_ignored_range();
     size_t get_max_level();
     friend class Node;
@@ -666,15 +675,23 @@ void get_random_single_subtree(const Mutation_Annotated_Tree::Tree &T,
                                std::vector<Node*> samples,
                                std::string outdir, size_t subtree_size,
                                size_t tree_idx = 0, bool use_tree_idx = false,
-                               bool retain_original_branch_len = false);
+                               bool retain_original_branch_len = false,
+                               std::vector<Node*> anchor_samples = std::vector<Node*>());
 void get_random_sample_subtrees(const Mutation_Annotated_Tree::Tree &T,
                                 std::vector<Node*> samples,
                                 std::string outdir, size_t subtree_size,
                                 size_t tree_idx = 0, bool use_tree_idx = false,
-                                bool retain_original_branch_len = false);
+                                bool retain_original_branch_len = false,
+                                std::vector<Node*> anchor_samples = std::vector<Node*>());
 bool load_mutation_annotated_tree (std::string filename,Tree& tree);
 void save_mutation_annotated_tree (const Tree& tree, std::string filename);
 void get_sample_mutation_paths (Mutation_Annotated_Tree::Tree* T, std::vector<Node*> samples, std::string mutation_paths_filename);
+Mutation_Annotated_Tree::Node*
+get_subtree_root(const Mutation_Annotated_Tree::Tree &tree,
+                                     const std::vector<Node *> &samples,std::vector<Mutation_Annotated_Tree::Node*>& new_tree_dfs,
+                                     bool keep_clade_annotations=false) ;
+void write_newick_string_node (const Mutation_Annotated_Tree::Tree& template_tree,std::iostream::basic_ostream& ss, Mutation_Annotated_Tree::Node* node,
+        bool print_internal, bool print_branch_len, bool retain_original_branch_len=false, bool uncondense_leaves=false);
 }
 bool check_grand_parent(const Mutation_Annotated_Tree::Node* node,const Mutation_Annotated_Tree::Node* grand_parent);
 nuc_one_hot get_parent_state(Mutation_Annotated_Tree::Node* ancestor,int position);

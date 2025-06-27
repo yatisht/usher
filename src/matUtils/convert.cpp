@@ -319,6 +319,86 @@ void make_vcf (MAT::Tree T, std::string vcf_filepath, bool no_genotypes, std::ve
 }
 
 
+/// MAPLE diff output
+
+void write_one_maple_diff(MAT::Node* node, std::vector<MAT::Mutation*>& mut_stack, std::ostream& diff_file) {
+    // Header is like FASTA, '>' followed by name:
+    diff_file << '>' << node->identifier << '\n';
+    // Write out substitutions ordered by position, accounting for reversions or multiple successive mutations
+    off_t max_pos = 0;
+    for (MAT::Mutation* mut: mut_stack) {
+        if (mut->position > max_pos) {
+            max_pos = mut->position;
+        }
+    }
+    char *refs = new char[max_pos+1];
+    char *alts = new char[max_pos+1];
+    memset(refs, 0, max_pos+1);
+    memset(alts, 0, max_pos+1);
+    for (MAT::Mutation* mut: mut_stack) {
+        if (refs[mut->position] == 0) {
+          refs[mut->position] = std::tolower(MAT::get_nuc(mut->par_nuc));
+        }
+        alts[mut->position] = std::tolower(MAT::get_nuc(mut->mut_nuc));
+    }
+    off_t i;
+    for (i = 1;  i < max_pos+1;  i++) {
+        if (alts[i] != 0 && alts[i] != refs[i]) {
+            diff_file << alts[i] << '\t' << i << '\n';
+        }
+    }
+    delete refs;
+    delete alts;
+}
+
+void make_diff_r(MAT::Node* node, std::vector<MAT::Mutation*>& mut_stack, std::ostream& diff_file, std::set<std::string>& samples_to_include) {
+    // Recursively descend from node, accumulating mutations on the path from root.  When a leaf is
+    // found in samples_to_include, print out its differences from references in MAPLE diff format.
+    size_t start_size = mut_stack.size();
+    for (MAT::Mutation& mut: node->mutations) {
+        mut_stack.push_back(&mut);
+    }
+    if (mut_stack.size() != start_size + node->mutations.size()) {
+      fprintf(stderr, "Error: start_size %lu + mut count %lu != final size %lu\n", start_size, node->mutations.size(), mut_stack.size());
+      exit(1);
+    }
+    for (MAT::Node *child: node->children) {
+        make_diff_r(child, mut_stack, diff_file, samples_to_include);
+    }
+    if (node->is_leaf() && samples_to_include.find(node->identifier) != samples_to_include.end()) {
+        write_one_maple_diff(node, mut_stack, diff_file);
+    }
+    for (auto mut: node->mutations) {
+        mut_stack.pop_back();
+    }
+}
+
+void make_diff (MAT::Tree& T, std::string diff_filename, std::vector<std::string> samples_vec) {
+    std::set<std::string> samples_to_include;
+    if (samples_vec.size() == 0) {
+        auto tv = T.get_leaves_ids();
+        samples_to_include.insert(tv.begin(),tv.end());
+    } else {
+        samples_to_include.insert(samples_vec.begin(), samples_vec.end());
+    }
+    try {
+        std::ofstream outfile(diff_filename, std::ios::out | std::ios::binary);
+        boost::iostreams::filtering_streambuf<boost::iostreams::output> outbuf;
+        if (diff_filename.find(".gz\0") != std::string::npos) {
+            outbuf.push(boost::iostreams::gzip_compressor());
+        }
+        outbuf.push(outfile);
+        std::ostream diff_file(&outbuf);
+        std::vector<MAT::Mutation*> mut_stack;
+        make_diff_r(T.root, mut_stack, diff_file, samples_to_include);
+        boost::iostreams::close(outbuf);
+        outfile.close();
+    } catch (const boost::iostreams::gzip_error& e) {
+        std::cout << e.what() << '\n';
+    }
+}
+
+
 /// JSON functions below
 
 std::string write_mutations(MAT::Node *N) { // writes muts as a list, e.g. "A23403G,G1440A,G23403A,G2891A" for "nuc mutations" under labels
@@ -447,7 +527,7 @@ json get_json_entry(MAT::Node* n, std::vector<std::unordered_map<std::string,std
     std::unordered_map<std::string,std::vector<std::string>> nmap {{"nuc", mutids},};
     //mutation information is encoded twice in the output we're using.
     //don't ask me why.
-    std::unordered_map<std::string,std::string> mutv {{"nuc mutations", muts}, {"sample",n->identifier}};
+    std::unordered_map<std::string,std::string> mutv {{"nuc mutations", muts}, {"sample",n->identifier}, {"id",n->identifier}};
     sj["branch_attrs"] = {{"labels",mutv}, {"mutations",nmap}};
     //note: the below is pretty much sars-cov-2 specific. but so is all json-related things.
     //need to declare maps to get nlohmann to interpret these as key pairs.
@@ -520,6 +600,7 @@ void write_json_from_mat(MAT::Tree* T, std::string output_filename, std::vector<
         {
             "tree",{
                 {"name","wrapper"},
+                {"node_attrs",{ {"div",0} }}
             }
         }
     };

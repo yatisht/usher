@@ -1,6 +1,5 @@
 name: usher
 channels:
-  - defaults                                                                                                                                                                                                    
   - conda-forge
   - bioconda
   - anaconda

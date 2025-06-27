@@ -9,35 +9,7 @@ on:
 env:
   BUILD_TYPE: Release
 
-jobs:
-  ubuntu-18-04:
-    runs-on: ubuntu-18.04
-    steps:
-    - uses: actions/checkout@master
-    - name: install pre-reqs and build
-      run: sudo ./install/installUbuntu.sh
-    - name: test
-      run: |
-        ./build/usher --help
-        ./build/matUtils --help
-        mpirun -np 1 ./build/matOptimize --help
-        ./build/ripples --help
-        command -v mafft
-  
-  ubuntu-20-04:
-    runs-on: ubuntu-20.04
-    steps:
-    - uses: actions/checkout@master
-    - name: install pre-reqs and build
-      run: sudo ./install/installUbuntu.sh
-    - name: test
-      run: |
-        ./build/usher --help
-        ./build/matUtils --help
-        mpirun -np 1 ./build/matOptimize --help
-        ./build/ripples --help
-        command -v mafft
-
+jobs:  
   ubuntu-22-04:
     runs-on: ubuntu-22.04
     steps:
@@ -52,17 +24,3 @@ jobs:
         ./build/ripples --help
         command -v mafft
 
-  macOS-latest:
-    runs-on: macOS-latest
-    steps:
-    - uses: actions/checkout@master
-    - name: install pre-reqs and build
-      run: ./install/installMacOS.sh
-    - name: test
-      run: |
-        ./build/usher --help
-        ./build/usher-sampled --help
-        ./build/matUtils --help
-        mpirun -np 1 ./build/matOptimize --help
-        ./build/ripples --help
-        command -v mafft

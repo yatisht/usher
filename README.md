@@ -11,7 +11,7 @@
 [![Published in Bioinformatics](https://img.shields.io/badge/Published%20in-Bioinformatics-blue.svg)](https://doi.org/10.1093/bioinformatics/btac401)
 [![Published in Nature](https://img.shields.io/badge/Published%20in-Nature-blue.svg)](https://doi.org/10.1038/s41586-022-05189-9)
 [![DOI](https://zenodo.org/badge/296144053.svg)](https://zenodo.org/badge/latestdoi/296144053)
-
+[![Downloads](https://anaconda.org/bioconda/usher/badges/downloads.svg)](https://bioconda.github.io/recipes/usher/README.html)
 
 
 <img src="/images/usher_logo.png" width="600">
@@ -30,7 +30,7 @@ Please refer to our [wiki](https://usher-wiki.readthedocs.io/) for detailed inst
 
 ## Acknowledgement
 
-We thank Jim Kent and the UCSC Genome Browser team for allowing us to download the `faToVcf` utility (from http://hgdownload.soe.ucsc.edu/admin/exe/). Please read the license terms for `faToVcf` here: https://github.com/ucscGenomeBrowser/kent/blob/master/src/LICENSE.
+We thank Jim Kent and the UCSC Genome Browser team for allowing us to download the `faToVcf` utility (from http://hgdownload.soe.ucsc.edu/admin/exe/). Please read the license terms for `faToVcf` here: https://github.com/ucscGenomeBrowser/kent/blob/master/LICENSE.
 
 ## References
 **UShER:**

@@ -5,6 +5,7 @@
 #include "src/matOptimize/mutation_annotated_tree.hpp"
 #include "tree_rearrangement_internal.hpp"
 #include <algorithm>
+#include <atomic>
 #include <boost/filesystem/operations.hpp>
 #include <boost/filesystem/path.hpp>
 #include <boost/program_options/value_semantic.hpp>
@@ -17,10 +18,13 @@
 #include <ctime>
 //#include <malloc.h>
 #include <fstream>
+#include <ios>
 #include <iterator>
 #include <limits>
 #include <mpi.h>
+#include <tbb/blocked_range.h>
 #include <tbb/concurrent_vector.h>
+#include <tbb/parallel_for.h>
 #include <tbb/task.h>
 #include <cstdio>
 #include <fcntl.h>
@@ -29,6 +33,7 @@
 #include <thread>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <unordered_map>
 #include <unordered_set>
 #include <boost/program_options.hpp>
 #include <vector>
@@ -91,6 +96,24 @@ void print_file_info(std::string info_msg,std::string error_msg,const std::strin
         exit(EXIT_FAILURE);
     }
 }
+static void remove_sibling(size_t node_id,MAT::Tree& t,std::unordered_map<size_t, bool>& filtered){
+    auto this_node=t.get_node(node_id);
+    if(this_node->parent){
+        auto par_node=this_node->parent;
+        auto iter=filtered.find(par_node->node_id);
+        if(iter!=filtered.end()){
+            iter->second=true;
+        }
+        for (auto child : par_node->children) {
+            if(child!=this_node){
+                auto iter=filtered.find(child->node_id);
+                if(iter!=filtered.end()){
+                    iter->second=true;
+                }
+            }
+        }
+    }
+}
 int main(int argc, char **argv) {
     int ignored;
     auto init_result=MPI_Init_thread(&argc, &argv,MPI_THREAD_MULTIPLE,&ignored);
@@ -111,6 +134,7 @@ int main(int argc, char **argv) {
     std::string profitable_src_log;
     std::string ref_file;
     std::string transposed_vcf_path;
+    std::string black_list_node_file;
     float search_proportion=2;
     int rand_sel_seed=0;
     unsigned int max_optimize_hours;
@@ -121,6 +145,7 @@ int main(int argc, char **argv) {
     float min_improvement;
     bool no_write_intermediate;
     std::string diff_file_path;
+    std::string branch_support_newick_out;
 
     po::options_description desc{"Options"};
     uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
@@ -130,7 +155,8 @@ int main(int argc, char **argv) {
     ("tree,t", po::value<std::string>(&input_nh_path)->default_value(""), "Input tree file")
     ("threads,T", po::value<uint32_t>(&num_threads)->default_value(num_cores), num_threads_message.c_str())
     ("load-mutation-annotated-tree,i", po::value<std::string>(&input_pb_path)->default_value(""), "Load mutation-annotated tree object")
-    ("save-mutation-annotated-tree,o", po::value<std::string>(&output_path)->required(), "Save output mutation-annotated tree object to the specified filename [REQUIRED]")
+    ("save-mutation-annotated-tree,o", po::value<std::string>(&output_path), "Save output mutation-annotated tree object to the specified filename [REQUIRED]")
+    ("epps_on_branch_len,E", po::value<std::string>(&branch_support_newick_out), "Output a newick with number of equally parsimonious placements on the branch length field ")
     ("radius,r", po::value<int32_t>(&radius)->default_value(-1),
      "Radius in which to restrict the SPR moves.")
     ("profitable-src-log,S", po::value<std::string>(&profitable_src_log)->default_value("/dev/null"),
@@ -151,6 +177,7 @@ int main(int argc, char **argv) {
     ("node_proportion,z",po::value(&search_proportion)->default_value(2),"the proportion of nodes to search")
     ("node_sel,y",po::value(&rand_sel_seed),"Random seed for selecting nodes to search")
     ("drift_nwk_file,b",po::value(&intermediate_nwk_out)->default_value(""),"Newick filename stem for drifting")
+    ("black_list_node_file",po::value(&black_list_node_file)->default_value(""),"Nodes that won't be moved")
     ("no_reduce_back_mutations,c","skip FS that reduce back mutations in the end")
     ("help,h", "Print help messages");
     auto search_end_time=std::chrono::steady_clock::time_point::max();
@@ -177,7 +204,7 @@ int main(int argc, char **argv) {
             return 0;
         } else
             return 1;
-    }
+    } 
     if (vm.count("no_reduce_back_mutations")) {
         reduce_back_mutations=false;
     } else {
@@ -186,6 +213,24 @@ int main(int argc, char **argv) {
     if (drift_iterations) {
         min_improvement=0.000000001;
     }
+    if(output_path==""&&branch_support_newick_out==""){
+        if (this_rank==0) {
+            if (vm.count("version")) {
+                std::cout << "matOptimize (v" << PROJECT_VERSION << ")" << std::endl;
+            } else {
+                std::cerr << "matOptimize (v" << PROJECT_VERSION << ")" << std::endl;
+                std::cerr << desc << std::endl;
+            }
+        }
+        MPI_Finalize();
+        // Return with error code 1 unless the user specifies help
+        if(vm.count("help")) {
+            return 0;
+        } else
+            return 1;
+        fputs("Please either supply output path for protobuf or output EPPs annnotated newick file path",stderr);
+        exit(EXIT_FAILURE);
+    }
     if (max_optimize_hours) {
         search_end_time=std::chrono::steady_clock::now()+std::chrono::hours(max_optimize_hours)-std::chrono::minutes(30);
         fprintf(stderr, "Set max opt time, will stop in %zu minutes\n",std::chrono::duration_cast<std::chrono::minutes>(search_end_time-std::chrono::steady_clock::now()).count());
@@ -193,6 +238,7 @@ int main(int argc, char **argv) {
     Mutation_Annotated_Tree::Tree t;
     if (this_rank==0) {
         //std::string cwd=get_current_dir_name();
+        if(output_path!=""){
         no_write_intermediate=vm.count("do-not-write-intermediate-files");
         try {
             auto output_path_dir_name=boost::filesystem::system_complete(output_path).parent_path();
@@ -213,14 +259,17 @@ int main(int argc, char **argv) {
             close(fd);
         }
 
-        if (intermediate_pb_base_name==""&&(!no_write_intermediate)) {
+        if (intermediate_pb_base_name==""&&(!no_write_intermediate)&&output_path!="") {
             intermediate_pb_base_name=output_path+"intermediateXXXXXX.pb";
             auto fd=mkstemps(const_cast<char*>(intermediate_pb_base_name.c_str()), 3);
             close(fd);
         }
+        }
         std::string intermediate_writing;
         std::string intermediate_template;
-        intermediate_template=intermediate_pb_base_name+"temp_eriting_XXXXXX.pb";
+        if(output_path!=""){
+            intermediate_template=intermediate_pb_base_name+"temp_eriting_XXXXXX.pb";
+        }
         fputs("Summary:\n",stderr);
         if (input_complete_pb_path!="") {
             print_file_info("Continue from", "continuation protobut,-a", input_complete_pb_path);
@@ -234,13 +283,16 @@ int main(int argc, char **argv) {
         } else if (input_nh_path!=""&&input_vcf_path!="") {
             print_file_info("Load starting tree from", "starting tree file,-t", input_nh_path);
             print_file_info("Load sample variant from", "sample vcf,-v", input_vcf_path);
+        } else if (input_nh_path!=""&&diff_file_path!="") {
+            print_file_info("Load starting tree from", "starting tree file,-t", input_nh_path);
+            print_file_info("Load sample variant from", "sample maple/diff,-D", diff_file_path);
         }
         else {
             fputs("Input file not completely specified. Please either \n"
                   "1. Specify an intermediate protobuf from last run with -a to continue optimization, or\n"
                   "2. Specify a usher-compatible protobuf with -i, and both starting tree and sample variants will be extracted from it, or\n"
                   "3. Specify a usher-compatible protobuf with -i for starting tree, and a VCF with -v for sample variants, or\n"
-                  "4. Specify the starting tree in newick format with -t, and a VCF with -v for sample variants.\n",stderr);
+                  "4. Specify the starting tree in newick format with -t, and either a VCF with -v or a Maple/diff with -D for sample variants.\n",stderr);
             std::cerr << desc << std::endl;
             exit(EXIT_FAILURE);
         }
@@ -326,7 +378,7 @@ int main(int argc, char **argv) {
             //check_samples(t.root, origin_states, &t);
 #endif
             t.populate_ignored_range();
-            if(!no_write_intermediate&&input_complete_pb_path=="") {
+            if(!no_write_intermediate&&input_complete_pb_path==""&&output_path!="") {
                 fputs("Checkpoint initial tree.\n",stderr);
                 intermediate_writing=intermediate_template;
                 make_output_path(intermediate_writing);
@@ -338,6 +390,27 @@ int main(int argc, char **argv) {
         if (radius==0) {
             save_final_tree(t, output_path);
             return 0;
+        }
+        std::unordered_set<size_t> node_id_to_ignore;
+        if (black_list_node_file!="") {
+            std::fstream f(black_list_node_file,std::ios::in);
+            std::string temp;
+            if(!f){
+                auto err_string="unable to open ignored nodes file"+black_list_node_file;
+                perror(err_string.c_str());
+            }
+            while (f) {
+                std::getline(f,temp);
+                if (temp=="") {
+                    continue;
+                }
+                auto node_id=t.get_node(temp);
+                if (node_id) {
+                    node_id_to_ignore.insert(node_id->node_id);
+                }else {
+                    fprintf(stderr, "ignored node %s not in the tree\n", temp.c_str());
+                }
+            }
         }
         size_t new_score;
         size_t score_before;
@@ -360,6 +433,73 @@ int main(int argc, char **argv) {
         bool allow_drift=false;
         int iteration=1;
         tbb::task_scheduler_init init(num_threads);
+        if(branch_support_newick_out!=""){
+            if(radius<0){
+                radius=2*t.get_max_level();
+            }
+            t.breadth_first_expansion();
+            auto all_nodes=t.depth_first_expansion();
+            adjust_all(t);
+            use_bound=true;
+            std::atomic_size_t searched(0);
+            auto epp_fh=fopen("epps_dump", "w");;
+            tbb::parallel_for(tbb::blocked_range<size_t>(0,all_nodes.size()),[epp_fh,&t,&searched,radius,&all_nodes](tbb::blocked_range<size_t> r){
+                for(size_t idx=r.begin();idx<r.end();idx++){
+                    output_t out;
+                    out.moves=new std::vector<Profitable_Moves_ptr_t>;
+                    auto node=all_nodes[idx];
+                    Reachable reachable{true,true};
+                    find_moves_bounded(node, out, radius, true, reachable);
+                    std::unordered_map<size_t, bool> filtered;
+                    if(out.score_change==-1){
+                        filtered.emplace(node->node_id,false);
+                    }
+                    for (const auto& move : *out.moves) {
+                        filtered.emplace(move->dst->node_id,false);
+                    }
+                    if(out.score_change==-1){
+                        remove_sibling(node->node_id, t, filtered);
+                    }
+                    for(auto& node_id_filtered:filtered){
+                        if(node_id_filtered.second){
+                            continue;
+                        }
+                        remove_sibling(node_id_filtered.first, t, filtered);
+                    }
+                    std::vector<size_t> filtered_nodes;
+                    filtered_nodes.reserve(filtered.size());
+                    for (auto& node_id_filtered : filtered) {
+                        if(!node_id_filtered.second){
+                            filtered_nodes.emplace_back(node_id_filtered.first);
+                        }
+                    }
+                    node->branch_length=filtered_nodes.size();
+                    if (node->branch_length<1||filtered_nodes.size()>(out.moves->size()+1)) {
+                        raise(SIGTRAP);
+                    }
+                    if(filtered_nodes.size()>1){
+                        std::string out_str=t.get_node_name_for_log_output(node->node_id)+":";
+                        for (const auto& node_id : filtered_nodes) {
+                            if(node_id==node->node_id){
+                                continue;
+                            }
+                            out_str+=(t.get_node_name_for_log_output(node_id)+",");
+                        }
+                        out_str.pop_back();
+                        out_str.push_back('\n');
+                        fputs(out_str.c_str(), epp_fh);
+                    }
+                    delete out.moves;
+                }
+                searched+=r.size();
+                printf("searched %zu out of %zu\r",searched.load(std::memory_order_relaxed),all_nodes.size());
+
+            });
+            fclose(epp_fh);
+            std::fstream out_f(branch_support_newick_out,std::ios::out);
+            out_f<<t.get_newick_string(true,true,true,true);
+            return EXIT_SUCCESS;
+        }
         while(stalled<drift_iterations) {
             bfs_ordered_nodes = t.breadth_first_expansion();
             fputs("Start Finding nodes to move \n",stderr);
@@ -374,6 +514,12 @@ int main(int argc, char **argv) {
                 search_all_dir=true;
             }
             find_nodes_to_move(bfs_ordered_nodes, nodes_to_search,search_all_nodes,search_all_dir,radius,t);
+            if(!node_id_to_ignore.empty()){
+                nodes_to_search.erase(std::remove_if(nodes_to_search.begin(), nodes_to_search.end(), 
+                    [&node_id_to_ignore](MAT::Node* node){
+                        return node_id_to_ignore.find(node->node_id)!=node_id_to_ignore.end();
+                    }),nodes_to_search.end());
+            }
             if (search_proportion<1) {
                 std::vector<MAT::Node *> nodes_to_search_temp;
                 nodes_to_search_temp.reserve(nodes_to_search.size()*search_proportion);

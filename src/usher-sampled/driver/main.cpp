@@ -23,12 +23,14 @@
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
 #include <tbb/task_scheduler_init.h>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <execinfo.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <vector>
+#include "version.hpp"
 #ifdef __linux
 #include <sys/prctl.h>
 #endif
@@ -53,13 +55,52 @@ static void clean_tree_for_placement(MAT::Tree& tree){
 }
 void leader_thread_optimization(MAT::Tree& tree,std::vector<mutated_t>& position_wise_out,
                                 std::atomic_size_t& curr_idx,int& optimization_radius, size_t start_idx,FILE* ignored_file,float desired_optimization_msec,bool is_last) {
+    /*auto nodes=tree.depth_first_expansion();
+    clean_up_leaf(nodes);
+    fprintf(stderr, "init parsimony %zu\n",tree.get_parsimony_score());
+    std::vector<mutated_t> other(MAT::Mutation::refs.size());
+    get_pos_samples_old_tree(tree, other);
+    for (size_t idx=0; idx<other.size(); idx++) {
+        bool have_err=false;
+        std::unordered_map<long, nuc_one_hot> old_map(position_wise_out[idx].begin(),position_wise_out[idx].end());
+        for (const auto& new_mut : other[idx]) {
+            auto iter=old_map.find(new_mut.first);
+            if (iter==old_map.end()) {
+                have_err=true;
+                fprintf(stderr, "pos %zu, sample %s was ref %c, but changed to %c\n",
+                    idx,tree.get_node_name_for_log_output(new_mut.first).c_str(),
+                    MAT::get_nuc(MAT::Mutation::refs[idx]),MAT::get_nuc(new_mut.second));
+            }else {
+                if(iter->second!=new_mut.second&&iter->second!=0xf){
+                    have_err=true;
+                    fprintf(stderr, "pos %zu, sample %s was %c, but changed to %c\n",
+                    idx,tree.get_node_name_for_log_output(new_mut.first).c_str(),
+                    MAT::get_nuc(iter->second),MAT::get_nuc(new_mut.second));
+                }
+                old_map.erase(iter);
+            }
+        }
+        for (const auto & new_mut : old_map) {
+            if(new_mut.second==0xf){
+                continue;
+            }
+            have_err=true;
+            fprintf(stderr, "pos %zu, sample %s was %c, but changed to ref %c\n",
+                idx,tree.get_node_name_for_log_output(new_mut.first).c_str(),
+                MAT::get_nuc(new_mut.second),MAT::get_nuc(MAT::Mutation::refs[idx]));
+        }
+        if(have_err){
+            raise(SIGTRAP);
+        }
+    }*/
     size_t last_parsimony_score=SIZE_MAX;
     std::default_random_engine g;
+    tree.max_level=tree.get_max_level();
     auto optimiation_start=std::chrono::steady_clock::now();
     auto optimization_end=optimiation_start+std::chrono::milliseconds((long)desired_optimization_msec);
     bool timeout=false;
     if (is_last) {
-        optimization_radius=-4;
+        optimization_radius=4;
     }
     bool is_first=true;
     do  {
@@ -80,9 +121,6 @@ void leader_thread_optimization(MAT::Tree& tree,std::vector<mutated_t>& position
             }
         }
         is_first=false;
-        if (is_last) {
-            optimization_radius=-optimization_radius;
-        }
         fprintf(stderr, "Main parsimony score %zu",tree.get_parsimony_score());
         fprintf(stderr, "Main sent optimization prep done\n");
         std::vector<size_t> node_to_search_idx;
@@ -112,15 +150,21 @@ void leader_thread_optimization(MAT::Tree& tree,std::vector<mutated_t>& position
             distributed = false;
             auto new_parsimony_score=tree.get_parsimony_score();
             fprintf(stderr, "Last parsimony score %lu\n",new_parsimony_score);
-            if(new_parsimony_score>=last_parsimony_score
+            if(new_parsimony_score>last_parsimony_score
                     || std::chrono::steady_clock::now()>optimization_end) {
                 timeout=true;
+                break;
+            }
+            if (new_parsimony_score==last_parsimony_score) {
+                if(optimization_radius>tree.max_level){
+                    timeout=true;
+                }
                 break;
             }
             last_parsimony_score=new_parsimony_score;
         }
         if (is_last) {
-            optimization_radius=-2*optimization_radius;
+            optimization_radius=2*optimization_radius;
         }
     } while(is_last&&!timeout);
     if (is_last) {
@@ -167,7 +211,6 @@ static int leader_thread(
     tree.uncondense_leaves();
     std::vector<Sample_Muts> samples_to_place;
     std::vector<mutated_t> position_wise_out;
-    std::vector<mutated_t> position_wise_out_dup;
     std::vector<std::string> samples;
     const std::unordered_set<std::string> samples_in_condensed_nodes;
     if(options.diff_file_name!=""&&options.reference_file_name!=""){
@@ -177,16 +220,17 @@ static int leader_thread(
             fprintf(stderr, "Expect either VCF file or MAPLE file\n");
             exit(EXIT_FAILURE);
         }
-        Sample_Input(options.vcf_filename.c_str(),samples_to_place,tree,position_wise_out,options.override_mutations,samples,samples_in_condensed_nodes);
+        Sample_Input(options.vcf_filename.c_str(),samples_to_place,tree,position_wise_out,options.override_mutations,samples,samples_in_condensed_nodes,options.duplicate_prefix);
     }
     samples_to_place.resize(std::min(samples_to_place.size(),options.first_n_samples));
+    if(samples_to_place.empty()){
+        fprintf(stderr,"No samples to place\n");
+        exit(EXIT_FAILURE);
+    }
     size_t sample_start_idx=samples_to_place[0].sample_idx;
     size_t sample_end_idx=samples_to_place.back().sample_idx+1;
     fprintf(stderr, "Sample start idx %zu, end index %zu\n",sample_start_idx,sample_end_idx);
-    if (options.tree_in==""&&(!options.no_add)&&(options.initial_optimization_radius>0)) {
-        get_pos_samples_old_tree(tree, position_wise_out);
-    } else if (options.tree_in!="") {
-        position_wise_out_dup=position_wise_out;
+    if (options.tree_in!="") {
         std::unordered_set<std::string> sample_set(samples.begin(),samples.end());
         remove_absent_leaves(tree, sample_set);
         if(tree.root->children.size()){
@@ -202,15 +246,39 @@ static int leader_thread(
     tree.condense_leaves();
     fix_parent(tree);
     tree.check_leaves();
-    if (options.tree_in!="") {
-        for (auto& pos : position_wise_out_dup) {
+    bool have_ambiguous_ref=false;
+    for (int position=1; position<MAT::Mutation::refs.size(); position++) {
+        auto nuc=MAT::Mutation::refs[position];
+        if (nuc&(nuc-1)) {
+            fprintf(stderr, "\nWARNING: Ref nuc @ %d : %c is ambiguous\n", position,MAT::get_nt(MAT::Mutation::refs[position]));
+            have_ambiguous_ref=true;
+        }
+    }
+    if (have_ambiguous_ref) {
+        fprintf(stderr, "WARNING: Reference contain ambiguous nucleotide, optimization is disabled\n");
+        options.initial_optimization_radius=0;
+        optimization_radius=0;
+    }
+    if (options.initial_optimization_radius>0) {
+        for (auto& pos : position_wise_out) {
             pos.erase(std::remove_if(pos.begin(), pos.end(), [sample_start_idx](const std::pair<long, nuc_one_hot>& in) {
                 return in.first<(long)sample_start_idx;
             }),pos.end());
         }
-        get_pos_samples_old_tree(tree, position_wise_out_dup);
-        position_wise_out=std::move(position_wise_out_dup);
+        get_pos_samples_old_tree(tree, position_wise_out);
 
+    }
+    for(size_t idx=0;idx<position_wise_out.size();idx++){
+        bool informative=false;
+        for (const auto &samp : position_wise_out[idx]) {
+            if (samp.second!=0xf) {
+                informative=true;
+                break;
+            }
+        }
+        if (!informative) {
+            position_wise_out[idx].clear();
+        }
     }
     std::vector<std::string> low_confidence_samples;
     std::vector<Clade_info> samples_clade(samples_to_place.size());
@@ -270,7 +338,9 @@ static int leader_thread(
     }
     while (true) {
         clean_tree_for_placement(tree);
-        prep_tree(tree);
+        auto tree_size=prep_tree(tree);
+        switch_to_serial_threshold=std::max((int)(tree_size*batch_size_per_process/(2*num_threads)),10);
+        fprintf(stderr, "switch to serial search when there are less than %d descendants\n", switch_to_serial_threshold);
         if (process_count>1) {
             fprintf(stderr, "Main sending tree\n");
             tree.MPI_send_tree();
@@ -304,6 +374,7 @@ static int leader_thread(
             break;
         }
     }
+    fclose(placement_stats_file);
     fprintf(stderr, "Main finised place\n");
     auto dfs=tree.depth_first_expansion();
     clean_up_leaf(dfs);
@@ -359,6 +430,8 @@ int main(int argc, char **argv) {
      "Write minimum set of subtrees covering the newly added samples of size equal to this value")
     ("write-single-subtree,K", po::value<size_t>(&options.out_options.print_subtrees_single)->default_value(0), \
      "Similar to write-subtrees-size but produces a single subtree with all newly added samples along with random samples up to the value specified by this argument")
+    ("anchor-samples", po::value<std::string>(&options.out_options.anchor_samples_file),
+     "Add samples from file to subtree(s) generated by --write-subtrees-size and/or --write-single-subtree (e.g. to provide larger-scale context by including well-known vaccine strains)")
     ("multiple-placements,M", po::value(&options.keep_n_tree)->default_value(1), \
      "Create a new tree up to this limit for each possibility of parsimony-optimal placement")
     ("retain-input-branch-lengths,l", po::bool_switch(&options.out_options.retain_original_branch_len)->default_value(false), \
@@ -389,6 +462,7 @@ int main(int argc, char **argv) {
     ("parsimony_threshold",po::value(&options.parsimony_threshold)->default_value(100000),
      "Optimize after the parsimony score increase by this amount")
     ("first_n_samples",po::value(&options.first_n_samples)->default_value(SIZE_MAX),"[TESTING ONLY] Only place first n samples")
+    ("no-ignore-prefix",po::value<std::string>(&options.duplicate_prefix),"prefix samples already in the tree to force placement")
     //("gdb_pid,g",po::value(&gdb_pids)->multitoken(),"gdb pids for attaching")
     ;
     po::variables_map vm;
@@ -404,9 +478,9 @@ int main(int argc, char **argv) {
     if (have_error||(options.vcf_filename==""&&(options.diff_file_name==""||options.reference_file_name==""))) {
         if (this_rank==0) {
             if (vm.count("version")) {
-                std::cout << "UShER " << std::endl;
+                std::cout << "UShER (v" << PROJECT_VERSION << ")" << std::endl;
             } else {
-                std::cerr << "UShER " << std::endl;
+                std::cout << "UShER (v" << PROJECT_VERSION << ")" << std::endl;
                 std::cerr << desc << std::endl;
             }
         }
@@ -420,6 +494,7 @@ int main(int argc, char **argv) {
     if (options.initial_optimization_radius<=0) {
         options.parsimony_threshold=INT_MAX;
     }
+    num_threads=std::max(2u,num_threads);
     options.desired_optimization_msec=optimiation_minutes*60000;
     fprintf(stderr, "Num threads %d\n",num_threads);
 #ifdef __linux

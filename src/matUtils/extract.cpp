@@ -31,6 +31,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
      "Select samples which don't have any branches with than the indicated length in their ancestry.")
     ("max-path-length,P", po::value<int>()->default_value(-1),
      "Select samples which have a total path length (number of mutations different from reference) less than or equal to P.")
+      ("max-mutation-density", po::value<double>()->default_value(0),
+     "Select samples descended from internal nodes whose sum of descendant mutation counts divided by number of descendants is at most arg, i.e. filter out branches with a higher mutation density.")
     ("nearest-k,k", po::value<std::string>()->default_value(""),
      "Select a sample ID and the nearest k samples to it, formatted as sample:k. E.g. -k sample_1:50 gets sample 1 and the nearest 50 samples to it as a subtree.")
     ("nearest-k-batch,K", po::value<std::string>()->default_value(""),
@@ -59,6 +61,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
      "Write the path of mutations defining each clade in the subtree to the target file.")
     ("all-paths,A", po::value<std::string>()->default_value(""),
      "Write mutations assigned to each node in the subtree in depth-first traversal order to the target file.")
+    ("write-diff", po::value<std::string>()->default_value(""),
+     "Write MAPLE diff file representing selected subtree. Default is full tree")
     ("write-vcf,v", po::value<std::string>()->default_value(""),
      "Output VCF file representing selected subtree. Default is full tree")
     ("no-genotypes,n", po::bool_switch(),
@@ -95,6 +99,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
      "Use to produce an usher-style minimum set of subtrees of the indicated size which include all of the selected samples. Produces .nh and .txt files.")
     ("usher-clades-txt", po::bool_switch(),
      "When producing usher-style subtree(s), also write an usher-style clades.txt file with clade annotations for selected samples, if the tree has clade annotations.")
+    ("usher-anchor-samples", po::value<std::string>()->default_value(""),
+     "Add samples from file to usher-style subtree(s) (e.g. to provide larger-scale context by including well-known vaccine strains)")
     ("add-random,W", po::value<size_t>()->default_value(0),
      "Add exactly W samples at random to your selection. Affected by -Z and overridden by -z.")
     ("select-nearest,Y", po::value<size_t>()->default_value(0),
@@ -111,6 +117,8 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
      "Set to write all final stored metadata to a tsv.")
     ("whitelist,L", po::value<std::string>()->default_value(""),
      "Pass a list of samples, one per line, to always retain regardless of any other parameters.")
+    ("load-all-metadata", po::bool_switch(),
+    "Use to load all input metadata from -M regardless of sample selection. Significantly increases memory usage.")
     ("threads,T", po::value<uint32_t>()->default_value(num_cores), num_threads_message.c_str())
     ("help,h", "Print help messages");
     // Collect all the unrecognized options from the first pass. This will include the
@@ -153,6 +161,7 @@ void extract_main (po::parsed_options parsed) {
     int max_parsimony = vm["max-parsimony"].as<int>();
     int max_branch = vm["max-branch-length"].as<int>();
     int max_path = vm["max-path-length"].as<int>();
+    double max_mut_density = vm["max-mutation-density"].as<double>();
     size_t max_epps = vm["max-epps"].as<size_t>();
     bool prune_samples = vm["prune"].as<bool>();
     bool mrca = vm["from-mrca"].as<bool>();
@@ -163,6 +172,7 @@ void extract_main (po::parsed_options parsed) {
     size_t usher_single_subtree_size = vm["usher-single-subtree-size"].as<size_t>();
     size_t usher_minimum_subtrees_size = vm["usher-minimum-subtrees-size"].as<size_t>();
     bool usher_clades_txt = vm["usher-clades-txt"].as<bool>();
+    std::string usher_anchor_samples = vm["usher-anchor-samples"].as<std::string>();
     size_t setsize = vm["set-size"].as<size_t>();
     size_t minimum_subtrees_size = vm["minimum-subtrees-size"].as<size_t>();
     bool limit_lca = vm["limit-to-lca"].as<bool>();
@@ -172,6 +182,7 @@ void extract_main (po::parsed_options parsed) {
     bool break_ties = vm["break-ties"].as<bool>();
     bool include_nt = vm["include-nt"].as<bool>();
     size_t distance_threshold = vm["distance-threshold"].as<size_t>();
+    bool load_all = vm["load-all-metadata"].as<bool>();
 
     boost::filesystem::path path(dir_prefix);
     if (!boost::filesystem::exists(path)) {
@@ -188,6 +199,7 @@ void extract_main (po::parsed_options parsed) {
     std::string closest_relatives_filename = dir_prefix + vm["closest-relatives"].as<std::string>();
     std::string within_dist_filename = dir_prefix + vm["within-distance"].as<std::string>();
     std::string tree_filename = dir_prefix + vm["write-tree"].as<std::string>();
+    std::string diff_filename = dir_prefix + vm["write-diff"].as<std::string>();
     std::string vcf_filename = dir_prefix + vm["write-vcf"].as<std::string>();
     std::string output_mat_filename = dir_prefix + vm["write-mat"].as<std::string>();
     std::string output_tax_filename = dir_prefix + vm["write-taxodium"].as<std::string>();
@@ -209,7 +221,7 @@ void extract_main (po::parsed_options parsed) {
     uint32_t num_threads = vm["threads"].as<uint32_t>();
     //check that at least one of the output filenames (things which take dir_prefix)
     //are set before proceeding.
-    std::vector<std::string> outs = {sample_path_filename, clade_path_filename, all_path_filename, tree_filename, vcf_filename, output_mat_filename, output_tax_filename, json_filename, used_sample_filename};
+    std::vector<std::string> outs = {sample_path_filename, clade_path_filename, all_path_filename, tree_filename, diff_filename, vcf_filename, output_mat_filename, output_tax_filename, json_filename, used_sample_filename};
     if (!std::any_of(outs.begin(), outs.end(), [=](std::string f) {
     return f != dir_prefix;
 }) &&
@@ -376,6 +388,22 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
             exit(1);
         }
     }
+    if (max_mut_density > 0.0) {
+
+        // This should be done once, up above, not be repeated inside every filtering step:
+        if (samples.size() == 0) {
+            //if nothing is passed in, then check the whole tree.
+            samples = T.get_leaves_ids();
+        }
+
+        std::unordered_set<std::string> sample_set(samples.begin(), samples.end());
+        sample_set = filter_mut_density(&T, sample_set, max_mut_density);
+        if (sample_set.size() == 0) {
+            fprintf(stderr, "ERROR: No samples fulfill selected criteria. Change arguments and try again\n");
+            exit(1);
+        }
+        samples = std::vector<std::string>(sample_set.begin(), sample_set.end());
+    }
     if (max_epps > 0) {
         //this specific sample parser only calculates for values present in samples argument
         //so it doesn't need any intersection code
@@ -472,11 +500,24 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
     //if usher-style subtree output is requested,
     //produce that.
 
+    std::vector<std::string> anchor_samples;
+    if (usher_anchor_samples != "") {
+        if (usher_minimum_subtrees_size > 0 || usher_single_subtree_size) {
+            anchor_samples = read_sample_names(usher_anchor_samples);
+            if (anchor_samples.size() == 0) {
+                fprintf(stderr, "ERROR: --usher-anchor-samples file is empty or unparseable!");
+                exit(1);
+            }
+        } else {
+          fprintf(stderr, "ERROR: --usher-anchor-samples may be used only together with --usher-minimum-subtrees-size/-x and/or --usher-single-subtree-size/-X\n");
+          exit(1);
+        }
+    }
     if (usher_minimum_subtrees_size > 0) {
         timer.Start();
         fprintf(stderr, "Random minimum sample subtrees of size %ld requested.\n", usher_minimum_subtrees_size);
         if (samples.size() > 0) {
-            MAT::get_random_sample_subtrees(&T, samples, dir_prefix, usher_minimum_subtrees_size, 0, false, retain_branch);
+            MAT::get_random_sample_subtrees(&T, samples, dir_prefix, usher_minimum_subtrees_size, 0, false, retain_branch, anchor_samples);
         } else {
             fprintf(stderr, "ERROR: Minimum sample subtree output requested with no valid samples! Check selection parameters\n");
             exit(1);
@@ -487,7 +528,7 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         timer.Start();
         fprintf(stderr, "Random single encompassing subtree of size %ld requested.\n", usher_single_subtree_size);
         if (samples.size() > 0) {
-            MAT::get_random_single_subtree(&T, samples, dir_prefix, usher_single_subtree_size, 0, false, retain_branch);
+            MAT::get_random_single_subtree(&T, samples, dir_prefix, usher_single_subtree_size, 0, false, retain_branch, anchor_samples);
         } else {
             fprintf(stderr, "ERROR: Encompassing subtree output requested with no valid samples! Check selection parameters\n");
             exit(1);
@@ -611,12 +652,21 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
             metav.push_back(m);
         }
         assert (metav.size() > 0);
-        std::set<std::string> samples_included(samples.begin(), samples.end());
         if (output_tax_filename == dir_prefix) {
             // Don't do this in the case of taxodium pb output
-            for (auto mv: metav) {
-                auto scm = read_metafile(mv, samples_included);
-                catmeta.emplace_back(scm);
+            if (load_all) {
+                //if we're loading all sample data anyways, no need to convert to a set. 
+                std::set<std::string> empty;
+                for (auto mv: metav) {
+                    auto scm = read_metafile(mv, empty, true);
+                    catmeta.emplace_back(scm);
+                }
+            } else {
+                std::set<std::string> samples_included(samples.begin(), samples.end());
+                for (auto mv: metav) {
+                    auto scm = read_metafile(mv, samples_included);
+                    catmeta.emplace_back(scm);
+                }
             }
         }
     }
@@ -781,8 +831,11 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         submet["selected_for"] = ranmap;
         catmeta.emplace_back(submet);
     }
-
     //last step is to convert the subtree to other file formats
+    if (diff_filename != dir_prefix) {
+        fprintf(stderr, "Generating MAPLE diff of final tree\n");
+        make_diff(subtree, diff_filename, samples);
+    }
     if (vcf_filename != dir_prefix) {
         fprintf(stderr, "Generating VCF of final tree\n");
         make_vcf(subtree, vcf_filename, no_genotypes, samples);
