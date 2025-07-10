@@ -53,7 +53,7 @@ void output_LCA(
     }
 #endif
     output_result(src_side.src, actual_LCA, actual_LCA, par_score_change,
-                  src_side.out, radius_left,callback,major_alllele_count_changes_hist);
+                  src_side.out, radius_left,major_alllele_count_changes_hist,callback);
 }
 template<typename T>
 static void search_subtree_first_level(MAT::Node *node, MAT::Node *to_exclude,
@@ -73,10 +73,11 @@ static void search_subtree_first_level(MAT::Node *node, MAT::Node *to_exclude,
             }
         }
         search_subtree_bounded(child, src_side, radius_left - 1, either,
-                               src_side.src_par_score_lower_bound,ignored_range,reachable_child,callback
+                               src_side.src_par_score_lower_bound,ignored_range,reachable_child
 #ifdef CHECK_BOUND
                                ,true
 #endif
+                               ,callback
                               );
     }
 }
@@ -357,12 +358,12 @@ void __find_moves_bounded(MAT::Node *&src, int &search_radius,
                           src_side.allele_count_change_from_src,ignored_pos,reachable,callback);
     }
 }
-void find_moves_bounded(MAT::Node *src, output_t &out, int search_radius,bool do_drift,Reachable reachable,Move_Found_Callback& callback
+void find_moves_bounded(MAT::Node *src, output_t &out, int search_radius,bool do_drift,Reachable reachable
 #ifdef CHECK_BOUND
                         ,
                         counters &count
 #endif
-                       ) {
+                        ,Move_Found_Callback& callback) {
     int par_score_change_base=do_drift?-1:0;
     std::vector<Mutation_Count_Change_W_Lower_Bound_to_ancestor> src_mut;
     std::vector<Mutation_Count_Change_W_Lower_Bound_to_ancestor> src_mut_next;

@@ -140,11 +140,11 @@ struct move_searcher {
             auto node_to_search=dfs_ordered_nodes[idx];
             output_t out;
             out.moves=new std::vector<Profitable_Moves_ptr_t>;
-            find_moves_bounded(node_to_search, out,r,do_drift,reachable,callback
+            find_moves_bounded(node_to_search, out,r,do_drift,reachable
 #ifdef CHECK_BOUND
                                ,count
 #endif
-                              );
+                               ,callback);
             if (!out.moves->empty()) {
                 //resolve conflicts
                 std::get<0>(output).try_put(out.moves);
@@ -259,11 +259,11 @@ Reachable set_reachable(int radius,MAT::Tree& t,bool search_all_dir) {
 }
 void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
                                MAT::Tree &t,int radius,FILE* log,bool allow_drift,int iteration,
-                               std::vector<size_t>& defered_node_identifier,bool MPI_involved,std::chrono::steady_clock::time_point end_time,bool do_continue,bool search_all_dir,bool isfirst_this_iter, Move_Found_Callback& callback
+                               std::vector<size_t>& defered_node_identifier,bool MPI_involved,std::chrono::steady_clock::time_point end_time,bool do_continue,bool search_all_dir,bool isfirst_this_iter
 #ifdef CHECK_STATE_REASSIGN
                                , Original_State_t& origin_states
 #endif
-                              ) {
+                               , Move_Found_Callback& callback) {
     t.breadth_first_expansion();
     auto dfs_ordered_nodes=t.depth_first_expansion();
     auto start_time=std::chrono::steady_clock::now();

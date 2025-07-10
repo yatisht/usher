@@ -381,16 +381,18 @@ Bounded_Mut_Change_Collection;
 void search_subtree_bounded(MAT::Node *node, const src_side_info &src_side,
                             int radius_left,
                             Bounded_Mut_Change_Collection &par_muts,
-                            int lower_bound,ignore_ranger_nop,Reachable,Move_Found_Callback& callback
+                            int lower_bound,ignore_ranger_nop,Reachable
 #ifdef CHECK_BOUND
                             ,bool do_continue
 #endif
+                            ,Move_Found_Callback& callback
                            );
 void search_subtree_bounded(MAT::Node *node, const src_side_info &src_side,
                             int radius_left,
                             Bounded_Mut_Change_Collection &par_muts,
-                            int lower_bound,ignore_ranger,Reachable,Move_Found_Callback& callback
+                            int lower_bound,ignore_ranger,Reachable
 #ifdef CHECK_BOUND
                             ,bool do_continue
 #endif
+                            ,Move_Found_Callback& callback
                            );

@@ -9,7 +9,6 @@ void make_output_path(std::string& path_template) {
 }
 
 size_t optimize_inner_loop(std::vector<MAT::Node*>& nodes_to_search,MAT::Tree& t,int radius,
-    Move_Found_Callback& callback,
     bool allow_drift,
     bool search_all_dir,
     int minutes_between_save,
@@ -20,7 +19,8 @@ size_t optimize_inner_loop(std::vector<MAT::Node*>& nodes_to_search,MAT::Tree& t
     int iteration,
     std::string intermediate_template,
     std::string intermediate_pb_base_name,
-    std::string intermediate_nwk_out
+    std::string intermediate_nwk_out,
+    Move_Found_Callback& callback
     ){
     static std::chrono::steady_clock::time_point last_save_time=std::chrono::steady_clock::now();
     auto save_period=std::chrono::minutes(minutes_between_save);
@@ -103,4 +103,29 @@ size_t optimize_inner_loop(std::vector<MAT::Node*>& nodes_to_search,MAT::Tree& t
                 search_all_dir=true;
             }
             return new_score;
+}
+
+// Overload that provides default callback
+size_t optimize_inner_loop(std::vector<MAT::Node*>& nodes_to_search,MAT::Tree& t,int radius,
+    bool allow_drift,
+    bool search_all_dir,
+    int minutes_between_save,
+    bool no_write_intermediate,
+    std::chrono::steady_clock::time_point search_end_time,
+    std::chrono::steady_clock::time_point start_time,
+    bool log_moves,
+    int iteration,
+    std::string intermediate_template,
+    std::string intermediate_pb_base_name,
+    std::string intermediate_nwk_out
+    ){
+#ifdef CHECK_STATE_REASSIGN
+    #error "CHECK_STATE_REASSIGN not supported in overload without callback parameter"
+#else
+    return optimize_inner_loop(nodes_to_search, t, radius, allow_drift, search_all_dir,
+                              minutes_between_save, no_write_intermediate, search_end_time,
+                              start_time, log_moves, iteration, intermediate_template,
+                              intermediate_pb_base_name, intermediate_nwk_out,
+                              Move_Found_Callback::default_instance());
+#endif
 }

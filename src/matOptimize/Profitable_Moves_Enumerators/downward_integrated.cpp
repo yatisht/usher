@@ -110,7 +110,7 @@ static bool output_not_LCA(Mutation_Count_Change_Collection &parent_added,
     src_side.savings.total++;
 #endif
     return output_result(src_side.src, dst_node, src_side.LCA, parsimony_score_change,
-                         src_side.out,radius,callback,major_alllele_count_changes_hist);
+                         src_side.out,radius,major_alllele_count_changes_hist,callback);
 }
 struct go_descendant {};
 struct no_descendant {};
@@ -398,20 +398,22 @@ static void search_subtree_bounded_internal(MAT::Node *node, const src_side_info
             }
         }
 
-        search_subtree_bounded(child, src_side, radius_left-1, muts, child_specific_lower_bound,tag,child_reachable,callback
+        search_subtree_bounded(child, src_side, radius_left-1, muts, child_specific_lower_bound,tag,child_reachable
 #ifdef CHECK_BOUND
                                ,do_continue
 #endif
+                               ,callback
                               );
     }
 }
 void search_subtree_bounded(MAT::Node *node, const src_side_info &src_side,
                             int radius_left,
                             Bounded_Mut_Change_Collection &par_muts,
-                            int lower_bound,ignore_ranger_nop tag,Reachable reachable,Move_Found_Callback& callback
+                            int lower_bound,ignore_ranger_nop tag,Reachable reachable
 #ifdef CHECK_BOUND
                             ,bool do_continue
 #endif
+                            ,Move_Found_Callback& callback
                            ) {
     search_subtree_bounded_internal(node, src_side,radius_left,par_muts,lower_bound,tag,reachable,callback
 #ifdef CHECK_BOUND
@@ -422,10 +424,11 @@ void search_subtree_bounded(MAT::Node *node, const src_side_info &src_side,
 void search_subtree_bounded(MAT::Node *node, const src_side_info &src_side,
                             int radius_left,
                             Bounded_Mut_Change_Collection &par_muts,
-                            int lower_bound,ignore_ranger tag,Reachable reachable,Move_Found_Callback& callback
+                            int lower_bound,ignore_ranger tag,Reachable reachable
 #ifdef CHECK_BOUND
                             ,bool do_continue
 #endif
+                            ,Move_Found_Callback& callback
                            ) {
     search_subtree_bounded_internal(node, src_side,radius_left,par_muts,lower_bound,tag,reachable,callback
 #ifdef CHECK_BOUND

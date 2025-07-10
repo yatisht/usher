@@ -19,8 +19,8 @@ static void check_LCA(MAT::Node* src, MAT::Node* dst,MAT::Node* LCA_to_check) {
 #endif
 
 bool output_result(MAT::Node *src, MAT::Node *dst, MAT::Node *LCA,
-                   int parsimony_score_change, output_t &output,int radius_left,Move_Found_Callback& callback,
-                    std::vector<Node_With_Major_Allele_Set_Change>& major_alllele_count_changes_hist) {
+                   int parsimony_score_change, output_t &output,int radius_left,
+                    std::vector<Node_With_Major_Allele_Set_Change>& major_alllele_count_changes_hist,Move_Found_Callback& callback) {
     Profitable_Moves new_move;
     new_move.score_change = parsimony_score_change;
     new_move.src = src;
@@ -71,12 +71,13 @@ int check_move_profitable_dst_not_LCA(
     MAT::Node *src, MAT::Node *dst, MAT::Node *LCA,
     const range<Mutation_Count_Change>  &mutations,
     const Mutation_Count_Change_Collection &root_mutations_altered,
-    int parsimony_score_change, output_t &output,int radius,Move_Found_Callback& callback
+    int parsimony_score_change, output_t &output,int radius
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
     ,
     const std::vector<Mutation_Count_Change_Collection> debug_from_src,
     const MAT::Tree* tree
 #endif
+    ,Move_Found_Callback& callback
 ) {
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
     check_LCA(src, dst, LCA);
@@ -114,7 +115,7 @@ int check_move_profitable_dst_not_LCA(
     auto ref_score=get_parsimmony_score_only(src,dst,LCA,tree);
     assert(parsimony_score_change == ref_score);
 #endif
-    output_result(src, dst, LCA, parsimony_score_change, output,radius,callback,major_alllele_count_changes_hist);
+    output_result(src, dst, LCA, parsimony_score_change, output,radius,major_alllele_count_changes_hist,callback);
     return parsimony_score_change;
 }
 
@@ -124,12 +125,13 @@ int check_move_profitable_LCA(
     const Mutation_Count_Change_Collection &root_mutations_altered,
     int parsimony_score_change,
     const MAT::Node* last_src_branch_node_below_LCA,
-    output_t &output,int radius,Move_Found_Callback& callback
+    output_t &output,int radius
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
     ,
     const std::vector<Mutation_Count_Change_Collection> &debug_above_LCA,
     const MAT::Tree* tree
 #endif
+    ,Move_Found_Callback& callback
 ) {
     Mutation_Count_Change_Collection parent_of_parent_added;
     parent_of_parent_added.reserve(mutations.size()+root_mutations_altered.size());
@@ -149,6 +151,6 @@ int check_move_profitable_LCA(
 #endif
     std::vector<MAT::Node*> ignored;
     output_result(src, LCA, LCA, parsimony_score_change, output,
-                  radius,callback,major_alllele_count_changes_hist);
+                  radius,major_alllele_count_changes_hist,callback);
     return parsimony_score_change;
 }

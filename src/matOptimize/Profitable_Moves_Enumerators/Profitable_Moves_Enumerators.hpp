@@ -157,12 +157,17 @@ struct Move_Found_Callback{
     virtual bool operator()(Profitable_Moves& move,int best_score_change,std::vector<Node_With_Major_Allele_Set_Change>& node_with_major_allele_set_change){
         return move.score_change <= best_score_change;
     }
+    
+    static Move_Found_Callback& default_instance() {
+        static Move_Found_Callback instance;
+        return instance;
+    }
 };
-void find_moves_bounded(MAT::Node* src,output_t& out,int search_radius,bool do_drift,Reachable,Move_Found_Callback& callback
+void find_moves_bounded(MAT::Node* src,output_t& out,int search_radius,bool do_drift,Reachable
 #ifdef CHECK_BOUND
                         ,counters& count
 #endif
-                       );
+                        ,Move_Found_Callback& callback);
 struct node_info {
     size_t dfs_idx;
     size_t level;
@@ -191,7 +196,7 @@ struct range_tree {
     }
 };
 bool output_result(MAT::Node *src, MAT::Node *dst, MAT::Node *LCA,
-                   int parsimony_score_change, output_t &output,int radius_left,Move_Found_Callback& callback,std::vector<Node_With_Major_Allele_Set_Change>& major_alllele_count_changes_hist);
+                   int parsimony_score_change, output_t &output,int radius_left,std::vector<Node_With_Major_Allele_Set_Change>& major_alllele_count_changes_hist,Move_Found_Callback& callback);
 extern std::vector<range_tree> addable_idxes;
 void check_parsimony_score_change_above_LCA(MAT::Node *start_node, int &parsimony_score_change,
         Mutation_Count_Change_Collection &parent_added,
@@ -211,23 +216,25 @@ int check_move_profitable_LCA(
     const Mutation_Count_Change_Collection &root_mutations_altered,
     int parsimony_score_change,
     const MAT::Node* last_src_branch_node_below_LCA,
-    output_t &output,int radius,Move_Found_Callback& callback
+    output_t &output,int radius
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
     ,
     const std::vector<Mutation_Count_Change_Collection> &debug_above_LCA,
     const MAT::Tree* tree
 #endif
+    ,Move_Found_Callback& callback
 );
 int check_move_profitable_dst_not_LCA(
     MAT::Node *src, MAT::Node *dst, MAT::Node *LCA,
     const range<Mutation_Count_Change>  &mutations,
     const Mutation_Count_Change_Collection &root_mutations_altered,
-    int parsimony_score_change, output_t &output,int radius,Move_Found_Callback& callback
+    int parsimony_score_change, output_t &output,int radius
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
     ,
     const std::vector<Mutation_Count_Change_Collection> debug_from_src,
     const MAT::Tree* tree
 #endif
+    ,Move_Found_Callback& callback
 );
 
 #endif
