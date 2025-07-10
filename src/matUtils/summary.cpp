@@ -3,9 +3,10 @@
 #include "translate.hpp"
 #include <array>
 #include <boost/date_time/gregorian/gregorian.hpp>
+#include <tbb/info.h>
 
 po::variables_map parse_summary_command(po::parsed_options parsed) {
-    uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
+    uint32_t num_cores = tbb::info::default_concurrency();
     std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
 
     po::variables_map vm;
@@ -668,7 +669,8 @@ void summary_main(po::parsed_options parsed) {
         mutations = dir_prefix + "mutations.tsv";
         aberrant = dir_prefix + "aberrant.tsv";
     }
-    tbb::task_scheduler_init init(num_threads);
+    // TBB automatically manages threads in modern versions
+    // tbb::task_scheduler_init init(num_threads);
 
     timer.Start();
     fprintf(stderr, "Loading input MAT file %s.\n", input_mat_filename.c_str());

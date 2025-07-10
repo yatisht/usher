@@ -5,8 +5,8 @@
 #include <cstdio>
 #include <string>
 #include <tbb/flow_graph.h>
-#include <tbb/pipeline.h>
-#include <tbb/task.h>
+#include <tbb/parallel_pipeline.h>
+#include <tbb/task_group.h>
 #include <thread>
 #include <mpi.h>
 #include <tuple>

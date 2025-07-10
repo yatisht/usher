@@ -1,5 +1,5 @@
 #include <cstdint>
-#include <tbb/pipeline.h>
+#include <tbb/parallel_pipeline.h>
 #include <unordered_map>
 #include <zlib.h>
 #include <cassert>

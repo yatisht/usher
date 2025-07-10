@@ -12,11 +12,11 @@
 #include <tbb/blocked_range.h>
 #include <tbb/concurrent_vector.h>
 #include <tbb/enumerable_thread_specific.h>
-#include <tbb/pipeline.h>
+#include <tbb/parallel_pipeline.h>
 #include <utility>
 #include <unordered_map>
 #include <vector>
-#include <tbb/task_scheduler_init.h>
+#include <tbb/info.h>
 #include <zlib.h>
 #include <boost/program_options/value_semantic.hpp>
 #include <boost/program_options.hpp>

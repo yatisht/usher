@@ -12,8 +12,8 @@
 #include <string>
 #include "transpose_vcf.hpp"
 #include <sys/types.h>
-#include <tbb/pipeline.h>
-#include <tbb/task_scheduler_init.h>
+#include <tbb/parallel_pipeline.h>
+#include <tbb/info.h>
 #include <tbb/blocked_range.h>
 #include <tbb/concurrent_vector.h>
 #include <thread>

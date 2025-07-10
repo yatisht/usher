@@ -1,9 +1,10 @@
+#include <tbb/info.h>
 #include "annotate.hpp"
 
 
 po::variables_map parse_annotate_command(po::parsed_options parsed) {
 
-    uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
+    uint32_t num_cores = tbb::info::default_concurrency();
     std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
 
     po::variables_map vm;

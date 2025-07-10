@@ -22,7 +22,7 @@
 #include <random>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
-#include <tbb/task_scheduler_init.h>
+#include <tbb/info.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>

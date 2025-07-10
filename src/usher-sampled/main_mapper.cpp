@@ -7,7 +7,7 @@
 #include <cstdio>
 #include <signal.h>
 #include <tbb/parallel_for.h>
-#include <tbb/task.h>
+#include <tbb/task_group.h>
 #include <unordered_map>
 #include <utility>
 #include <vector>

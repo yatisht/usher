@@ -10,7 +10,7 @@
 #include <tbb/blocked_range.h>
 #include <tbb/concurrent_vector.h>
 #include <tbb/parallel_for.h>
-#include <tbb/task.h>
+#include <tbb/task_group.h>
 #include <utility>
 #include <vector>
 
@@ -136,7 +136,7 @@ static void filter_output(const MAT::Mutation &mut,
 }
 
 typedef std::vector<tbb::concurrent_vector<node_info>> pos_tree_t;
-struct Walker : public tbb::task {
+struct Walker {
     std::vector<Sensitive_Alleles> sensitive_locus;
     MAT::Node *root;
     pos_tree_t& pos_tree;
@@ -192,26 +192,23 @@ struct Walker : public tbb::task {
             output->push_back(Sensitive_Alleles{INT_MAX});
         }
     }
-    tbb::task *execute() override {
-        auto continuation = new (allocate_continuation()) tbb::empty_task;
-        std::vector<tbb::task *> tasks;
+    void execute(tbb::task_group &tg) {
+        std::vector<tbb::task_handle> tasks;
         tasks.reserve(root->children.size());
         for (auto child : root->children) {
             if (child->is_leaf()) {
                 merge(child, nullptr);
             } else {
-
-                auto child_task =
-                    new (continuation->allocate_child()) Walker(child,pos_tree);
+                std::shared_ptr<Walker> child_task = std::make_shared<Walker>(child, pos_tree);
                 merge(child, &child_task->sensitive_locus);
-                tasks.push_back(child_task);
+                tasks.push_back(tg.defer([&tg, child_task = child_task]{
+                    child_task->execute(tg);
+                }));
             }
         }
-        continuation->set_ref_count(tasks.size());
-        for (auto task : tasks) {
-            continuation->spawn(*task);
+        for (auto& task : tasks) {
+            tg.run(std::move(task));
         }
-        return tasks.empty() ? continuation : nullptr;
     }
 };
 void output_addable_idxes(pos_tree_t& in,const std::vector<MAT::Node*>& dfs_ordered_nodes) {
@@ -232,14 +229,16 @@ void adjust_all(MAT::Tree &tree) {
     fprintf(stderr, "start\n");
     auto start = std::chrono::steady_clock::now();
     pos_tree_t pos_tree(MAT::Mutation::refs.size());
-    auto task_root = new (tbb::task::allocate_root()) Walker(tree.root,pos_tree);
+    Walker walker(tree.root, pos_tree);
     for (auto &mut : tree.root->mutations) {
         auto effect = update_sensitve_allele(mut);
         std::array<node_info*, 4> last_addable_idx{nullptr,nullptr,nullptr,nullptr};
-        filter_output(mut, effect, task_root->sensitive_locus,last_addable_idx);
+        filter_output(mut, effect, walker.sensitive_locus, last_addable_idx);
     }
-    task_root->sensitive_locus.push_back(Sensitive_Alleles{INT_MAX});
-    tbb::task::spawn_root_and_wait(*task_root);
+    walker.sensitive_locus.push_back(Sensitive_Alleles{INT_MAX});
+    tbb::task_group tg;
+    walker.execute(tg);
+    tg.wait();
     auto dfs_ordered_nodes=tree.depth_first_expansion();
     output_addable_idxes(pos_tree,dfs_ordered_nodes);
     size_t max_change=0;

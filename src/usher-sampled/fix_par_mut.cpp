@@ -3,7 +3,7 @@
 #include <string>
 #include <tbb/concurrent_unordered_set.h>
 #include <tbb/parallel_for.h>
-#include <tbb/task.h>
+#include <tbb/task_group.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
