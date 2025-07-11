@@ -229,10 +229,10 @@ void set_state_from_parent(MAT::Node *node,
                 assert(*ref_iter == new_mut.back());
                 ref_iter++;
 #endif
-            }
-            if (new_state != old_state) {
-                //register state change at this node
-                this_state_altered_out.emplace_back(new_mut.back(), old_state);
+                if (new_state != old_state) {
+                    //register state change at this node
+                    this_state_altered_out.emplace_back(new_mut.back(), old_state);
+                }
             }
             iter++;
         } else {
