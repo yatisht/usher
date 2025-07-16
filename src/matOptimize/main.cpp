@@ -29,7 +29,7 @@
 #include <cstdio>
 #include <fcntl.h>
 #include <string>
-#include <tbb/task_scheduler_init.h>
+#include <tbb/info.h>
 #include <thread>
 #include <unistd.h>
 #include <sys/stat.h>
