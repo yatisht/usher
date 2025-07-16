@@ -449,7 +449,7 @@ int main(int argc, char **argv) {
                     out.moves=new std::vector<Profitable_Moves_ptr_t>;
                     auto node=all_nodes[idx];
                     Reachable reachable{true,true};
-                    find_moves_bounded(node, out, radius, true, reachable);
+                    find_moves_bounded(node, out, radius, true, reachable, Move_Found_Callback::default_instance());
                     std::unordered_map<size_t, bool> filtered;
                     if(out.score_change==-1){
                         filtered.emplace(node->node_id,false);

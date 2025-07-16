@@ -99,12 +99,15 @@ bool LCA_place_mezzanine(
 }
 void check_parsimony_score_change_above_LCA(MAT::Node *curr_node, int &parsimony_score_change,
         Mutation_Count_Change_Collection &parent_added,
-        Mutation_Count_Change_Collection &parent_of_parent_added) {
+        Mutation_Count_Change_Collection &parent_of_parent_added,std::vector<Node_With_Major_Allele_Set_Change>& major_alllele_count_changes_hist) {
     while (curr_node && (!parent_added.empty())) {
         parent_of_parent_added.clear();
         get_intermediate_nodes_mutations(
             curr_node,
             parent_added, parent_of_parent_added, parsimony_score_change);
+        if (!parent_of_parent_added.empty()) {
+            major_alllele_count_changes_hist.push_back(Node_With_Major_Allele_Set_Change{curr_node,parent_of_parent_added});    
+        }
         parent_added.swap(parent_of_parent_added);
         curr_node = curr_node->parent;
     }

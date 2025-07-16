@@ -29,7 +29,7 @@
 #include <sys/un.h>
 #include <sys/wait.h>
 #include <tbb/scalable_allocator.h>
-#include <tbb/task_scheduler_init.h>
+#include <tbb/info.h>
 #include <thread>
 #include <unistd.h>
 #include <unordered_map>

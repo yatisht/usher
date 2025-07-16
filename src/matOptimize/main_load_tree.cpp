@@ -10,7 +10,7 @@
 #include <tbb/blocked_range.h>
 #include <tbb/concurrent_unordered_map.h>
 #include <tbb/concurrent_vector.h>
-#include <tbb/pipeline.h>
+#include <tbb/parallel_pipeline.h>
 #include "tbb/parallel_for_each.h"
 #include <tbb/parallel_for.h>
 #include <boost/iostreams/filtering_stream.hpp>

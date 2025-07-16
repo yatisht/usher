@@ -19,8 +19,7 @@
 #include <tbb/concurrent_vector.h>
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
-#include <tbb/pipeline.h>
-#include <tbb/task_scheduler_init.h>
+#include <tbb/parallel_pipeline.h>
 #include <unistd.h>
 #include <unordered_map>
 #include <utility>

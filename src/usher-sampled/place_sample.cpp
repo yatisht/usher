@@ -15,7 +15,7 @@
 #include <string>
 #include <tbb/concurrent_queue.h>
 #include <tbb/flow_graph.h>
-#include <tbb/task.h>
+#include <tbb/task_group.h>
 #include <thread>
 #include <tuple>
 #include <unordered_map>

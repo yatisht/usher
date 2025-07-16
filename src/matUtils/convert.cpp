@@ -7,6 +7,7 @@
 #include <tbb/parallel_sort.h>
 #include <unordered_map>
 #include <vector>
+#include <tbb/info.h>
 
 using json = nlohmann::json;
 
@@ -279,7 +280,7 @@ void write_vcf_rows(std::ostream& vcf_file, MAT::Tree T, bool print_genotypes, c
             return left.first<right.first;
         });
         uint pos=0;
-        tbb::parallel_pipeline(tbb::task_scheduler_init::default_num_threads()*2,tbb::make_filter<void,uint>(tbb::filter::serial_in_order,Pos_Finder{pos,pos_genotypes})&
+        tbb::parallel_pipeline(tbb::info::default_concurrency()*2,tbb::make_filter<void,uint>(tbb::filter::serial_in_order,Pos_Finder{pos,pos_genotypes})&
                                tbb::make_filter<uint,std::string*>(tbb::filter::parallel,VCF_Line_Writer{pos_genotypes,leaf_count,print_genotypes,chrom})
         &tbb::make_filter<std::string*,void>(tbb::filter::serial_in_order,[&vcf_file](std::string* to_write) {
             if (to_write) {
