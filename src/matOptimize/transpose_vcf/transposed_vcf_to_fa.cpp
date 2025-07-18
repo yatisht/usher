@@ -20,6 +20,8 @@
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_pipeline.h>
+#include <tbb/global_control.h>
+#include <tbb/info.h>
 #include <unistd.h>
 #include <unordered_map>
 #include <utility>
@@ -229,7 +231,7 @@ struct Batch_Printer {
 };
 int main(int argc, char **argv) {
     po::options_description desc{"Options"};
-    uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
+    uint32_t num_cores = tbb::info::default_concurrency();
     std::string output_fa_file;
     std::string input_path;
     std::string rename_file;
@@ -273,7 +275,7 @@ int main(int argc, char **argv) {
     if (rename_file != "") {
         parse_rename_file(rename_file, rename_mapping);
     }
-    tbb::task_scheduler_init init(num_threads);
+    tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, num_threads);
     load_reference(reference.c_str(), chrom, ref);
     All_Sample_Appender appender;
     load_mutations(input_path.c_str(), 80, appender);

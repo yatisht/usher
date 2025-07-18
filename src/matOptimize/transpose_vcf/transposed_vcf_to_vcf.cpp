@@ -13,6 +13,7 @@
 #include <tbb/concurrent_vector.h>
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_pipeline.h>
+#include <tbb/global_control.h>
 #include <utility>
 #include <unordered_map>
 #include <vector>
@@ -340,7 +341,7 @@ void write_header(std::vector<Sample_Pos_Mut>& all_samples,FILE* fh) {
 namespace po = boost::program_options;
 int main(int argc, char **argv) {
     po::options_description desc{"Options"};
-    uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
+    uint32_t num_cores = tbb::info::default_concurrency();
     std::string output_vcf_path;
     std::string input_path;
     std::string rename_file;
@@ -371,7 +372,7 @@ int main(int argc, char **argv) {
     if(rename_file!="") {
         parse_rename_file(rename_file,rename_mapping);
     }
-    tbb::task_scheduler_init init(num_threads);
+    tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, num_threads);
     load_reference(reference.c_str(), chrom, ref);
     All_Sample_Appender appender;
     load_mutations(input_path.c_str(), 80, appender);
@@ -433,11 +434,11 @@ int main(int argc, char **argv) {
     write_header(all_samples, vcf_out);
     tbb::parallel_pipeline(
         1000, tbb::make_filter<void, iter_range>(
-            tbb::filter::serial_in_order,
+            tbb::filter_mode::serial_in_order,
             Pos_Iter_Gen{pos_mut_iter, pos_mut_end}) &
         tbb::make_filter<iter_range, std::pair<uint8_t *, size_t>>(
-            tbb::filter::parallel, Output_Genotypes{all_samples}) &
+            tbb::filter_mode::parallel, Output_Genotypes{all_samples}) &
         tbb::make_filter<std::pair<uint8_t *, size_t>, void>(
-            tbb::filter::serial_in_order, File_Writer{vcf_out}));
+            tbb::filter_mode::serial_in_order, File_Writer{vcf_out}));
     fclose(vcf_out);
 }
