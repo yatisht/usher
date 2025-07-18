@@ -30,6 +30,7 @@
 #include <fcntl.h>
 #include <string>
 #include <tbb/info.h>
+#include <tbb/global_control.h>
 #include <thread>
 #include <unistd.h>
 #include <sys/stat.h>
@@ -148,7 +149,7 @@ int main(int argc, char **argv) {
     std::string branch_support_newick_out;
 
     po::options_description desc{"Options"};
-    uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
+    uint32_t num_cores = tbb::info::default_concurrency();
     std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
     desc.add_options()
     ("vcf,v", po::value<std::string>(&input_vcf_path)->default_value(""), "Input VCF file (in uncompressed or gzip-compressed .gz format) ")
@@ -323,7 +324,7 @@ int main(int argc, char **argv) {
         //Loading tree
         Original_State_t origin_states;
         {
-            tbb::task_scheduler_init init(process_count*num_threads);
+            tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, process_count*num_threads);
             if (input_complete_pb_path!="") {
                 t.load_detatiled_mutations(input_complete_pb_path);
             } else {
@@ -432,7 +433,7 @@ int main(int argc, char **argv) {
         bool isfirst=true;
         bool allow_drift=false;
         int iteration=1;
-        tbb::task_scheduler_init init(num_threads);
+        tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, num_threads);
         if(branch_support_newick_out!=""){
             if(radius<0){
                 radius=2*t.get_max_level();
@@ -582,7 +583,7 @@ int main(int argc, char **argv) {
         save_final_tree(t, output_path);
         MPI_Wait(&req, MPI_STATUS_IGNORE);
     } else {
-        tbb::task_scheduler_init init(num_threads);
+        tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, num_threads);
         while(true) {
             MPI_Request request;
             fprintf(stderr, "Wait radius\n");
@@ -609,7 +610,7 @@ int main(int argc, char **argv) {
             t.MPI_receive_tree();
             adjust_all(t);
             use_bound=true;
-            optimize_tree_worker_thread(t, radius,do_drift,search_all_dir);
+            optimize_tree_worker_thread(t, radius,do_drift,search_all_dir, Move_Found_Callback::default_instance());
             t.delete_nodes();
         }
         if (reduce_back_mutations) {
