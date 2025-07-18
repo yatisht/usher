@@ -1,6 +1,6 @@
 #include "convert.hpp"
 #include "nlohmann_json.hpp"
-#include "tbb/pipeline.h"
+#include "tbb/parallel_pipeline.h"
 #include <algorithm>
 #include <csignal>
 #include <cstdint>
@@ -280,9 +280,9 @@ void write_vcf_rows(std::ostream& vcf_file, MAT::Tree T, bool print_genotypes, c
             return left.first<right.first;
         });
         uint pos=0;
-        tbb::parallel_pipeline(tbb::info::default_concurrency()*2,tbb::make_filter<void,uint>(tbb::filter::serial_in_order,Pos_Finder{pos,pos_genotypes})&
-                               tbb::make_filter<uint,std::string*>(tbb::filter::parallel,VCF_Line_Writer{pos_genotypes,leaf_count,print_genotypes,chrom})
-        &tbb::make_filter<std::string*,void>(tbb::filter::serial_in_order,[&vcf_file](std::string* to_write) {
+        tbb::parallel_pipeline(tbb::info::default_concurrency()*2,tbb::make_filter<void,uint>(tbb::filter_mode::serial_in_order,Pos_Finder{pos,pos_genotypes})&
+                               tbb::make_filter<uint,std::string*>(tbb::filter_mode::parallel,VCF_Line_Writer{pos_genotypes,leaf_count,print_genotypes,chrom})
+        &tbb::make_filter<std::string*,void>(tbb::filter_mode::serial_in_order,[&vcf_file](std::string* to_write) {
             if (to_write) {
                 vcf_file<<*to_write;
                 delete to_write;

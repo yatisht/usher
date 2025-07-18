@@ -233,7 +233,7 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         }
     }
 
-    tbb::task_scheduler_init init(num_threads);
+    tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, num_threads);
 
     timer.Start();
     fprintf(stderr, "Loading input MAT file %s.\n", input_mat_filename.c_str());
