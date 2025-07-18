@@ -16,6 +16,7 @@
 #include <tbb/info.h>
 #include <tbb/blocked_range.h>
 #include <tbb/concurrent_vector.h>
+#include <tbb/global_control.h>
 #include <thread>
 #include <unordered_map>
 #include <unordered_set>
@@ -23,6 +24,7 @@
 #include <vector>
 #include <iostream>
 #include "tbb/parallel_for.h"
+#include <tuple>
 #include <boost/program_options/value_semantic.hpp>
 #include <boost/program_options.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
@@ -33,7 +35,7 @@ std::mutex print_mutex;
 #define SAMPLE_START_IDX 9
 std::atomic<size_t> buffer_left;
 //Decouple parsing (slow) and decompression, segment file into blocks for parallelized parsing
-typedef tbb::flow::source_node<char*> decompressor_node_t;
+typedef tbb::flow::input_node<char*> decompressor_node_t;
 typedef tbb::flow::function_node<char*> line_parser_t;
 static void writeVariant(std::string& out,unsigned int to_write) {
     assert(to_write);
@@ -306,7 +308,7 @@ struct Packed_Msgs:public std::vector<Sample_Mut_Msg*> {
         std::vector<Sample_Mut_Msg*>::pop_back();
     }
 };
-typedef tbb::flow::multifunction_node<Packed_Msgs*, tbb::flow::tuple<Packed_Msgs*>> block_serializer_t;
+typedef tbb::flow::multifunction_node<Packed_Msgs*, std::tuple<Packed_Msgs*>> block_serializer_t;
 struct Block_Serializer {
     Packed_Msgs* & out_buffer;
     void operator()(Packed_Msgs * in,block_serializer_t::output_ports_type& out ) const {
@@ -459,9 +461,9 @@ struct VCF_inputer {
         }
 
         tbb::parallel_pipeline(nthreads,
-                               tbb::make_filter<void,char*>(tbb::filter::serial_in_order,Decompressor{&fd,CHUNK_SIZ*header_size,2*header_size})&
-                               tbb::make_filter<char*,std::vector<Pos_Mut_Block>*>(tbb::filter::parallel,Line_Parser{fields.size()})&
-                               tbb::make_filter<std::vector<Pos_Mut_Block>*,void>(tbb::filter::serial_out_of_order,Appender{sample_pos_mut}));
+                               tbb::make_filter<void,char*>(tbb::filter_mode::serial_in_order,Decompressor{&fd,CHUNK_SIZ*header_size,2*header_size})&
+                               tbb::make_filter<char*,std::vector<Pos_Mut_Block>*>(tbb::filter_mode::parallel,Line_Parser{fields.size()})&
+                               tbb::make_filter<std::vector<Pos_Mut_Block>*,void>(tbb::filter_mode::serial_out_of_order,Appender{sample_pos_mut}));
         gzclose(fd);
 
         tbb::parallel_for(tbb::blocked_range<size_t>(SAMPLE_START_IDX,fields.size()),[this,&sample_pos_mut,&serializer_head,&compressor](tbb::blocked_range<size_t>& range) {
@@ -516,7 +518,7 @@ class Rename_Data_Source {
             start++;
             return out;
         }
-        void operator()(const uint8_t* in) const {
+        void operator()(uint8_t* in) const {
             auto packed_out=new Packed_Msgs();
             uint8_t buffer[MAX_SIZ];
             unsigned int item_len=*(int*) in;
@@ -547,10 +549,10 @@ class Rename_Data_Source {
         const uint8_t *end;
         file.get_mapped_range(last_out, end);
         tbb::parallel_pipeline(
-            nthread, tbb::make_filter<void, const uint8_t *>(
-                tbb::filter::serial_in_order, partitioner{last_out, end}) &
-            tbb::make_filter<const uint8_t *, void>(
-                tbb::filter::parallel, renamer{rename_map,compressor,serializer_head,filter}));
+            nthread, tbb::make_filter<void, uint8_t *>(
+                tbb::filter_mode::serial_in_order, partitioner{last_out, end}) &
+            tbb::make_filter<uint8_t *, void>(
+                tbb::filter_mode::parallel, renamer{rename_map,compressor,serializer_head,filter}));
     }
 };
 namespace po = boost::program_options;
@@ -558,7 +560,7 @@ namespace po = boost::program_options;
 int main(int argc,char** argv) {
     compress_len=compressBound(MAX_SIZ);
     po::options_description desc{"Options"};
-    uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
+    uint32_t num_cores = tbb::info::default_concurrency();
     std::string input_vcf_path;
     std::string input_pb_path;
     std::string input_remap_path;
@@ -587,7 +589,7 @@ int main(int argc,char** argv) {
         else
             return 1;
     }
-    tbb::task_scheduler_init init(num_threads);
+    tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, num_threads);
     if (input_vcf_path!="") {
         VCF_inputer vcf_in(input_vcf_path.c_str(),num_threads,output_path);
         output_transposed_vcf(output_path.c_str(), vcf_in);
