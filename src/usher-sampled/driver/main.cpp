@@ -1,6 +1,7 @@
 #include "src/matOptimize/check_samples.hpp"
 #include "src/matOptimize/mutation_annotated_tree.hpp"
 #include "src/matOptimize/tree_rearrangement_internal.hpp"
+#include "src/matOptimize/Profitable_Moves_Enumerators/Profitable_Moves_Enumerators.hpp"
 #include "src/usher-sampled/usher.hpp"
 #include <algorithm>
 #include <atomic>
@@ -23,6 +24,7 @@
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
 #include <tbb/info.h>
+#include <tbb/global_control.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -137,7 +139,7 @@ void leader_thread_optimization(MAT::Tree& tree,std::vector<mutated_t>& position
             optimize_tree_main_thread(
                 node_to_search_idx, tree, optimization_radius, ignored_file,
                 false, 1, deferred_nodes_out, distributed, optimization_end, true,
-                true, true);
+                true, true, Move_Found_Callback::default_instance());
             node_to_search_idx.clear();
             auto dfs = tree.depth_first_expansion();
             node_to_search_idx.reserve(deferred_nodes_out.size());
@@ -396,7 +398,7 @@ int main(int argc, char **argv) {
     Leader_Thread_Options options;
     po::options_description desc{"Options"};
     int optimiation_minutes;
-    uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
+    uint32_t num_cores = tbb::global_control::active_value(tbb::global_control::max_allowed_parallelism);
     std::string num_threads_message = "Number of threads to use when possible "
                                       "[DEFAULT uses all available cores, " +
                                       std::to_string(num_cores) +
@@ -501,7 +503,7 @@ int main(int argc, char **argv) {
     prctl(0x59616d61,-1);
     fprintf(stderr, "rand %d of pid %d ",this_rank,getpid());
 #endif
-    tbb::task_scheduler_init init(num_threads);
+    tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, num_threads);
     if (this_rank==0) {
         if (options.keep_n_tree>1&&process_count>1) {
             fprintf(stderr, "Multi-host parallelization of multiple placement is not supported\n");
@@ -546,11 +548,10 @@ int main(int argc, char **argv) {
                 node->children.reserve(SIZE_MULT*node->children.size());
 #endif
             }
-            init.terminate();
-            init.initialize(num_threads-1);
-            follower_place_sample(tree,batch_size_per_process,false);
-            init.terminate();
-            init.initialize(num_threads);
+            {
+                tbb::global_control follower_limit(tbb::global_control::max_allowed_parallelism, num_threads-1);
+                follower_place_sample(tree,batch_size_per_process,false);
+            }
             bool done=false;
             if (options.initial_optimization_radius>0) {
                 bool is_last=false;
@@ -578,7 +579,7 @@ int main(int argc, char **argv) {
                     adjust_all(tree);
                     use_bound=true;
                     fprintf(stderr, "follower start optimizing\n");
-                    optimize_tree_worker_thread(tree, optimization_radius, false, true);
+                    optimize_tree_worker_thread(tree, optimization_radius, false, true, Move_Found_Callback::default_instance());
                 } while (is_last);
             }
             int stop;

@@ -164,7 +164,7 @@ static void recv_and_place_follower(MAT::Tree &tree,
     }
 }
 
-typedef tbb::flow::multifunction_node<Sample_Muts*, tbb::flow::tuple<Sample_Muts*>> Fetcher_Node_t;
+typedef tbb::flow::multifunction_node<Sample_Muts*, std::tuple<Sample_Muts*>> Fetcher_Node_t;
 struct Fetcher {
     bool& is_first;
     Sample_Muts* operator()(tbb::flow_control& fc) const {
@@ -232,10 +232,15 @@ void follower_place_sample(MAT::Tree &main_tree,int batch_size,bool dry_run) {
     std::vector<MAT::Node *> deleted_nodes;
     bool is_first=true;
     std::thread tree_update_thread(recv_and_place_follower,std::ref(main_tree),std::ref(deleted_nodes),dry_run);
-    tbb::parallel_pipeline(batch_size,
-                           tbb::make_filter<void,Sample_Muts*>(tbb::filter::serial,Fetcher{is_first})&
-                           tbb::make_filter<Sample_Muts*,void>(
-                               tbb::filter::parallel,Finder{main_tree,traversal_info,dfs_ordered_nodes,dry_run}));
+    {
+        tbb::flow::graph g;
+        tbb::flow::input_node<Sample_Muts*> fetcher_node(g, Fetcher{is_first});
+        tbb::flow::function_node<Sample_Muts*> finder_node(g, tbb::flow::unlimited, Finder{main_tree,traversal_info,dfs_ordered_nodes,dry_run});
+        
+        tbb::flow::make_edge(fetcher_node, finder_node);
+        fetcher_node.activate();
+        g.wait_for_all();
+    }
     for (auto node : deleted_nodes) {
         delete node;
     }

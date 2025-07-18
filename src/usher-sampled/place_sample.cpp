@@ -444,7 +444,7 @@ static void serial_proc_placed_sample( MAT::Tree &main_tree,move_type* in,bool d
 }
 typedef tbb::flow::function_node<Preped_Sample_To_Place *,size_t> placer_node_t;
 typedef tbb::concurrent_bounded_queue<Sample_Muts*> retry_place_t;
-typedef tbb::flow::multifunction_node<Sample_Muts*,tbb::flow::tuple<Sample_Muts*>> Pusher_Node_T;
+typedef tbb::flow::multifunction_node<Sample_Muts*,std::tuple<Sample_Muts*>> Pusher_Node_T;
 typedef tbb::flow::function_node<print_format> Printer_Node_t;
 static void place_sample_thread(int start_idx, MAT::Tree &main_tree,std::vector<MAT::Node *> &deleted_nodes,
                                  Placed_move_sended_state& send_queue,found_place_t& found_place_queue,Pusher_Node_T& retry_queue
@@ -663,7 +663,7 @@ struct Pusher {
     std::atomic_size_t& curr_idx;
     std::vector<Sample_Muts>& to_place;
     std::atomic_bool& stop;
-    void operator()(Sample_Muts* in,Pusher_Node_T::output_ports_type& out )const {
+    void operator()(Sample_Muts* in, typename Pusher_Node_T::output_ports_type& out )const {
         if (!in) {
             size_t send_idx=SIZE_MAX;
             if (!stop) {
