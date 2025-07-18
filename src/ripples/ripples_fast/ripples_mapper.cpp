@@ -4,11 +4,8 @@
 #include <csignal>
 #include <stack>
 #include <vector>
-struct Mapper_Cont:public tbb::task {
+struct Mapper_Cont {
     std::vector<Ripples_Mapper_Mut> muts;
-    tbb::task* execute() override {
-        return nullptr;
-    }
 };
 void prep_output(const Pruned_Sample &sample,std::vector<Ripples_Mapper_Mut> &init,
                  Ripples_Mapper_Output_Interface &out, size_t node_size) {
@@ -214,7 +211,7 @@ serial_mapper(const std::vector<Ripples_Mapper_Mut> &parent_muts,
                       stack.size()==1 ? parent_muts : stack[stack.size()-2], cfg);
     }
 }
-struct Mapper_Op : public tbb::task {
+struct Mapper_Op {
     const std::vector<Ripples_Mapper_Mut> &parent_muts;
     Mapper_Op_Common& cfg;
     const MAT::Node *node;
@@ -222,19 +219,19 @@ struct Mapper_Op : public tbb::task {
               Mapper_Op_Common& cfg,
               const MAT::Node *node)
         : parent_muts(parent_muts), cfg(cfg), node(node) {}
-    tbb::task *execute() override {
+    void execute() {
         auto dfs_idx=node->dfs_idx;
         auto this_idx = cfg.idx_map[dfs_idx];
         if(this_idx<0||this_idx==cfg.skip_idx) {
-            return nullptr;
+            return;
         }
         if (!cfg.do_parallel[dfs_idx]) {
             serial_mapper(parent_muts,cfg,this_idx);
-            return nullptr;
+            return;
         }
 
-        auto cont=new (allocate_continuation()) Mapper_Cont;
-        auto &this_mut_out = cont->muts;
+        Mapper_Cont cont;
+        auto &this_mut_out = cont.muts;
 
         if (node->identifier=="node_7194") {
             //raise(SIGTRAP);
@@ -248,20 +245,23 @@ struct Mapper_Op : public tbb::task {
         // merge_mutation_only(this_mut_out,node,parent_muts);
         //}
 
-        cont->set_ref_count(node->children.size());
+        tbb::task_group tg;
         if (this_idx == 0) {
             for (const auto child : node->children) {
-                cont->spawn(*new (cont->allocate_child())
-                            Mapper_Op(parent_muts, cfg, child));
+                tg.run([child, &parent_muts=this->parent_muts, &cfg=this->cfg]() {
+                    Mapper_Op child_op(parent_muts, cfg, child);
+                    child_op.execute();
+                });
             }
         } else {
-
             for (const auto child : node->children) {
-                cont->spawn(*new (cont->allocate_child())
-                            Mapper_Op(this_mut_out, cfg, child));
+                tg.run([child, &this_mut_out, &cfg=this->cfg]() {
+                    Mapper_Op child_op(this_mut_out, cfg, child);
+                    child_op.execute();
+                });
             }
         }
-        return node->children.empty()?cont:nullptr;
+        tg.wait();
     }
 };
 void ripples_mapper(const Pruned_Sample &sample,
@@ -285,6 +285,6 @@ void ripples_mapper(const Pruned_Sample &sample,
                          traversal_track,
                          idx_map[skip_node->dfs_idx],
                          tree_height};
-    tbb::task::spawn_root_and_wait(*new (tbb::task::allocate_root())
-                                   Mapper_Op(root_muts, cfg, root));
+    Mapper_Op root_op(root_muts, cfg, root);
+    root_op.execute();
 }

@@ -87,7 +87,7 @@ int main(int argc, char **argv) {
     int end_idx = vm["end-index"].as<int>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
 
-    tbb::task_scheduler_init init(num_threads);
+    tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, num_threads);
     srand(time(NULL));
 
     static tbb::affinity_partitioner ap;
@@ -249,15 +249,15 @@ int main(int argc, char **argv) {
     std::vector<MAT::Node*>::const_iterator cur_iter=nodes_to_consider_vec.begin()+s;
     std::vector<MAT::Node*>::const_iterator end=nodes_to_consider_vec.begin()+e;
     tbb::parallel_pipeline(
-        4, tbb::make_filter<void, MAT::Node *>(tbb::filter::serial_in_order,
+        4, tbb::make_filter<void, MAT::Node *>(tbb::filter_mode::serial_in_order,
                 next_node{cur_iter, end}) &
         tbb::make_filter<MAT::Node *, Ripple_Result_Pack *>(
-            tbb::filter::parallel,
+            tbb::filter_mode::parallel,
             Ripple_Pipeline{nodes_to_search, do_parallel, index_map,
                             branch_len, min_range, max_range,
                             num_threads, parsimony_improvement, T,traversal_track,tree_height}) &
         tbb::make_filter<Ripple_Result_Pack *, void>(
-            tbb::filter::serial_in_order,
+            tbb::filter_mode::serial_in_order,
             Ripple_Finalizer{desc_file, recomb_file, num_done,
                              nodes_to_consider_vec.size(), T}));
     fclose(desc_file);
