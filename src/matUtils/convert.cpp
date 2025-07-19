@@ -614,8 +614,8 @@ void write_json_from_mat(MAT::Tree* T, std::string output_filename, std::vector<
                 {"filters",json::array({"country","userOrOld"})},
                 {"panels",json::array({"tree"})},
                 {"colorings",{ {{"key","country"},{"title","Country"},{"type","categorical"}} }},
-                {"display_defaults", lm},
-                {"description", desc}
+                {"display_defaults",lm},
+                {"description",desc}
             }
         },
         {
@@ -660,7 +660,6 @@ void write_json_from_mat(MAT::Tree* T, std::string output_filename, std::vector<
     out << nj << std::endl;
     out.close();
 }
-
 
 void get_minimum_subtrees(MAT::Tree* T, std::vector<std::string> samples, size_t nearest_subtree_size, std::string output_dir, std::vector<std::unordered_map<std::string,std::unordered_map<std::string,std::string>>>* catmeta, std::string json_n, std::string newick_n, bool retain_original_branch_len) {
     //get the minimum set of subtrees of the indicated size which cover all input samples
