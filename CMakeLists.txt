@@ -17,7 +17,7 @@ endif()
 message(STATUS "${usher_VERSION}")
 
 include(FetchContent)
-set(TBB_VERSION "v2022.1.0")
+set(TBB_VERSION "v2022.2.0")
 FetchContent_Declare(oneTBB
   GIT_REPOSITORY https://github.com/oneapi-src/oneTBB
   GIT_TAG ${TBB_VERSION}
