@@ -1,5 +1,5 @@
 
-cmake_minimum_required (VERSION 3.8) 
+cmake_minimum_required (VERSION 3.14) 
 cmake_policy(SET CMP0069 NEW)
 project(usher)
 if(NOT CMAKE_BUILD_TYPE)
@@ -52,7 +52,7 @@ find_package(MPI REQUIRED)
 include_directories(SYSTEM ${MPI_INCLUDE_PATH})
 include_directories(${Protobuf_INCLUDE_DIRS})
 
-FIND_PACKAGE(Boost COMPONENTS program_options iostreams filesystem date_time REQUIRED)
+FIND_PACKAGE(Boost COMPONENTS program_options iostreams filesystem date_time REQUIRED CONFIG)
 
 #find_package(OpenMP REQUIRED)
 
