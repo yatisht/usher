@@ -20,6 +20,7 @@ struct src_side_info {
     MAT::Node *LCA;
     MAT::Node *src;
     Mutation_Count_Change_Collection allele_count_change_from_src;
+    std::vector<Node_With_Major_Allele_Set_Change> node_with_major_allele_set_change;
 };
 struct ignore_ranger_nop {
     ignore_ranger_nop(const Mutation_Annotated_Tree::ignored_t& in) {}
@@ -384,6 +385,7 @@ void search_subtree_bounded(MAT::Node *node, const src_side_info &src_side,
 #ifdef CHECK_BOUND
                             ,bool do_continue
 #endif
+                            ,Move_Found_Callback& callback
                            );
 void search_subtree_bounded(MAT::Node *node, const src_side_info &src_side,
                             int radius_left,
@@ -392,4 +394,5 @@ void search_subtree_bounded(MAT::Node *node, const src_side_info &src_side,
 #ifdef CHECK_BOUND
                             ,bool do_continue
 #endif
+                            ,Move_Found_Callback& callback
                            );

@@ -11,9 +11,10 @@
 #include <algorithm>
 #include <cassert>
 #include <tbb/flow_graph.h>
-#include <tbb/reader_writer_lock.h>
+#include <tbb/spin_rw_mutex.h>
 #include <tbb/scalable_allocator.h>
-#include <tbb/task_scheduler_init.h>
+#include <tbb/global_control.h>
+#include <tbb/info.h>
 #include <tbb/blocked_range.h>
 #include <tbb/task_group.h>
 #include <tbb/tbb.h>

@@ -5,7 +5,7 @@
 #include <cstdio>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
-#include <tbb/task_scheduler_init.h>
+#include <tbb/info.h>
 #include <unistd.h>
 uint32_t num_threads;
 std::chrono::time_point<std::chrono::steady_clock> last_save_time;
@@ -24,7 +24,7 @@ tbb::concurrent_unordered_map<MAT::Mutation, tbb::concurrent_unordered_map<std::
 #include <cassert>
 int main(int argc,char** argv) {
     Original_State_t origin_states;
-    tbb::task_scheduler_init init(20);
+    // TBB automatically manages threads in modern versions
     Mutation_Annotated_Tree::Tree ori_tree=Mutation_Annotated_Tree::create_tree_from_newick(argv[1]);
     load_vcf_nh_directly(ori_tree, argv[2], origin_states);
     unlink("intermediate_mutations_test_out.pb");

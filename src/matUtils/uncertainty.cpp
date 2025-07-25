@@ -1,4 +1,5 @@
 #include "uncertainty.hpp"
+#include <tbb/info.h>
 
 std::vector<MAT::Node*> get_common_nodes (std::vector<std::vector<MAT::Node*>> nodepaths) {
     //to identify common nodes, perform pairwise set intersections repeatedly for all path node vectors
@@ -368,7 +369,7 @@ std::vector<std::string> get_samples_epps (MAT::Tree* T, size_t max_epps, std::v
 
 po::variables_map parse_uncertainty_command(po::parsed_options parsed) {
 
-    uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
+    uint32_t num_cores = tbb::info::default_concurrency();
     std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
 
     po::variables_map vm;
@@ -533,7 +534,8 @@ void uncertainty_main(po::parsed_options parsed) {
     std::string dropmuts = vm["dropout-mutations"].as<std::string>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
 
-    tbb::task_scheduler_init init(num_threads);
+    // TBB automatically manages threads in modern versions
+    // tbb::task_scheduler_init init(num_threads);
 
     // Load input MAT and uncondense tree
     MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
