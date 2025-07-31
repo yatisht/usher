@@ -11,7 +11,7 @@
 #include <algorithm>
 #include <cassert>
 #include <tbb/flow_graph.h>
-#include <tbb/spin_rw_mutex.h>
+#include <tbb/rw_mutex.h>
 #include <tbb/scalable_allocator.h>
 #include <tbb/global_control.h>
 #include <tbb/info.h>

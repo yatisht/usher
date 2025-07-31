@@ -144,7 +144,7 @@ int main(int argc, char **argv) {
     unsigned int minutes_between_save;
     int max_round;
     float min_improvement;
-    bool no_write_intermediate;
+    bool no_write_intermediate = false;
     std::string diff_file_path;
     std::string branch_support_newick_out;
 

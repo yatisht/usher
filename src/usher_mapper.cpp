@@ -1,7 +1,7 @@
 #include "usher_graph.hpp"
 
 tbb::mutex data_lock;
-tbb::spin_rw_mutex rd_wr_lock;
+tbb::rw_mutex rd_wr_lock;
 
 int mapper_body::operator()(mapper_input input) {
     TIMEIT();
@@ -454,13 +454,13 @@ void mapper2_body(mapper2_input& input, bool compute_parsimony_scores, bool comp
     if (input.node->is_root() || ((has_unique && !input.node->is_leaf() && (num_common_mut > 0) && (node_num_mut != num_common_mut)) || \
                                   (input.node->is_leaf() && (num_common_mut > 0)) || (!has_unique && !input.node->is_leaf() && (node_num_mut == num_common_mut)))) {
         {
-            tbb::spin_rw_mutex::scoped_lock lock(rd_wr_lock, false); // read lock
+            tbb::rw_mutex::scoped_lock lock(rd_wr_lock, false); // read lock
             if (set_difference > *input.best_set_difference) {
                 return;
             }
         }
 
-        tbb::spin_rw_mutex::scoped_lock lock(rd_wr_lock, true); // write lock
+        tbb::rw_mutex::scoped_lock lock(rd_wr_lock, true); // write lock
         size_t num_leaves = input.T->get_num_leaves(input.node);
         if (set_difference < *input.best_set_difference) {
             *input.best_set_difference = set_difference;
