@@ -1489,6 +1489,97 @@ void Mutation_Annotated_Tree::Tree::rotate_for_consistency() {
     }
 }
 
+Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::Tree::fast_tree_copy() {
+    MAT::Tree T_new;
+    std::queue<std::pair<MAT::Node*, MAT::Node*>> remaining_nodes;
+    std::vector<MAT::Node*> dfs_curr = breadth_first_expansion();
+    T_new.nodes_vector.reserve(dfs_curr.size());
+    int idx = 0;
+
+    remaining_nodes.push(std::pair<MAT::Node*, MAT::Node*>(root, NULL));
+    while (!remaining_nodes.empty())
+    {
+        MAT::Node* new_node = &T_new.nodes_vector[idx++];
+        auto curr_node = remaining_nodes.front().first;
+        auto new_node_parent = remaining_nodes.front().second;
+        remaining_nodes.pop();
+        
+        // Create node
+        if (new_node_parent == NULL) {
+            new_node->identifier = curr_node->identifier;
+            new_node->parent = NULL;
+            new_node->level = 1;
+            new_node->branch_length = curr_node->branch_length;
+            new_node->mutations.clear();
+            new_node->clade_annotations.clear();
+            T_new.root = new_node;
+            T_new.all_nodes[curr_node->identifier] = new_node;
+        }
+        else {
+            new_node->identifier = curr_node->identifier;
+            new_node->parent = new_node_parent;
+            new_node->level = new_node_parent->level + 1;
+            new_node->branch_length = curr_node->branch_length;
+            new_node->mutations.clear();
+            new_node->clade_annotations.clear();
+            new_node_parent->children.emplace_back(new_node);
+            T_new.all_nodes[curr_node->identifier] = new_node;
+        }
+
+        //Add children to remaining_nodes    
+        for (auto child: curr_node->children) {
+            remaining_nodes.push(std::pair<MAT::Node*, MAT::Node*>(child, new_node));
+        }
+    }
+    
+    // Adding annotations and mutations
+    static tbb::affinity_partitioner ap;
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, dfs_curr.size()),
+    [&](tbb::blocked_range<size_t> r) {
+        for (size_t k=r.begin(); k<r.end(); ++k) {
+            auto curr_node = dfs_curr[k];
+            auto new_node = &T_new.nodes_vector[k];
+            // Add clade annotations
+            new_node->clade_annotations.resize(curr_node->clade_annotations.size()); 
+            for (size_t i=0; i < curr_node->clade_annotations.size(); i++) {
+                new_node->clade_annotations[i] = curr_node->clade_annotations[i];
+            }
+            // Add mutations
+            new_node->mutations.resize(curr_node->mutations.size());
+            for (size_t i=0; i < curr_node->mutations.size(); i++) {
+                new_node->mutations[i] = curr_node->mutations[i].copy();
+            }
+        }
+    }, ap);
+
+
+    ////CHECK
+    //for (int i = 0; i < dfs_curr.size(); i++)
+    //{
+    //    auto curr_node = dfs_curr[i];
+    //    auto new_node = &T_new.nodes_vector[i];
+
+    //    if ((curr_node->level == new_node->level) && (curr_node->branch_length == new_node->branch_length) && (curr_node->identifier == new_node->identifier) && (curr_node->clade_annotations[0] == new_node->clade_annotations[0]) && (curr_node->clade_annotations[1] == new_node->clade_annotations[1]) && ((curr_node->parent == NULL) || ((curr_node->parent != NULL) && (curr_node->parent->identifier == new_node->parent->identifier))))
+    //    {
+    //        for (int i = 0; i < curr_node->children.size(); i++)
+    //        {
+    //            if (curr_node->children[i]->identifier != new_node->children[i]->identifier)
+    //                fprintf(stderr, "%s children are not equal", curr_node->identifier.c_str());
+    //        }
+    //        for (int i = 0; i < curr_node->mutations.size(); i++)
+    //        {
+    //            if (curr_node->mutations[i].mut_nuc != new_node->mutations[i].mut_nuc)
+    //                fprintf(stderr, "%s mutations are not equal", curr_node->identifier.c_str());
+    //        }
+    //    }
+    //    else 
+    //    {
+    //        fprintf(stderr, "%s is not equal", curr_node->identifier.c_str());
+    //    }
+    //}
+
+    return T_new;
+}
 
 Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_tree_copy(const Mutation_Annotated_Tree::Tree& tree, const std::string& identifier) {
     TIMEIT();
