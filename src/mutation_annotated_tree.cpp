@@ -1491,60 +1491,80 @@ void Mutation_Annotated_Tree::Tree::rotate_for_consistency() {
 
 Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::Tree::fast_tree_copy() {
     MAT::Tree T_new;
-    std::queue<std::pair<MAT::Node*, MAT::Node*>> remaining_nodes;
-    std::vector<MAT::Node*> dfs_curr = breadth_first_expansion();
-    T_new.nodes_vector.reserve(dfs_curr.size());
+    std::queue<std::pair<MAT::Node*, int>> remaining_nodes;
+    std::vector<std::tuple<MAT::Node*, int, std::vector<int>>> dfs_curr;
+
+    //Doing BFS traversal of current tree
     int idx = 0;
+    dfs_curr.emplace_back(std::make_tuple(root, -1, std::vector<int>()));
+    remaining_nodes.push(std::make_pair(root, idx));
 
-    remaining_nodes.push(std::pair<MAT::Node*, MAT::Node*>(root, NULL));
-    while (!remaining_nodes.empty())
+    while (remaining_nodes.size())
     {
-        MAT::Node* new_node = &T_new.nodes_vector[idx++];
-        auto curr_node = remaining_nodes.front().first;
-        auto new_node_parent = remaining_nodes.front().second;
+        auto curr_obj = remaining_nodes.front();
         remaining_nodes.pop();
-        
-        // Create node
-        if (new_node_parent == NULL) {
-            new_node->identifier = curr_node->identifier;
-            new_node->parent = NULL;
-            new_node->level = 1;
-            new_node->branch_length = curr_node->branch_length;
-            new_node->mutations.clear();
-            new_node->clade_annotations.clear();
-            T_new.root = new_node;
-            T_new.all_nodes[curr_node->identifier] = new_node;
-        }
-        else {
-            new_node->identifier = curr_node->identifier;
-            new_node->parent = new_node_parent;
-            new_node->level = new_node_parent->level + 1;
-            new_node->branch_length = curr_node->branch_length;
-            new_node->mutations.clear();
-            new_node->clade_annotations.clear();
-            new_node_parent->children.emplace_back(new_node);
-            T_new.all_nodes[curr_node->identifier] = new_node;
-        }
+        auto curr_node = curr_obj.first;
+        int curr_idx = curr_obj.second;
 
-        //Add children to remaining_nodes    
-        for (auto child: curr_node->children) {
-            remaining_nodes.push(std::pair<MAT::Node*, MAT::Node*>(child, new_node));
+        // Update children indices of current node
+        auto& c_idx_vec = std::get<2>(dfs_curr[curr_idx]);
+        for (int i = 0; i < (int)curr_node->children.size(); i++)
+            c_idx_vec.emplace_back(idx + i + 1);
+
+        // Update dfs_curr vector
+        for (auto c: curr_node->children)
+        {
+            dfs_curr.emplace_back(std::make_tuple(c, curr_idx, std::vector<int>()));
+            remaining_nodes.push(std::make_pair(c, ++idx));
         }
     }
-    
-    // Adding annotations and mutations
+
+    // Reserve space for new tree and link the nodes
+    T_new.nodes_vector.reserve(dfs_curr.size());
+    T_new.all_nodes.reserve(dfs_curr.size());
+
     static tbb::affinity_partitioner ap;
+    using my_mutex_t = tbb::queuing_mutex;
     tbb::parallel_for(tbb::blocked_range<size_t>(0, dfs_curr.size()),
     [&](tbb::blocked_range<size_t> r) {
         for (size_t k=r.begin(); k<r.end(); ++k) {
-            auto curr_node = dfs_curr[k];
-            auto new_node = &T_new.nodes_vector[k];
+            auto curr_obj = dfs_curr[k];
+            auto curr_node = std::get<0>(curr_obj);
+            int par_idx = std::get<1>(curr_obj);
+            auto c_idx_vec = std::get<2>(curr_obj);
+
+            MAT::Node* new_node;
+            new_node = &T_new.nodes_vector[k];
+
+            new_node->identifier = curr_node->identifier;
+            new_node->level = curr_node->level;
+            new_node->branch_length = curr_node->branch_length;
+            T_new.all_nodes[curr_node->identifier] = new_node;
+            
+            // Update children
+            for (auto idx: c_idx_vec)
+                new_node->children.emplace_back(&T_new.nodes_vector[idx]);
+            
+            // Create root node
+            if (par_idx == -1)
+            {
+                new_node->parent = NULL;
+                T_new.root = new_node;
+            }
+            // Update parent
+            else
+            {
+                new_node->parent = &T_new.nodes_vector[par_idx];
+            }
+
             // Add clade annotations
+            new_node->clade_annotations.clear();
             new_node->clade_annotations.resize(curr_node->clade_annotations.size()); 
             for (size_t i=0; i < curr_node->clade_annotations.size(); i++) {
                 new_node->clade_annotations[i] = curr_node->clade_annotations[i];
             }
             // Add mutations
+            new_node->mutations.clear();
             new_node->mutations.resize(curr_node->mutations.size());
             for (size_t i=0; i < curr_node->mutations.size(); i++) {
                 new_node->mutations[i] = curr_node->mutations[i].copy();
@@ -1552,11 +1572,11 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::Tree::fast_tree_copy() {
         }
     }, ap);
 
-
+    
     ////CHECK
     //for (int i = 0; i < dfs_curr.size(); i++)
     //{
-    //    auto curr_node = dfs_curr[i];
+    //    auto curr_node = std::get<0>(dfs_curr[i]);
     //    auto new_node = &T_new.nodes_vector[i];
 
     //    if ((curr_node->level == new_node->level) && (curr_node->branch_length == new_node->branch_length) && (curr_node->identifier == new_node->identifier) && (curr_node->clade_annotations[0] == new_node->clade_annotations[0]) && (curr_node->clade_annotations[1] == new_node->clade_annotations[1]) && ((curr_node->parent == NULL) || ((curr_node->parent != NULL) && (curr_node->parent->identifier == new_node->parent->identifier))))
@@ -1564,17 +1584,17 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::Tree::fast_tree_copy() {
     //        for (int i = 0; i < curr_node->children.size(); i++)
     //        {
     //            if (curr_node->children[i]->identifier != new_node->children[i]->identifier)
-    //                fprintf(stderr, "%s children are not equal", curr_node->identifier.c_str());
+    //                fprintf(stderr, "%s children are not equal\n", curr_node->identifier.c_str());
     //        }
     //        for (int i = 0; i < curr_node->mutations.size(); i++)
     //        {
     //            if (curr_node->mutations[i].mut_nuc != new_node->mutations[i].mut_nuc)
-    //                fprintf(stderr, "%s mutations are not equal", curr_node->identifier.c_str());
+    //                fprintf(stderr, "%s mutations are not equal\n", curr_node->identifier.c_str());
     //        }
     //    }
     //    else 
     //    {
-    //        fprintf(stderr, "%s is not equal", curr_node->identifier.c_str());
+    //        fprintf(stderr, "%s is not equal\n", curr_node->identifier.c_str());
     //    }
     //}
 

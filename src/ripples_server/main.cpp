@@ -182,95 +182,12 @@ int main(int argc, char** argv) {
             
             // Copying the Tree
             timer.Start();
-            MAT::Tree T_new;
-            
-            std::queue<std::pair<MAT::Node*, MAT::Node*>> remaining_nodes;
-            std::vector<MAT::Node*> dfs_orig = T.breadth_first_expansion();
-            std::vector<MAT::Node> dfs_new(dfs_orig.size());
-            int idx = 0;
+            MAT::Tree T_new = T.fast_tree_copy();
 
-            remaining_nodes.push(std::pair<MAT::Node*, MAT::Node*>(T.root, NULL));
-            while (!remaining_nodes.empty())
-            {
-                MAT::Node* new_node = &dfs_new[idx++];
-                auto orig_node = remaining_nodes.front().first;
-                auto new_node_parent = remaining_nodes.front().second;
-                remaining_nodes.pop();
-                
-                // Create node
-                if (new_node_parent == NULL) {
-                    new_node->identifier = orig_node->identifier;
-                    new_node->parent = NULL;
-                    new_node->level = 1;
-                    new_node->branch_length = orig_node->branch_length;
-                    new_node->mutations.clear();
-                    new_node->clade_annotations.clear();
-                    T_new.root = new_node;
-                }
-                else {
-                    new_node->identifier = orig_node->identifier;
-                    new_node->parent = new_node_parent;
-                    new_node->level = new_node_parent->level + 1;
-                    new_node->branch_length = orig_node->branch_length;
-                    new_node->mutations.clear();
-                    new_node->clade_annotations.clear();
-                    new_node_parent->children.emplace_back(new_node);
-                }
+            fprintf(stderr, "\nTree copied in %ld msec \n\n", timer.Stop());
+            fprintf(stderr, "LEAVES: %ld, %ld\n\n", T_new.get_num_leaves(), T.get_num_leaves());
+            fprintf(stderr, "NODES: %ld, %ld\n\n", T_new.breadth_first_expansion().size(), T.breadth_first_expansion().size());
 
-                //Add children to remaining_nodes    
-                for (auto child: orig_node->children) {
-                    remaining_nodes.push(std::pair<MAT::Node*, MAT::Node*>(child, new_node));
-                }
-            }
-            
-            // Adding annotations and mutations
-            static tbb::affinity_partitioner ap;
-            tbb::parallel_for(tbb::blocked_range<size_t>(0, dfs_orig.size()),
-            [&](tbb::blocked_range<size_t> r) {
-                for (size_t k=r.begin(); k<r.end(); ++k) {
-                    auto orig_node = dfs_orig[k];
-                    auto new_node = &dfs_new[k];
-                    // Add clade annotations
-                    new_node->clade_annotations.resize(orig_node->clade_annotations.size()); 
-                    for (size_t i=0; i < orig_node->clade_annotations.size(); i++) {
-                        new_node->clade_annotations[i] = orig_node->clade_annotations[i];
-                    }
-                    // Add mutations
-                    new_node->mutations.resize(orig_node->mutations.size());
-                    for (size_t i=0; i < orig_node->mutations.size(); i++) {
-                        new_node->mutations[i] = orig_node->mutations[i].copy();
-                    }
-                }
-            }, ap);
-
-            fprintf(stderr, "Tree copied in %ld msec \n\n", timer.Stop());
-            fprintf(stderr, "Root children: %ld\n\n", T_new.root->children.size());
-            fprintf(stderr, "LEAVES: %ld\n\n", T_new.get_num_leaves());
-
-            ////CHECK
-            //for (int i = 0; i < dfs_orig.size(); i++)
-            //{
-            //    auto orig_node = dfs_orig[i];
-            //    auto new_node = &dfs_new[i];
-
-            //    if ((orig_node->level == new_node->level) && (orig_node->branch_length == new_node->branch_length) && (orig_node->identifier == new_node->identifier) && (orig_node->clade_annotations[0] == new_node->clade_annotations[0]) && (orig_node->clade_annotations[1] == new_node->clade_annotations[1]) && ((orig_node->parent == NULL) || ((orig_node->parent != NULL) && (orig_node->parent->identifier == new_node->parent->identifier))))
-            //    {
-            //        for (int i = 0; i < orig_node->children.size(); i++)
-            //        {
-            //            if (orig_node->children[i]->identifier != new_node->children[i]->identifier)
-            //                fprintf(stderr, "%s children are not equal", orig_node->identifier.c_str());
-            //        }
-            //        for (int i = 0; i < orig_node->mutations.size(); i++)
-            //        {
-            //            if (orig_node->mutations[i].mut_nuc != new_node->mutations[i].mut_nuc)
-            //                fprintf(stderr, "%s mutations are not equal", orig_node->identifier.c_str());
-            //        }
-            //    }
-            //    else 
-            //    {
-            //        fprintf(stderr, "%s is not equal", orig_node->identifier.c_str());
-            //    }
-            //}
         }
         else
             fprintf(stderr, "WARNING: %s is already present in the tree.\n", s.c_str());
