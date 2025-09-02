@@ -1496,7 +1496,7 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::Tree::fast_tree_copy() {
 
     //Doing BFS traversal of current tree
     int idx = 0;
-    dfs_curr.emplace_back(std::make_tuple(root, -1, std::vector<int>()));
+    dfs_curr.emplace_back(std::make_tuple(root, -1, std::vector<int>(root->children.size())));
     remaining_nodes.push(std::make_pair(root, idx));
 
     while (remaining_nodes.size())
@@ -1509,18 +1509,18 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::Tree::fast_tree_copy() {
         // Update children indices of current node
         auto& c_idx_vec = std::get<2>(dfs_curr[curr_idx]);
         for (int i = 0; i < (int)curr_node->children.size(); i++)
-            c_idx_vec.emplace_back(idx + i + 1);
+            c_idx_vec[i] = idx + i + 1;
 
         // Update dfs_curr vector
         for (auto c: curr_node->children)
         {
-            dfs_curr.emplace_back(std::make_tuple(c, curr_idx, std::vector<int>()));
+            dfs_curr.emplace_back(std::make_tuple(c, curr_idx, std::vector<int>(c->children.size())));
             remaining_nodes.push(std::make_pair(c, ++idx));
         }
     }
-
+    
     // Reserve space for new tree and link the nodes
-    T_new.nodes_vector.reserve(dfs_curr.size());
+    T_new.nodes_vector.resize(dfs_curr.size());
     T_new.all_nodes.reserve(dfs_curr.size());
 
     static tbb::affinity_partitioner ap;
