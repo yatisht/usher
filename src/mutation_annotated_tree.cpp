@@ -1492,11 +1492,13 @@ void Mutation_Annotated_Tree::Tree::rotate_for_consistency() {
 Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::Tree::fast_tree_copy() {
     MAT::Tree T_new;
     std::queue<std::pair<MAT::Node*, int>> remaining_nodes;
-    std::vector<std::tuple<MAT::Node*, int, std::vector<int>>> dfs_curr;
+    std::vector<std::pair<MAT::Node*, int>> dfs_curr;
+    std::vector<int> child_indices;
+    child_indices.reserve(all_nodes.size());
 
     //Doing BFS traversal of current tree
     int idx = 0;
-    dfs_curr.emplace_back(std::make_tuple(root, -1, std::vector<int>(root->children.size())));
+    dfs_curr.emplace_back(std::make_pair(root, -1));
     remaining_nodes.push(std::make_pair(root, idx));
 
     while (remaining_nodes.size())
@@ -1506,16 +1508,19 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::Tree::fast_tree_copy() {
         auto curr_node = curr_obj.first;
         int curr_idx = curr_obj.second;
 
-        // Update children indices of current node
-        auto& c_idx_vec = std::get<2>(dfs_curr[curr_idx]);
-        for (int i = 0; i < (int)curr_node->children.size(); i++)
-            c_idx_vec[i] = idx + i + 1;
-
-        // Update dfs_curr vector
-        for (auto c: curr_node->children)
+        // Update dfs_curr vector and child_indices
+        if (curr_node->children.empty())
         {
-            dfs_curr.emplace_back(std::make_tuple(c, curr_idx, std::vector<int>(c->children.size())));
-            remaining_nodes.push(std::make_pair(c, ++idx));
+            child_indices.emplace_back(-1);
+        }
+        else
+        {
+            child_indices.emplace_back(idx + 1);
+            for (const auto& c: curr_node->children)
+            {
+                dfs_curr.emplace_back(std::make_pair(c, curr_idx));
+                remaining_nodes.push(std::make_pair(c, ++idx));
+            }
         }
     }
     
@@ -1531,7 +1536,7 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::Tree::fast_tree_copy() {
             auto curr_obj = dfs_curr[k];
             auto curr_node = std::get<0>(curr_obj);
             int par_idx = std::get<1>(curr_obj);
-            auto c_idx_vec = std::get<2>(curr_obj);
+            auto c_idx_start = child_indices[k];
 
             MAT::Node* new_node;
             new_node = &T_new.nodes_vector[k];
@@ -1542,8 +1547,11 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::Tree::fast_tree_copy() {
             T_new.all_nodes[curr_node->identifier] = new_node;
             
             // Update children
-            for (auto idx: c_idx_vec)
-                new_node->children.emplace_back(&T_new.nodes_vector[idx]);
+            if (c_idx_start > 0)
+            {
+                for (int i = 0; i < (int)curr_node->children.size(); i++)
+                    new_node->children.emplace_back(&T_new.nodes_vector[c_idx_start + i]);
+            }
             
             // Create root node
             if (par_idx == -1)
