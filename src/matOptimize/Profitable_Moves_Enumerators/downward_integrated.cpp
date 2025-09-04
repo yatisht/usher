@@ -21,11 +21,13 @@ void dump(const Mutation_Count_Change_Collection& in) {
 static bool output_not_LCA(Mutation_Count_Change_Collection &parent_added,
                            MAT::Node *dst_node, int parsimony_score_change,
                            int lower_bound, const src_side_info &src_side,
-                           int radius
+                           int radius,Move_Found_Callback& callback
 #ifdef CHECK_BOUND
                            ,bool do_continue
 #endif
                           ) {
+    std::vector<Node_With_Major_Allele_Set_Change> major_alllele_count_changes_hist(src_side.node_with_major_allele_set_change);
+    major_alllele_count_changes_hist.push_back(Node_With_Major_Allele_Set_Change{dst_node,parent_added});
     if (use_bound&&lower_bound > src_side.out.score_change) {
 #ifndef CHECK_BOUND
         return false;
@@ -44,6 +46,9 @@ static bool output_not_LCA(Mutation_Count_Change_Collection &parent_added,
         get_intermediate_nodes_mutations(this_node,
                                          parent_added, parent_of_parent_added,
                                          parsimony_score_change);
+        if (!parent_of_parent_added.empty()) {
+            major_alllele_count_changes_hist.push_back(Node_With_Major_Allele_Set_Change{this_node, parent_of_parent_added});        
+        }
         parent_added.swap(parent_of_parent_added);
         if (parent_added.empty()) {
             break;
@@ -62,12 +67,15 @@ static bool output_not_LCA(Mutation_Count_Change_Collection &parent_added,
                          src_side.allele_count_change_from_src,
                          parent_added, parent_of_parent_added,
                          parsimony_score_change);
+        if (!parent_of_parent_added.empty()) {
+            major_alllele_count_changes_hist.push_back(Node_With_Major_Allele_Set_Change{src_side.LCA, parent_of_parent_added});
+        }
     }
     parent_added.swap(parent_of_parent_added);
     parent_of_parent_added.clear();
     check_parsimony_score_change_above_LCA(
         src_side.LCA->parent, parsimony_score_change, parent_added,
-        parent_of_parent_added);
+        parent_of_parent_added,major_alllele_count_changes_hist);
 #ifdef CHECK_PAR_MAIN
     output_t temp;
     auto refout=individual_move(src_side.src, dst_node, src_side.LCA, temp);
@@ -102,7 +110,7 @@ static bool output_not_LCA(Mutation_Count_Change_Collection &parent_added,
     src_side.savings.total++;
 #endif
     return output_result(src_side.src, dst_node, src_side.LCA, parsimony_score_change,
-                         src_side.out,radius);
+                         src_side.out,radius,major_alllele_count_changes_hist,callback);
 }
 struct go_descendant {};
 struct no_descendant {};
@@ -194,7 +202,7 @@ template<typename go_descendant, typename S>
 int downward_integrated(MAT::Node *node, int radius_left,
                         Bounded_Mut_Change_Collection &from_parent,
                         Bounded_Mut_Change_Collection &mut_out,
-                        const src_side_info &src_side,std::vector<int>& start_useful_idx,std::vector<int>& end_useful_idx,go_descendant go_des_tag,S ignore_iter
+                        const src_side_info &src_side,std::vector<int>& start_useful_idx,std::vector<int>& end_useful_idx,go_descendant go_des_tag,S ignore_iter,Move_Found_Callback& callback
 #ifdef CHECK_BOUND
                         ,
                         int prev_lower_bound,bool do_continue
@@ -317,7 +325,7 @@ int downward_integrated(MAT::Node *node, int radius_left,
 #endif
 
     output_not_LCA(split_allele_cnt_change, node, par_score_from_split,
-                   par_score_from_split_lower_bound, src_side, radius_left
+                   par_score_from_split_lower_bound, src_side, radius_left,callback
 #ifdef CHECK_BOUND
                    ,do_continue
 #endif
@@ -328,7 +336,7 @@ template<typename T>
 static void search_subtree_bounded_internal(MAT::Node *node, const src_side_info &src_side,
         int radius_left,
         Bounded_Mut_Change_Collection &par_muts,
-        int lower_bound,T tag,Reachable reachable
+        int lower_bound,T tag,Reachable reachable,Move_Found_Callback& callback
 #ifdef CHECK_BOUND
         ,bool do_continue
 #endif
@@ -338,14 +346,14 @@ static void search_subtree_bounded_internal(MAT::Node *node, const src_side_info
     std::vector<int> end_useful_idx;
     if (radius_left&&node->children.size()) {
         lower_bound = downward_integrated(node, radius_left, par_muts, muts,
-                                          src_side,start_useful_idx,end_useful_idx,go_descendant(), T(src_side.src->ignore)
+                                          src_side,start_useful_idx,end_useful_idx,go_descendant(), T(src_side.src->ignore),callback
 #ifdef CHECK_BOUND
                                           ,lower_bound,do_continue
 #endif
                                          );
     } else {
         lower_bound = downward_integrated(node, radius_left, par_muts, muts,
-                                          src_side,start_useful_idx,end_useful_idx,no_descendant(), T(src_side.src->ignore)
+                                          src_side,start_useful_idx,end_useful_idx,no_descendant(), T(src_side.src->ignore),callback
 #ifdef CHECK_BOUND
                                           ,lower_bound,do_continue
 #endif
@@ -394,6 +402,7 @@ static void search_subtree_bounded_internal(MAT::Node *node, const src_side_info
 #ifdef CHECK_BOUND
                                ,do_continue
 #endif
+                               ,callback
                               );
     }
 }
@@ -404,8 +413,9 @@ void search_subtree_bounded(MAT::Node *node, const src_side_info &src_side,
 #ifdef CHECK_BOUND
                             ,bool do_continue
 #endif
+                            ,Move_Found_Callback& callback
                            ) {
-    search_subtree_bounded_internal(node, src_side,radius_left,par_muts,lower_bound,tag,reachable
+    search_subtree_bounded_internal(node, src_side,radius_left,par_muts,lower_bound,tag,reachable,callback
 #ifdef CHECK_BOUND
                                     ,do_continue
 #endif
@@ -418,8 +428,9 @@ void search_subtree_bounded(MAT::Node *node, const src_side_info &src_side,
 #ifdef CHECK_BOUND
                             ,bool do_continue
 #endif
+                            ,Move_Found_Callback& callback
                            ) {
-    search_subtree_bounded_internal(node, src_side,radius_left,par_muts,lower_bound,tag,reachable
+    search_subtree_bounded_internal(node, src_side,radius_left,par_muts,lower_bound,tag,reachable,callback
 #ifdef CHECK_BOUND
                                     ,do_continue
 #endif

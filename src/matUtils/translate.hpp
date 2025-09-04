@@ -81,7 +81,7 @@ struct Codon {
         nucleotides += nt[0];
         nucleotides += nt[1];
         nucleotides += nt[2];
-        protein = translate_codon(nt);
+        protein = translate_codon({nt, nt + 3});
     }
 
     inline std::string get_string() const {

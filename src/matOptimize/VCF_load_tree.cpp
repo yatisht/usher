@@ -4,88 +4,82 @@
 #include <cstdio>
 #include <string>
 #include "apply_move/apply_move.hpp"
-#include <tbb/task.h>
+#include <tbb/task_group.h>
+#include <functional>
 //A variant of clean tree that can also clean nodes have only 1 children, but have valid mutation
-struct clean_up_internal_nodes_single_child_or_no_mutation:public tbb::task {
-    MAT::Node* this_node;
-    tbb::concurrent_vector<size_t>& changed_nodes;
-    tbb::concurrent_vector<size_t>& node_with_inconsistent_state;
-    tbb::concurrent_vector<size_t>& removed_nodes;
-    std::vector<std::mutex>& node_mutexes;
-    clean_up_internal_nodes_single_child_or_no_mutation(
-        MAT::Node* this_node,
-        tbb::concurrent_vector<size_t>& changed_nodes,
-        tbb::concurrent_vector<size_t>& node_with_inconsistent_state,
-        tbb::concurrent_vector<size_t>& removed_nodes,
-        std::vector<std::mutex>& node_mutexes
-    ):this_node(this_node),changed_nodes(changed_nodes),node_with_inconsistent_state(node_with_inconsistent_state),removed_nodes(removed_nodes),node_mutexes(node_mutexes) {}
-    tbb::task* execute() override {
+static void clean_up_internal_nodes_single_child_or_no_mutation_recursive(
+    MAT::Node* this_node,
+    tbb::concurrent_vector<size_t>& changed_nodes,
+    tbb::concurrent_vector<size_t>& node_with_inconsistent_state,
+    tbb::concurrent_vector<size_t>& removed_nodes,
+    std::vector<std::mutex>& node_mutexes,
+    tbb::task_group& tg) {
 
-        std::vector<MAT::Node *> this_node_ori_children = this_node->children;
-        if (this_node->parent) {
+    std::vector<MAT::Node *> this_node_ori_children = this_node->children;
+    if (this_node->parent) {
 
 
-            std::vector<MAT::Node *> &parent_children = this_node->parent->children;
-            //mutex to hold when modifying parent_children
-            std::mutex& parent_mutex=node_mutexes[this_node->parent->dfs_index];
+        std::vector<MAT::Node *> &parent_children = this_node->parent->children;
+        //mutex to hold when modifying parent_children
+        std::mutex& parent_mutex=node_mutexes[this_node->parent->dfs_index];
 
-            if ((this_node->children.size()==1||((!this_node->is_leaf())&&this_node->no_valid_mutation()))) {
-                //detach this node
-                parent_mutex.lock();
-                auto iter = std::find(parent_children.begin(), parent_children.end(),
-                                      this_node);
-                assert(iter != parent_children.end());
-                parent_children.erase(iter);
-                parent_mutex.unlock();
-                //prent have changed children
-                changed_nodes.push_back(this_node->parent->node_id);
-                for (MAT::Node *child : this_node_ori_children) {
-                    child->parent = this_node->parent;
-                    if (this_node_ori_children.size() == 1) {
-                        //collapsing because it only have single children, need to merge mutations
-                        if (merge_mutation_single_child(child, this_node->mutations)) {
-                            node_with_inconsistent_state.push_back(child->node_id);
-                        }
-                        if (child->children.size() <= 1) {
-                            //fix boundary1_alleles of children with only one children
-                            auto &child_mut = child->mutations;
-                            for (auto &mut : child_mut) {
-                                mut.set_boundary_one_hot(0xf &
-                                                         (~mut.get_all_major_allele()));
-                            }
-                            child_mut.mutations.erase(
-                                std::remove_if(child_mut.begin(), child_mut.end(),
-                            [](const MAT::Mutation &mut) {
-                                return mut.get_all_major_allele() ==
-                                       mut.get_par_one_hot();
-                            }),
-                            child_mut.end());
-                        }
+        if ((this_node->children.size()==1||((!this_node->is_leaf())&&this_node->no_valid_mutation()))) {
+            //detach this node
+            parent_mutex.lock();
+            auto iter = std::find(parent_children.begin(), parent_children.end(),
+                                  this_node);
+            assert(iter != parent_children.end());
+            parent_children.erase(iter);
+            parent_mutex.unlock();
+            //prent have changed children
+            changed_nodes.push_back(this_node->parent->node_id);
+            for (MAT::Node *child : this_node_ori_children) {
+                child->parent = this_node->parent;
+                if (this_node_ori_children.size() == 1) {
+                    //collapsing because it only have single children, need to merge mutations
+                    if (merge_mutation_single_child(child, this_node->mutations)) {
+                        node_with_inconsistent_state.push_back(child->node_id);
                     }
-                    //promote original children
-                    parent_mutex.lock();
-                    parent_children.push_back(child);
-                    parent_mutex.unlock();
+                    if (child->children.size() <= 1) {
+                        //fix boundary1_alleles of children with only one children
+                        auto &child_mut = child->mutations;
+                        for (auto &mut : child_mut) {
+                            mut.set_boundary_one_hot(0xf &
+                                                     (~mut.get_all_major_allele()));
+                        }
+                        child_mut.mutations.erase(
+                            std::remove_if(child_mut.begin(), child_mut.end(),
+                        [](const MAT::Mutation &mut) {
+                            return mut.get_all_major_allele() ==
+                                   mut.get_par_one_hot();
+                        }),
+                        child_mut.end());
+                    }
                 }
-                removed_nodes.push_back(this_node->node_id);
-                delete this_node;
+                //promote original children
+                parent_mutex.lock();
+                parent_children.push_back(child);
+                parent_mutex.unlock();
             }
+            removed_nodes.push_back(this_node->node_id);
+            delete this_node;
+            return; // Don't process children if this node was deleted
         }
-        tbb::empty_task* empty=new(allocate_continuation()) tbb::empty_task();
-        bool spawned=false;
-        this_node_ori_children.erase(std::remove_if(this_node_ori_children.begin(), this_node_ori_children.end(), [](MAT::Node* node) {
-            return node->is_leaf();
-        }),this_node_ori_children.end());
-        empty->set_ref_count(this_node_ori_children.size());
-        //spawn a new task for each children
-        for (MAT::Node *child : this_node_ori_children) {
-            empty->spawn(*new (empty->allocate_child())clean_up_internal_nodes_single_child_or_no_mutation(child,changed_nodes,node_with_inconsistent_state,removed_nodes,node_mutexes));
-            spawned=true;
-        }
-        return spawned?nullptr:empty;
     }
-};
-//Warpper for the preceding functor to clean tree
+    
+    // Remove leaf nodes from children list
+    this_node_ori_children.erase(std::remove_if(this_node_ori_children.begin(), this_node_ori_children.end(), [](MAT::Node* node) {
+        return node->is_leaf();
+    }),this_node_ori_children.end());
+    
+    // Spawn tasks for each non-leaf child
+    for (MAT::Node *child : this_node_ori_children) {
+        tg.run([child, &changed_nodes, &node_with_inconsistent_state, &removed_nodes, &node_mutexes, &tg]() {
+            clean_up_internal_nodes_single_child_or_no_mutation_recursive(child, changed_nodes, node_with_inconsistent_state, removed_nodes, node_mutexes, tg);
+        });
+    }
+}
+//Wrapper for the preceding function to clean tree
 static void clean_up_internal_nodes_single_child_or_no_mutation(
     MAT::Node* this_node,MAT::Tree& tree,
     std::unordered_set<size_t>& changed_nodes,
@@ -95,7 +89,11 @@ static void clean_up_internal_nodes_single_child_or_no_mutation(
     tbb::concurrent_vector<size_t> removed_nodes;
     auto dfs=tree.depth_first_expansion();
     std::vector<std::mutex> node_mutexes(dfs.size());
-    tbb::task::spawn_root_and_wait(*new(tbb::task::allocate_root()) struct clean_up_internal_nodes_single_child_or_no_mutation(this_node,changed_nodes_rep,node_with_inconsistent_state_rep,removed_nodes,node_mutexes));
+    
+    tbb::task_group tg;
+    clean_up_internal_nodes_single_child_or_no_mutation_recursive(this_node, changed_nodes_rep, node_with_inconsistent_state_rep, removed_nodes, node_mutexes, tg);
+    tg.wait();
+    
     changed_nodes.insert(changed_nodes_rep.begin(),changed_nodes_rep.end());
     node_with_inconsistent_state.insert(node_with_inconsistent_state_rep.begin(),node_with_inconsistent_state_rep.end());
     for( const auto& node_id:removed_nodes) {
