@@ -120,6 +120,16 @@ class Tree {
         root = NULL;
         curr_internal_node = 0;
         all_nodes.clear();
+        nodes_vector.clear();
+    }
+
+    ~Tree() {
+        root = NULL;
+        curr_internal_node = 0;
+        all_nodes.clear();
+        nodes_vector.clear();
+        condensed_nodes.clear();
+        condensed_leaves.clear();
     }
 
     std::string new_internal_node_id() {
