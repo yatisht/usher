@@ -387,7 +387,7 @@ class Mutations_Collection {
     }
 };
 struct copyable_atomic_uint8_t: public std::atomic_int8_t {
-    copyable_atomic_uint8_t()=default;
+    copyable_atomic_uint8_t() : std::atomic_int8_t{0} {};
     copyable_atomic_uint8_t (copyable_atomic_uint8_t& other) {
         this->store(other.load());
     }
@@ -503,6 +503,7 @@ class Tree {
     std::unordered_map<size_t,  std::string> node_names;
     std::unordered_map<std::string, size_t> node_name_to_idx_map;
     size_t node_idx;
+    size_t num_nodes;
   public:
     typedef  tbb::concurrent_unordered_map<size_t, std::vector<std::string>> condensed_node_t;
     size_t root_ident;
@@ -510,8 +511,24 @@ class Tree {
         root_ident=1;
         root = NULL;
         node_idx=0;
+        num_nodes=0;
         all_nodes.clear();
     }
+
+    void fix_node_idx() {
+        auto dfs = depth_first_expansion();
+        num_nodes = 0;
+        for (auto node: dfs) {
+            node_idx = std::max(node_idx, node->node_id);
+            ++num_nodes;
+        }
+        node_idx++;
+    }
+
+    size_t get_node_idx() const {
+      return num_nodes;
+    }
+    
     void register_node_serial(Node* node) {
         all_nodes.resize(std::max(all_nodes.size(),node->node_id+1),nullptr);
         all_nodes[node->node_id]=node;

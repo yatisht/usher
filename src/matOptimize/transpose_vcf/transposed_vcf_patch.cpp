@@ -8,7 +8,7 @@
 #include <tbb/concurrent_vector.h>
 #include <tbb/flow_graph.h>
 #include <tbb/parallel_for.h>
-#include <tbb/pipeline.h>
+#include <tbb/parallel_pipeline.h>
 #include "../Fitch_Sankoff.hpp"
 #include "../mutation_annotated_tree.hpp"
 #include "../tree_rearrangement_internal.hpp"

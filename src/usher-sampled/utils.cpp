@@ -18,7 +18,7 @@
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/flow_graph.h>
 #include <tbb/parallel_for.h>
-#include <tbb/pipeline.h>
+#include <tbb/parallel_pipeline.h>
 #include <thread>
 #include <unistd.h>
 #include <unordered_set>

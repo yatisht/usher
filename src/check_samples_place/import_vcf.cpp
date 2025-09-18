@@ -38,7 +38,7 @@ size_t alloc_size;
 std::mutex ref_lock;
 // Decouple parsing (slow) and decompression, segment file into blocks for
 // parallelized parsing
-typedef tbb::flow::source_node<char *> decompressor_node_t;
+typedef tbb::flow::input_node<char *> decompressor_node_t;
 std::condition_variable progress_bar_cv;
 struct raw_input_source {
     FILE *fh;
@@ -78,7 +78,8 @@ struct line_align {
         : in(out) {
         prev.start = nullptr;
     }
-    bool operator()(line_start_later &out) const {
+    line_start_later operator()(tbb::flow_control& fc) const {
+        line_start_later out;
         std::pair<char *, unsigned char *> line;
         in.pop(line);
         if (line.first == nullptr) {
@@ -86,9 +87,10 @@ struct line_align {
                 out = prev;
                 prev.start = nullptr;
                 prev_end[0] = 0;
-                return true;
+                return out;
             } else {
-                return false;
+                fc.stop();
+                return out;
             }
         }
         if (!prev.start) {
@@ -100,7 +102,7 @@ struct line_align {
                 out=prev;
                 prev.start=nullptr;
                 *prev_end=0;
-                return true;
+                return out;
             }
         }
         auto start_ptr = strchr(line.first, '\n');
@@ -115,7 +117,7 @@ struct line_align {
         prev.start = start_ptr;
         prev.alloc_start = line.first;
         prev_end = line.second;
-        return true;
+        return out;
     }
 };
 struct gzip_input_source {
@@ -419,10 +421,11 @@ static void process(infile_t &fd, Original_State_t& ori_state,
     read_size = first_approx_size * single_line_size;
     alloc_size = (first_approx_size + 2) * single_line_size;
     tbb::concurrent_bounded_queue<std::pair<char *, uint8_t *>> queue;
-    tbb::flow::source_node<line_start_later> line(input_graph,
+    tbb::flow::input_node<line_start_later> line(input_graph,
             line_align(queue));
     tbb::flow::make_edge(line, parser);
     fd(queue);
+    line.activate();
     input_graph.wait_for_all();
     fd.unalloc();
     auto start_idx=tree.map_samp_name_only(sample_names[0]);
