@@ -199,24 +199,30 @@ struct gzip_input_source {
     void operator()(tbb::concurrent_bounded_queue<std::pair<char *, uint8_t *>>
                     &out) const {
         char *line_out = new char[alloc_size];
-        // if (getc_buf) {
-        auto load_size = getc_buf + BUFSIZ - get_c_ptr;
-        memcpy(line_out, get_c_ptr, load_size);
-        decompress_to_buffer((unsigned char *)line_out + load_size,
-                             read_size - load_size);
+        auto get_c_remaining = state->next_out - get_c_ptr;
+        memcpy(line_out, get_c_ptr, get_c_remaining);
         delete[](getc_buf);
         getc_buf = nullptr;
         fprintf(stderr, "getc_buff_deallocated\n");
-        out.emplace(line_out, state->next_out);
-        //}
-        line_out = new char[alloc_size];
-        while (decompress_to_buffer((unsigned char *)line_out, read_size)) {
+        bool extra_line_allocated = false;
+        if (decompress_to_buffer((unsigned char *)line_out + get_c_remaining,
+                                 read_size - get_c_remaining)) {
             out.emplace(line_out, state->next_out);
             line_out = new char[alloc_size];
+            while (decompress_to_buffer((unsigned char *)line_out, read_size)) {
+                out.emplace(line_out, state->next_out);
+                line_out = new char[alloc_size];
+            }
+            extra_line_allocated = true;
+        } else {
+            // Small file, the whole thing decompressed fit in get_c_buf
+            out.emplace(line_out, (uint8_t *)line_out + get_c_remaining);
         }
         out.emplace(nullptr, nullptr);
         out.emplace(nullptr, nullptr);
-        delete[] line_out;
+        if (extra_line_allocated) {
+            delete[] line_out;
+        }
     }
 };
 typedef tbb::enumerable_thread_specific<
