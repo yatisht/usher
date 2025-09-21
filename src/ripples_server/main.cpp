@@ -4,6 +4,7 @@
 #include <boost/program_options.hpp>
 #include <iostream>
 #include "src/usher_graph.hpp"
+#include "src/usher_common.hpp"
 
 namespace po = boost::program_options;
 namespace MAT = Mutation_Annotated_Tree;
@@ -94,7 +95,7 @@ int main(int argc, char** argv) {
 
     // Loading Sequences
     fprintf(stderr, "Loading the sequences from file %s\n", vcf_filename.c_str());
-    std::unordered_map<std::string, std::vector<MAT::Mutation>> samples;
+    std::vector<Missing_Sample> vcf_samples;
     if (vcf_filename != "")
     {
         timer.Start();
@@ -112,7 +113,7 @@ int main(int argc, char** argv) {
                     //Leave certain fields based on our VCF format
                     for (int j = 9; j < (int)words.size(); j++)
                     {
-                        samples.insert(std::make_pair(words[j], std::vector<MAT::Mutation>{}));
+                        vcf_samples.emplace_back(Missing_Sample(words[j]));
                     }
                 }
                 else if (header_found) 
@@ -123,6 +124,9 @@ int main(int argc, char** argv) {
                     for (int j = 9; j < (int)words.size(); j++) 
                     {
                         int idx = j - 9;
+                        auto iter = vcf_samples.begin();
+                        std::advance(iter, idx);
+
                         MAT::Mutation m;
                         m.chrom = words[0];
                         m.position = std::stoi(words[1]);
@@ -155,42 +159,63 @@ int main(int argc, char** argv) {
                                     }
                                     m.mut_nuc = nuc;
                                 }
-                                samples[words[j]].emplace_back(m);
+                                (*iter).mutations.emplace_back(m);
                             }
                         } 
                         else {
                             m.is_missing = true;
                             m.mut_nuc = MAT::get_nuc_id('N');
-                            samples[words[j]].emplace_back(m);
+                            (*iter).mutations.emplace_back(m);
+                        }
+                        if ((m.mut_nuc & (m.mut_nuc-1)) !=0) {
+                            (*iter).num_ambiguous++;
                         }
                     }
                 }
             }
         }
 
-        fprintf(stderr, "VCF read in %ld msec \n\n", timer.Stop());
+        fprintf(stderr, "VCF read in %ld msec \n", timer.Stop());
     }
     else
-        fprintf(stderr, "No VCF file provided! \n\n");
+    {
+        fprintf(stderr, "No VCF file provided! \n");
+    }
 
-    // Placing the missing sequences on the tree
+    // Finding missing samples
+    std::vector<Missing_Sample> missing_samples;
     for (auto s: sample_names)
     {
-        if (T.get_node(s) == NULL)
+        if (T.get_node(s) != NULL)
         {
-            fprintf(stderr, "%s is missing from tree.\n", s.c_str());
-            
-            // Copying the Tree
-            timer.Start();
-            MAT::Tree T_new = T.fast_tree_copy();
-
-            fprintf(stderr, "\nTree copied in %ld msec \n\n", timer.Stop());
-            fprintf(stderr, "LEAVES: %ld, %ld\n\n", T_new.get_num_leaves(), T.get_num_leaves());
-            fprintf(stderr, "NODES: %ld, %ld\n\n", T_new.breadth_first_expansion().size(), T.breadth_first_expansion().size());
-
+            fprintf(stderr, "WARNING: %s is already present in the tree.\n", s.c_str());
         }
         else
-            fprintf(stderr, "WARNING: %s is already present in the tree.\n", s.c_str());
+        {
+            auto it = std::find(vcf_samples.begin(), vcf_samples.end(), Missing_Sample(s));
+            if (it != vcf_samples.end()) {
+                missing_samples.emplace_back(s);
+            }
+        }
+    }
+
+    // Adding missing samples to tree
+    if (missing_samples.size())
+    {
+        // Copying the Tree
+        timer.Start();
+        MAT::Tree T_new = T.fast_tree_copy();
+        fprintf(stderr, "\nTree copied in %ld msec \n\n", timer.Stop());
+        std::vector<std::string> low_confidence_samples;
+            
+        int return_val = usher_common("", ".", 1, 1e6, 1e6,
+                            false, false, false, false, false,
+                            false, false, false, false, false,
+                            false, 0, 0, missing_samples, low_confidence_samples, &T_new);
+            
+        if(return_val != 0) {
+            exit(1);
+        }
     }
 
 }

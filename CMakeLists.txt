@@ -83,6 +83,7 @@ if(DEFINED Protobuf_PATH)
     add_executable(ripples_server
         src/mutation_annotated_tree.cpp
         src/usher_mapper.cpp
+        src/usher_common.cpp
         ${RIPPLES_SERVER_SRCS}
         )
 
@@ -303,6 +304,7 @@ else()
     add_executable(ripples_server
         src/mutation_annotated_tree.cpp
         src/usher_mapper.cpp
+        src/usher_common.cpp
         ${RIPPLES_SERVER_SRCS}
         ${PROTO_SRCS}
         ${PROTO_HDRS}
