@@ -1,4 +1,5 @@
 #include "filter.hpp"
+#include "translate.hpp"
 
 /*
 Functions in this module take a MAT and a set of samples and return the a smaller MAT
@@ -161,7 +162,55 @@ static void apply_ref_changes(MAT::Node* node, std::vector<MAT::Mutation>& ref_c
     }
 }
 
-void reroot_tree(MAT::Tree* T, std::string rnid) {
+
+static void write_fasta(std::ofstream &out, const std::string& name, const char *sequence, size_t seq_len, size_t line_len) {
+    // Write fasta with line_len-base-wide lines to out stream.
+    out << ">" << name << '\n';
+    for (size_t i = 0;  i < seq_len;  i+= line_len) {
+        size_t num_bases = std::min(seq_len - i, line_len);
+        out.write(sequence+i, num_bases);
+        out << '\n';
+    }
+}
+
+static void modify_fasta(std::vector<MAT::Mutation>& changes, const std::string& input_reference, const std::string& output_reference,
+                         const std::string& output_name) {
+    // Apply the root node's mutations to input_reference to make output_reference.
+    if (changes.size() == 0) {
+        fprintf(stderr, "No mutations provided to modify_fasta; %s will be the same as %s.\n",
+                output_reference.c_str(), input_reference.c_str());
+    }
+    std::ifstream input_ref_stream(input_reference);
+    if (!input_ref_stream) {
+        fprintf(stderr, "ERROR: Could not open input fasta file '%s'!\n", input_reference.c_str());
+        exit(1);
+    }
+    std::ofstream output_ref_stream(output_reference);
+    if (!output_ref_stream) {
+        fprintf(stderr, "ERROR: Could not open output fasta file '%s'!\n", output_reference.c_str());
+        exit(1);
+    }
+    std::string ref = build_reference(input_ref_stream);
+    input_ref_stream.close();
+    size_t ref_len = ref.length();
+    for (auto mut: changes) {
+      if ((size_t)mut.position > ref_len) {
+            fprintf(stderr, "ERROR: Input fasta file %s has sequence length %zu, can't apply a mutation at position %d\n ",
+                    input_reference.c_str(), ref_len, mut.position);
+            exit(1);
+        }
+        char tree_ref = MAT::get_nuc(mut.ref_nuc);
+        if (ref[mut.position-1] != tree_ref) {
+          fprintf(stderr, "WARNING: expected input base at position %d to be %c but found %c\n",
+                  mut.position, tree_ref, ref[mut.position-1]);
+        }
+        ref[mut.position-1] = MAT::get_nuc(mut.mut_nuc);
+    }
+    write_fasta(output_ref_stream, output_name, ref.c_str(), ref_len, 120);
+    output_ref_stream.close();
+}
+
+void reroot_tree(MAT::Tree* T, const std::string& rnid, const std::string& input_reference, const std::string& output_reference) {
     //to reroot, we traverse from the root down to the new root via an rsearch
     //moving the parent to be the child of the next node in each up to the final node.
     //Preserve root-as-reference by moving and inverting mutations as we move nodes.
@@ -250,4 +299,16 @@ void reroot_tree(MAT::Tree* T, std::string rnid) {
     }
     assert (T->get_node(rnid)->is_root());
     apply_ref_changes(T->root, ref_changes);
+    if (!output_reference.empty()) {
+        int change_count = 0;
+        for (auto mut: ref_changes) {
+            if (mut.mut_nuc != mut.ref_nuc) {
+                change_count++;
+            }
+        }
+        fprintf(stderr, "Writing rerooted reference sequence with %d changes to %s\n",
+                change_count, output_reference.c_str());
+        std::string output_name = "rerooted_reference";
+        modify_fasta(ref_changes, input_reference, output_reference, output_name);
+    }
 }
