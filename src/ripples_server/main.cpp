@@ -192,9 +192,12 @@ int main(int argc, char** argv) {
         }
         else
         {
-            auto it = std::find(vcf_samples.begin(), vcf_samples.end(), Missing_Sample(s));
+            auto it = std::find_if(vcf_samples.begin(), vcf_samples.end(),
+                       [&](const Missing_Sample& ms) {
+                           return ms.name == s;
+                       });
             if (it != vcf_samples.end()) {
-                missing_samples.emplace_back(s);
+                missing_samples.emplace_back(*it);
             }
         }
     }
@@ -206,13 +209,13 @@ int main(int argc, char** argv) {
         timer.Start();
         MAT::Tree T_new = T.fast_tree_copy();
         fprintf(stderr, "\nTree copied in %ld msec \n\n", timer.Stop());
-        std::vector<std::string> low_confidence_samples;
             
+        std::vector<std::string> low_confidence_samples;
         int return_val = usher_common("", ".", 1, 1e6, 1e6,
                             false, false, false, false, false,
                             false, false, false, false, false,
                             false, 0, 0, missing_samples, low_confidence_samples, &T_new);
-            
+
         if(return_val != 0) {
             exit(1);
         }

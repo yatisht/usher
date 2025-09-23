@@ -1491,6 +1491,7 @@ void Mutation_Annotated_Tree::Tree::rotate_for_consistency() {
 
 Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::Tree::fast_tree_copy() {
     MAT::Tree T_new;
+    T_new.curr_internal_node = curr_internal_node;
     std::queue<std::pair<MAT::Node*, int>> remaining_nodes;
     std::vector<std::pair<MAT::Node*, int>> dfs_curr;
     std::vector<int> child_indices;
@@ -1529,7 +1530,6 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::Tree::fast_tree_copy() {
     T_new.all_nodes.reserve(dfs_curr.size());
 
     static tbb::affinity_partitioner ap;
-    using my_mutex_t = tbb::queuing_mutex;
     tbb::parallel_for(tbb::blocked_range<size_t>(0, dfs_curr.size()),
     [&](tbb::blocked_range<size_t> r) {
         for (size_t k=r.begin(); k<r.end(); ++k) {
@@ -1576,6 +1576,20 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::Tree::fast_tree_copy() {
             new_node->mutations.resize(curr_node->mutations.size());
             for (size_t i=0; i < curr_node->mutations.size(); i++) {
                 new_node->mutations[i] = curr_node->mutations[i].copy();
+            }
+        }
+    }, ap);
+
+    // Copy condensed nodes and leaves
+    tbb::parallel_for( tbb::blocked_range<size_t>(0, condensed_nodes.size()),
+    [&](tbb::blocked_range<size_t> r) {
+        for (size_t idx = r.begin(); idx < r.end(); idx++) {
+            auto cn = condensed_nodes.begin();
+            std::advance(cn, idx);
+            T_new.condensed_nodes.insert(std::pair<std::string, std::vector<std::string>>(cn->first, std::vector<std::string>(cn->second.size())));
+            for (size_t k = 0; k < cn->second.size(); k++) {
+                T_new.condensed_nodes[cn->first][k] = cn->second[k];
+                T_new.condensed_leaves.insert(cn->second[k]);
             }
         }
     }, ap);
