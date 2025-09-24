@@ -44,7 +44,7 @@ static void set_state_2(uint8_t child1,uint8_t child2,uint8_t& boundary1_major_a
         //Not seting minor allele if nuc_present is ambiguous, because it cannot be boundary
     } else {
         //This is a tie, Forward pass will break tie with parent, (or arbitrarily if parent agree with neither), taking it as tie case, and boundary case, as alleles not present have a difference of 1 with present allele (can become a 3-allele tie and then follow parent when moving nodes around)
-        boundary1_major_allele=((~nuc_present)<<4)|nuc_present;
+        boundary1_major_allele=(static_cast<uint8_t>(~nuc_present)<<4)|nuc_present;
     }
 }
 //move the least significant bit of each nibble to the first 4 bits to form one hot state encoding

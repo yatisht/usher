@@ -7,7 +7,7 @@
 #include <cstdio>
 #include <signal.h>
 #include <tbb/parallel_for.h>
-#include <tbb/task.h>
+#include <tbb/task_group.h>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -369,7 +369,8 @@ static void search_serial(const MAT::Node* node,std::vector<To_Place_Sample_Muta
 #endif
     }
 }
-struct Main_Tree_Searcher : public tbb::task {
+
+struct Main_Tree_Searcher {
     int curr_lower_bound;
     std::vector<To_Place_Sample_Mutation> this_muts;
     const MAT::Node *node;
@@ -392,20 +393,20 @@ struct Main_Tree_Searcher : public tbb::task {
 #endif
     {
     }
-    tbb::task *execute() {
+    void execute() {
+        tbb::task_group tg;
 #ifndef BOUND_CHECK
         if(curr_lower_bound>output.best_par_score) {
-            return nullptr;
+            return;
         }
 #endif
         if(node->bfs_index<switch_to_serial_threshold) {
             search_serial(node, this_muts, output);
-            return nullptr;
+            return;
         }
-        std::vector<Main_Tree_Searcher *> children_tasks;
+        std::vector<Main_Tree_Searcher> children_tasks;
         children_tasks.reserve(node->children.size() + 1);
         Main_Tree_Target target;
-        auto cont = new (allocate_continuation()) tbb::empty_task();
         for (const auto child : node->children) {
             target.target_node = child;
             target.parent_node = const_cast<MAT::Node *>(node);
@@ -433,15 +434,13 @@ struct Main_Tree_Searcher : public tbb::task {
 #ifndef BOUND_CHECK
                 if (lower_bound <= output.best_par_score) {
 #endif
-                    children_tasks.push_back(
-                        new (cont->allocate_child())
-                        Main_Tree_Searcher(lower_bound, child, output
+                    children_tasks.emplace_back(lower_bound, child, output
 #ifdef DETAILED_MERGER_CHECK
                                            ,
                                            sample_mutations
 #endif
-                                          ));
-                    children_tasks.back()->this_muts =
+                                          );
+                    children_tasks.back().this_muts =
                         std::move(descendant_mutations);
 #ifndef BOUND_CHECK
                 }
@@ -453,13 +452,15 @@ struct Main_Tree_Searcher : public tbb::task {
             assert(parsimony_score>=curr_lower_bound);
             register_target(target, parsimony_score,output);
         }
-        cont->set_ref_count(children_tasks.size());
-        for (auto child : children_tasks) {
-            cont->spawn(*child);
+        for (auto& child : children_tasks) {
+            tg.run([&child]{
+                child.execute();
+            });
         }
-        return children_tasks.empty() ? cont : nullptr;
+        tg.wait();
     }
 };
+
 std::tuple<std::vector<Main_Tree_Target>, int>
 place_main_tree(const std::vector<To_Place_Sample_Mutation> &mutations,
                 MAT::Tree &main_tree
@@ -486,18 +487,20 @@ place_main_tree(const std::vector<To_Place_Sample_Mutation> &mutations,
         }
     }
     output.targets.push_back(target);
-    auto main_tree_task_root = new (tbb::task::allocate_root())
-    Main_Tree_Searcher(0,main_tree.root,
+    std::vector<To_Place_Sample_Mutation> initial_muts = mutations;
+    initial_muts.push_back(temp);
+
+    Main_Tree_Searcher main_tree_task_root{0,main_tree.root,
                        output
 #ifdef DETAILED_MERGER_CHECK
                        ,
                        sample_mutations
 #endif
-                      );
-    main_tree_task_root->this_muts = mutations;
-    main_tree_task_root->this_muts.push_back(temp);
-    main_tree_task_root->set_group_priority(tbb::priority_low);
-    tbb::task::spawn_root_and_wait(*main_tree_task_root);
+    };
+    main_tree_task_root.this_muts = mutations;
+    main_tree_task_root.this_muts.push_back(temp);
+    main_tree_task_root.execute();
+        
     assert(!output.targets.empty());
 
     return std::make_tuple(std::move(output.targets), output.best_par_score);

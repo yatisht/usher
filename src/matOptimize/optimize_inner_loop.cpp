@@ -1,3 +1,4 @@
+#include "src/matOptimize/Profitable_Moves_Enumerators/Profitable_Moves_Enumerators.hpp"
 #include "tree_rearrangement_internal.hpp"
 #include <mpi.h>
 #include <cstdlib>
@@ -18,12 +19,13 @@ size_t optimize_inner_loop(std::vector<MAT::Node*>& nodes_to_search,MAT::Tree& t
     int iteration,
     std::string intermediate_template,
     std::string intermediate_pb_base_name,
-    std::string intermediate_nwk_out
+    std::string intermediate_nwk_out,
+    Move_Found_Callback& callback
     ){
     static std::chrono::steady_clock::time_point last_save_time=std::chrono::steady_clock::now();
     auto save_period=std::chrono::minutes(minutes_between_save);
     bool isfirst_this_iter=true;
-    size_t new_score;
+    size_t new_score{};
      while (!nodes_to_search.empty()) {
                 auto dfs_ordered_nodes=t.depth_first_expansion();
                 std::mt19937_64 rng;
@@ -59,7 +61,7 @@ size_t optimize_inner_loop(std::vector<MAT::Node*>& nodes_to_search,MAT::Tree& t
                 if (no_write_intermediate||search_end_time<next_save_time) {
                     search_stop_time=search_end_time;
                 }
-                optimize_tree_main_thread(nodes_to_search_idx, t,std::abs(radius),movalbe_src_log,allow_drift,log_moves?iteration:-1,defered_nodes,distribute,search_stop_time,do_continue,search_all_dir,isfirst_this_iter
+                optimize_tree_main_thread(nodes_to_search_idx, t,std::abs(radius),movalbe_src_log,allow_drift,log_moves?iteration:-1,defered_nodes,distribute,search_stop_time,do_continue,search_all_dir,isfirst_this_iter, callback
                                          );
                 isfirst_this_iter=false;
                 fprintf(stderr, "Defered %zu nodes\n",defered_nodes.size());
@@ -101,4 +103,29 @@ size_t optimize_inner_loop(std::vector<MAT::Node*>& nodes_to_search,MAT::Tree& t
                 search_all_dir=true;
             }
             return new_score;
+}
+
+// Overload that provides default callback
+size_t optimize_inner_loop(std::vector<MAT::Node*>& nodes_to_search,MAT::Tree& t,int radius,
+    bool allow_drift,
+    bool search_all_dir,
+    int minutes_between_save,
+    bool no_write_intermediate,
+    std::chrono::steady_clock::time_point search_end_time,
+    std::chrono::steady_clock::time_point start_time,
+    bool log_moves,
+    int iteration,
+    std::string intermediate_template,
+    std::string intermediate_pb_base_name,
+    std::string intermediate_nwk_out
+    ){
+#ifdef CHECK_STATE_REASSIGN
+    #error "CHECK_STATE_REASSIGN not supported in overload without callback parameter"
+#else
+    return optimize_inner_loop(nodes_to_search, t, radius, allow_drift, search_all_dir,
+                              minutes_between_save, no_write_intermediate, search_end_time,
+                              start_time, log_moves, iteration, intermediate_template,
+                              intermediate_pb_base_name, intermediate_nwk_out,
+                              Move_Found_Callback::default_instance());
+#endif
 }

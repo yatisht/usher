@@ -459,11 +459,11 @@ void ripplrs_merger(const Pruned_Sample &pruned_sample,
     tbb::parallel_pipeline(
         nthreads + 1,
         tbb::make_filter<void, std::pair<int, int>>(
-            tbb::filter::serial_in_order,
+            tbb::filter_mode::serial_in_order,
             search_position{sample_mutations, i, j, branch_len, min_range,
                             max_range, last_i}) &
         tbb::make_filter<std::pair<int, int>, void>(
-            tbb::filter::parallel,
+            tbb::filter_mode::parallel,
             check_breakpoint{out_ifc, sample_mutations,
                              skip_start_idx,skip_end_idx,
                              node_size, pasimony_threshold,

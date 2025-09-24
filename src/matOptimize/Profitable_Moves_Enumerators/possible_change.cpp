@@ -1,5 +1,5 @@
-#include "Profitable_Moves_Enumerators.hpp"
 #include "../mutation_annotated_tree.hpp"
+#include "Profitable_Moves_Enumerators.hpp"
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -10,14 +10,16 @@
 #include <tbb/blocked_range.h>
 #include <tbb/concurrent_vector.h>
 #include <tbb/parallel_for.h>
-#include <tbb/task.h>
+#include <tbb/task_group.h>
 #include <utility>
 #include <vector>
 
 #include "process_individual_mutation.hpp"
 #include "src/matOptimize/tree_rearrangement_internal.hpp"
 
-void make_range_tree(const std::vector<MAT::Node*>& dfs_ordered_nodes,tbb::concurrent_vector<node_info>& in,range_tree& out,size_t idx);
+void make_range_tree(const std::vector<MAT::Node *> &dfs_ordered_nodes,
+                     tbb::concurrent_vector<node_info> &in, range_tree &out,
+                     size_t idx);
 namespace MAT = Mutation_Annotated_Tree;
 short default_decrement_effect[4];
 short default_increment_effect[4];
@@ -41,7 +43,7 @@ struct Sensitive_Alleles {
     int postion;
     uint16_t decrement_effect;
     uint16_t increment_effect;
-    std::array<node_info*, 4> last_addable_idxes;
+    std::array<node_info *, 4> last_addable_idxes;
 };
 
 bool decrement_sensitive(uint8_t decrement, uint8_t major_allele,
@@ -100,16 +102,16 @@ update_sensitve_allele(int parent_decrement_effect, int parent_increment_effect,
                                  parent_decrement_effect)
              << ptr);
     }
-    uint8_t split_effect=0;
-    uint8_t non_major_allele=0xf&(~major_allele);
-    for (int nuc=0; nuc<4; nuc++) {
-        split_effect|=(increment_sensitive(two_bit_to_one_hot(nuc), major_allele, non_major_allele,
-                                           parent_increment_effect,
-                                           parent_decrement_effect)
-                       << nuc);
+    uint8_t split_effect = 0;
+    uint8_t non_major_allele = 0xf & (~major_allele);
+    for (int nuc = 0; nuc < 4; nuc++) {
+        split_effect |=
+            (increment_sensitive(two_bit_to_one_hot(nuc), major_allele,
+                                 non_major_allele, parent_increment_effect,
+                                 parent_decrement_effect)
+             << nuc);
     }
-    out.set_sensitive_change(move_bits(decrement_effect),
-                             split_effect);
+    out.set_sensitive_change(move_bits(decrement_effect), split_effect);
     return std::make_pair(decrement_effect, increment_effect);
 }
 static std::pair<uint16_t, uint16_t>
@@ -126,46 +128,55 @@ update_sensitve_allele(MAT::Mutation &out) {
 static void filter_output(const MAT::Mutation &mut,
                           std::pair<uint16_t, uint16_t> effect,
                           std::vector<Sensitive_Alleles> &out,
-                          std::array<node_info*, 4>& last_addable_idx) {
+                          std::array<node_info *, 4> &last_addable_idx) {
     auto mut_idx = one_hot_to_two_bit(mut.get_mut_one_hot());
     if (effect.first != default_decrement_effect[mut_idx] ||
-            effect.second != default_increment_effect[mut_idx]) {
-        out.push_back(
-            Sensitive_Alleles{mut.get_position(), effect.first, effect.second,last_addable_idx});
+        effect.second != default_increment_effect[mut_idx]) {
+        out.push_back(Sensitive_Alleles{mut.get_position(), effect.first,
+                                        effect.second, last_addable_idx});
     }
 }
 
 typedef std::vector<tbb::concurrent_vector<node_info>> pos_tree_t;
-struct Walker : public tbb::task {
+struct Walker {
     std::vector<Sensitive_Alleles> sensitive_locus;
     MAT::Node *root;
-    pos_tree_t& pos_tree;
+    pos_tree_t &pos_tree;
     // Sensitive locus is for this node
-    Walker(MAT::Node *root,pos_tree_t& pos_tree) : root(root),pos_tree(pos_tree) {}
-    void register_change(uint16_t increment_effect,const MAT::Node* node, const MAT::Mutation& mut,std::array<node_info*, 4>& out) {
-        auto new_alleles=increment_effect&(~(1<<mut.get_par_one_hot()));
-        for (int idx=0; idx<4; idx++) {
-            if (new_alleles&(1<<two_bit_to_one_hot(idx))) {
-                auto iter=pos_tree[mut.get_position()].emplace_back(node_info{node->dfs_index,node->level,static_cast<uint8_t>(idx)});
-                out[idx]=&(*iter);
+    Walker(MAT::Node *root, pos_tree_t &pos_tree)
+        : root(root), pos_tree(pos_tree) {}
+    void register_change(uint16_t increment_effect, const MAT::Node *node,
+                         const MAT::Mutation &mut,
+                         std::array<node_info *, 4> &out) {
+        auto new_alleles = increment_effect & (~(1 << mut.get_par_one_hot()));
+        for (int idx = 0; idx < 4; idx++) {
+            if (new_alleles & (1 << two_bit_to_one_hot(idx))) {
+                auto iter = pos_tree[mut.get_position()].emplace_back(node_info{
+                    node->dfs_index, node->level, static_cast<uint8_t>(idx)});
+                out[idx] = &(*iter);
             }
-            out[idx]=nullptr;
+            out[idx] = nullptr;
         }
     }
-    void register_change(uint16_t increment_effect,const Sensitive_Alleles& last, const MAT::Mutation& mut,const MAT::Node* node,std::array<node_info*, 4>& out) {
-        auto position=mut.get_position();
-        auto new_alleles=increment_effect&(~(1<<mut.get_par_one_hot()));
-        out=last.last_addable_idxes;
-        for (int idx=0; idx<4; idx++) {
-            if (new_alleles&(1<<two_bit_to_one_hot(idx))) {
+    void register_change(uint16_t increment_effect,
+                         const Sensitive_Alleles &last,
+                         const MAT::Mutation &mut, const MAT::Node *node,
+                         std::array<node_info *, 4> &out) {
+        auto position = mut.get_position();
+        auto new_alleles = increment_effect & (~(1 << mut.get_par_one_hot()));
+        out = last.last_addable_idxes;
+        for (int idx = 0; idx < 4; idx++) {
+            if (new_alleles & (1 << two_bit_to_one_hot(idx))) {
                 if (out[idx]) {
-                    out[idx]->dfs_idx=node->dfs_index;
+                    out[idx]->dfs_idx = node->dfs_index;
                 } else {
-                    auto iter=pos_tree[position].emplace_back(node_info{node->dfs_index,node->level,static_cast<uint8_t>(idx)});
-                    out[idx]=&(*iter);
+                    auto iter = pos_tree[position].emplace_back(
+                        node_info{node->dfs_index, node->level,
+                                  static_cast<uint8_t>(idx)});
+                    out[idx] = &(*iter);
                 }
             } else {
-                out[idx]=nullptr;
+                out[idx] = nullptr;
             }
         }
     }
@@ -176,51 +187,50 @@ struct Walker : public tbb::task {
             while (iter->postion < mut.get_position()) {
                 iter++;
             }
-            std::array<node_info*, 4> last_addable_idxes;
+            std::array<node_info *, 4> last_addable_idxes;
             if (mut.get_position() == iter->postion) {
                 effect = update_sensitve_allele(*iter, mut);
-                register_change(effect.second,*iter,mut,to_set,last_addable_idxes);
+                register_change(effect.second, *iter, mut, to_set,
+                                last_addable_idxes);
             } else {
                 effect = update_sensitve_allele(mut);
-                register_change(effect.second,to_set,mut,last_addable_idxes);
+                register_change(effect.second, to_set, mut, last_addable_idxes);
             }
             if (output) {
-                filter_output(mut, effect, *output,last_addable_idxes);
+                filter_output(mut, effect, *output, last_addable_idxes);
             }
         }
         if (output) {
             output->push_back(Sensitive_Alleles{INT_MAX});
         }
     }
-    tbb::task *execute() override {
-        auto continuation = new (allocate_continuation()) tbb::empty_task;
-        std::vector<tbb::task *> tasks;
+    void execute(tbb::task_group &tg) {
+        std::vector<Walker> tasks;
         tasks.reserve(root->children.size());
-        for (auto child : root->children) {
+        for (auto* child : root->children) {
             if (child->is_leaf()) {
                 merge(child, nullptr);
             } else {
-
-                auto child_task =
-                    new (continuation->allocate_child()) Walker(child,pos_tree);
-                merge(child, &child_task->sensitive_locus);
-                tasks.push_back(child_task);
+                Walker &child_task = tasks.emplace_back(child, pos_tree);
+                merge(child, &child_task.sensitive_locus);
+                tg.run([this, &tg, child, &child_task] {
+                  child_task.execute(tg);
+                });
             }
         }
-        continuation->set_ref_count(tasks.size());
-        for (auto task : tasks) {
-            continuation->spawn(*task);
-        }
-        return tasks.empty() ? continuation : nullptr;
     }
 };
-void output_addable_idxes(pos_tree_t& in,const std::vector<MAT::Node*>& dfs_ordered_nodes) {
-    addable_idxes=std::vector<range_tree>(MAT::Mutation::refs.size());
-    tbb::parallel_for(tbb::blocked_range<size_t>(0,MAT::Mutation::refs.size()),[&in,&dfs_ordered_nodes](tbb::blocked_range<size_t>& range) {
-        for (size_t idx=range.begin(); idx<range.end(); idx++) {
-            make_range_tree(dfs_ordered_nodes, in[idx], addable_idxes[idx],idx);
-        }
-    });
+void output_addable_idxes(pos_tree_t &in,
+                          const std::vector<MAT::Node *> &dfs_ordered_nodes) {
+    addable_idxes = std::vector<range_tree>(MAT::Mutation::refs.size());
+    tbb::parallel_for(
+        tbb::blocked_range<size_t>(0, MAT::Mutation::refs.size()),
+        [&in, &dfs_ordered_nodes](tbb::blocked_range<size_t> &range) {
+            for (size_t idx = range.begin(); idx < range.end(); idx++) {
+                make_range_tree(dfs_ordered_nodes, in[idx], addable_idxes[idx],
+                                idx);
+            }
+        });
     /*for (size_t idx=0; idx<MAT::Mutation::refs.size(); idx++) {
         if (idx==106) {
             fputc('a', stderr);
@@ -232,28 +242,31 @@ void adjust_all(MAT::Tree &tree) {
     fprintf(stderr, "start\n");
     auto start = std::chrono::steady_clock::now();
     pos_tree_t pos_tree(MAT::Mutation::refs.size());
-    auto task_root = new (tbb::task::allocate_root()) Walker(tree.root,pos_tree);
+    Walker walker(tree.root, pos_tree);
     for (auto &mut : tree.root->mutations) {
         auto effect = update_sensitve_allele(mut);
-        std::array<node_info*, 4> last_addable_idx{nullptr,nullptr,nullptr,nullptr};
-        filter_output(mut, effect, task_root->sensitive_locus,last_addable_idx);
+        std::array<node_info *, 4> last_addable_idx{nullptr, nullptr, nullptr,
+                                                    nullptr};
+        filter_output(mut, effect, walker.sensitive_locus, last_addable_idx);
     }
-    task_root->sensitive_locus.push_back(Sensitive_Alleles{INT_MAX});
-    tbb::task::spawn_root_and_wait(*task_root);
-    auto dfs_ordered_nodes=tree.depth_first_expansion();
-    output_addable_idxes(pos_tree,dfs_ordered_nodes);
-    size_t max_change=0;
-    size_t total=0;
-    for (const auto& pos_nuc : addable_idxes) {
-        auto this_size=pos_nuc.end_idxes.size();
-        max_change=std::max(max_change,this_size);
-        total+=this_size;
+    walker.sensitive_locus.push_back(Sensitive_Alleles{INT_MAX});
+    tbb::task_group tg;
+    walker.execute(tg);
+    tg.wait();
+    auto dfs_ordered_nodes = tree.depth_first_expansion();
+    output_addable_idxes(pos_tree, dfs_ordered_nodes);
+    size_t max_change = 0;
+    size_t total = 0;
+    for (const auto &pos_nuc : addable_idxes) {
+        auto this_size = pos_nuc.end_idxes.size();
+        max_change = std::max(max_change, this_size);
+        total += this_size;
     }
-    fprintf(stderr, "Total %zu,max %zu \n",total,max_change);
+    fprintf(stderr, "Total %zu,max %zu \n", total, max_change);
     fprintf(stderr, "Updating sensitive alleles take %ld sec",
             std::chrono::duration_cast<std::chrono::seconds>(
                 std::chrono::steady_clock::now() - start)
-            .count());
+                .count());
 }
 #ifdef TEST
 struct change_log {

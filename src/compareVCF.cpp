@@ -45,26 +45,28 @@ static int read_header(gzFile *fd, std::vector<std::string> &out) {
     return header_len;
 }
 #define ZLIB_BUFSIZ 0x40000
-typedef tbb::flow::source_node<char *>
+typedef tbb::flow::input_node<char *>
 decompressor_node_t;
 struct Decompressor {
     gzFile *fd;
     size_t cont_read_size;
     size_t init_read_size;
-    bool operator()(char *&buf) const {
+    char* operator()(tbb::flow_control& fc) const {
         if (gzeof(*fd)) {
-            return false;
+            fc.stop();
+            return nullptr;
         }
-        buf=new char[init_read_size+cont_read_size];
+        char* buf=new char[init_read_size+cont_read_size];
         int read_size = gzread(*fd, buf, init_read_size);
         if (!read_size) {
-            free(buf);
-            return false;
+            delete[] buf;
+            fc.stop();
+            return nullptr;
         }
         if (!gzgets(*fd, buf + read_size, cont_read_size)) {
             *(buf + read_size) = 0;
         }
-        return true;
+        return buf;
     }
 };
 static std::array<std::string, 2> filenames;
@@ -274,6 +276,8 @@ int main(int argc, char**argv) {
     tbb::flow::make_edge(decompressor1,parser1);
 
     tbb::flow::make_edge(decompressor2,parser2);
+    decompressor1.activate();
+    decompressor2.activate();
     input_graph.wait_for_all();
     fprintf(stderr, "finished.\n");
 }

@@ -1,8 +1,9 @@
+#include <tbb/info.h>
 #include "extract.hpp"
 
 po::variables_map parse_extract_command(po::parsed_options parsed) {
 
-    uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
+    uint32_t num_cores = tbb::info::default_concurrency();
     std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
     po::variables_map vm;
     po::options_description conv_desc("extract options");
@@ -235,7 +236,7 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
         }
     }
 
-    tbb::task_scheduler_init init(num_threads);
+    tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, num_threads);
 
     timer.Start();
     fprintf(stderr, "Loading input MAT file %s.\n", input_mat_filename.c_str());

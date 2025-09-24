@@ -2108,13 +2108,16 @@ void Mutation_Annotated_Tree::read_vcf(Mutation_Annotated_Tree::Tree* T, std::st
         tbb::flow::graph mapper_graph;
 
         tbb::flow::function_node<mapper_input, int> mapper(mapper_graph, tbb::flow::unlimited, mapper_body());
-        tbb::flow::source_node <mapper_input> reader (mapper_graph,
-        [&] (mapper_input &inp) -> bool {
+        tbb::flow::input_node <mapper_input> reader (mapper_graph,
+        [&] (tbb::flow_control &fc) -> mapper_input {
+            mapper_input inp;
 
             //check if reached end-of-file
             int curr_char = instream.peek();
-            if(curr_char == EOF)
-                return false;
+            if(curr_char == EOF) {
+                fc.stop();
+                return inp;
+            }
 
             std::string s;
             std::getline(instream, s);
@@ -2169,8 +2172,8 @@ void Mutation_Annotated_Tree::read_vcf(Mutation_Annotated_Tree::Tree* T, std::st
                     }
                 }
             }
-            return true;
-        }, true );
+            return inp;
+        });
         tbb::flow::make_edge(reader, mapper);
         mapper_graph.wait_for_all();
     } else {

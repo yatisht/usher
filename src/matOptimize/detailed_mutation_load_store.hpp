@@ -11,7 +11,7 @@
 #include <string>
 #include <sys/mman.h>
 #include <tbb/flow_graph.h>
-#include <tbb/task.h>
+#include <tbb/task_group.h>
 #include <utility>
 #define LOAD
 #include "google/protobuf/io/coded_stream.h"

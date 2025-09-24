@@ -16,7 +16,7 @@ namespace po = boost::program_options;
 Timer timer;
 
 po::variables_map check_options(int argc, char** argv) {
-    uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
+    uint32_t num_cores = tbb::this_task_arena::max_concurrency();
     std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
 
     po::options_description desc("optimize options");
@@ -178,7 +178,7 @@ int main(int argc, char** argv) {
     int end_idx = vm["end-index"].as<int>();
     uint32_t num_threads = vm["threads"].as<uint32_t>();
 
-    tbb::task_scheduler_init init(num_threads);
+    tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, num_threads);
     srand (time(NULL));
 
     static tbb::affinity_partitioner ap;
