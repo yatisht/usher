@@ -3,10 +3,10 @@
 #include <algorithm>
 #include <climits>
 #include <mutex>
+#include <signal.h>
 #include <tbb/task_group.h>
 #include <unordered_map>
 #include <vector>
-#include <signal.h>
 
 namespace MAT = Mutation_Annotated_Tree;
 
@@ -42,7 +42,8 @@ struct Assign_Descendant_Possible_Muts_Cont {
             }
         }
         for (auto &mut : root->mutations) {
-            auto result = output.emplace(mut.get_position(), mut.get_mut_one_hot());
+            auto result =
+                output.emplace(mut.get_position(), mut.get_mut_one_hot());
             if (!result.second) {
                 result.first->second |= mut.get_mut_one_hot();
             }
@@ -57,10 +58,11 @@ struct Assign_Descendant_Possible_Muts {
     Assign_Descendant_Possible_Muts(MAT::Node *root,
                                     std::unordered_map<int, uint8_t> &output)
         : root(root), output(output) {}
-    void execute(tbb::task_group &tg) {
+    void execute() {
+        tbb::task_group tg;
         Assign_Descendant_Possible_Muts_Cont cont(output, root->children.size(),
-                                             root);
-        std::vector<std::shared_ptr<Assign_Descendant_Possible_Muts>> children_tasks;
+                                                  root);
+        std::vector<Assign_Descendant_Possible_Muts> children_tasks;
         children_tasks.reserve(root->children.size());
         for (size_t idx = 0; idx < root->children.size(); idx++) {
             auto this_child = root->children[idx];
@@ -68,26 +70,26 @@ struct Assign_Descendant_Possible_Muts {
                 cont.children_out[idx].reserve(this_child->mutations.size());
                 for (auto &mut : this_child->mutations) {
                     mut.set_descendant_mut(mut.get_mut_one_hot());
-                    cont.children_out[idx].emplace(mut.get_position(), mut.get_mut_one_hot());
+                    cont.children_out[idx].emplace(mut.get_position(),
+                                                   mut.get_mut_one_hot());
                 }
             } else {
-                auto new_task = std::make_shared<Assign_Descendant_Possible_Muts>(this_child,
-                                                cont.children_out[idx]);
-                children_tasks.push_back(std::move(new_task));
+                children_tasks.emplace_back(this_child, cont.children_out[idx]);
             }
         }
         for (auto &child_task : children_tasks) {
-            child_task->execute(tg);
+            tg.run([&tg, &child_task]{
+                child_task.execute();
+            });
         }
-        if (!children_tasks.empty()) {
+        tg.wait();
+        if (children_tasks.empty()) {
             cont.execute();
         }
     }
 };
 
 void assign_descendant_muts(MAT::Tree &in) {
-    tbb::task_group tg;
     std::unordered_map<int, uint8_t> ignore;
-    Assign_Descendant_Possible_Muts(in.root, ignore).execute(tg);
-    tg.wait();
+    Assign_Descendant_Possible_Muts(in.root, ignore).execute();
 }

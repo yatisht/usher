@@ -369,72 +369,98 @@ static void search_serial(const MAT::Node* node,std::vector<To_Place_Sample_Muta
 #endif
     }
 }
-void main_tree_search_recursive(
-    int curr_lower_bound,
-    std::vector<To_Place_Sample_Mutation> this_muts,
-    const MAT::Node *node,
-    Output<Main_Tree_Target> &output,
-    tbb::task_group &tg
+
+struct Main_Tree_Searcher {
+    int curr_lower_bound;
+    std::vector<To_Place_Sample_Mutation> this_muts;
+    const MAT::Node *node;
+    Output<Main_Tree_Target> &output;
 #ifdef DETAILED_MERGER_CHECK
-    ,
-    Mutation_Set &sample_mutations
+    Mutation_Set &sample_mutations;
 #endif
-) {
+    Main_Tree_Searcher(int curr_lower_bound,MAT::Node *node,
+                       Output<Main_Tree_Target> &output
+#ifdef DETAILED_MERGER_CHECK
+                       ,
+                       Mutation_Set &sample_mutations
+#endif
+                      )
+        : curr_lower_bound(curr_lower_bound),node(node),
+          output(output)
+#ifdef DETAILED_MERGER_CHECK
+        ,
+          sample_mutations(sample_mutations)
+#endif
+    {
+    }
+    void execute() {
+        tbb::task_group tg;
 #ifndef BOUND_CHECK
-    if(curr_lower_bound>output.best_par_score) {
-        return;
-    }
+        if(curr_lower_bound>output.best_par_score) {
+            return;
+        }
 #endif
-    if(node->bfs_index<switch_to_serial_threshold) {
-        search_serial(node, this_muts, output);
-        return;
-    }
-    
-    for (const auto child : node->children) {
+        if(node->bfs_index<switch_to_serial_threshold) {
+            search_serial(node, this_muts, output);
+            return;
+        }
+        std::vector<Main_Tree_Searcher> children_tasks;
+        children_tasks.reserve(node->children.size() + 1);
         Main_Tree_Target target;
-        target.target_node = child;
-        target.parent_node = const_cast<MAT::Node *>(node);
-        int parsimony_score = 0;
-        if (child->is_leaf()) {
-            generic_merge(child, this_muts,
-            Combine_Hook<Empty_Hook, Down_Sibling_Hook> {
-                Empty_Hook(),
-                Down_Sibling_Hook(target, parsimony_score)
-            });
-        } else {
-            int lower_bound = 0;
-            std::vector<To_Place_Sample_Mutation> descendant_mutations;
-            generic_merge(
-                child, this_muts,
-            Combine_Hook<Down_Decendant_Hook, Down_Sibling_Hook> {
-                Down_Decendant_Hook(descendant_mutations, lower_bound),
-                Down_Sibling_Hook(target, parsimony_score)
-            });
+        for (const auto child : node->children) {
+            target.target_node = child;
+            target.parent_node = const_cast<MAT::Node *>(node);
+            int parsimony_score = 0;
+            if (child->is_leaf()) {
+                generic_merge(child, this_muts,
+                Combine_Hook<Empty_Hook, Down_Sibling_Hook> {
+                    Empty_Hook(),
+                    Down_Sibling_Hook(target, parsimony_score)
+                });
+            } else {
+                int lower_bound = 0;
+                std::vector<To_Place_Sample_Mutation> descendant_mutations;
+                generic_merge(
+                    child, this_muts,
+                Combine_Hook<Down_Decendant_Hook, Down_Sibling_Hook> {
+                    Down_Decendant_Hook(descendant_mutations, lower_bound),
+                    Down_Sibling_Hook(target, parsimony_score)
+                });
 #ifdef DETAILED_MERGER_CHECK
-            check_continuation(child,
-                               sample_mutations, descendant_mutations);
+                check_continuation(child,
+                                   sample_mutations, descendant_mutations);
 #endif
-            assert(curr_lower_bound<=lower_bound);
+                assert(curr_lower_bound<=lower_bound);
 #ifndef BOUND_CHECK
-            if (lower_bound <= output.best_par_score) {
+                if (lower_bound <= output.best_par_score) {
 #endif
-                // Spawn recursive task without lambda to avoid const issues
-                main_tree_search_recursive(lower_bound, std::move(descendant_mutations), child, output, tg
+                    children_tasks.emplace_back(lower_bound, child, output
 #ifdef DETAILED_MERGER_CHECK
-                                           , sample_mutations
+                                           ,
+                                           sample_mutations
 #endif
                                           );
+                    children_tasks.back().this_muts =
+                        std::move(descendant_mutations);
 #ifndef BOUND_CHECK
+                }
+#endif
             }
-#endif
-        }
 #ifdef DETAILED_MERGER_CHECK
-        check_mutations(sample_mutations, target);
+            check_mutations(sample_mutations, target);
 #endif
-        assert(parsimony_score>=curr_lower_bound);
-        register_target(target, parsimony_score,output);
+            assert(parsimony_score>=curr_lower_bound);
+            register_target(target, parsimony_score,output);
+        }
+        for (auto& child : children_tasks) {
+            tg.run([&child]{
+                child.execute();
+            });
+        }
+        tg.wait();
     }
-}
+};
+
 std::tuple<std::vector<Main_Tree_Target>, int>
 place_main_tree(const std::vector<To_Place_Sample_Mutation> &mutations,
                 MAT::Tree &main_tree
@@ -463,14 +489,18 @@ place_main_tree(const std::vector<To_Place_Sample_Mutation> &mutations,
     output.targets.push_back(target);
     std::vector<To_Place_Sample_Mutation> initial_muts = mutations;
     initial_muts.push_back(temp);
-    
-    tbb::task_group tg;
-    main_tree_search_recursive(0, std::move(initial_muts), main_tree.root, output, tg
+
+    Main_Tree_Searcher main_tree_task_root{0,main_tree.root,
+                       output
 #ifdef DETAILED_MERGER_CHECK
-                              , sample_mutations
+                       ,
+                       sample_mutations
 #endif
-                             );
-    tg.wait();
+    };
+    main_tree_task_root.this_muts = mutations;
+    main_tree_task_root.this_muts.push_back(temp);
+    main_tree_task_root.execute();
+        
     assert(!output.targets.empty());
 
     return std::make_tuple(std::move(output.targets), output.best_par_score);
