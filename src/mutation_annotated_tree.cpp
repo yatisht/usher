@@ -1525,9 +1525,10 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::Tree::fast_tree_copy() {
         }
     }
     
-    // Reserve space for new tree and link the nodes
+    // Reserve space for new tree with nodes_vector and all_nodes by initializing with original tree
     T_new.nodes_vector.resize(dfs_curr.size());
     T_new.all_nodes.reserve(dfs_curr.size());
+    T_new.all_nodes = all_nodes;
 
     static tbb::affinity_partitioner ap;
     tbb::parallel_for(tbb::blocked_range<size_t>(0, dfs_curr.size()),
@@ -1544,6 +1545,8 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::Tree::fast_tree_copy() {
             new_node->identifier = curr_node->identifier;
             new_node->level = curr_node->level;
             new_node->branch_length = curr_node->branch_length;
+            
+            // Update all_nodes
             T_new.all_nodes[curr_node->identifier] = new_node;
             
             // Update children
