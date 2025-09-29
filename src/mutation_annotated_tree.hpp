@@ -171,6 +171,9 @@ class Tree {
 
     // Copy Tree Fast
     Tree fast_tree_copy();
+
+    // FIX for updating all_nodes after usher_common
+    void update_all_nodes(const std::vector<Node*>& nodes);
 };
 
 std::string get_newick_string(const Tree& T, bool b1, bool b2, bool b3=false, bool b4=false);

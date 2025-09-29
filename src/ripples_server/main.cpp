@@ -215,6 +215,15 @@ int main(int argc, char** argv) {
                             false, false, false, false, false,
                             false, false, false, false, false,
                             false, 0, 0, missing_samples, low_confidence_samples, &T_new);
+        
+        // FIX for new nodes NOT present in all_nodes
+        std::vector<MAT::Node*> new_nodes;
+        for (auto node: T_new.depth_first_expansion()) {
+            if (std::find(sample_names.begin(), sample_names.end(), node->identifier) != sample_names.end()) {
+                new_nodes.push_back(node);
+            }
+        }
+        T_new.update_all_nodes(new_nodes);
 
         if(return_val != 0) {
             exit(1);

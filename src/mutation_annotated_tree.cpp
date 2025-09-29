@@ -1626,6 +1626,13 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::Tree::fast_tree_copy() {
     return T_new;
 }
 
+void Mutation_Annotated_Tree::Tree::update_all_nodes(const std::vector<Node*>& nodes) {
+    for (auto n: nodes)
+    {
+        all_nodes[n->identifier] = n;
+    }
+}
+
 Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_tree_copy(const Mutation_Annotated_Tree::Tree& tree, const std::string& identifier) {
     TIMEIT();
     auto root = tree.root;
