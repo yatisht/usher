@@ -1629,9 +1629,7 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::Tree::fast_tree_copy() {
 void Mutation_Annotated_Tree::Tree::update_all_nodes(const std::vector<Node*>& nodes) {
     for (auto n: nodes)
     {
-        if (all_nodes.find(n->identifier) == all_nodes.end()) {
-            all_nodes[n->identifier] = n;
-        }
+        all_nodes[n->identifier] = n;
     }
 }
 
