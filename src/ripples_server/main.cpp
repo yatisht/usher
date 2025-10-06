@@ -5,6 +5,7 @@
 #include <iostream>
 #include "src/usher_graph.hpp"
 #include "src/usher_common.hpp"
+#include "src/ripples/ripples_fast/ripples_runner.hpp"
 
 namespace po = boost::program_options;
 namespace MAT = Mutation_Annotated_Tree;
@@ -215,19 +216,28 @@ int main(int argc, char** argv) {
                             false, false, false, false, false,
                             false, false, false, false, false,
                             false, 0, 0, missing_samples, low_confidence_samples, &T_new);
+
+        if(return_val != 0) {
+            exit(1);
+        }
         
         // FIX for new nodes NOT present in all_nodes
+				/*
         std::vector<MAT::Node*> new_nodes;
         for (auto node: T_new.depth_first_expansion()) {
             if (std::find(sample_names.begin(), sample_names.end(), node->identifier) != sample_names.end()) {
                 new_nodes.push_back(node);
             }
         }
-        T_new.update_all_nodes(new_nodes);
+				*/
+        T_new.update_all_nodes(T_new.depth_first_expansion());
 
-        if(return_val != 0) {
-            exit(1);
-        }
+				// Set ripples-fast parameters TODO: Can be set from cli options with defaults
+				uint32_t branch_len = 3;
+        std::string outdir = ".";
+        uint32_t num_desc = 10;
+        ripples_runner runner(T_new, missing_samples, num_threads, branch_len,
+                              num_desc, outdir);
+        runner();
     }
-
 }

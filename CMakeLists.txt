@@ -58,6 +58,7 @@ file(GLOB USHER_SAMPLED_SRCS "src/usher-sampled/static_tree_mapper/*" "src/usher
 file(GLOB RIPPLES_FAST_SRCS "src/ripples/ripples_fast/*.cpp" "src/ripples/ripples_fast/*.hpp")
 file(GLOB RIPPLES_UTILS_SRCS "src/ripples/util/*.cpp" "src/ripples/util/*.hpp")
 
+
 set_source_files_properties(src/mutation_annotated_tree.cpp PROPERTIES COMPILE_FLAGS -O3)
 set_source_files_properties(src/usher-sampled/wait_debug.cpp PROPERTIES COMPILE_FLAGS -O0)
 #set_source_files_properties(src/matOptimize/Profitable_Moves_Enumerators/range_tree.cpp PROPERTIES COMPILE_FLAGS -O0)
@@ -84,6 +85,12 @@ if(DEFINED Protobuf_PATH)
         src/mutation_annotated_tree.cpp
         src/usher_mapper.cpp
         src/usher_common.cpp
+        src/ripples/ripples_fast/ripples_runner.cpp
+        src/ripples/ripples_fast/ripples_util.cpp
+        src/ripples/ripples_fast/ripples.cpp
+        src/ripples/ripples_fast/ripple_aux.cpp
+        src/ripples/ripples_fast/ripple_merger.cpp
+        src/ripples/ripples_fast/ripples_mapper.cpp
         ${RIPPLES_SERVER_SRCS}
         )
 
@@ -305,6 +312,12 @@ else()
         src/mutation_annotated_tree.cpp
         src/usher_mapper.cpp
         src/usher_common.cpp
+        src/ripples/ripples_fast/ripples_runner.cpp
+        src/ripples/ripples_fast/ripples_util.cpp
+        src/ripples/ripples_fast/ripples.cpp
+        src/ripples/ripples_fast/ripple_aux.cpp
+        src/ripples/ripples_fast/ripple_merger.cpp
+        src/ripples/ripples_fast/ripples_mapper.cpp
         ${RIPPLES_SERVER_SRCS}
         ${PROTO_SRCS}
         ${PROTO_HDRS}
@@ -523,7 +536,7 @@ TARGET_COMPILE_OPTIONS(matUtils PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
 TARGET_LINK_LIBRARIES(matUtils PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
 
 TARGET_COMPILE_OPTIONS(ripples_server PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
-TARGET_LINK_LIBRARIES(ripples_server PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
+TARGET_LINK_LIBRARIES(ripples_server PRIVATE stdc++ ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
 
 TARGET_LINK_LIBRARIES(ripplesUtils PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(ripplesInit PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)

@@ -117,6 +117,8 @@ po::variables_map check_options(int argc, char **argv) {
     }
     return vm;
 }
+
+/*
 size_t check_parallelizable(const MAT::Node *root,
                             std::vector<bool> &do_parallel,
                             size_t parallel_threshold,
@@ -143,3 +145,4 @@ size_t check_parallelizable(const MAT::Node *root,
     }
     return child_counted_size;
 }
+*/
