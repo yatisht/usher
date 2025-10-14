@@ -2,11 +2,10 @@
 #include "usher.hpp"
 #include <algorithm>
 #include <climits>
-#include <mutex>
 #include <signal.h>
-#include <tbb/task_group.h>
 #include <unordered_map>
 #include <vector>
+#include <taskflow/taskflow.hpp>
 
 namespace MAT = Mutation_Annotated_Tree;
 
@@ -53,13 +52,13 @@ struct Assign_Descendant_Possible_Muts_Cont {
 };
 
 struct Assign_Descendant_Possible_Muts {
+    tf::Taskflow& taskflow;
     MAT::Node *root;
     std::unordered_map<int, uint8_t> &output;
-    Assign_Descendant_Possible_Muts(MAT::Node *root,
+    Assign_Descendant_Possible_Muts(tf::Taskflow& t, MAT::Node *root,
                                     std::unordered_map<int, uint8_t> &output)
-        : root(root), output(output) {}
-    void execute() {
-        tbb::task_group tg;
+        : taskflow{t}, root(root), output(output) {}
+    void execute() const {
         Assign_Descendant_Possible_Muts_Cont cont(output, root->children.size(),
                                                   root);
         std::vector<Assign_Descendant_Possible_Muts> children_tasks;
@@ -74,22 +73,31 @@ struct Assign_Descendant_Possible_Muts {
                                                    mut.get_mut_one_hot());
                 }
             } else {
-                children_tasks.emplace_back(this_child, cont.children_out[idx]);
+                children_tasks.emplace_back(taskflow,
+                                            this_child, cont.children_out[idx]);
             }
         }
-        for (auto &child_task : children_tasks) {
-            tg.run([&tg, &child_task]{
-                child_task.execute();
-            });
-        }
-        tg.wait();
         if (children_tasks.empty()) {
             cont.execute();
+        } else {
+          taskflow.emplace([&children_tasks](tf::Subflow& subflow){
+            for (auto&& child_task : std::move(children_tasks)) {
+                subflow.emplace([child_task = std::move(child_task)] {
+                    child_task.execute();
+                });
+            }
+
+          });
         }
     }
 };
 
 void assign_descendant_muts(MAT::Tree &in) {
     std::unordered_map<int, uint8_t> ignore;
-    Assign_Descendant_Possible_Muts(in.root, ignore).execute();
+    tf::Executor executor;
+    tf::Taskflow taskflow;
+    taskflow.emplace([&] {
+      Assign_Descendant_Possible_Muts(taskflow, in.root, ignore).execute();
+    });
+    executor.run(taskflow).wait(); 
 }

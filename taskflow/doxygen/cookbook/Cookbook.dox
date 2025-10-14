@@ -1,0 +1,23 @@
+namespace tf {
+
+/** @page Cookbook Cookbook
+
+  This cookbook provides a step-by-step tutorial for writing %Taskflow programs.
+  
+  + @subpage ProjectMotivation
+  + @subpage StaticTasking
+  + @subpage ExecuteTaskflow
+  + @subpage SubflowTasking
+  + @subpage ConditionalTasking
+  + @subpage ComposableTasking
+  + @subpage AsyncTasking
+  + @subpage DependentAsyncTasking
+  + @subpage RuntimeTasking
+  + @subpage ExceptionHandling
+  + @subpage LimitTheMaximumConcurrency 
+  + @subpage RequestCancellation
+  + @subpage GPUTasking
+  + @subpage Profiler
+*/
+
+}

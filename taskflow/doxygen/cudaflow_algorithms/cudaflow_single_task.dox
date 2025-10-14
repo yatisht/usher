@@ -1,0 +1,57 @@
+namespace tf {
+
+/** @page SingleTaskCUDA Single %Task 
+
+tf::cudaFlow provides a template method, tf::cudaFlow::single_task,
+for creating a task to run the
+given callable using a single kernel thread.
+
+@tableofcontents
+
+@section CUDASingleTaskIncludeTheHeader Include the Header
+
+You need to include the header file, `%taskflow/cuda/algorithm/for_each.hpp`, 
+for creating a single-threaded task.
+
+@code{.cpp}
+#include <taskflow/cuda/algorithm/for_each.hpp>
+@endcode
+
+@section SingleTaskCUDASingleTask Run a Task with a Single Thread
+
+You can create a task to run a kernel function just once, i.e.,
+using one GPU thread.
+This is handy when you want to set up a single or a few global variables 
+that do not need multiple threads and will be used by multiple 
+kernels afterwards.
+The following example creates a single-task kernel that sets a device variable
+to @c 1.
+
+@code{.cpp}
+int* gpu_variable;
+cudaMalloc(&gpu_variable, sizeof(int));
+
+tf::cudaFlow cf;
+cf.single_task([gpu_variable] __device__ () {
+  *gpu_Variable = 1;
+});
+
+tf::cudaStream stream;
+cf.run(stream);
+stream.synchronize();
+@endcode
+
+Since the callable runs on GPU, it must be declared with a <tt>%__device__</tt> specifier.
+
+@section SingleTaskCUDAMiscellaneousItems Miscellaneous Items
+
+The single-task algorithm is also available in tf::cudaFlowCapturer::single_task.
+
+*/
+}
+
+
+
+
+
+
