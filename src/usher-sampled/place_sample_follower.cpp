@@ -4,9 +4,7 @@
 #include <csignal>
 #include <cstdio>
 #include <string>
-#include <tbb/flow_graph.h>
-#include <tbb/parallel_pipeline.h>
-#include <tbb/task_group.h>
+#include <taskflow/taskflow.hpp>
 #include <thread>
 #include <mpi.h>
 #include <tuple>
@@ -164,63 +162,41 @@ static void recv_and_place_follower(MAT::Tree &tree,
     }
 }
 
-typedef tbb::flow::multifunction_node<Sample_Muts*, std::tuple<Sample_Muts*>> Fetcher_Node_t;
-struct Fetcher {
-    bool& is_first;
-    Sample_Muts* operator()(tbb::flow_control& fc) const {
-        int res_size;
-        while(true) {
-            mpi_trace_print("follower send work req \n");
-            MPI_Send(&res_size, 0, MPI_BYTE, 0, PLACEMENT_WORK_REQ_TAG, MPI_COMM_WORLD);
-            MPI_Status status;
-            MPI_Probe(0, PLACEMENT_WORK_RES_TAG, MPI_COMM_WORLD, &status);
-            mpi_trace_print("follower recieve work res \n");
-            MPI_Get_count(&status, MPI_BYTE, &res_size);
-            if (res_size==0) {
-                MPI_Recv(&res_size, res_size, MPI_BYTE, 0, PLACEMENT_WORK_RES_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                if (is_first) {
-                    continue;
-                }
-                fprintf(stderr, "tag: %d, sender:%d, error %d",status.MPI_TAG,status.MPI_SOURCE,status.MPI_ERROR);
-                fprintf(stderr, "Fetcher exit \n");
-                fc.stop();
-                return nullptr;
-            } else {
-                break;
+// Fetch a sample from the leader via MPI
+static Sample_Muts* fetch_sample_from_leader(bool& is_first) {
+    int res_size;
+    while(true) {
+        mpi_trace_print("follower send work req \n");
+        MPI_Send(&res_size, 0, MPI_BYTE, 0, PLACEMENT_WORK_REQ_TAG, MPI_COMM_WORLD);
+        MPI_Status status;
+        MPI_Probe(0, PLACEMENT_WORK_RES_TAG, MPI_COMM_WORLD, &status);
+        mpi_trace_print("follower recieve work res \n");
+        MPI_Get_count(&status, MPI_BYTE, &res_size);
+        if (res_size==0) {
+            MPI_Recv(&res_size, res_size, MPI_BYTE, 0, PLACEMENT_WORK_RES_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            if (is_first) {
+                continue;
             }
-        }
-        is_first=false;
-        auto buffer=new char[res_size];
-        MPI_Recv(buffer, res_size, MPI_BYTE, 0, PLACEMENT_WORK_RES_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        mpi_trace_print("follower recieved work res \n");
-        Mutation_Detailed::sample_to_place parsed;
-        parsed.ParseFromArray(buffer, res_size);
-        auto out=new Sample_Muts;
-        out->sample_idx=parsed.sample_id();
-        load_mutations(parsed.sample_mutation_positions(),parsed.sample_mutation_other_fields(),out->muts);
-        mpi_trace_print( "follower finished parsing \n");
-        delete[] buffer;
-        return out;
-    }
-};
-struct Finder {
-    MAT::Tree& tree;
-    const Traversal_Info &in;
-    const std::vector<MAT::Node *> &dfs_ordered_nodes;
-    bool fix_tree;
-    void operator()(Sample_Muts* to_search)const {
-        std::string buffer;
-        if (fix_tree) {
-            buffer = serialize_move(place_sample_fixed_idx(in, to_search, dfs_ordered_nodes),tree);
+            fprintf(stderr, "tag: %d, sender:%d, error %d",status.MPI_TAG,status.MPI_SOURCE,status.MPI_ERROR);
+            fprintf(stderr, "Fetcher exit \n");
+            return nullptr;
         } else {
-            buffer = serialize_move(find_place(tree, to_search),tree);
+            break;
         }
-        //fprintf(stderr, "follower sent placement \n");
-        MPI_Send(buffer.c_str(), buffer.size(), MPI_BYTE, 0, PROPOSED_PLACE,
-                 MPI_COMM_WORLD);
-        delete to_search;
     }
-};
+    is_first=false;
+    auto buffer=new char[res_size];
+    MPI_Recv(buffer, res_size, MPI_BYTE, 0, PLACEMENT_WORK_RES_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    mpi_trace_print("follower recieved work res \n");
+    Mutation_Detailed::sample_to_place parsed;
+    parsed.ParseFromArray(buffer, res_size);
+    auto out=new Sample_Muts;
+    out->sample_idx=parsed.sample_id();
+    load_mutations(parsed.sample_mutation_positions(),parsed.sample_mutation_other_fields(),out->muts);
+    mpi_trace_print( "follower finished parsing \n");
+    delete[] buffer;
+    return out;
+}
 void follower_place_sample(MAT::Tree &main_tree,int batch_size,bool dry_run) {
     Traversal_Info traversal_info;
     std::vector<MAT::Node *> dfs_ordered_nodes;
@@ -233,13 +209,34 @@ void follower_place_sample(MAT::Tree &main_tree,int batch_size,bool dry_run) {
     bool is_first=true;
     std::thread tree_update_thread(recv_and_place_follower,std::ref(main_tree),std::ref(deleted_nodes),dry_run);
     {
-        tbb::flow::graph g;
-        tbb::flow::input_node<Sample_Muts*> fetcher_node(g, Fetcher{is_first});
-        tbb::flow::function_node<Sample_Muts*> finder_node(g, tbb::flow::unlimited, Finder{main_tree,traversal_info,dfs_ordered_nodes,dry_run});
-        
-        tbb::flow::make_edge(fetcher_node, finder_node);
-        fetcher_node.activate();
-        g.wait_for_all();
+        tf::Executor executor;
+
+        // Finder function based on dry_run mode
+        auto finder_func = [&](Sample_Muts* to_search) {
+            std::string buffer;
+            if (dry_run) {
+                buffer = serialize_move(place_sample_fixed_idx(traversal_info, to_search, dfs_ordered_nodes), main_tree);
+            } else {
+                buffer = serialize_move(find_place(main_tree, to_search), main_tree);
+            }
+            //fprintf(stderr, "follower sent placement \n");
+            MPI_Send(buffer.c_str(), buffer.size(), MPI_BYTE, 0, PROPOSED_PLACE, MPI_COMM_WORLD);
+            delete to_search;
+        };
+
+        // Fetch samples and spawn finder tasks
+        while (true) {
+            Sample_Muts* sample = fetch_sample_from_leader(is_first);
+            if (sample == nullptr) {
+                break; // No more work
+            }
+            // Spawn async task to find placement
+            executor.silent_async([&, sample]() {
+                finder_func(sample);
+            });
+        }
+
+        executor.wait_for_all();
     }
     for (auto node : deleted_nodes) {
         delete node;
