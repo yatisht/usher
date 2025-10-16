@@ -12,7 +12,7 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
     ("input-gtf,g", po::value<std::string>()->default_value(""),
      "Input GTF annotations file (only used with --taxodium)")
     ("input-fasta,f", po::value<std::string>()->default_value(""),
-     "Input FASTA reference file (only used with --taxodium)")
+     "Input FASTA reference file (only used with --taxodium or --reroot)")
     ("samples,s", po::value<std::string>()->default_value(""),
      "Select samples by explicitly naming them. One per line")
     ("metadata,M", po::value<std::string>()->default_value(""),
@@ -92,7 +92,9 @@ po::variables_map parse_extract_command(po::parsed_options parsed) {
     ("minimum-subtrees-size,N", po::value<size_t>()->default_value(0),
      "Use to generate a series of JSON or Newick format files representing subtrees of the indicated size which cover all queried samples. Uses and overrides -j and -t output arguments.")
     ("reroot,y", po::value<std::string>()->default_value(""),
-     "Indicate an internal node ID to reroot the output tree to. Applied before all other manipulation steps.")
+     "Indicate an internal node ID to reroot the output tree to. --input-fasta and --write-reroot-reference should also be provided so that the new root's reference sequence is captured. Applied before all other manipulation steps.")
+    ("write-reroot-reference", po::value<std::string>()->default_value(""),
+     "After rerooting, apply the root node's allele changes to the input reference (provided by --input-fasta) and write the modified reference to the indicated file.")
     ("usher-single-subtree-size,X", po::value<size_t>()->default_value(0),
      "Use to produce an usher-style single sample subtree of the indicated size with all selected samples plus random samples to fill. Produces .nh and .txt files.")
     ("usher-minimum-subtrees-size,x", po::value<size_t>()->default_value(0),
@@ -211,6 +213,7 @@ void extract_main (po::parsed_options parsed) {
     std::string gtf_filename = dir_prefix + vm["input-gtf"].as<std::string>();
     std::string fasta_filename = dir_prefix + vm["input-fasta"].as<std::string>();
     std::string dump_metadata = dir_prefix + vm["dump-metadata"].as<std::string>();
+    std::string reroot_reference_file = dir_prefix + vm["write-reroot-reference"].as<std::string>();
 
 
     std::vector<std::string> additional_meta_fields;
@@ -478,8 +481,24 @@ usher_single_subtree_size == 0 && usher_minimum_subtrees_size == 0) {
     }
     //before performing any other action, reroot the tree if requested.
     if (reroot_node != "") {
-        reroot_tree(&T, reroot_node);
+        if (reroot_reference_file != dir_prefix) {
+            if (fasta_filename == dir_prefix) {
+                fprintf(stderr, "ERROR: --write-reroot-reference requires a FASTA reference file (--input-fasta/-f file.fasta)\n");
+                exit(1);
+            }
+        } else {
+            fprintf(stderr, "WARNING: calling --reroot produces a tree that no longer matches the original reference.  "
+                    "Without --input-fasta and --write-reroot-reference, the new reference is left implicit "
+                    "unless you already have the sequence of node %s.", reroot_node.c_str());
+            reroot_reference_file.clear();
+            fasta_filename.clear();
+        }
+        reroot_tree(&T, reroot_node, fasta_filename, reroot_reference_file);
+    } else if (reroot_reference_file != dir_prefix) {
+        fprintf(stderr, "ERROR: --write-reroot-reference is applicable only if --reroot/-y is given.\n");
+        exit(1);
     }
+
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     //retrive path information for samples, clades, everything before pruning occurs. Behavioral change
     //to get the paths post-pruning, will need to save a new tree .pb and then repeat the extract command on that
