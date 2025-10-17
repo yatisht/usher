@@ -86,7 +86,6 @@ struct Assign_Descendant_Possible_Muts {
                     child_task.execute();
                 });
             }
-
           });
         }
     }
