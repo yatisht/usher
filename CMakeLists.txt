@@ -52,10 +52,12 @@ AUX_SOURCE_DIRECTORY(src/matOptimize/Profitable_Moves_Enumerators New_Profitable
 AUX_SOURCE_DIRECTORY(src/matOptimize/apply_move patch_tree) 
 AUX_SOURCE_DIRECTORY(src/check_samples_place check_samples_place) 
 file(GLOB MATUTIL_SRCS "src/matUtils/*.cpp" "src/matUtils/*.hpp")
+file(GLOB RIPPLES_SERVER_SRCS "src/ripples_server/*.cpp" "src/ripples_server/*.hpp")
 file(GLOB RIPPLES_SRCS "src/ripples/*.cpp" "src/ripples/*.hpp")
 file(GLOB USHER_SAMPLED_SRCS "src/usher-sampled/static_tree_mapper/*" "src/usher-sampled/*.cpp" "src/usher-sampled/*.hpp")
 file(GLOB RIPPLES_FAST_SRCS "src/ripples/ripples_fast/*.cpp" "src/ripples/ripples_fast/*.hpp")
 file(GLOB RIPPLES_UTILS_SRCS "src/ripples/util/*.cpp" "src/ripples/util/*.hpp")
+
 
 set_source_files_properties(src/mutation_annotated_tree.cpp PROPERTIES COMPILE_FLAGS -O3)
 set_source_files_properties(src/usher-sampled/wait_debug.cpp PROPERTIES COMPILE_FLAGS -O0)
@@ -77,6 +79,19 @@ if(DEFINED Protobuf_PATH)
         src/mutation_annotated_tree.cpp
         src/usher_mapper.cpp
         ${MATUTIL_SRCS}
+        )
+    
+    add_executable(ripples_server
+        src/mutation_annotated_tree.cpp
+        src/usher_mapper.cpp
+        src/usher_common.cpp
+        src/ripples/ripples_fast/ripples_runner.cpp
+        src/ripples/ripples_fast/ripples_util.cpp
+        src/ripples/ripples_fast/ripples.cpp
+        src/ripples/ripples_fast/ripple_aux.cpp
+        src/ripples/ripples_fast/ripple_merger.cpp
+        src/ripples/ripples_fast/ripples_mapper.cpp
+        ${RIPPLES_SERVER_SRCS}
         )
 
     add_executable(ripples
@@ -293,6 +308,21 @@ else()
         ${TAXO_HDRS}
         )
 
+    add_executable(ripples_server
+        src/mutation_annotated_tree.cpp
+        src/usher_mapper.cpp
+        src/usher_common.cpp
+        src/ripples/ripples_fast/ripples_runner.cpp
+        src/ripples/ripples_fast/ripples_util.cpp
+        src/ripples/ripples_fast/ripples.cpp
+        src/ripples/ripples_fast/ripple_aux.cpp
+        src/ripples/ripples_fast/ripple_merger.cpp
+        src/ripples/ripples_fast/ripples_mapper.cpp
+        ${RIPPLES_SERVER_SRCS}
+        ${PROTO_SRCS}
+        ${PROTO_HDRS}
+        )
+
     add_executable(ripples
         src/mutation_annotated_tree.cpp
         src/usher_mapper.cpp
@@ -504,6 +534,9 @@ target_include_directories(usher PUBLIC "${PROJECT_BINARY_DIR}")
 
 TARGET_COMPILE_OPTIONS(matUtils PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
 TARGET_LINK_LIBRARIES(matUtils PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
+
+TARGET_COMPILE_OPTIONS(ripples_server PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
+TARGET_LINK_LIBRARIES(ripples_server PRIVATE stdc++ ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
 
 TARGET_LINK_LIBRARIES(ripplesUtils PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)
 TARGET_LINK_LIBRARIES(ripplesInit PRIVATE stdc++  ${Boost_LIBRARIES} ${TBB_IMPORTED_TARGETS} ${Protobuf_LIBRARIES}) # OpenMP::OpenMP_CXX)

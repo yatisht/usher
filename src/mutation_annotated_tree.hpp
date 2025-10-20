@@ -114,11 +114,22 @@ class Tree {
     void remove_node_helper (std::string nid, bool move_level);
     void depth_first_expansion_helper(Node* node, std::vector<Node*>& vec) const;
     std::unordered_map <std::string, Node*> all_nodes;
+    std::vector<Node> nodes_vector;
   public:
     Tree() {
         root = NULL;
         curr_internal_node = 0;
         all_nodes.clear();
+        nodes_vector.clear();
+    }
+
+    ~Tree() {
+        root = NULL;
+        curr_internal_node = 0;
+        all_nodes.clear();
+        nodes_vector.clear();
+        condensed_nodes.clear();
+        condensed_leaves.clear();
     }
 
     std::string new_internal_node_id() {
@@ -157,6 +168,12 @@ class Tree {
     void collapse_tree();
     void rotate_for_display(bool reverse = false);
     void rotate_for_consistency();
+
+    // Copy Tree Fast
+    Tree fast_tree_copy();
+
+    // FIX for updating all_nodes after usher_common
+    void update_all_nodes(const std::vector<Node*>& nodes);
 };
 
 std::string get_newick_string(const Tree& T, bool b1, bool b2, bool b3=false, bool b4=false);

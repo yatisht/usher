@@ -1489,6 +1489,149 @@ void Mutation_Annotated_Tree::Tree::rotate_for_consistency() {
     }
 }
 
+Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::Tree::fast_tree_copy() {
+    MAT::Tree T_new;
+    T_new.curr_internal_node = curr_internal_node;
+    std::queue<std::pair<MAT::Node*, int>> remaining_nodes;
+    std::vector<std::pair<MAT::Node*, int>> dfs_curr;
+    std::vector<int> child_indices;
+    child_indices.reserve(all_nodes.size());
+
+    //Doing BFS traversal of current tree
+    int idx = 0;
+    dfs_curr.emplace_back(std::make_pair(root, -1));
+    remaining_nodes.push(std::make_pair(root, idx));
+
+    while (remaining_nodes.size())
+    {
+        auto curr_obj = remaining_nodes.front();
+        remaining_nodes.pop();
+        auto curr_node = curr_obj.first;
+        int curr_idx = curr_obj.second;
+
+        // Update dfs_curr vector and child_indices
+        if (curr_node->children.empty())
+        {
+            child_indices.emplace_back(-1);
+        }
+        else
+        {
+            child_indices.emplace_back(idx + 1);
+            for (const auto& c: curr_node->children)
+            {
+                dfs_curr.emplace_back(std::make_pair(c, curr_idx));
+                remaining_nodes.push(std::make_pair(c, ++idx));
+            }
+        }
+    }
+    
+    // Reserve space for new tree with nodes_vector and all_nodes by initializing with original tree
+    T_new.nodes_vector.resize(dfs_curr.size());
+    T_new.all_nodes.reserve(dfs_curr.size());
+    T_new.all_nodes = all_nodes;
+
+    static tbb::affinity_partitioner ap;
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, dfs_curr.size()),
+    [&](tbb::blocked_range<size_t> r) {
+        for (size_t k=r.begin(); k<r.end(); ++k) {
+            auto curr_obj = dfs_curr[k];
+            auto curr_node = std::get<0>(curr_obj);
+            int par_idx = std::get<1>(curr_obj);
+            auto c_idx_start = child_indices[k];
+
+            MAT::Node* new_node;
+            new_node = &T_new.nodes_vector[k];
+
+            new_node->identifier = curr_node->identifier;
+            new_node->level = curr_node->level;
+            new_node->branch_length = curr_node->branch_length;
+            
+            // Update all_nodes
+            T_new.all_nodes[curr_node->identifier] = new_node;
+            
+            // Update children
+            if (c_idx_start > 0)
+            {
+                for (int i = 0; i < (int)curr_node->children.size(); i++)
+                    new_node->children.emplace_back(&T_new.nodes_vector[c_idx_start + i]);
+            }
+            
+            // Create root node
+            if (par_idx == -1)
+            {
+                new_node->parent = NULL;
+                T_new.root = new_node;
+            }
+            // Update parent
+            else
+            {
+                new_node->parent = &T_new.nodes_vector[par_idx];
+            }
+
+            // Add clade annotations
+            new_node->clade_annotations.clear();
+            new_node->clade_annotations.resize(curr_node->clade_annotations.size()); 
+            for (size_t i=0; i < curr_node->clade_annotations.size(); i++) {
+                new_node->clade_annotations[i] = curr_node->clade_annotations[i];
+            }
+            // Add mutations
+            new_node->mutations.clear();
+            new_node->mutations.resize(curr_node->mutations.size());
+            for (size_t i=0; i < curr_node->mutations.size(); i++) {
+                new_node->mutations[i] = curr_node->mutations[i].copy();
+            }
+        }
+    }, ap);
+
+    // Copy condensed nodes and leaves
+    tbb::parallel_for( tbb::blocked_range<size_t>(0, condensed_nodes.size()),
+    [&](tbb::blocked_range<size_t> r) {
+        for (size_t idx = r.begin(); idx < r.end(); idx++) {
+            auto cn = condensed_nodes.begin();
+            std::advance(cn, idx);
+            T_new.condensed_nodes.insert(std::pair<std::string, std::vector<std::string>>(cn->first, std::vector<std::string>(cn->second.size())));
+            for (size_t k = 0; k < cn->second.size(); k++) {
+                T_new.condensed_nodes[cn->first][k] = cn->second[k];
+                T_new.condensed_leaves.insert(cn->second[k]);
+            }
+        }
+    }, ap);
+
+    
+    ////CHECK
+    //for (int i = 0; i < dfs_curr.size(); i++)
+    //{
+    //    auto curr_node = std::get<0>(dfs_curr[i]);
+    //    auto new_node = &T_new.nodes_vector[i];
+
+    //    if ((curr_node->level == new_node->level) && (curr_node->branch_length == new_node->branch_length) && (curr_node->identifier == new_node->identifier) && (curr_node->clade_annotations[0] == new_node->clade_annotations[0]) && (curr_node->clade_annotations[1] == new_node->clade_annotations[1]) && ((curr_node->parent == NULL) || ((curr_node->parent != NULL) && (curr_node->parent->identifier == new_node->parent->identifier))))
+    //    {
+    //        for (int i = 0; i < curr_node->children.size(); i++)
+    //        {
+    //            if (curr_node->children[i]->identifier != new_node->children[i]->identifier)
+    //                fprintf(stderr, "%s children are not equal\n", curr_node->identifier.c_str());
+    //        }
+    //        for (int i = 0; i < curr_node->mutations.size(); i++)
+    //        {
+    //            if (curr_node->mutations[i].mut_nuc != new_node->mutations[i].mut_nuc)
+    //                fprintf(stderr, "%s mutations are not equal\n", curr_node->identifier.c_str());
+    //        }
+    //    }
+    //    else 
+    //    {
+    //        fprintf(stderr, "%s is not equal\n", curr_node->identifier.c_str());
+    //    }
+    //}
+
+    return T_new;
+}
+
+void Mutation_Annotated_Tree::Tree::update_all_nodes(const std::vector<Node*>& nodes) {
+    for (auto n: nodes)
+    {
+        all_nodes[n->identifier] = n;
+    }
+}
 
 Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::get_tree_copy(const Mutation_Annotated_Tree::Tree& tree, const std::string& identifier) {
     TIMEIT();
