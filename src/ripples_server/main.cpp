@@ -222,17 +222,9 @@ int main(int argc, char** argv) {
         }
         
         // FIX for new nodes NOT present in all_nodes
-				/*
-        std::vector<MAT::Node*> new_nodes;
-        for (auto node: T_new.depth_first_expansion()) {
-            if (std::find(sample_names.begin(), sample_names.end(), node->identifier) != sample_names.end()) {
-                new_nodes.push_back(node);
-            }
-        }
-				*/
         T_new.update_all_nodes(T_new.depth_first_expansion());
 
-				// Set ripples-fast parameters TODO: Can be set from cli options with defaults
+				// Set ripples-fast parameters
 				uint32_t branch_len = 3;
         std::string outdir = ".";
         uint32_t num_desc = 10;

@@ -12,8 +12,6 @@
 #include <time.h>
 #include <vector>
 
-//#include <iostream>
-
 struct ripples_runner {
     ripples_runner(MAT::Tree &tree, const std::vector<Missing_Sample> &samples,
                    uint32_t num_threads, uint32_t branch_len, uint32_t num_desc,
@@ -22,7 +20,7 @@ struct ripples_runner {
           branch_len_(branch_len), num_desc_(num_desc), outdir_(outdir) {}
 
     void operator()() {
-        // TODO: Unused constant parameters, could move to cli as defaults
+        // TODO: Unused constant parameters
         int start_idx = -1;
         int end_idx = -1;
         int max_range = 1e7;
@@ -42,7 +40,6 @@ struct ripples_runner {
             nodes_to_consider;
         auto dfs = T.depth_first_expansion();
 
-        // TODO: Parallelize loop
         for (const auto &sample : samples_) {
             for (auto anc : T.rsearch(sample.name, true)) {
                 if (anc->is_root()) {
@@ -51,8 +48,6 @@ struct ripples_runner {
                 nodes_to_consider.insert(anc);
             }
         }
-        //std::cout << "Nodes to consider size: " << nodes_to_consider.size()
-                  //<< '\n';
 
         std::vector<MAT::Node *> nodes_to_consider_vec;
         for (auto elem : nodes_to_consider) {
@@ -140,7 +135,6 @@ struct ripples_runner {
                 e - s);
 
         size_t num_done = 0;
-        // FILE* before_joining_fh=fopen("before_join_test","w");
         std::vector<MAT::Node *>::const_iterator cur_iter =
             nodes_to_consider_vec.begin() + s;
         std::vector<MAT::Node *>::const_iterator end =
