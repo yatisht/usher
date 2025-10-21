@@ -12,13 +12,17 @@
 #include <string>
 #include <sys/wait.h>
 #include <tbb/blocked_range.h>
+#include <tbb/concurrent_hash_map.h>
+#include <tbb/concurrent_unordered_map.h>
+#include <tbb/concurrent_unordered_set.h>
+#include <tbb/enumerable_thread_specific.h>
+#include <tbb/flow_graph.h>
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_pipeline.h>
 #include <thread>
 #include <unistd.h>
 #include <unordered_set>
 #include "tbb/parallel_for_each.h"
-#include <taskflow/taskflow.hpp>
 #include <utility>
 #include <vector>
 #include "src/matOptimize/check_samples.hpp"
@@ -26,8 +30,6 @@
 #include "mutation_detailed.pb.h"
 #include <fstream>
 #include <sstream>
-#include <boost/unordered/concurrent_flat_map.hpp>
-
 void Min_Back_Fitch_Sankoff(MAT::Node* root_node,const MAT::Mutation& mut_template,
                             std::vector<std::vector<MAT::Mutation>>& mutation_output,mutated_t& positions,size_t dfs_size);
 int set_descendant_count(MAT::Node* root) {
@@ -70,18 +72,14 @@ void assign_levels(MAT::Node* root) {
         assign_levels(child);
     }
 }
-static void add_neighbor(MAT::Node* center,MAT::Node* exclude, int radius_left, boost::unordered::concurrent_flat_map<size_t,int>& to_search_node_idx) {
-    bool ret = false;
-    to_search_node_idx.emplace_or_visit(center->dfs_index, radius_left,
-        [radius_left, &ret](auto& x) {
-            if (x.second >= radius_left) {
-                ret = true;
-            } else {
-                x.second = radius_left;
-            }
-        });
-    if (ret) {
-      return;
+static void add_neighbor(MAT::Node* center,MAT::Node* exclude, int radius_left, tbb::concurrent_unordered_map<size_t,int>& to_search_node_idx) {
+    auto res=to_search_node_idx.emplace(center->dfs_index,radius_left);
+    if (!res.second) {
+        if (res.first->second>=radius_left) {
+            return;
+        } else {
+            res.first->second=radius_left;
+        }
     }
     if (radius_left<0) {
         return;
@@ -95,7 +93,7 @@ static void add_neighbor(MAT::Node* center,MAT::Node* exclude, int radius_left, 
 }
 void find_moved_node_neighbors(int radius,size_t start_idx, MAT::Tree& tree, size_t cur_idx,std::vector<size_t>& node_to_search_idx) {
     tree.depth_first_expansion();
-    boost::unordered::concurrent_flat_map<size_t,int> to_search_node_idx_dict;
+    tbb::concurrent_unordered_map<size_t,int> to_search_node_idx_dict;
     to_search_node_idx_dict.rehash(tree.get_size_upper());
     tbb::parallel_for(tbb::blocked_range<size_t>(0,cur_idx),[&](tbb::blocked_range<size_t> r) {
         for (size_t idx=r.begin(); idx<r.end(); idx++) {
@@ -107,9 +105,9 @@ void find_moved_node_neighbors(int radius,size_t start_idx, MAT::Tree& tree, siz
         }
     });
     node_to_search_idx.reserve(to_search_node_idx_dict.size());
-    to_search_node_idx_dict.cvisit_all([&node_to_search_idx](auto& x) {
-        node_to_search_idx.push_back(x.first);
-    });
+    for(const auto& target:to_search_node_idx_dict) {
+        node_to_search_idx.push_back(target.first);
+    }
     fprintf(stderr, "%zu nodes to search \n",node_to_search_idx.size());
 }
 static void send_positions(const std::vector<mutated_t>& to_send,int start_position,int end_position, int target_rank) {
@@ -357,11 +355,11 @@ void FS_gather_mut(MAT::Tree &tree,
                    std::vector<Mutation_Annotated_Tree::Node *> &bfs_ordered_nodes,
                    result_t &FS_result) {
     if (this_rank == 0) {
-        tf::Executor executor;
-        tf::Taskflow taskflow;
+        tbb::flow::graph g;
         int processes_left = process_count - 1;
-        Parse_result<result_t> parser{FS_result, bfs_ordered_nodes.size()};
-        std::vector<std::pair<char *, size_t>> buffers_to_process;
+        tbb::flow::function_node<std::pair<char *, size_t>> proc(
+                    g, tbb::flow::unlimited,
+                    Parse_result<result_t> {FS_result, bfs_ordered_nodes.size()});
         bool is_first = true;
         char ignore;
         fprintf(stderr, "Start recieving assignment message\n");
@@ -392,15 +390,10 @@ void FS_gather_mut(MAT::Tree &tree,
             auto buffer = new char[count];
             MPI_Recv(buffer, count, MPI_BYTE, status.MPI_SOURCE, FS_RESULT_TAG,
                      MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            buffers_to_process.emplace_back(buffer, count);
+            proc.try_put(std::make_pair(buffer, count));
         }
         fprintf(stderr, "Recieved last assignment message\n");
-        for (auto& buffer_pair : buffers_to_process) {
-            taskflow.emplace([parser, buffer_pair]() mutable {
-                parser(buffer_pair);
-            });
-        }
-        executor.run(taskflow).wait();
+        g.wait_for_all();
         fprintf(stderr, "Finished parsing assignment messages\n");
         size_t after_recieving_count = 0;
         for (const auto &res : FS_result) {
