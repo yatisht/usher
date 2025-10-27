@@ -684,7 +684,7 @@ void renameSamples (std::string rename_filename, MAT::Tree& T) {
     std::string line;
     while (std::getline(infile, line)) {
         std::vector<std::string> words;
-        MAT::string_split(line, words);
+        MAT::string_split(line, '\t', words);
         if (words.size() != 2) {
             fprintf(stderr, "ERROR: Incorrect format for the renaming file: %s!\n", rename_filename.c_str());
             exit(1);
