@@ -3,16 +3,11 @@ brew install cmake coreutils boost protobuf wget rsync openmpi libtool automake 
 # create build directory
 startDir=$pwd
 cd $(dirname "$0")
+mkdir -p ../build
 cd ..
 
-# TBB
-#wget https://github.com/oneapi-src/oneTBB/releases/download/2019_U9/tbb2019_20191006oss_mac.tgz
-#tar -xvzf tbb2019_20191006oss_mac.tgz
-
-# Build UShER
-#cmake -DTBB_DIR=${PWD}/tbb2019_20191006oss -DCMAKE_PREFIX_PATH=${PWD}/tbb2019_20191006oss/cmake ..
-#make -j2 VERBOSE=1
-cmake -S . -B build -D CMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=17
+# build usher
+cmake -S . -B build 
 cmake --build build --parallel 4
 
 # install faToVcf

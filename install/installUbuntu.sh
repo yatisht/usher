@@ -10,6 +10,8 @@ startDir=$pwd
 cd $(dirname "$0")
 mkdir -p ../build
 cd ../build
+
+# download and build isa-l
 wget https://github.com/intel/isa-l/archive/refs/tags/v2.30.0.tar.gz
 tar -xvf v2.30.0.tar.gz
 cd isa-l-2.30.0
@@ -20,15 +22,10 @@ sudo -E make install
 cd ../..
 echo ${pwd}
 
-cmake -S . -B build -DCMAKE_CXX_STANDARD=17
+# build usher
+cmake -S . -B build 
 cmake --build build --parallel $(nproc)
 
-#download and install TBB
-#wget https://github.com/oneapi-src/oneTBB/archive/2019_U9.tar.gz 
-#tar -xvzf 2019_U9.tar.gz
-#cmake  -DTBB_DIR=${PWD}/oneTBB-2019_U9  -DCMAKE_PREFIX_PATH=${PWD}/oneTBB-2019_U9/cmake ..
-#make -j$(nproc) VERBOSE=1
- 
 # install faToVcf
 rsync -aP rsync://hgdownload.soe.ucsc.edu/genome/admin/exe/linux.x86_64/faToVcf .
 chmod +x faToVcf
