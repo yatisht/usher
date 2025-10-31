@@ -13,7 +13,7 @@ startDir=$pwd
 cd $(dirname "$0")
 cd ..
 mkdir -p ../build
-cd ../build
+cd ..
 
 # TBB
 #wget https://github.com/oneapi-src/oneTBB/releases/download/2019_U9/tbb2019_20191006oss_mac.tgz
@@ -39,4 +39,4 @@ cd ..
 rm -rf mafft-mac
 fi
 
-cd $startDir
+# $startDir
