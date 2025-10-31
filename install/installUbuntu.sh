@@ -9,21 +9,24 @@ sudo -E apt-get install -yq --no-install-recommends build-essential \
 startDir=$pwd
 cd $(dirname "$0")
 mkdir -p ../build
-cd ../build
-wget https://github.com/intel/isa-l/archive/refs/tags/v2.30.0.tar.gz
-tar -xvf v2.30.0.tar.gz
-cd isa-l-2.30.0
-./autogen.sh
-./configure
-make -j$(nproc)
-sudo -E make install
+#cd ../build
+#wget https://github.com/intel/isa-l/archive/refs/tags/v2.30.0.tar.gz
+#tar -xvf v2.30.0.tar.gz
+#cd isa-l-2.30.0
+#./autogen.sh
+#./configure
+#make -j$(nproc)
+#sudo -E make install
 cd ..
 
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_BUILD_BENCHMARKS=ON -DCMAKE_BUILD_PROFILER=ON -DCMAKE_CXX_STANDARD=17
+cmake --build build --parallel $(nproc)
+
 #download and install TBB
-wget https://github.com/oneapi-src/oneTBB/archive/2019_U9.tar.gz 
-tar -xvzf 2019_U9.tar.gz
-cmake  -DTBB_DIR=${PWD}/oneTBB-2019_U9  -DCMAKE_PREFIX_PATH=${PWD}/oneTBB-2019_U9/cmake ..
-make -j$(nproc) VERBOSE=1
+#wget https://github.com/oneapi-src/oneTBB/archive/2019_U9.tar.gz 
+#tar -xvzf 2019_U9.tar.gz
+#cmake  -DTBB_DIR=${PWD}/oneTBB-2019_U9  -DCMAKE_PREFIX_PATH=${PWD}/oneTBB-2019_U9/cmake ..
+#make -j$(nproc) VERBOSE=1
  
 # install faToVcf
 rsync -aP rsync://hgdownload.soe.ucsc.edu/genome/admin/exe/linux.x86_64/faToVcf .

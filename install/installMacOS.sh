@@ -1,26 +1,29 @@
 brew install cmake boost protobuf wget rsync openmpi libtool automake autoconf nasm
-wget https://github.com/intel/isa-l/archive/refs/tags/v2.30.0.tar.gz
-tar -xvf v2.30.0.tar.gz
-pushd isa-l-2.30.0
-./autogen.sh
-./configure --prefix=$(brew --prefix) --libdir=$(brew --prefix)/lib
-make -j2
-make install
-popd
+#wget https://github.com/intel/isa-l/archive/refs/tags/v2.30.0.tar.gz
+#tar -xvf v2.30.0.tar.gz
+#pushd isa-l-2.30.0
+#./autogen.sh
+#./configure --prefix=$(brew --prefix) --libdir=$(brew --prefix)/lib
+#make -j2
+#make install
+#popd
 
 # create build directory
 startDir=$pwd
 cd $(dirname "$0")
-mkdir -p ../build
-cd ../build
+cd ..
+#mkdir -p ../build
+#cd ../build
 
 # TBB
-wget https://github.com/oneapi-src/oneTBB/releases/download/2019_U9/tbb2019_20191006oss_mac.tgz
-tar -xvzf tbb2019_20191006oss_mac.tgz
+#wget https://github.com/oneapi-src/oneTBB/releases/download/2019_U9/tbb2019_20191006oss_mac.tgz
+#tar -xvzf tbb2019_20191006oss_mac.tgz
 
 # Build UShER
-cmake -DTBB_DIR=${PWD}/tbb2019_20191006oss -DCMAKE_PREFIX_PATH=${PWD}/tbb2019_20191006oss/cmake ..
-make -j2 VERBOSE=1
+#cmake -DTBB_DIR=${PWD}/tbb2019_20191006oss -DCMAKE_PREFIX_PATH=${PWD}/tbb2019_20191006oss/cmake ..
+#make -j2 VERBOSE=1
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_BUILD_BENCHMARKS=ON -DCMAKE_BUILD_PROFILER=ON -DCMAKE_CXX_STANDARD=17
+cmake --build build --parallel $(nproc)
 
 # install faToVcf
 rsync -aP rsync://hgdownload.soe.ucsc.edu/genome/admin/exe/macOSX.x86_64/faToVcf .
