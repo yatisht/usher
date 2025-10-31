@@ -20,7 +20,7 @@ sudo -E make install
 cd ../..
 echo ${pwd}
 
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_BUILD_BENCHMARKS=ON -DCMAKE_BUILD_PROFILER=ON -DCMAKE_CXX_STANDARD=17
+cmake -S . -B build -DCMAKE_CXX_STANDARD=17
 cmake --build build --parallel $(nproc)
 
 #download and install TBB
