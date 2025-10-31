@@ -8,7 +8,7 @@ cd ..
 
 # build usher
 cmake -S . -B build 
-cmake --build build --parallel 4
+cmake --build build
 
 # install faToVcf
 rsync -aP rsync://hgdownload.soe.ucsc.edu/genome/admin/exe/macOSX.x86_64/faToVcf .
