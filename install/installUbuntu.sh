@@ -17,7 +17,8 @@ cd isa-l-2.30.0
 ./configure
 make -j$(nproc)
 sudo -E make install
-cd ..
+cd ../..
+echo ${pwd}
 
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_BUILD_BENCHMARKS=ON -DCMAKE_BUILD_PROFILER=ON -DCMAKE_CXX_STANDARD=17
 cmake --build build --parallel $(nproc)
