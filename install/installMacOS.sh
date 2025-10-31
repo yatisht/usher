@@ -1,4 +1,5 @@
-brew install cmake coreutils boost protobuf@29 wget rsync openmpi libtool automake autoconf nasm isa-l
+brew install cmake coreutils boost protobuf wget rsync openmpi libtool automake autoconf nasm isa-l
+brew upgrade protobuf
 
 # create build directory
 startDir=$pwd
