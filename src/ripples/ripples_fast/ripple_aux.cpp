@@ -65,7 +65,7 @@ combine_intervals(std::vector<Recomb_Interval> pair_list) {
     return pairs;
 }
 po::variables_map check_options(int argc, char **argv) {
-    uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
+    uint32_t num_cores = tbb::this_task_arena::max_concurrency();
     std::string num_threads_message = "Number of threads to use when possible "
                                       "[DEFAULT uses all available cores, " +
                                       std::to_string(num_cores) +

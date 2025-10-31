@@ -73,11 +73,12 @@ struct output_t {
     std::vector<Profitable_Moves_ptr_t>* moves;
     output_t():score_change(-1),radius_left(-1) {}
 };
+struct Move_Found_Callback;
 int individual_move(Mutation_Annotated_Tree::Node* src,Mutation_Annotated_Tree::Node* dst,Mutation_Annotated_Tree::Node* LCA,output_t& out,bool do_drift
 #ifdef DEBUG_PARSIMONY_SCORE_CHANGE_CORRECT
                     ,MAT::Tree* tree
 #endif
-                   );
+                    , Move_Found_Callback& callback);
 Mutation_Annotated_Tree::Tree load_tree(const std::string& path,Original_State_t& origin_states);
 void load_vcf_nh_directly( MAT::Tree& t,const std::string& vcf_path,Original_State_t& origin_states);
 void apply_moves(std::vector<Profitable_Moves_ptr_t> &all_moves, MAT::Tree &t
@@ -92,15 +93,17 @@ void find_nodes_to_move(const std::vector<MAT::Node *> &bfs_ordered_nodes,
 void add_root(MAT::Tree *tree) ;
 void VCF_input(const char * name,MAT::Tree& tree);
 
+struct Move_Found_Callback;
+
 void optimize_tree_main_thread(std::vector<size_t> &nodes_to_search,
                                MAT::Tree &t,int radius,FILE* log,bool allow_drift,int iteration,
                                std::vector<size_t>& deferred_nodes_out,bool MPI_involved,std::chrono::steady_clock::time_point end_time,bool do_continue,bool search_all_dir,bool isfirst_this_iter
 #ifdef CHECK_STATE_REASSIGN
                                , Original_State_t& origin_states
 #endif
-                              );
+                               , Move_Found_Callback& callback);
 
-void optimize_tree_worker_thread(MAT::Tree &t,int radius,bool do_drift,bool search_all_dir);
+void optimize_tree_worker_thread(MAT::Tree &t,int radius,bool do_drift,bool search_all_dir, Move_Found_Callback& callback);
 void save_final_tree(MAT::Tree &t,const std::string &output_path);
 //For removing nodes with no valid mutations between rounds
 void clean_tree(MAT::Tree& t);
@@ -126,6 +129,22 @@ size_t optimize_inner_loop(std::vector<MAT::Node*>& nodes_to_search,MAT::Tree& t
 #ifdef CHECK_STATE_REASSIGN
     Original_State_t& origin_states,
 #endif
+    bool allow_drift,
+    bool search_all_dir,
+    int minutes_between_save,
+    bool no_write_intermediate,
+    std::chrono::steady_clock::time_point search_end_time,
+    std::chrono::steady_clock::time_point start_time,
+    bool log_moves,
+    int iteration,
+    std::string intermediate_template,
+    std::string intermediate_pb_base_name,
+    std::string intermediate_nwk_out,
+    Move_Found_Callback& callback
+    );
+
+// Overload with default callback
+size_t optimize_inner_loop(std::vector<MAT::Node*>& nodes_to_search,MAT::Tree& t,int radius,
     bool allow_drift=false,
     bool search_all_dir=true,
     int minutes_between_save=0,

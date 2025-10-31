@@ -1,0 +1,68 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.9.1" xml:lang="en-US">
+  <compounddef id="structtf_1_1CachelineAligned" kind="struct" language="C++" prot="public">
+    <compoundname>tf::CachelineAligned</compoundname>
+    <includes refid="os_8hpp" local="no">taskflow/utility/os.hpp</includes>
+    <templateparamlist>
+      <param>
+        <type>typename T</type>
+      </param>
+    </templateparamlist>
+      <sectiondef kind="public-attrib">
+      <memberdef kind="variable" id="structtf_1_1CachelineAligned_1a6357bbb8e1565d9662f71d77d54000a9" prot="public" static="no" mutable="no">
+        <type>T</type>
+        <definition>T tf::CachelineAligned&lt; T &gt;::data</definition>
+        <argsstring></argsstring>
+        <name>data</name>
+        <briefdescription>
+<para>The stored object, aligned to twice the cacheline size. </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="taskflow/utility/os.hpp" line="138" column="13" bodyfile="taskflow/utility/os.hpp" bodystart="138" bodyend="-1"/>
+      </memberdef>
+      </sectiondef>
+      <sectiondef kind="public-func">
+      <memberdef kind="function" id="structtf_1_1CachelineAligned_1ad2f508430c40995eb7f18e27a138a12d" prot="public" static="no" const="no" explicit="no" inline="yes" virt="non-virtual">
+        <type>T &amp;</type>
+        <definition>T&amp; tf::CachelineAligned&lt; T &gt;::get</definition>
+        <argsstring>()</argsstring>
+        <name>get</name>
+        <briefdescription>
+<para>Provides access to the stored object. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><simplesect kind="return"><para>A reference to the stored object. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="taskflow/utility/os.hpp" line="145" column="5" bodyfile="taskflow/utility/os.hpp" bodystart="145" bodyend="145"/>
+      </memberdef>
+      </sectiondef>
+    <briefdescription>
+<para>struct to ensure cacheline-aligned storage for an object. </para>
+    </briefdescription>
+    <detaileddescription>
+<para>This utility struct aligns the stored object <computeroutput>data</computeroutput> to twice the size of a cacheline. The alignment improves performance by optimizing data access in cache-sensitive scenarios.</para>
+<para><parameterlist kind="templateparam"><parameteritem>
+<parameternamelist>
+<parametername>T</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>The type of the stored object. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+    </detaileddescription>
+    <location file="taskflow/utility/os.hpp" line="134" column="1" bodyfile="taskflow/utility/os.hpp" bodystart="134" bodyend="146"/>
+    <listofallmembers>
+      <member refid="structtf_1_1CachelineAligned_1a6357bbb8e1565d9662f71d77d54000a9" prot="public" virt="non-virtual"><scope>tf::CachelineAligned</scope><name>data</name></member>
+      <member refid="structtf_1_1CachelineAligned_1ad2f508430c40995eb7f18e27a138a12d" prot="public" virt="non-virtual"><scope>tf::CachelineAligned</scope><name>get</name></member>
+    </listofallmembers>
+  </compounddef>
+</doxygen>

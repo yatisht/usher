@@ -1,0 +1,43 @@
+namespace tf {
+
+/** @page team Team
+
+%Taskflow consists of a multidisciplinary team with different areas of expertise.
+We adhere to our @ref codeofconduct.
+
+@tableofcontents
+
+@section CoreMembers Core Members
+
+Core members provide the essential development, maintenance, and support of %Taskflow in all aspects.
+
+@li <b>Principal Investigator</b>: @twhuang
+@li <b>Software Developers</b>: Tsung-Wei Huang, Cheng-Hsiang Chiu, Boyang Zhang, Chih-Chun Chang
+@li <b>Financial Manager</b>:  [Jessica Murnane](https://www.linkedin.com/in/jessica-murnane-95565b2/)
+@li <b>Ombudsperson</b>: [Jessica Murane](https://www.linkedin.com/in/jessica-murnane-95565b2/)
+@li <b>Diversity, Equity, and Inclusion</b>: Tsung-Wei Huang
+@li <b>Outreach and Education</b>: Tsung-Wei Huang
+
+@section Alumni Alumni
+
+%Taskflow would not have reached this far without the work of these individuals who ever participated in its development.
+
+@li Dian-Lun Lin
+@li Guannan Guo
+@li Martin Wong
+@li Chun-Xun Lin
+@li Yasin Zamani
+
+@section FreelanceDevelopers Freelance Developers
+
+%Taskflow is contributed by a distributed set of @ref contributors all around the world.
+
+*/
+
+}
+
+
+
+
+
+

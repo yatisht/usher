@@ -1,0 +1,121 @@
+namespace tf {
+
+/** @page release-3-7-0 Release 3.7.0 (2024/05/07)
+
+%Taskflow 3.7.0 is the 8th release in the 3.x line! 
+This release includes several new changes, such as exception support, improved scheduling algorithms,
+documentation, examples, and unit tests. 
+
+@tableofcontents
+
+@section release-3-7-0_download Download
+
+%Taskflow 3.7.0 can be downloaded from <a href="https://github.com/taskflow/taskflow/releases/tag/v3.7.0">here</a>.
+
+@section release-3-7-0_system_requirements System Requirements
+
+To use %Taskflow v3.7.0, you need a compiler that supports C++17:
+
+@li GNU C++ Compiler at least v8.4 with -std=c++17
+@li Clang C++ Compiler at least v6.0 with -std=c++17
+@li Microsoft Visual Studio at least v19.27 with /std:c++17
+@li AppleClang Xcode Version at least v12.0 with -std=c++17
+@li Nvidia CUDA Toolkit and Compiler (nvcc) at least v11.1 with -std=c++17
+@li Intel C++ Compiler at least v19.0.1 with -std=c++17
+@li Intel DPC++ Clang Compiler at least v13.0.0 with -std=c++17
+
+%Taskflow works on Linux, Windows, and Mac OS X.
+
+@section release-3-7-0_summary Release Summary
+
+This release introduces a new exception interface to help identify C++ errors 
+in taskflow programs.
+
+@section release-3-7-0_new_features New Features
+
+@subsection release-3-7-0_taskflow_core Taskflow Core
+
++ Improved scheduling performance of dependent asynchronous tasks
++ Improved scheduling performance of module task by removing busy looping
++ Improved tf::Executor::wait_for_all using C++20 atomic wait
++ Improved tf::Notifier using C++20 atomic wait 
++ Improved worker-thread ID mapping performance using C++20 atomic wait
++ Added `-Wshadow` to the compilation check
++ Added tf::AsyncTask::is_done to query the completion status of an async task
++ Added tf::Taskflow::remove_dependency to remove dependencies from the graph
++ Added support for exception in tf::Taskflow and tf::Executor
+
+@code{.cpp}
+tf::Executor executor;
+tf::Taskflow taskflow;
+taskflow.emplace([](){ throw std::runtime_error("exception"); });
+try {
+  executor.run(taskflow).get();
+}
+catch(const std::runtime_error& e) {
+  std::cerr << e.what() << std::endl;
+}
+@endcode
+
++ Modified the CI to exclude exception test under sanitizers 
++ Modified the tf::PartitionerBase to allow defining custom closure wrappers 
+
+@code{.cpp}
+std::atomic<int> count = 0;
+tf::Taskflow taskflow;
+taskflow.for_each_index(0, 100, 1, 
+  [](){                 
+    printf("%d\n", i); 
+  },
+  tf::StaticPartitioner(0, [](auto&& closure){
+    // do something before invoking the partitioned task
+    // ...
+    
+    // invoke the partitioned task
+    closure();
+
+    // do something else after invoking the partitioned task
+    // ...
+  }
+);
+executor.run(taskflow).wait();
+@endcode
+
+
+@subsection release-3-7-0_utilities Utilities
+
+@section release-3-7-0_bug_fixes Bug Fixes 
+
++ Fixed compilation error of CUDA examples caused by not including `for_each.hpp`
++ Fixed the runtime error of tf::Taskflow::for_each_index when the range invalid 
+
+@section release-3-7-0_breaking_changes Breaking Changes
+
++ Renamed tf::Runtime::join to tf::Runtime::corun_all
++ Removed tf::WorkerInterface due to the support of exception 
+
+@section release-3-7-0_documentation Documentation
+
++ Revised @ref DependentAsyncTasking
+  + Added @ref QueryTheComppletionStatusOfDependentAsyncTasks
++ Revised @ref ExceptionHandling 
++ Revised @ref ExecuteTaskflow
+  + Removed the section of tf::WorkerInterface
++ Revised @ref PartitioningAlgorithm
+
+@section release-3-7-0_miscellaneous_items Miscellaneous Items
+
+We have published %Taskflow in the following venues:
+
++ Cheng-Hsiang Chiu, Zhicheng Xiong, Zizheng Guo, Tsung-Wei Huang, and Yibo Lin, &quot;[An Efficient Task-parallel Pipeline Programming Framework](https://tsung-wei-huang.github.io/papers/hpcasia-24.pdf),&quot; <em>ACM International Conference on High-performance Computing in Asia-Pacific Region (HPC Asia)</em>, Nagoya, Japan, 2024
++ Cheng-Hsiang Chiu, Dian-Lun Lin, and Tsung-Wei Huang,, &quot;[Programming Dynamic Task Parallelism for Heterogeneous EDA Algorithms](https://tsung-wei-huang.github.io/papers/iccad23-asynctask.pdf),&quot; <em>IEEE/ACM International Conference on Computer-aided Design (ICCAD)</em>, San Francisco, CA, 2023
+
+
+Please do not hesitate to contact @twhuang if you intend to collaborate with us 
+on using %Taskflow in your scientific computing projects.
+
+*/
+
+}
+
+

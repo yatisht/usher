@@ -1,0 +1,98 @@
+namespace tf {
+
+/** @page release-3-5-0 Release 3.5.0 (2023/01/05)
+
+%Taskflow 3.5.0 is the 6th release in the 3.x line! 
+This release includes several new changes, such as pipeline parallelism,
+improved work-stealing performance, profiling, documentation, examples, and unit tests.
+
+@tableofcontents
+
+@section release-3-5-0_download Download
+
+%Taskflow 3.5.0 can be downloaded from <a href="https://github.com/taskflow/taskflow/releases/tag/v3.5.0">here</a>.
+
+@section release-3-5-0_system_requirements System Requirements
+
+To use %Taskflow v3.5.0, you need a compiler that supports C++17:
+
+@li GNU C++ Compiler at least v8.4 with -std=c++17
+@li Clang C++ Compiler at least v6.0 with -std=c++17
+@li Microsoft Visual Studio at least v19.27 with /std:c++17
+@li AppleClang Xcode Version at least v12.0 with -std=c++17
+@li Nvidia CUDA Toolkit and Compiler (nvcc) at least v11.1 with -std=c++17
+@li Intel C++ Compiler at least v19.0.1 with -std=c++17
+@li Intel DPC++ Clang Compiler at least v13.0.0 with -std=c++17 and SYCL20
+
+%Taskflow works on Linux, Windows, and Mac OS X.
+
+@section release-3-5-0_summary Release Summary
+
+This release introduces a new data-parallel pipeline programming model,
+solves the busy-waiting problem in our work-stealing scheduler,
+and adds a new text-based feature for profiler report.
+
+@section release-3-5-0_new_features New Features
+
+@subsection release-3-5-0_taskflow_core Taskflow Core
+
++ Added tf::WorkerInterface to allow changing properties of workers upon their creations
++ Added tf::Executor::loop_until to allow looping a worker with a custom stop predicate
++ Added tf::DataPipeline to implement data-parallel algorithms
+  + See @ref DataParallelPipeline
++ Extended tf::Executor to include tf::WorkerInterface
++ Improved parallel algorithms (e.g., tf::Taskflow::for_each) with tail optimization
++ Resolved the busy-waiting problem in our work-stealing algorithm ([#400](https://github.com/taskflow/taskflow/pull/440))
+
+@subsection release-3-5-0_cudaflow cudaFlow
+
+This release has no update on tf::cudaFlow.
+
+@subsection release-3-5-0_utilities Utilities
+
++ Added tf::unroll to unroll loops using template techniques
++ Added tf::CachelineAligned to create a cacheline-aligned object
++ Replaced std::aligned_union (deprecated in C++23) with a custom byte type ([#445](https://github.com/taskflow/taskflow/issues/445))
+
+@subsection release-3-5-0_profiler Taskflow Profiler (TFProf)
+
++ Added a new feature to generate a profile summary report
+  + See @ref ProfilerDisplayProfileSummary
+
+@section release-3-5-0_bug_fixes Bug Fixes 
+
++ Fixed the compilation error in taking move-only types for tf::Taskflow::transform_reduce
++ Fixed the compilation error in the graph pipeline benchmark
++ Fixed the compilation error in unknown OS (replaced with @c TF_OS_UNKNOWN)
+
+If you encounter any potential bugs, please submit an issue at @IssueTracker.
+
+@section release-3-5-0_breaking_changes Breaking Changes
+
+This release has no breaking changes.
+
+@section release-3-5-0_deprecated_items Deprecated and Removed Items 
+
+This release has no deprecated and removed items.
+
+@section release-3-5-0_documentation Documentation
+
++ Revised @ref ExecuteTaskflow
+  + Added @ref ExecuteATaskflowFromAnInternalWorker
++ Added @ref DataParallelPipeline
+
+@section release-3-5-0_miscellaneous_items Miscellaneous Items
+
+We have published %Taskflow in the following venues:
+  + Tsung-Wei Huang and Leslie Hwang, &quot;[Task-Parallel Programming with Constrained Parallelism](https://tsung-wei-huang.github.io/papers/hpec22-semaphore.pdf),&quot; <em>IEEE High-Performance Extreme Computing Conference (HPEC)</em>, MA, 2022
+  + Tsung-Wei Huang, &quot;[Enhancing the Performance Portability of Heterogeneous Circuit Analysis Programs](https://tsung-wei-huang.github.io/papers/hpec22-ot.pdf),&quot; <em>IEEE High-Performance Extreme Computing Conference (HPEC)</em>, MA, 2022
+  + Dian-Lun Lin, Haoxing Ren, Yanqing Zhang, and Tsung-Wei Huang, &quot;[From RTL to CUDA: A GPU Acceleration Flow for RTL Simulation with Batch Stimulus](https://doi.org/10.1145/3545008.3545091),&quot; <em>ACM International Conference on Parallel Processing (ICPP)</em>, Bordeaux, France, 2022
+
+Please do not hesitate to contact @twhuang if you intend to collaborate with us 
+on using %Taskflow in your scientific computing projects.
+
+*/
+
+}
+
+

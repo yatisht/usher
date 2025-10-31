@@ -2,6 +2,7 @@
 #include "select.hpp"
 #include <random>
 #include <algorithm>
+#include <tbb/info.h>
 
 //#include <omp.h>
 
@@ -9,7 +10,7 @@ using namespace std;
 
 po::variables_map parse_mask_command(po::parsed_options parsed) {
 
-    uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
+    uint32_t num_cores = tbb::info::default_concurrency();
     std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
 
     po::variables_map vm;
@@ -79,7 +80,8 @@ void mask_main(po::parsed_options parsed) {
     uint32_t max_snp_distance = vm["max-snp-distance"].as<uint32_t>();
     std::string diff_file = vm["maple-file"].as<std::string>();
     //std::string pos_file = vm["ignore-positions-file"].as<std::string>();
-    tbb::task_scheduler_init init(num_threads);
+    // TBB automatically manages threads in modern versions
+    // tbb::task_scheduler_init init(num_threads);
 
     //check for mutually exclusive arguments
     //LILY: make sure you check for need for exclusivity of your function 

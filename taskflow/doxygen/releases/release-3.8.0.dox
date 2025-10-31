@@ -1,0 +1,99 @@
+namespace tf {
+
+/** @page release-3-8-0 Release 3.8.0 (2024/10/02)
+
+@tableofcontents
+
+@section release-3-8-0_summary Release Summary
+
+This releases (1) enhances the scheduling performance through C++20 atomic notification
+and a bounded queue strategy and (2) revised the semaphore model for better runtime control.
+
+@section release-3-8-0_download Download
+
+%Taskflow 3.8.0 can be downloaded from <a href="https://github.com/taskflow/taskflow/releases/tag/v3.8.0">here</a>.
+
+@section release-3-8-0_system_requirements System Requirements
+
+To use %Taskflow v3.8.0, you need a compiler that supports C++17:
+
+@li GNU C++ Compiler at least v8.4 with -std=c++17
+@li Clang C++ Compiler at least v6.0 with -std=c++17
+@li Microsoft Visual Studio at least v19.27 with /std:c++17
+@li AppleClang Xcode Version at least v12.0 with -std=c++17
+@li Nvidia CUDA Toolkit and Compiler (nvcc) at least v11.1 with -std=c++17
+@li Intel C++ Compiler at least v19.0.1 with -std=c++17
+@li Intel DPC++ Clang Compiler at least v13.0.0 with -std=c++17
+
+%Taskflow works on Linux, Windows, and Mac OS X.
+
+@attention
+Although %Taskflow supports primarily C++17, you can enable C++20 compilation
+through `-std=c++20` to achieve better performance due to new C++20 features.
+
+@section release-3-8-0_new_features New Features
+
+@subsection release-3-8-0_taskflow_core Taskflow Core
+
++ Enhanced the core scheduling algorithm using a new bounded queue strategy
++ Enhanced the core scheduling performance using C++20 atomic notification
+
+@code{.shell-session}
+# compile your taskflow program with C++20 enabled
+~$ g++ -std=c++20 my_taskflow.cpp 
+@endcode
+
++ Revised the semaphore programming model for better runtime control through tf::Runtime
+
+@code{.cpp}
+tf::Executor executor(8);   // create an executor of 8 workers
+tf::Taskflow taskflow;
+tf::Semaphore semaphore(1); // create a semaphore with initial count 1
+for(size_t i=0; i<1000; i++) {
+  taskflow.emplace([&](tf::Runtime& rt){ 
+    rt.acquire(semaphore);
+    std::cout << "critical section here (one worker here only)\n"; 
+    critical_section();
+    rt.release(semaphore);
+  });
+}
+executor.run(taskflow).wait();
+@endcode
+
++ Enhanced async-tasking performance through TLS
++ Added async-task benchmark
++ Added non-blocking notifier and atomic notifier modules
++ Added tf::BoundedTaskQueue and tf::UnboundedTaskQueue
++ Added tf::Freelist module to replace the centralized overflow queue
++ Removed the redundant exception handling in object pool
+
+@subsection release-3-8-0_utilities Utilities
+
+@section release-3-8-0_bug_fixes Bug Fixes 
+
++ Fixed the compilation error for not finding the C++ atomic library
++ Fixed the missing tf::Runtime in asynchronous tasking
++ Fixed the non-heterogeneity of tf::Taskflow::for_each_index
++ Fixed the bug of UUID unit test in a multithreaded environment
+
+@section release-3-8-0_breaking_changes Breaking Changes
+
++ Removed the support of object pool by default
++ Removed the support of prioritized tasking due to inconsistency with work stealing
+
+@section release-3-8-0_documentation Documentation
+
++ Revised @ref LimitTheMaximumConcurrency
++ Removed Prioritized Tasking
++ Fixed typos in multiple pages
+
+@section release-3-8-0_miscellaneous_items Miscellaneous Items
+
+Please do not hesitate to contact @twhuang if you intend to collaborate with us 
+on using %Taskflow in your scientific computing projects.
+
+*/
+
+}
+
+

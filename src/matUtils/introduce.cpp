@@ -1,9 +1,10 @@
 #include "introduce.hpp"
 #include "select.hpp"
+#include <tbb/info.h>
 
 po::variables_map parse_introduce_command(po::parsed_options parsed) {
 
-    uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
+    uint32_t num_cores = tbb::info::default_concurrency();
     uint32_t num_threads;
     std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
 
@@ -961,7 +962,8 @@ void introduce_main(po::parsed_options parsed) {
     // Load input MAT and uncondense tree
     uint32_t num_threads = vm["threads"].as<uint32_t>();
     fprintf(stderr, "Initializing %u worker threads.\n\n", num_threads);
-    tbb::task_scheduler_init init(num_threads);
+    // TBB automatically manages threads in modern versions
+    // tbb::task_scheduler_init init(num_threads);
     MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
     //T here is the actual object.
     if (T.condensed_nodes.size() > 0) {

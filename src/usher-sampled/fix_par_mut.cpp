@@ -3,7 +3,7 @@
 #include <string>
 #include <tbb/concurrent_unordered_set.h>
 #include <tbb/parallel_for.h>
-#include <tbb/task.h>
+#include <tbb/task_group.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -30,35 +30,29 @@ static void ins_mut(Mutation_Set &parent_mutations,Mutation_Annotated_Tree::Muta
         }
     }
 }
-//functor for getting state of all leaves
-struct fix_root_worker:public tbb::task {
-    Mutation_Annotated_Tree::Node *root; //starting node whose subtree need to be processed
-    Mutation_Set parent_mutations; //mutation of parent of "root" relative to the root of the entire tree
-    fix_root_worker(Mutation_Annotated_Tree::Node *root,
-                    const Mutation_Set &parent_mutations)
-        : root(root), parent_mutations(parent_mutations) {}
-    tbb::task* execute() override {
-        //add mutation of "root"
-        for (Mutation_Annotated_Tree::Mutation &m : root->mutations) {
-            ins_mut(parent_mutations, m);
-        }
-        //continuation
-        tbb::empty_task* empty=new(allocate_continuation()) tbb::empty_task();
-        //spawn a task for each children
-        empty->set_ref_count(root->children.size());
-        for (auto child : root->children) {
-            assert(child->parent==root);
-            empty->spawn(*new (empty->allocate_child())fix_root_worker(child, parent_mutations));
-        }
-        //bypass the scheduler to execute continuation task directly to fix ref count
-        // if no child spawned (otherwise it will hang)
-        return root->children.empty()?empty:nullptr;
+//function for processing nodes recursively
+void fix_root_worker_recursive(
+    Mutation_Annotated_Tree::Node *root,
+    Mutation_Set parent_mutations,
+    tbb::task_group &tg) {
+    //add mutation of "root"
+    for (Mutation_Annotated_Tree::Mutation &m : root->mutations) {
+        ins_mut(parent_mutations, m);
     }
-};
+    
+    //spawn a task for each children
+    for (auto child : root->children) {
+        assert(child->parent==root);
+        tg.run([child, parent_mutations, &tg]() {
+            fix_root_worker_recursive(child, parent_mutations, tg);
+        });
+    }
+}
 void fix_parent(Mutation_Annotated_Tree::Tree &tree) {
     Mutation_Set mutations;
-    tbb::task::spawn_root_and_wait(*new(tbb::task::allocate_root())
-                                   fix_root_worker(tree.root, mutations));
+    tbb::task_group tg;
+    fix_root_worker_recursive(tree.root, mutations, tg);
+    tg.wait();
     auto dfs=tree.depth_first_expansion();
     tbb::parallel_for(tbb::blocked_range<size_t>(0,dfs.size()),[&dfs](tbb::blocked_range<size_t> r) {
         for (size_t idx=r.begin(); idx<r.end(); idx++) {

@@ -188,30 +188,7 @@ static void serialize_node(const MAT::Node *root, const MAT::Tree &tree,
     serialize_node(this_node, offset_out, length_out, out_stream);
 }
 template <typename condensed_node_serializer>
-struct subtree_serializer_continuation : public tbb::task {
-    std::vector<u_int64_t> children_offset;
-    std::vector<u_int64_t> children_length;
-    u_int64_t &offset_out;
-    u_int64_t &length_out;
-    const MAT::Node *root;
-    const MAT::Tree &tree;
-    serializer_t &out_stream;
-    subtree_serializer_continuation(u_int64_t &offset_out,
-                                    u_int64_t &length_out,
-                                    const MAT::Node *root,
-                                    const MAT::Tree &tree,
-                                    serializer_t &out_stream,size_t children_size)
-        : children_offset(children_size),children_length(children_size),offset_out(offset_out), length_out(length_out), root(root),
-          tree(tree), out_stream(out_stream) {}
-    tbb::task *execute() {
-        serialize_node<condensed_node_serializer>(
-            root, tree, offset_out, length_out, out_stream, children_offset,
-            children_length);
-        return nullptr;
-    }
-};
-template <typename condensed_node_serializer>
-struct subtree_serializer : public tbb::task {
+struct subtree_serializer {
     u_int64_t &offset_out;
     u_int64_t &length_out;
     const MAT::Node *root;
@@ -222,27 +199,26 @@ struct subtree_serializer : public tbb::task {
                        serializer_t &out_stream)
         : offset_out(offset_out), length_out(length_out), root(root),
           tree(tree), out_stream(out_stream) {}
-    tbb::task *execute() {
+    void execute(tbb::task_group &tg) {
         auto child_size = root->children.size();
         if (child_size) {
-            auto continuation = new (allocate_continuation())
-            subtree_serializer_continuation<condensed_node_serializer>(
-                offset_out, length_out, root, tree, out_stream,child_size);
-            std::vector<std::pair<u_int64_t, u_int64_t>> child_addr(child_size);
-            continuation->set_ref_count(child_size);
+            std::vector<u_int64_t> children_offset(child_size);
+            std::vector<u_int64_t> children_length(child_size);
+            
+            // Process children sequentially to avoid concurrent access to the vectors
             for (size_t child_idx = 0; child_idx < child_size; child_idx++) {
-                continuation->spawn(
-                    *(new (continuation->allocate_child())
-                      subtree_serializer<condensed_node_serializer>(
-                          continuation->children_offset[child_idx],
-                          continuation->children_length[child_idx],
-                          root->children[child_idx], tree, out_stream)));
+                subtree_serializer<condensed_node_serializer> child_serializer(
+                    children_offset[child_idx], children_length[child_idx],
+                    root->children[child_idx], tree, out_stream);
+                child_serializer.execute(tg);
             }
-            return nullptr;
+            
+            serialize_node<condensed_node_serializer>(
+                root, tree, offset_out, length_out, out_stream, children_offset,
+                children_length);
         } else {
             serialize_node<condensed_node_serializer>(root, tree, offset_out,
                     length_out, out_stream);
-            return new (allocate_continuation()) tbb::empty_task();
         }
     }
 };
@@ -292,10 +268,11 @@ template<typename T>
 size_t serialize_tree_general(const MAT::Tree* tree,serializer_t& serializer) {
     u_int64_t root_offset;
     u_int64_t root_length;
-    tbb::task::spawn_root_and_wait(
-        *(new (tbb::task::allocate_root())
-          subtree_serializer<T>(
-              root_offset, root_length, tree->root, *tree, serializer)));
+    tbb::task_group tg;
+    subtree_serializer<T> serializer_task(
+        root_offset, root_length, tree->root, *tree, serializer);
+    serializer_task.execute(tg);
+    tg.wait();
     return save_meta(*tree, root_offset, root_length, serializer);
 }
 // main save function
