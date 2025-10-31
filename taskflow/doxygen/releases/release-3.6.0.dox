@@ -1,0 +1,233 @@
+namespace tf {
+
+/** @page release-3-6-0 Release 3.6.0 (2023/05/07)
+
+%Taskflow 3.6.0 is the 7th release in the 3.x line! 
+This release includes several new changes, such as dynamic task graph parallelism,
+improved parallel algorithms, modified GPU tasking interface, documentation, examples, and unit tests.
+
+@tableofcontents
+
+@section release-3-6-0_download Download
+
+%Taskflow 3.6.0 can be downloaded from <a href="https://github.com/taskflow/taskflow/releases/tag/v3.6.0">here</a>.
+
+@section release-3-6-0_system_requirements System Requirements
+
+To use %Taskflow v3.6.0, you need a compiler that supports C++17:
+
+@li GNU C++ Compiler at least v8.4 with -std=c++17
+@li Clang C++ Compiler at least v6.0 with -std=c++17
+@li Microsoft Visual Studio at least v19.27 with /std:c++17
+@li AppleClang Xcode Version at least v12.0 with -std=c++17
+@li Nvidia CUDA Toolkit and Compiler (nvcc) at least v11.1 with -std=c++17
+@li Intel C++ Compiler at least v19.0.1 with -std=c++17
+@li Intel DPC++ Clang Compiler at least v13.0.0 with -std=c++17 and SYCL20
+
+%Taskflow works on Linux, Windows, and Mac OS X.
+
+@section release-3-6-0_summary Release Summary
+
+This release contains several changes to largely enhance the programmability
+of GPU tasking and standard parallel algorithms. 
+More importantly, we have introduced a new dependent asynchronous tasking 
+model that offers great flexibility for expressing dynamic task graph parallelism.
+
+@section release-3-6-0_new_features New Features
+
+@subsection release-3-6-0_taskflow_core Taskflow Core
+
++ Added new async methods to support dynamic task graph creation
+  + tf::Executor::dependent_async(F&& func, Tasks&&... tasks)
+  + tf::Executor::dependent_async(F&& func, I first, I last)
+  + tf::Executor::silent_dependent_async(F&& func, Tasks&&... tasks)
+  + tf::Executor::silent_dependent_async(F&& func, I first, I last)
++ Added new async and join methods to tf::Runtime
+  + tf::Runtime::async
+  + tf::Runtime::silent_async
+  + tf::Runtime::corun_all
++ Added a new partitioner interface to optimize parallel algorithms
+  + tf::GuidedPartitioner
+  + tf::StaticPartitioner
+  + tf::DynamicPartitioner
+  + tf::RandomPartitioner
++ Added parallel-scan algorithms to %Taskflow
+  + tf::Taskflow::inclusive_scan(B first, E last, D d_first, BOP bop)
+  + tf::Taskflow::inclusive_scan(B first, E last, D d_first, BOP bop, T init)
+  + tf::Taskflow::transform_inclusive_scan(B first, E last, D d_first, BOP bop, UOP uop)
+  + tf::Taskflow::transform_inclusive_scan(B first, E last, D d_first, BOP bop, UOP uop, T init)
+  + tf::Taskflow::exclusive_scan(B first, E last, D d_first, T init, BOP bop)
+  + tf::Taskflow::transform_exclusive_scan(B first, E last, D d_first, T init, BOP bop, UOP uop)
++ Added parallel-find algorithms to %Taskflow
+  + tf::Taskflow::find_if(B first, E last, T& result, UOP predicate, P&& part)
+  + tf::Taskflow::find_if_not(B first, E last, T& result, UOP predicate, P&& part)
+  + tf::Taskflow::min_element(B first, E last, T& result, C comp, P&& part)
+  + tf::Taskflow::max_element(B first, E last, T& result, C comp, P&& part)
++ Modified tf::Subflow as a derived class from tf::Runtime
++ Extended parallel algorithms to support different partitioning algorithms
+  + tf::Taskflow::for_each_index(B first, E last, S step, C callable, P&& part)
+  + tf::Taskflow::for_each(B first, E last, C callable, P&& part) 
+  + tf::Taskflow::transform(B first1, E last1, O d_first, C c, P&& part)
+  + tf::Taskflow::transform(B1 first1, E1 last1, B2 first2, O d_first, C c, P&& part)
+  + tf::Taskflow::reduce(B first, E last, T& result, O bop, P&& part) 
+  + tf::Taskflow::transform_reduce(B first, E last, T& result, BOP bop, UOP uop, P&& part)
++ Improved the performance of tf::Taskflow::sort for plain-old-data (POD) type
++ Extended task-parallel pipeline to handle token dependencies
+  + @ref TaskParallelPipelineWithTokenDependencies
+
+@subsection release-3-6-0_cudaflow cudaFlow
+
++ removed algorithms that require buffer from tf::cudaFlow due to update limitation
++ removed support for a dedicated %cudaFlow task in %Taskflow
+  + all usage of tf::cudaFlow and tf::cudaFlowCapturer are standalone now
+
+@subsection release-3-6-0_utilities Utilities
+
++ Added all_same templates to check if a parameter pack has the same type 
+
+@subsection release-3-6-0_profiler Taskflow Profiler (TFProf)
+
++ Removed %cudaFlow and %syclFlow tasks
+
+@section release-3-6-0_bug_fixes Bug Fixes 
+
++ Fixed the compilation error caused by clashing `MAX_PRIORITY` wtih `winspool.h` ([#459](https://github.com/taskflow/taskflow/pull/459))
++ Fixed the compilation error caused by tf::TaskView::for_each_successor and tf::TaskView::for_each_dependent
++ Fixed the infinite-loop bug when corunning a module task from tf::Runtime
+
+If you encounter any potential bugs, please submit an issue at @IssueTracker.
+
+@section release-3-6-0_breaking_changes Breaking Changes
+
++ Dropped support for cancelling asynchronous tasks
+
+@code{.cpp}
+// previous - no longer supported
+tf::Future<int> fu = executor.async([](){
+  return 1;
+});
+fu.cancel();
+std::optional<int> res = fu.get();  // res may be std::nullopt or 1
+
+// now - use std::future instead
+std::future<int> fu = executor.async([](){
+  return 1;
+});
+int res = fu.get();
+@endcode
+
++ Dropped in-place support for running tf::cudaFlow from a dedicated task
+
+@code{.cpp}
+// previous - no longer supported
+taskflow.emplace([](tf::cudaFlow& cf){
+  cf.offload();
+});
+
+// now - user to fully control tf::cudaFlow for maximum flexibility
+taskflow.emplace([](){
+  tf::cudaFlow cf;
+
+  // offload the cudaflow asynchronously through a stream
+  tf::cudaStream stream;
+  cf.run(stream);
+
+  // wait for the cudaflow completes
+  stream.synchronize();
+});
+@endcode
+
++ Dropped in-place support for running tf::cudaFlowCapturer from a dedicated task
+
+@code{.cpp}
+// previous - now longer supported
+taskflow.emplace([](tf::cudaFlowCapturer& cf){
+  cf.offload();
+});
+
+// now - user to fully control tf::cudaFlowCapturer for maximum flexibility
+taskflow.emplace([](){
+  tf::cudaFlowCapturer cf;
+
+  // offload the cudaflow asynchronously through a stream
+  tf::cudaStream stream;
+  cf.run(stream);
+
+  // wait for the cudaflow completes
+  stream.synchronize();
+});
+@endcode
+
++ Dropped in-place support for running tf::syclFlow from a dedicated task
+  + SYCL can just be used out of box together with %Taskflow
++ Move all buffer query methods of CUDA standard algorithms inside execution policy
+  + tf::cudaExecutionPolicy<NT, VT>::reduce_bufsz
+  + tf::cudaExecutionPolicy<NT, VT>::scan_bufsz
+  + tf::cudaExecutionPolicy<NT, VT>::merge_bufsz
+  + tf::cudaExecutionPolicy<NT, VT>::min_element_bufsz
+  + tf::cudaExecutionPolicy<NT, VT>::max_element_bufsz
+
+@code{.cpp}
+// previous - no longer supported
+tf::cuda_reduce_buffer_size<tf::cudaDefaultExecutionPolicy, int>(N);
+
+// now (and similarly for other parallel algorithms)
+tf::cudaDefaultExecutionPolicy policy(stream);
+policy.reduce_bufsz<int>(N);
+@endcode
+
++ Renamed tf::Executor::run_and_wait to tf::Executor::corun for expressiveness
++ Renamed tf::Executor::loop_until to tf::Executor::corun_until for expressiveness
++ Renamed tf::Runtime::run_and_wait to tf::Runtime::corun for expressiveness
++ Disabled argument support for all asynchronous tasking features
+  + users are responsible for creating their own wrapper to make the callable
+
+@code{.cpp}
+// previous - async allows passing arguments to the callable
+executor.async([](int i){ std::cout << i << std::endl; }, 4);  
+
+// now - users are responsible of wrapping the arumgnets into a callable
+executor.async([i=4]( std::cout << i << std::endl; ){});
+@endcode
+
++ Replaced `named_async` with an overload that takes the name string on the first argument
+
+@code{.cpp}
+// previous - explicitly calling named_async to assign a name to an async task
+executor.named_async("name", [](){});
+
+// now - overlaod
+executor.async("name", [](){});
+@endcode
+
+@section release-3-6-0_documentation Documentation
+
++ Revised @ref RequestCancellation to remove support of cancelling async tasks
++ Revised @ref AsyncTasking to include asynchronous tasking from tf::Runtime
+  + @ref LaunchAsynchronousTasksFromARuntime
++ Revised %Taskflow algorithms to include execution policy
+  + @ref PartitioningAlgorithm
+  + @ref ParallelIterations
+  + @ref ParallelTransforms
+  + @ref ParallelReduction
++ Added @ref TaskParallelPipelineWithTokenDependencies
++ Added @ref ParallelScan
++ Added @ref DependentAsyncTasking
+
+@section release-3-6-0_miscellaneous_items Miscellaneous Items
+
+We have published %Taskflow in the following venues:
+
++ Dian-Lun Lin, Yanqing Zhang, Haoxing Ren, Shih-Hsin Wang, Brucek Khailany and Tsung-Wei Huang, &quot;[GenFuzz: GPU-accelerated Hardware Fuzzing using Genetic Algorithm with Multiple Inputs](https://tsung-wei-huang.github.io/papers/2023-dac.pdf),&quot; <em>ACM/IEEE Design Automation Conference (DAC)</em>, San Francisco, CA, 2023
++ Tsung-Wei Huang, &quot;[qTask: Task-parallel Quantum Circuit Simulation with Incrementality](https://tsung-wei-huang.github.io/papers/ipdps23.pdf),&quot; <em>IEEE International Parallel and Distributed Processing Symposium (IPDPS)</em>, St. Petersburg, Florida, 2023
++ Elmir Dzaka, Dian-Lun Lin, and Tsung-Wei Huang, &quot;[Parallel And-Inverter Graph Simulation Using a Task-graph Computing System](https://tsung-wei-huang.github.io/papers/pdco-23.pdf),&quot; <em>IEEE International Parallel and Distributed Processing Symposium Workshop (IPDPSW)</em>, St. Petersburg, Florida, 2023
+
+
+Please do not hesitate to contact @twhuang if you intend to collaborate with us 
+on using %Taskflow in your scientific computing projects.
+
+*/
+
+}
+
+

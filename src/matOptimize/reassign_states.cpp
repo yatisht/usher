@@ -10,7 +10,7 @@
 #include <tbb/blocked_range.h>
 #include <tbb/concurrent_unordered_map.h>
 #include <tbb/concurrent_vector.h>
-#include <tbb/pipeline.h>
+#include <tbb/parallel_pipeline.h>
 #include "tbb/parallel_for_each.h"
 #include <tbb/parallel_for.h>
 #include <boost/iostreams/filtering_stream.hpp>
@@ -39,9 +39,9 @@ static bool no_valid_mut(MAT::Node* node) {
  */
 void clean_up_internal_nodes(MAT::Node* this_node,MAT::Tree& tree,std::unordered_set<size_t>& changed_nodes_local,std::unordered_set<size_t>& node_with_inconsistent_state) {
 
-    std::vector<MAT::Node *> &parent_children = this_node->parent->children;
     std::vector<MAT::Node *> this_node_ori_children = this_node->children;
     if (this_node->parent&&(((!this_node->is_leaf())&&no_valid_mut(this_node)))) {
+        std::vector<MAT::Node *> &parent_children = this_node->parent->children;
         //Remove this node
         this_node->parent->set_self_changed();
         auto iter = std::find(parent_children.begin(), parent_children.end(),
@@ -132,7 +132,7 @@ void reassign_states(MAT::Tree& t, Original_State_t& origin_states) {
     std::vector<backward_pass_range> child_idx_range;
     std::vector<forward_pass_range> parent_idx;
     std::vector<std::pair<MAT::Mutation,tbb::concurrent_vector<std::pair<size_t,char>>>> pos_mutated(MAT::Mutation::refs.size());
-    tbb::parallel_for_each(origin_states.begin(),origin_states.end(),[&pos_mutated,t](const std::pair<size_t, Mutation_Set>& sample_mutations) {
+    tbb::parallel_for_each(origin_states.begin(),origin_states.end(),[&pos_mutated,&t](const std::pair<size_t, Mutation_Set>& sample_mutations) {
         for (const MAT::Mutation &m : sample_mutations.second) {
             pos_mutated[m.get_position()].first=m;
             pos_mutated[m.get_position()].second.emplace_back(t.get_node(sample_mutations.first)->bfs_index,m.get_all_major_allele());

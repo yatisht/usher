@@ -38,7 +38,7 @@ size_t alloc_size;
 std::mutex ref_lock;
 // Decouple parsing (slow) and decompression, segment file into blocks for
 // parallelized parsing
-typedef tbb::flow::source_node<char *> decompressor_node_t;
+typedef tbb::flow::input_node<char *> decompressor_node_t;
 std::condition_variable progress_bar_cv;
 struct raw_input_source {
     FILE *fh;
@@ -496,8 +496,15 @@ static void process(infile_t &fd, std::vector<Sample_Muts> &sample_mutations,
     read_size = first_approx_size * single_line_size;
     alloc_size = (first_approx_size + 2) * single_line_size;
     tbb::concurrent_bounded_queue<std::pair<char *, uint8_t *>> queue;
-    tbb::flow::source_node<line_start_later> line(input_graph,
-            line_align(queue));
+    auto line_wrapper = [queue_ref = std::ref(queue)](tbb::flow_control& fc) mutable -> line_start_later {
+        line_start_later result;
+        line_align aligner(queue_ref);
+        if (!aligner(result)) {
+            fc.stop();
+        }
+        return result;
+    };
+    tbb::flow::input_node<line_start_later> line(input_graph, line_wrapper);
     tbb::flow::make_edge(line, parser);
     fd(queue);
     input_graph.wait_for_all();

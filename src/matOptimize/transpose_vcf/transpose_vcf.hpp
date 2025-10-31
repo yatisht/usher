@@ -1,5 +1,5 @@
 #include <cstdint>
-#include <tbb/pipeline.h>
+#include <tbb/parallel_pipeline.h>
 #include <unordered_map>
 #include <zlib.h>
 #include <cassert>
@@ -13,12 +13,12 @@
 struct partitioner {
     const uint8_t*& last_out;
     const uint8_t* const end;
-    const uint8_t* operator()(tbb::flow_control& fc)const {
+    uint8_t* operator()(tbb::flow_control& fc)const {
         if (last_out>=end) {
             fc.stop();
         }
         //assert(last_out<end);
-        auto out=last_out;
+        auto out=const_cast<uint8_t*>(last_out);
         //fprintf(stderr, "%d\n",*(int*)out);
         unsigned int item_len=*(int*) out;
         last_out+=(item_len+4);
@@ -80,7 +80,7 @@ const uint8_t* parse_buffer(const uint8_t* in,output_t& out_all) {
 template<typename output_t>
 struct printer {
     output_t& out;
-    void operator()(const uint8_t* in) const {
+    void operator()(uint8_t* in) const {
         uint8_t buffer[MAX_SIZ];
         unsigned int item_len=*(int*) in;
         size_t out_len=MAX_SIZ;
@@ -131,10 +131,10 @@ static bool load_mutations(const char *path, int nthread, output_t &out) {
     const uint8_t *end;
     f.get_mapped_range(last_out, end);
     tbb::parallel_pipeline(
-        nthread, tbb::make_filter<void, const uint8_t *>(
-            tbb::filter::serial_in_order, partitioner{last_out, end}) &
-        tbb::make_filter<const uint8_t *, void>(
-            tbb::filter::parallel, printer<output_t> {out}));
+        nthread, tbb::make_filter<void, uint8_t *>(
+            tbb::filter_mode::serial_in_order, partitioner{last_out, end}) &
+        tbb::make_filter<uint8_t *, void>(
+            tbb::filter_mode::parallel, printer<output_t> {out}));
     return true;
 }
 static void parse_rename_file(const std::string&  in_file_name, std::unordered_map<std::string,std::string>& mapping) {

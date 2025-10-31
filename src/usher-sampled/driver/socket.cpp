@@ -29,7 +29,8 @@
 #include <sys/un.h>
 #include <sys/wait.h>
 #include <tbb/scalable_allocator.h>
-#include <tbb/task_scheduler_init.h>
+#include <tbb/info.h>
+#include <tbb/global_control.h>
 #include <thread>
 #include <unistd.h>
 #include <unordered_map>
@@ -98,7 +99,7 @@ bool prep_single_tree(std::string path, std::shared_ptr<tree_info> &out) {
 typedef std::shared_ptr<std::unordered_map<std::string, std::shared_ptr<tree_info> > > TreeCollectionPtr;
 void reload_trees(TreeCollectionPtr &to_replace, const std::vector<std::string>& paths) {
     fprintf(stderr, "loading the tree\n");
-    tbb::task_scheduler_init init(num_threads);
+    tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, num_threads);
     auto next = new std::unordered_map<std::string, std::shared_ptr<tree_info> > (paths.size());
     next->reserve(paths.size()*2);
     for (size_t idx=0; idx<paths.size(); idx++) {
@@ -399,7 +400,7 @@ static void child_proc(int fd, TreeCollectionPtr &trees_ptr) {
         fclose(f);
         exit(EXIT_FAILURE);
     }
-    tbb::task_scheduler_init init(num_threads);
+    tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, num_threads);
     if (existing_samples != "") {
         MAT::Tree &tree = iter->second->expanded_tree;
         std::vector<MAT::Node *> nodes_to_extract = read_sample_nodes(existing_samples, tree, f);
@@ -564,7 +565,7 @@ static void tree_update_watch(int refresh_period, std::mutex& done_mutex,std::co
             }
         }
         if(need_reload){
-            tbb::task_scheduler_init init(num_threads);
+            tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, num_threads);
             std::lock_guard<std::mutex> lk (tree_loading_mutex);
             if(local_copy==trees_ptr){
                 fprintf(stderr, "refreshing tree\n");
@@ -590,7 +591,7 @@ int main(int argc, char** argv) {
     po::options_description desc{"Options"};
     std::string mgr_fifo;
     std::string socket_path;
-    num_threads=tbb::task_scheduler_init::default_num_threads();
+    num_threads=tbb::global_control::active_value(tbb::global_control::max_allowed_parallelism);
     std::vector<std::string> init_pb_to_load;
     int wait_second;
     int refresh_period;

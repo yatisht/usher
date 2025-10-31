@@ -14,8 +14,7 @@
 #include <sched.h>
 #include <string>
 #include <tbb/concurrent_queue.h>
-#include <tbb/flow_graph.h>
-#include <tbb/task.h>
+#include <taskflow/taskflow.hpp>
 #include <thread>
 #include <tuple>
 #include <unordered_map>
@@ -442,15 +441,17 @@ static void serial_proc_placed_sample( MAT::Tree &main_tree,move_type* in,bool d
         delete out.deleted_nodes;
     }
 }
-typedef tbb::flow::function_node<Preped_Sample_To_Place *,size_t> placer_node_t;
 typedef tbb::concurrent_bounded_queue<Sample_Muts*> retry_place_t;
-typedef tbb::flow::multifunction_node<Sample_Muts*,tbb::flow::tuple<Sample_Muts*>> Pusher_Node_T;
-typedef tbb::flow::function_node<print_format> Printer_Node_t;
+typedef tbb::concurrent_bounded_queue<print_format> print_queue_t;
+
+// Function type for spawning retry tasks
+using retry_callback_t = std::function<void(Sample_Muts*)>;
+
 static void place_sample_thread(int start_idx, MAT::Tree &main_tree,std::vector<MAT::Node *> &deleted_nodes,
-                                 Placed_move_sended_state& send_queue,found_place_t& found_place_queue,Pusher_Node_T& retry_queue
+                                 Placed_move_sended_state& send_queue,found_place_t& found_place_queue,retry_callback_t retry_callback
                                  ,int all_size,std::atomic_bool& stop,std::atomic_size_t& curr_idx,
                                  const int parsimony_increase_threshold, size_t sample_start_idx,bool dry_run,
-                                 int max_parsimony,size_t max_uncertainty,bool multi_processing,Printer_Node_t& printer_node,bool do_print) {
+                                 int max_parsimony,size_t max_uncertainty,bool multi_processing,print_queue_t& print_queue,bool do_print) {
     int redo=0;
     int total=0;
     int parsimony_increase=0;
@@ -464,11 +465,11 @@ static void place_sample_thread(int start_idx, MAT::Tree &main_tree,std::vector<
             std::get<1>(*in)->sorting_key1=count_mutation(search_result[0].sample_mutations);
             std::get<1>(*in)->sorting_key2=search_result.size();
             if (std::get<2>(*in)) {
-                retry_queue.try_put(nullptr);
+                retry_callback(nullptr);
             }
             total++;
             if (do_print) {
-                printer_node.try_put(print_format{std::get<1>(*in)->sorting_key1,in});
+                print_queue.push(print_format{std::get<1>(*in)->sorting_key1,in});
             } else {
                 fprintf(stderr, "Sample %zu, mutation count %d,curr_count %d, total %d\n",std::get<1>(*in)->sample_idx,std::get<1>(*in)->sorting_key1,total,stop_count);
                 delete in;
@@ -506,8 +507,8 @@ static void place_sample_thread(int start_idx, MAT::Tree &main_tree,std::vector<
                 if (!placement.target_node) {
                     raise(SIGTRAP);
                 }
-                
-                retry_queue.try_put(std::get<1>(*in));
+
+                retry_callback(std::get<1>(*in));
                 delete in;
                 /*if (!out->is_self) {
                     fprintf(stderr, "backlog Prep%zu \n",backlog_prep--);
@@ -528,9 +529,9 @@ static void place_sample_thread(int start_idx, MAT::Tree &main_tree,std::vector<
         auto mut_size=count_mutation(search_result[0].sample_mutations);
         if (mut_size>max_parsimony||search_result.size()>max_uncertainty) {
             if (std::get<2>(*in)) {
-                retry_queue.try_put(nullptr);
+                retry_callback(nullptr);
             }
-            printer_node.try_put(print_format{mut_size,in});
+            print_queue.push(print_format{mut_size,in});
             continue;
         }
         auto target=choose_best(search_result);
@@ -572,13 +573,13 @@ static void place_sample_thread(int start_idx, MAT::Tree &main_tree,std::vector<
         //check_parent(main_tree.root,main_tree);
         if (std::get<2>(*in)&&(parsimony_increase<=parsimony_increase_threshold)) {
             //fprintf(stderr, "self out\n");
-            retry_queue.try_put(nullptr);
+            retry_callback(nullptr);
         }
         if (parsimony_increase>parsimony_increase_threshold) {
             stop_count=curr_idx-start_idx;
             fprintf(stderr, "curr_idx: %zu,stoped parsimpny score %d\n",curr_idx.load(),parsimony_increase);
         }
-        printer_node.try_put(print_format{mut_size,in});
+        print_queue.push(print_format{mut_size,in});
     }
 }
 struct Dist_sample_state {
@@ -659,47 +660,6 @@ static void mpi_loop(Dist_sample_state dist_sample,Recieve_Place_State recieve_p
         }
     }
 }
-struct Pusher {
-    std::atomic_size_t& curr_idx;
-    std::vector<Sample_Muts>& to_place;
-    std::atomic_bool& stop;
-    void operator()(Sample_Muts* in,Pusher_Node_T::output_ports_type& out )const {
-        if (!in) {
-            size_t send_idx=SIZE_MAX;
-            if (!stop) {
-                send_idx=curr_idx++;
-            }
-            if (send_idx<to_place.size()) {
-                std::get<0>(out).try_put(&to_place[send_idx]);
-                //fprintf(stderr, "main place %zu\n",send_idx);
-            }
-            return;
-        }
-        std::get<0>(out).try_put(in);
-    }
-};
-struct Finder {
-    MAT::Tree& tree;
-    found_place_t& found_queue;
-    void operator()(Sample_Muts* to_search) const {
-        auto res=find_place(tree, to_search);
-        std::get<2>(*res)=true;
-        //fprintf(stderr, "self in\n");
-        found_queue.push(res);
-    }
-};
-struct Fixed_Tree_Finder {
-    MAT::Tree& tree;
-    found_place_t& found_queue;
-    const Traversal_Info &in;
-    const std::vector<MAT::Node *> &dfs_ordered_nodes;
-    void operator()(Sample_Muts* to_search) const {
-        auto res=place_sample_fixed_idx(in, to_search, dfs_ordered_nodes);
-        std::get<2>(*res)=true;
-        //fprintf(stderr, "self in\n");
-        found_queue.push(res);
-    }
-};
 void place_sample_sequential(
     std::vector<Sample_Muts> &sample_to_place, MAT::Tree &main_tree,
     bool dry_run, FILE *placement_stats_file, int max_parsimony,
@@ -740,18 +700,21 @@ void place_sample_leader(std::vector<Sample_Muts> &sample_to_place,
     tbb::concurrent_bounded_queue<Preped_Sample_To_Place*> send_queue;
     {
         std::atomic_bool stop(false);
-        tbb::flow::graph g;
+        tf::Executor executor;
         found_place_t found_queue;
+        print_queue_t print_queue;
         std::vector<int> descendant_count;
-        Pusher_Node_T init(g, tbb::flow::serial, Pusher{curr_idx, sample_to_place,stop});
-        tbb::flow::function_node<Sample_Muts *> *searcher;
+
+        // Finder function based on dry_run mode
+        std::function<void(Sample_Muts*)> search_func;
         if (dry_run) {
             traversal_info = build_idx(main_tree);
             dfs_ordered_nodes = main_tree.depth_first_expansion();
-            searcher = new tbb::flow::function_node<Sample_Muts *>(
-                g, tbb::flow::unlimited,
-                Fixed_Tree_Finder{main_tree, found_queue, traversal_info,
-                                  dfs_ordered_nodes});
+            search_func = [&](Sample_Muts* to_search) {
+                auto res = place_sample_fixed_idx(traversal_info, to_search, dfs_ordered_nodes);
+                std::get<2>(*res) = true;
+                found_queue.push(res);
+            };
             if (do_print) {
                 descendant_count.resize(dfs_ordered_nodes.size());
                 for (int idx=dfs_ordered_nodes.size()-1; idx>0; idx--) {
@@ -770,33 +733,76 @@ void place_sample_leader(std::vector<Sample_Muts> &sample_to_place,
                 }
             }
         } else {
-            searcher = new tbb::flow::function_node<Sample_Muts *>(
-                g, tbb::flow::unlimited, Finder{main_tree, found_queue});
+            search_func = [&](Sample_Muts* to_search) {
+                auto res = find_place(main_tree, to_search);
+                std::get<2>(*res) = true;
+                found_queue.push(res);
+            };
         }
-        tbb::flow::make_edge(std::get<0>(init.output_ports()),*searcher);
-        Print_Thread print_thread {main_tree,placement_stats_file,max_parsimony,
-                                            max_uncertainty,node_count,low_confidence_samples,samples_clade,descendant_count,sample_start_idx,dry_run,stdout};
-        Printer_Node_t printer_node(g,tbb::flow::serial,print_thread
-                                    );
+
+        // Retry callback - spawns new search tasks
+        retry_callback_t retry_callback = [&](Sample_Muts* sample) {
+            if (!sample) {
+                // nullptr means schedule next sample
+                size_t send_idx = SIZE_MAX;
+                if (!stop) {
+                    send_idx = curr_idx++;
+                }
+                if (send_idx < sample_to_place.size()) {
+                    executor.silent_async([&, send_idx]() {
+                        search_func(&sample_to_place[send_idx]);
+                    });
+                }
+            } else {
+                // Retry a specific sample
+                executor.silent_async([&, sample]() {
+                    search_func(sample);
+                });
+            }
+        };
+
+        // Print thread
+        Print_Thread print_thread{main_tree, placement_stats_file, max_parsimony,
+                                  max_uncertainty, node_count, low_confidence_samples,
+                                  samples_clade, descendant_count, sample_start_idx,
+                                  dry_run, stdout};
+        std::thread printer_thread([&]() {
+            while (true) {
+                print_format item;
+                print_queue.pop(item);
+                if (item.placement_info == nullptr) {
+                    break; // Sentinel to exit
+                }
+                print_thread(item);
+            }
+        });
+
         if (process_count>1) {
             mpi_thread=new std::thread(mpi_loop,
                                        Dist_sample_state{curr_idx,sample_to_place,process_count-1,stop},
                                        Recieve_Place_State {found_queue,main_tree,process_count-1,sample_to_place,idx_map},
                                        std::ref(send_queue),sample_start_idx);
         }
+
+        // Spawn initial batch of search tasks
         for(int temp=0; temp<batch_size; temp++) {
-            init.try_put(nullptr);
+            retry_callback(nullptr);
         }
+
         if (dry_run) {
             send_queue.try_push(nullptr);
         }
+
         place_sample_thread(start_idx,main_tree, deleted_nodes, send_queue, found_queue,
-                            init, sample_to_place.size(), stop, curr_idx,
+                            retry_callback, sample_to_place.size(), stop, curr_idx,
                             parsimony_increase_threshold,
-                            sample_start_idx, dry_run,max_parsimony,max_uncertainty,process_count>1,printer_node,do_print);
-        g.wait_for_all();
-        delete searcher;
-        //placer_thread.join();
+                            sample_start_idx, dry_run,max_parsimony,max_uncertainty,process_count>1,print_queue,do_print);
+
+        executor.wait_for_all();
+
+        // Send sentinel to printer thread
+        print_queue.push(print_format{0, nullptr});
+        printer_thread.join();
     }
     send_queue.push(nullptr);
     fprintf(stderr,"main done\n");

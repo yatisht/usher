@@ -1,0 +1,104 @@
+namespace tf {
+
+/** @page release-3-9-0 Release 3.9.0 (2025/01/02)
+
+@tableofcontents
+
+@section release-3-9-0_summary Release Summary
+
+This release improves scheduling performance with a decentralized work-stealing strategy 
+and enhances exception handling across all task types.
+
+@section release-3-9-0_download Download
+
+%Taskflow 3.9.0 can be downloaded from <a href="https://github.com/taskflow/taskflow/releases/tag/v3.9.0">here</a>.
+
+@section release-3-9-0_system_requirements System Requirements
+
+To use %Taskflow v3.9.0, you need a compiler that supports C++17:
+
+@li GNU C++ Compiler at least v8.4 with -std=c++17
+@li Clang C++ Compiler at least v6.0 with -std=c++17
+@li Microsoft Visual Studio at least v19.27 with /std:c++17
+@li AppleClang Xcode Version at least v12.0 with -std=c++17
+@li Nvidia CUDA Toolkit and Compiler (nvcc) at least v11.1 with -std=c++17
+@li Intel C++ Compiler at least v19.0.1 with -std=c++17
+@li Intel DPC++ Clang Compiler at least v13.0.0 with -std=c++17
+
+%Taskflow works on Linux, Windows, and Mac OS X.
+
+@attention
+Although %Taskflow supports primarily C++17, you can enable C++20 compilation
+through `-std=c++20` to achieve better performance due to new C++20 features.
+
+@section release-3-9-0_new_features New Features
+
+@subsection release-3-9-0_taskflow_core Taskflow Core
+
++ improved the core scheduling algorithm using a decentralized work-stealing strategy
+  + tf::BoundedTaskQueue to optimize per-thread work-stealing latency
+  + tf::UnboundedTaskQueue to handle overflowed tasks
++ enhanced tf::Runtime to support preemptible execution flows
++ optimized task storage by storing detached tasks in their original subflows
++ optimized the query efficiency for strong dependencies by embedding their values in node states
++ updated tf::Graph to derive from a vector of unique pointers to nodes
+  + %Graph node lifetimes are managed by std::unique_ptr
+  + Asynchronous task node lifetimes are managed by tf::Executor.
++ expanded unit tests to include more exception handling scenarios
++ decoupled tf::Runtime from static task to accommodate distinct execution logic
++ removed the blocking behavior to avoid underutilized threads for the following tasks:
+  + module task ([#649](https://github.com/taskflow/taskflow/issues/649))
+  + subflow task
+  + all parallel algorithms (through preemptible async tasks)
++ removed std::bind from asynchronous tasks to ensure proper constexpr switch
++ added compile-time macros to enable specific features
+  + `TF_ENABLE_TASK_POOL` to enable the use of task pool
++ added taskflow execution through asynchronous tasking with tf::make_module_task
+  + details can be referred to @ref ModuleAlgorithm
++ added tf::WorkerInterface for users to configure the behaviors of workers
+  + details can be referred to @ref ExecuteTaskflow
++ added worker interface example and unit tests
+
+@subsection release-3-9-0_utilities Utilities
+
++ added @c tf::pause to relax CPU during busy spinning loop
++ added @c tf::seed to generate a random seed based on calling time point
++ added @c tf::atomic_min to update an atomic variable with the minimum value
++ added @c tf::atomic_max to update an atomic variable with the maximum value
++ added @c TF_CPP20 and @c TF_CPP17 macro for testing cpp versions
+
+@section release-3-9-0_bug_fixes Bug Fixes 
+
++ fixed AppleClang compile error in tsq.hpp ([#651](https://github.com/taskflow/taskflow/pull/651))
++ fixed wrong range in uuid test ([#632](https://github.com/taskflow/taskflow/pull/632/))
++ fixed the exception bug in tf::Subflow::join ([#602](https://github.com/taskflow/taskflow/issues/602))
++ fixed the wrong prefix of target when running benchmark.py
++ fixed a bug in the join counter reset logic for scheduling condition tasks ([#652](https://github.com/taskflow/taskflow/issues/652))
+
+@section release-3-9-0_breaking_changes Breaking Changes
+
++ decoupled tf::Subflow from inheriting tf::Runtime to accommodate distinct execution logic
+  + tf::Subflow no longer supports tf::Runtime-specific features
++ removed tf::Runtime::corun_until as it duplicates tf::Executor::corun_until
++ removed tf::Runtime-based semaphore interface due to significant flaws of blocking corun ([#647](https://github.com/taskflow/taskflow/issues/647))
+  + details can be referred to @ref LimitTheMaximumConcurrency
+
+@section release-3-9-0_documentation Documentation
+
++ fixed missing documentation of tf::Executor due to Doxygen bugs ([#625](https://github.com/taskflow/taskflow/pull/625))
++ fixed benchmark instance names in documentation ([#621](https://github.com/taskflow/taskflow/pull/621))
++ revised @ref ExceptionHandling
++ revised @ref AsyncTasking
++ revised @ref LimitTheMaximumConcurrency
++ added @ref ModuleAlgorithm
+
+@section release-3-9-0_miscellaneous_items Miscellaneous Items
+
+Please do not hesitate to contact @twhuang if you intend to collaborate with us 
+on using %Taskflow in your scientific computing projects.
+
+*/
+
+}
+
+

@@ -1,7 +1,8 @@
 #include "merge.hpp"
+#include <tbb/info.h>
 
 po::variables_map parse_merge_command(po::parsed_options parsed) {
-    uint32_t num_cores = tbb::task_scheduler_init::default_num_threads();
+    uint32_t num_cores = tbb::info::default_concurrency();
     std::string num_threads_message = "Number of threads to use when possible [DEFAULT uses all available cores, " + std::to_string(num_cores) + " detected on this machine]";
 
     po::variables_map vm;
@@ -133,7 +134,8 @@ void merge_main(po::parsed_options parsed) {
 
 
     fprintf(stderr, "Initializing %u worker threads.\n\n", num_threads);
-    tbb::task_scheduler_init init(num_threads);
+    // TBB automatically manages threads in modern versions
+    // tbb::task_scheduler_init init(num_threads);
 
     fprintf(stderr, "Loading first input MAT. Existing clade annotations will be cleared\n");
     MAT::Tree mat1 = MAT::load_mutation_annotated_tree(mat1_filename);

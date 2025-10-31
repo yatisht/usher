@@ -29,7 +29,7 @@
 size_t read_size;
 size_t alloc_size;
 //Decouple parsing (slow) and decompression, segment file into blocks for parallelized parsing
-typedef tbb::flow::source_node<char*> decompressor_node_t;
+typedef tbb::flow::input_node<char*> decompressor_node_t;
 std::condition_variable progress_bar_cv;
 struct raw_input_source {
     FILE* fh;
@@ -67,7 +67,8 @@ struct line_align {
     line_align(tbb::concurrent_bounded_queue<std::pair<char*,uint8_t*>>& out):in(out) {
         prev.start=nullptr;
     }
-    bool operator()(line_start_later& out) const {
+    line_start_later operator()(tbb::flow_control& fc) const {
+        line_start_later out;
         std::pair<char*, unsigned char*> line;
         in.pop(line);
         if (line.first==nullptr) {
@@ -75,9 +76,10 @@ struct line_align {
                 out=prev;
                 prev.start=nullptr;
                 prev_end[0]=0;
-                return true;
+                return out;
             } else {
-                return false;
+                fc.stop();
+                return out;
             }
         }
         if (!prev.start) {
@@ -88,7 +90,7 @@ struct line_align {
             if (line.first==nullptr) {
                 out=prev;
                 prev.start=nullptr;
-                return true;
+                return out;
             }
         }
         auto start_ptr=strchr(line.first, '\n');
@@ -103,7 +105,7 @@ struct line_align {
         prev.start=start_ptr;
         prev.alloc_start=line.first;
         prev_end=line.second;
-        return true;
+        return out;
     }
 };
 struct gzip_input_source {
@@ -200,10 +202,10 @@ struct gzip_input_source {
     }
 };
 //Parse a block of lines, assuming there is a complete line in the line_in buffer
-typedef tbb::flow::multifunction_node<line_start_later,tbb::flow::tuple<Parsed_VCF_Line*>> line_parser_t;
+typedef tbb::flow::multifunction_node<line_start_later,std::tuple<Parsed_VCF_Line*>> line_parser_t;
 struct line_parser {
     const std::vector<long>& header;
-    void operator()(line_start_later line_in_struct, line_parser_t::output_ports_type& out)const {
+    void operator()(line_start_later line_in_struct, typename line_parser_t::output_ports_type& out)const {
         char*  line_in=line_in_struct.start;
         char*  to_free=line_in_struct.alloc_start;
         Parsed_VCF_Line* parsed_line;
@@ -410,14 +412,14 @@ static void process(MAT::Tree& tree,infile_t& fd) {
             line_parser_t parser(input_graph,tbb::flow::unlimited,line_parser{idx_map});
             //feed used buffer back to decompressor
             tbb::flow::function_node<Parsed_VCF_Line*> assign_state(input_graph,tbb::flow::unlimited,Assign_State{child_idx_range,parent_idx,output});
-            tbb::flow::make_edge(tbb::flow::output_port<0>(parser),assign_state);
+            tbb::flow::make_edge(std::get<0>(parser.output_ports()),assign_state);
             parser.try_put(first_line);
             size_t first_approx_size=std::min(CHUNK_SIZ,ONE_GB/single_line_size)-2;
             read_size=first_approx_size*single_line_size;
             alloc_size=(first_approx_size+2)*single_line_size;
             tbb::concurrent_bounded_queue<std::pair<char*,uint8_t*>> queue;
             queue.set_capacity(10);
-            tbb::flow::source_node<line_start_later> line(input_graph,line_align(queue));
+            tbb::flow::input_node<line_start_later> line(input_graph,line_align(queue));
             tbb::flow::make_edge(line,parser);
             //raise(SIGTRAP);
             fd(queue);

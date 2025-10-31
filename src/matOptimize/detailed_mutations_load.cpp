@@ -177,14 +177,8 @@ struct no_deserialize_condensed_nodes {
                     MAT::Tree::condensed_node_t &condensed_nodes,
                     const MAT::Node *out) {}
 };
-struct Load_Subtree_pararllel_Continuation : public tbb::task {
-    MAT::Mutations_Collection mutation_so_far;
-    tbb::task *execute() {
-        return nullptr;
-    }
-};
 template <typename do_serialize_condensed>
-struct Load_Subtree_pararllel : public tbb::task {
+struct Load_Subtree_pararllel {
     MAT::Node *parent;
     const uint8_t *file_start;
     int64_t start_offset;
@@ -199,7 +193,7 @@ struct Load_Subtree_pararllel : public tbb::task {
         : parent(parent), file_start(file_start), start_offset(start_offset),
           length(length), out(out), condensed_nodes(condensed_nodes),
           parent_mutations(parent_mutations) {}
-    tbb::task *execute() override {
+    void execute(tbb::task_group &tg) {
         google::protobuf::io::CodedInputStream inputi(file_start + start_offset,
                 length);
         Mutation_Detailed::node node;
@@ -226,24 +220,21 @@ struct Load_Subtree_pararllel : public tbb::task {
         size_t child_size = node.children_offsets_size();
         if (child_size) {
             out->children.resize(child_size);
-            auto continuation = new (allocate_continuation())
-            Load_Subtree_pararllel_Continuation;
-            continuation->set_ref_count(child_size);
-            load_mutations(out, node, ignored_size, parent_mutations,
-                           continuation->mutation_so_far);
+            MAT::Mutations_Collection mutation_so_far;
+            load_mutations(out, node, ignored_size, parent_mutations, mutation_so_far);
             for (size_t child_idx = 0; child_idx < child_size; child_idx++) {
-                continuation->spawn(
-                    *new (continuation->allocate_child())
-                    Load_Subtree_pararllel(
+                tg.run([=, &tg]() {
+                    Load_Subtree_pararllel child_loader(
                         out, file_start, node.children_offsets(child_idx),
                         node.children_lengths(child_idx),
                         out->children[child_idx], condensed_nodes,
-                        continuation->mutation_so_far));
+                        mutation_so_far);
+                    child_loader.execute(tg);
+                });
             }
-            return nullptr;
+        } else {
+            load_mutations(out, node, ignored_size, parent_mutations);
         }
-        load_mutations(out, node, ignored_size, parent_mutations);
-        return new (allocate_continuation()) tbb::empty_task;
     }
 };
 struct no_free_input {
@@ -271,15 +262,16 @@ template <typename do_free_input> struct decompressor_t {
 struct file_loader {
     uint8_t *&start;
     uint8_t *end;
-    bool operator()(uint8_t *&curr) {
+    uint8_t* operator()(tbb::detail::d1::flow_control& fc) {
         if (start==end) {
-            return false;
+            fc.stop();
+            return nullptr;
         }
-        curr=start;
+        uint8_t* curr = start;
         size_t length = *(uint64_t*)(start + 8);
         assert(start < end);
         start += (16 + length);
-        return true;
+        return curr;
     }
 };
 typedef tbb::flow::function_node<uint8_t *> decompressor_node_t;
@@ -299,7 +291,7 @@ uncompress_file(const std::string &path) {
     decompressor_node_t decompressor(
         g, tbb::flow::unlimited,
         decompressor_t<no_free_input> {uncompressed_buffer});
-    tbb::flow::source_node<uint8_t *> src(g, file_loader{curr, end_of_file-8});
+    tbb::flow::input_node<uint8_t *> src(g, file_loader{curr, end_of_file-8});
     tbb::flow::make_edge(src, decompressor);
     g.wait_for_all();
     munmap(file, file_size);
@@ -352,11 +344,12 @@ static void deserialize_common(std::pair<uint8_t*,uint8_t*> uncompressed,MAT::Tr
                           file_end - 8 - (file + meta_offset));
     MAT::Mutations_Collection root_muts;
     root_muts.mutations.emplace_back(INT_MAX);
-    tbb::task::spawn_root_and_wait(
-        *new (tbb::task::allocate_root())
-        Load_Subtree_pararllel<T>(
-            nullptr, (uint8_t *)file, temp.first, temp.second, tree->root,
-            tree->condensed_nodes, root_muts));
+    tbb::task_group tg;
+    Load_Subtree_pararllel<T> loader(
+        nullptr, (uint8_t *)file, temp.first, temp.second, tree->root,
+        tree->condensed_nodes, root_muts);
+    loader.execute(tg);
+    tg.wait();
     free(uncompressed.first);
     std::vector<MAT::Node *> dfs_nodes = tree->depth_first_expansion();
     fprintf(stderr, "follower dfs size %zu\n",dfs_nodes.size());
