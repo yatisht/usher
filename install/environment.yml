@@ -5,8 +5,8 @@ channels:
   - anaconda
 dependencies:
   - cxx-compiler
-  - cmake=3.19.6
-  - protobuf=3.12.3                                                                                                                                                                                               
+  - cmake<=3.20
+  - protobuf=3.20.3 
   - make
   - autoconf
   - boost-cpp

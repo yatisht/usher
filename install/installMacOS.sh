@@ -1,14 +1,16 @@
-brew install cmake coreutils boost protobuf wget rsync openmpi libtool automake autoconf nasm isa-l
+#brew install cmake coreutils boost protobuf wget rsync openmpi libtool automake autoconf nasm isa-l
+brew install --cask anaconda
 
 # create build directory
 startDir=$pwd
 cd $(dirname "$0")
-mkdir -p ../build
+conda env create -f environment.yml
+conda activate usher
 cd ..
 
 # build usher
 cmake -S . -B build 
-cmake --build build --parallel 4
+cmake --build build --parallel 4 
 
 # install faToVcf
 rsync -aP rsync://hgdownload.soe.ucsc.edu/genome/admin/exe/macOSX.x86_64/faToVcf .

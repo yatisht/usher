@@ -46,6 +46,7 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 #set(CMAKE_EXE_LINKER_FLAGS "-Wl,--copy-dt-needed-entries")
 
 if(DEFINED Protobuf_PATH) 
+    message(STATUS "Using Protobuf Path ${Protobuf_PATH}")
     find_package(Protobuf REQUIRED HINTS ${Protobuf_PATH}) 
 else()
     find_package(Protobuf REQUIRED) 
@@ -510,7 +511,9 @@ endif(SAVE_PROFILE)
 TARGET_LINK_LIBRARIES(compareVCF PRIVATE stdc++  ${Boost_LIBRARIES} TBB::tbb ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 
 
-TARGET_LINK_LIBRARIES(check_samples_place PRIVATE stdc++  ${Boost_LIBRARIES} TBB::tbb ${Protobuf_LIBRARIES} ZLIB::ZLIB  ${MPI_CXX_LIBRARIES} ${MPI_CXX_LINK_FLAGS} ${ISAL_LIB} ) # OpenMP::OpenMP_CXX)
+if(NOT DEFINED Protobuf_PATH)
+    TARGET_LINK_LIBRARIES(check_samples_place PRIVATE stdc++  ${Boost_LIBRARIES} TBB::tbb ${Protobuf_LIBRARIES} ZLIB::ZLIB  ${MPI_CXX_LIBRARIES} ${MPI_CXX_LINK_FLAGS} ${ISAL_LIB} ) # OpenMP::OpenMP_CXX)
+endif()
 TARGET_LINK_LIBRARIES(matOptimize PRIVATE stdc++  ${Boost_LIBRARIES} TBB::tbb ${Protobuf_LIBRARIES} ZLIB::ZLIB  ${MPI_CXX_LIBRARIES} ${MPI_CXX_LINK_FLAGS} ${ISAL_LIB} ) # OpenMP::OpenMP_CXX)
 target_include_directories(usher-sampled PUBLIC taskflow)
 TARGET_LINK_LIBRARIES(usher-sampled PRIVATE stdc++  ${Boost_LIBRARIES} TBB::tbb ${Protobuf_LIBRARIES} ZLIB::ZLIB  ${MPI_CXX_LIBRARIES} ${MPI_CXX_LINK_FLAGS} ${ISAL_LIB} ) # OpenMP::OpenMP_CXX)
