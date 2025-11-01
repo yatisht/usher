@@ -1,7 +1,9 @@
 #brew install cmake coreutils boost protobuf wget rsync openmpi libtool automake autoconf nasm isa-l
-brew install --cask anaconda
-conda init zsh
-source ~/.zshrc
+curl -fsSL https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-arm64.sh -o miniconda.sh 
+bash miniconda.sh -b -p "$HOME/miniconda" 
+rm miniconda.sh 
+export PATH="$HOME/miniconda/bin:$PATH" 
+conda init bash
 
 # create build directory
 startDir=$pwd
