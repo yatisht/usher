@@ -37,7 +37,7 @@ jobs:
        source "$HOME/miniconda/etc/profile.d/conda.sh"
       ./install/installMacOS.sh
     - name: test
-     run: |
+      run: |
        ./build/usher --help
        ./build/matUtils --help
        mpirun -np 1 ./build/matOptimize --help
