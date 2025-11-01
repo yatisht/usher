@@ -11,6 +11,7 @@ fi
 startDir=$pwd
 cd $(dirname "$0")
 conda env create -f environment.yml -n usher -y
+conda init
 conda activate usher
 cd ..
 
