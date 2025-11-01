@@ -24,8 +24,8 @@ jobs:
        ./build/ripples --help
        command -v mafft
 
-  macos-14:
-    runs-on: macos-14
+  macos-latest:
+    runs-on: macos-latest
     steps:
     - uses: actions/checkout@master
     - name: install pre-reqs and build
@@ -34,7 +34,8 @@ jobs:
     - name: test
       run: |
        ./build/usher --help
+       ./build/matOptimize --help
        ./build/matUtils --help
        ./build/ripples --help
-       command -v mafft
+       mafft --help
 
