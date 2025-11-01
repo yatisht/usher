@@ -6,7 +6,7 @@ if ! command -v conda >/dev/null 2>&1; then
     curl -fsSL https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-arm64.sh -o miniconda.sh  
     bash miniconda.sh -b -p "$HOME/miniconda" 
     rm miniconda.sh 
-    export PATH="$HOME/miniconda/bin:$PATH" 
+    $HOME/miniconda/bin/conda init
     source "$HOME/miniconda/etc/profile.d/conda.sh"
 fi
 
