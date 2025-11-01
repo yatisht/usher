@@ -35,7 +35,7 @@ jobs:
        rm miniconda.sh 
        export PATH="$HOME/miniconda/bin:$PATH" 
        source "$HOME/miniconda/etc/profile.d/conda.sh"
-      ./install/installMacOS.sh
+       ./install/installMacOS.sh
     - name: test
       run: |
        ./build/usher --help
