@@ -3,12 +3,13 @@ curl -fsSL https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-arm64.sh
 bash miniconda.sh -b -p "$HOME/miniconda" 
 rm miniconda.sh 
 export PATH="$HOME/miniconda/bin:$PATH" 
-conda init bash
+# Source conda functions
+source "$HOME/miniconda/etc/profile.d/conda.sh"
 
 # create build directory
 startDir=$pwd
 cd $(dirname "$0")
-conda env create -f environment.yml
+conda env create -f environment.yml -n usher -y
 conda activate usher
 cd ..
 
