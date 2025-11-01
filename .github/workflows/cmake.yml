@@ -28,11 +28,9 @@ jobs:
     runs-on: macos-latest
     steps:
     - uses: actions/checkout@master
-    - name: install pre-reqs and build
+    - name: install pre-reqs, build, and test
       run: |
        ./install/installMacOS.sh
-    - name: test
-      run: |
        ./build/usher --help
        ./build/matOptimize --help
        ./build/matUtils --help

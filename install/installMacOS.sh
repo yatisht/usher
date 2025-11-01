@@ -26,7 +26,7 @@ rsync -aP rsync://hgdownload.soe.ucsc.edu/genome/admin/exe/macOSX.x86_64/faToVcf
 chmod +x faToVcf
 
 # install mafft
-if ! command -v mafft &> /dev/null; then 
+if ! command -v mafft >/dev/null 2>&1; then
     wget https://mafft.cbrc.jp/alignment/software/mafft-7.471-mac.zip
     unzip mafft-7.471-mac.zip
     cd mafft-mac/
