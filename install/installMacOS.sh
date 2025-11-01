@@ -1,5 +1,7 @@
 #brew install cmake coreutils boost protobuf wget rsync openmpi libtool automake autoconf nasm isa-l
 brew install --cask anaconda
+conda init zsh
+source ~/.zshrc
 
 # create build directory
 startDir=$pwd
