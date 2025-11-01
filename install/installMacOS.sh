@@ -1,19 +1,35 @@
 #brew install cmake coreutils boost protobuf wget rsync openmpi libtool automake autoconf nasm isa-l
 
+AUTO_YES=false
+if [[ "$1" == "-y" ]]; then
+    AUTO_YES=true
+fi
+
 # Check if conda is available
 if ! command -v conda >/dev/null 2>&1; then
-    echo "WARNING: Installing conda since it is not installed or not found in your PATH." >&2
-    curl -fsSL https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-arm64.sh -o miniconda.sh  
-    bash miniconda.sh -b -p "$HOME/miniconda" 
-    rm miniconda.sh 
-    $HOME/miniconda/bin/conda init
-    source "$HOME/miniconda/etc/profile.d/conda.sh"
+    echo "WARNING: Conda is not installed on this system."
+    if [ "$AUTO_YES" = true ]; then
+        reply="y"
+    else
+        read -p "Would you like to install Miniconda for macOS? (y/n): " reply
+    fi
+    if [[ "$reply" =~ ^[Yy]$ ]]; then
+        curl -fsSL https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-arm64.sh -o miniconda.sh  
+        bash miniconda.sh -b -p "$HOME/miniconda" 
+        rm miniconda.sh 
+        $HOME/miniconda/bin/conda init
+        source "$HOME/miniconda/etc/profile.d/conda.sh"
+    else
+        echo "Cannot proceed without conda. Exiting."
+        exit 1
+    fi
+
 fi
 
 # create build directory
 startDir=$pwd
 cd $(dirname "$0")
-conda env create -f environment.yml -n usher -y
+conda env create -f environment.yml
 conda activate usher
 cd ..
 

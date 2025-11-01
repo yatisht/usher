@@ -1,5 +1,5 @@
 
-cmake_minimum_required (VERSION 3.14) 
+cmake_minimum_required (VERSION 3.19) 
 cmake_policy(SET CMP0069 NEW)
 project(usher LANGUAGES C CXX)
 
@@ -47,9 +47,9 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 if(DEFINED Protobuf_PATH) 
     message(STATUS "Using Protobuf Path ${Protobuf_PATH}")
-    find_package(Protobuf REQUIRED HINTS ${Protobuf_PATH}) 
+    find_package(Protobuf 3.0.0...<4.0.0 REQUIRED HINTS ${Protobuf_PATH}) 
 else()
-    find_package(Protobuf REQUIRED) 
+    find_package(Protobuf 3.0.0...<4.0.0 REQUIRED) 
 endif()
 
 # Print version messages

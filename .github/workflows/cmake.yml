@@ -30,7 +30,7 @@ jobs:
     - uses: actions/checkout@master
     - name: install pre-reqs and build
       run: |
-       ./install/installMacOS.sh
+       ./install/installMacOS.sh -y
     - name: test
       run: |
        conda activate usher
