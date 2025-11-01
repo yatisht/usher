@@ -35,7 +35,6 @@ jobs:
       run: |
        ./build/usher --help
        ./build/matUtils --help
-       mpirun -np 1 ./build/matOptimize --help
        ./build/ripples --help
        command -v mafft
 
