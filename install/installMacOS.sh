@@ -1,10 +1,11 @@
 #brew install cmake coreutils boost protobuf wget rsync openmpi libtool automake autoconf nasm isa-l
-curl -fsSL https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-arm64.sh -o miniconda.sh 
-bash miniconda.sh -b -p "$HOME/miniconda" 
-rm miniconda.sh 
-export PATH="$HOME/miniconda/bin:$PATH" 
-# Source conda functions
-source "$HOME/miniconda/etc/profile.d/conda.sh"
+
+# Check if conda is available
+if ! command -v conda >/dev/null 2>&1; then
+    echo "ERROR: Conda is not installed or not found in your PATH." >&2
+    echo "Please install Miniconda or Anaconda before proceeding." >&2
+    exit 1
+fi
 
 # create build directory
 startDir=$pwd

@@ -29,12 +29,17 @@ jobs:
     steps:
     - uses: actions/checkout@master
     - name: install pre-reqs and build
-      run: ./install/installMacOS.sh
- #   - name: test
- #     run: |
- #       ./build/usher --help
- #       ./build/matUtils --help
- #       mpirun -np 1 ./build/matOptimize --help
- #       ./build/ripples --help
- #       command -v mafft
+      run:  curl -fsSL https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-arm64.sh -o miniconda.sh  
+      bash miniconda.sh -b -p "$HOME/miniconda" 
+      rm miniconda.sh 
+      export PATH="$HOME/miniconda/bin:$PATH" 
+      source "$HOME/miniconda/etc/profile.d/conda.sh"
+      ./install/installMacOS.sh
+   - name: test
+     run: |
+       ./build/usher --help
+       ./build/matUtils --help
+       mpirun -np 1 ./build/matOptimize --help
+       ./build/ripples --help
+       command -v mafft
 
