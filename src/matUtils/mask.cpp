@@ -717,6 +717,30 @@ bool match_mutations(MAT::Mutation* target, MAT::Mutation* query) {
     }
     return true;
 }
+
+size_t mask_mutation_on_branch(MAT::Node* node, MAT::Mutation* mutobj, std::set<string>& exclude_nodes) {
+    size_t instances_masked = 0;
+    // The expected common case is to not match any mutations and have nothing to remove.
+    std::vector<MAT::Mutation> muts_to_remove;
+    for (auto& mut: node->mutations) {
+        if (match_mutations(mutobj, &mut)) {
+            instances_masked++;
+            muts_to_remove.push_back(mut);
+        }
+    }
+    for (auto mut: muts_to_remove) {
+        auto iter = std::find(node->mutations.begin(), node->mutations.end(), mut);
+        node->mutations.erase(iter);
+    }
+    for (auto child: node->children) {
+        if (exclude_nodes.count(child->identifier) == 0) {
+          instances_masked += mask_mutation_on_branch(child, mutobj, exclude_nodes);
+        }
+        else { fprintf(stderr, "Excluding %s for position %d\n", child->identifier.c_str(), mutobj->position); }
+    }
+    return instances_masked;
+}
+
 void restrictMutationsLocally (std::string mutations_filename, MAT::Tree* T, bool global) {
     std::ifstream infile(mutations_filename);
     if (!infile) {
@@ -739,6 +763,7 @@ void restrictMutationsLocally (std::string mutations_filename, MAT::Tree* T, boo
         MAT::string_split(line, delim, words);
         std::string target_node;
         std::string target_mutation;
+        std::set<string> exclude_nodes;
         if ((words.size() == 1) || (global)) {
             //std::cerr << "Masking mutations globally.\n";
             target_mutation = words[0];
@@ -746,29 +771,22 @@ void restrictMutationsLocally (std::string mutations_filename, MAT::Tree* T, boo
         } else {
             target_mutation = words[0];
             target_node = words[1];
+            if (words.size() > 2) {
+                // semicolon-separated set of descendent node IDs to exclude from masking
+                std::vector<std::string> node_ids;
+                MAT::string_split(words[2], ';', node_ids);
+                for (auto node_id: node_ids) {
+                    exclude_nodes.insert(node_id);
+                }
+            }
         }
         MAT::Mutation* mutobj = MAT::mutation_from_string(target_mutation);
-        size_t instances_masked = 0;
         MAT::Node* rn = T->get_node(target_node);
         if (rn == NULL) {
             fprintf(stderr, "ERROR: Internal node %s requested for masking does not exist in the tree. Exiting\n", target_node.c_str());
             exit(1);
         }
-        // fprintf(stderr, "Masking mutation %s below node %s\n", ml.first.c_str(), ml.second.c_str());
-        for (auto n: T->depth_first_expansion(rn)) {
-            // The expected common case is to not match any mutations and have nothing to remove.
-            std::vector<MAT::Mutation> muts_to_remove;
-            for (auto& mut: n->mutations) {
-                if (match_mutations(mutobj, &mut)) {
-                    instances_masked++;
-                    muts_to_remove.push_back(mut);
-                }
-            }
-            for (auto mut: muts_to_remove) {
-                auto iter = std::find(n->mutations.begin(), n->mutations.end(), mut);
-                n->mutations.erase(iter);
-            }
-        }
+        size_t instances_masked = mask_mutation_on_branch(rn, mutobj, exclude_nodes);
         total_masked += instances_masked;
     }
     fprintf(stderr, "Completed in %ld msec \n", timer.Stop());
