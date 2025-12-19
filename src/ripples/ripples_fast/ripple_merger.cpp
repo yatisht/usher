@@ -11,6 +11,15 @@ typedef  short __v8h __attribute__((__vector_size__(16)));
 typedef  int __v4i __attribute__((__vector_size__(16)));
 typedef char __v16b __attribute__((__vector_size__(16)));
 typedef unsigned short __v8hu_u __attribute__((__vector_size__(16), __aligned__(1)));
+
+// Compatibility wrappers for intrinsics not available in clang
+#ifndef __GNUC__
+#define __builtin_ia32_pminsw128(a, b) ((__v8h)_mm_min_epi16((__m128i)(a), (__m128i)(b)))
+#define __builtin_ia32_pmovmskb128(a) _mm_movemask_epi8((__m128i)(a))
+#elif defined(__clang__)
+#define __builtin_ia32_pminsw128(a, b) ((__v8h)_mm_min_epi16((__m128i)(a), (__m128i)(b)))
+#define __builtin_ia32_pmovmskb128(a) _mm_movemask_epi8((__m128i)(a))
+#endif
 #endif
 static int acceptor (const Mut_Count_Out_t &counts, size_t i, size_t j,
                      size_t curr_node_idx, size_t node_size,
