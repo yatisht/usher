@@ -2175,6 +2175,7 @@ void Mutation_Annotated_Tree::read_vcf(Mutation_Annotated_Tree::Tree* T, std::st
             return inp;
         });
         tbb::flow::make_edge(reader, mapper);
+        reader.activate();
         mapper_graph.wait_for_all();
     } else {
         // Read vcf with existing mat

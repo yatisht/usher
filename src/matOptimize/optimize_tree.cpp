@@ -412,6 +412,7 @@ void optimize_tree_worker_thread(MAT::Tree &t,int radius,bool do_drift,bool sear
     auto last_request_time=std::chrono::steady_clock::now();
     tbb::flow::input_node<std::vector<size_t>*> fetcher_node(g,fetcher(nodes_to_search,last_request_time));
     tbb::flow::make_edge(fetcher_node,searcher);
+    fetcher_node.activate();
     g.wait_for_all();
     MPI_Barrier(MPI_COMM_WORLD);
     fprintf(stderr, "%d finished",this_rank);
