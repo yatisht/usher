@@ -206,17 +206,24 @@ void assignLineages (MAT::Tree& T, const std::string& clade_to_nid_filename, boo
 
 void parse_clade_mutations(const std::string& clade_mutations_filename,
                            std::map<std::string, std::vector<MAT::Mutation>>& clade_mutations,
-                           std::unordered_set<std::string> clades_already_assigned) {
+                           std::unordered_set<std::string>& clades_already_assigned) {
     std::ifstream infile(clade_mutations_filename);
     if (!infile) {
         fprintf(stderr, "ERROR: Could not open the clade mutations file: %s!\n", clade_mutations_filename.c_str());
         exit(1);
     }
+    // While parsing, keep a map of lineage name to mutations for all clades, even the ones that we won't need to
+    // search for because they're in clades_already_assigned, in case a descendant refers to the lineage as ancestor.
+    std::map<std::string, std::vector<MAT::Mutation>> all_clade_mutations;
     std::string line;
 
     fprintf(stderr, "Reading clade mutations file %s.\n", clade_mutations_filename.c_str());
     bool got_error = false;
     while (std::getline(infile, line)) {
+        if (line[0] == '#') {
+            // Comment line -- skip it
+            continue;
+        }
         std::vector<std::string> words;
         MAT::string_split(line, '\t', words);
         // Empty second word (for root node, no mutations) is ignored by string_split; add it back.
@@ -229,15 +236,28 @@ void parse_clade_mutations(const std::string& clade_mutations_filename,
             continue;
         }
         std::string clade = words[0];
-        // If clade has already been assigned by a method with higher precedence, move on to the next one.
-        if (clades_already_assigned.find(clade) != clades_already_assigned.end()) {
+        // It's an error if the same clade is defined on multiple lines (probably copy-paste symptom).
+        if (all_clade_mutations.find(clade) != all_clade_mutations.end()) {
+            fprintf(stderr, "ERROR: clade %s is defined on multiple lines\n", clade.c_str());
+            got_error = true;
             continue;
         }
-        // Parse mutations from words[1] and store in clade_mutations[words[0]]
-        std::vector<MAT::Mutation> mutations;
-        std::vector<int> mut_positions;
+        // Parse mutations from words[1] and store in all_clade_mutations[words[0]]
+        // Use MAT::Node to store mutations so we can use its method add_mutation to handle multiple mutations at the
+        // same position.
+        MAT::Node node;
         std::vector<std::string> mut_words;
         MAT::string_split(words[1], mut_words);
+        // If first mut_word is the name of a lineage defined on a previous line, start with that lineage's mutations
+        if (mut_words.size() > 0) {
+            auto iter = all_clade_mutations.find(mut_words[0]);
+            if (iter != all_clade_mutations.end()) {
+                // Copy the included lineage's vector of mutations
+                node.mutations = iter->second;
+                // Remove the lineage name from mut_words
+                mut_words.erase(mut_words.begin());
+            }
+        }
         for (std::string path_el: mut_words) {
             // Ignore empty string or ">"
             if (path_el == "" || path_el == ">") {
@@ -256,20 +276,22 @@ void parse_clade_mutations(const std::string& clade_mutations_filename,
                             mut_string.c_str(), clade.c_str(), path_el.c_str());
                     got_error = true;
                 } else {
-                    if (std::find(mut_positions.begin(), mut_positions.end(), mut->position) != mut_positions.end()) {
-                        fprintf(stderr, "ERROR: Clade %s: position %d used multiple times, must appear only once per clade.\n",
-                                clade.c_str(), mut->position);
-                        got_error = true;
-                        continue;
-                    }
-                    mut_positions.emplace_back(mut->position);
-                    mutations.emplace_back(std::move(*mut));
+                    node.add_mutation(*mut);
                 }
+                delete mut;
             }
         }
-        clade_mutations[clade] = mutations;
+        all_clade_mutations[clade] = node.mutations;
     }
     infile.close();
+
+    // For all clades that are not in clades_already_assigned, add mutations to clade_mutations.
+    for (auto it: all_clade_mutations) {
+        const std::string clade = (const std::string)(it.first);
+        if (clades_already_assigned.find(clade) == clades_already_assigned.end()) {
+            clade_mutations[clade] = it.second;
+        }
+    }
     if (got_error) {
         fprintf(stderr, "Encountered errors -- exiting.\n");
         exit(1);
@@ -465,11 +487,6 @@ void assignLineages (MAT::Tree& T, const std::string& clade_filename,
                      const std::string& mutations_filename, const std::string& details_filename) {
     static tbb::affinity_partitioner ap;
 
-    fprintf(stderr, "Copying tree with uncondensed leaves.\n");
-    timer.Start();
-    auto uncondensed_T = MAT::get_tree_copy(T);
-    uncondensed_T.uncondense_leaves();
-
     auto dfs = T.depth_first_expansion();
     size_t total_nodes = dfs.size();
     FILE *mutations_file = NULL, *details_file = NULL;
@@ -486,6 +503,8 @@ void assignLineages (MAT::Tree& T, const std::string& clade_filename,
     }
 
 
+    fprintf(stderr, "Initializing annotations.\n");
+    timer.Start();
     init_annotations(dfs, clear_current);
     std::unordered_map<std::string, size_t> dfs_idx;
     for (size_t idx = 0; idx < total_nodes; idx++) {
@@ -505,9 +524,13 @@ void assignLineages (MAT::Tree& T, const std::string& clade_filename,
         parse_clade_mutations(clade_mutations_filename, clade_mutations_map, clades_already_assigned);
     }
     if (clade_filename != "") {
+        fprintf(stderr, "Copying tree with uncondensed leaves.\n");
+        timer.Start();
+        auto uncondensed_T = MAT::get_tree_copy(T);
+        uncondensed_T.uncondense_leaves();
         parse_clade_names(clade_filename, clade_mutations_map, clades_already_assigned, clade_map,
                           uncondensed_T, min_freq, mask_freq);
-
+        fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
     }
 
     struct Node_freq {
