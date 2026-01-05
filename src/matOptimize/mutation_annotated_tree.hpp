@@ -18,17 +18,6 @@
 #include "tbb/concurrent_vector.h"
 #include "tbb/concurrent_unordered_set.h"
 #include "tbb/concurrent_unordered_map.h"
-
-#include <tbb/flow_graph.h>
-#include <shared_mutex>
-#include <mutex>
-#include <thread>
-#include <tbb/task_group.h>
-
-#include <tbb/scalable_allocator.h>
-#include <tbb/global_control.h>
-#include <tbb/info.h>
-#include <tbb/blocked_range.h>
 #include <tbb/tbb.h>
 
 #if SAVE_PROFILE == 1

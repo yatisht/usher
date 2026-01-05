@@ -262,7 +262,7 @@ template <typename do_free_input> struct decompressor_t {
 struct file_loader {
     uint8_t *&start;
     uint8_t *end;
-    uint8_t* operator()(tbb::flow_control& fc) {
+    uint8_t* operator()(tbb::detail::d1::flow_control& fc) {
         if (start==end) {
             fc.stop();
             return nullptr;
