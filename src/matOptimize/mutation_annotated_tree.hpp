@@ -10,6 +10,7 @@
 #include <sys/types.h>
 #include <istream>
 #include <unordered_map>
+#include <unordered_set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -17,6 +18,7 @@
 #include "tbb/concurrent_vector.h"
 #include "tbb/concurrent_unordered_set.h"
 #include "tbb/concurrent_unordered_map.h"
+#include <tbb/tbb.h>
 
 #if SAVE_PROFILE == 1
 #  define TIMEIT() InstrumentationTimer timer##__LINE__(__PRETTY_FUNCTION__);
@@ -428,9 +430,11 @@ class Node {
     bool is_leaf() const;
     bool is_root();
     //Node();
+    
     Node(size_t id);
 
     Node(const Node& other, Node* parent,Tree* tree,bool copy_mutation=true);
+
     bool add_mutation(Mutation& mut) {
         return mutations.insert(mut,Mutations_Collection::KEEP_OTHER);
     }
@@ -663,6 +667,9 @@ class Tree {
     std::string get_newick_string(Node* node, bool b1, bool b2, bool b3=false, bool b4=false) const;
     void rotate_for_display(bool reverse = false);
     Tree copy_tree();
+
+    // Adding new functions for ripples
+    std::vector<Node *> rsearch(Node *node, bool include_self) const;
 };
 
 Tree create_tree_from_newick (std::string filename);

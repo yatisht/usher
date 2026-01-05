@@ -4,15 +4,15 @@
 
 void Pruned_Sample::add_mutation(MAT::Mutation mut) {
     // If not reversal to reference allele
-    if ((mut.ref_nuc != mut.mut_nuc) &&
-            (positions.find(mut.position) == positions.end())) {
+    if ((mut.get_ref_one_hot() != mut.get_mut_one_hot()) &&
+            (positions.find(mut.get_position()) == positions.end())) {
         auto iter = std::lower_bound(sample_mutations.begin(),
                                      sample_mutations.end(), mut);
-        auto m = mut.copy();
-        m.par_nuc = m.ref_nuc;
+        auto m = mut;
+        m.set_par_one_hot(m.get_ref_one_hot());
         sample_mutations.insert(iter, m);
     }
-    positions.insert(mut.position);
+    positions.insert(mut.get_position());
 }
 Pruned_Sample::Pruned_Sample(MAT::Node* name) {
     sample_name = name;
@@ -30,8 +30,8 @@ combine_intervals(std::vector<Recomb_Interval> pair_list) {
         for (size_t j = i + 1; j < pairs.size(); j++) {
             // check everything except first interval is same and first interval
             // of pairs[i] ends where it starts for pairs[j]
-            if ((pairs[i].d.node->identifier == pairs[j].d.node->identifier) &&
-                    (pairs[i].a.node->identifier == pairs[j].a.node->identifier) &&
+            if ((pairs[i].d.node->node_id == pairs[j].d.node->node_id) &&
+                    (pairs[i].a.node->node_id == pairs[j].a.node->node_id) &&
                     (pairs[i].start_range_low == pairs[j].start_range_low) &&
                     (pairs[i].start_range_high == pairs[j].start_range_high) &&
                     (pairs[i].end_range_high == pairs[j].end_range_low) &&
@@ -49,8 +49,8 @@ combine_intervals(std::vector<Recomb_Interval> pair_list) {
         for (size_t j = i + 1; j < pairs.size(); j++) {
             // check everything except second interval is same and second
             // interval of pairs[i] ends where it starts for pairs[j]
-            if ((pairs[i].d.node->identifier == pairs[j].d.node->identifier) &&
-                    (pairs[i].a.node->identifier == pairs[j].a.node->identifier) &&
+            if ((pairs[i].d.node->node_id == pairs[j].d.node->node_id) &&
+                    (pairs[i].a.node->node_id == pairs[j].a.node->node_id) &&
                     (pairs[i].end_range_low == pairs[j].end_range_low) &&
                     (pairs[i].end_range_high == pairs[j].end_range_high) &&
                     (pairs[i].start_range_high == pairs[j].start_range_low) &&
@@ -117,6 +117,8 @@ po::variables_map check_options(int argc, char **argv) {
     }
     return vm;
 }
+
+/*
 size_t check_parallelizable(const MAT::Node *root,
                             std::vector<bool> &do_parallel,
                             size_t parallel_threshold,
@@ -143,3 +145,4 @@ size_t check_parallelizable(const MAT::Node *root,
     }
     return child_counted_size;
 }
+*/

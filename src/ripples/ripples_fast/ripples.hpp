@@ -1,13 +1,14 @@
+#pragma once
 #include <boost/program_options.hpp>
-#include <src/mutation_annotated_tree.hpp>
-#include <signal.h>
 #include <iostream>
+#include <signal.h>
+#include <src/matOptimize/mutation_annotated_tree.hpp>
 
 namespace po = boost::program_options;
 namespace MAT = Mutation_Annotated_Tree;
 struct Mapper_Info {
-    const MAT::Mutation* begin;
-    const MAT::Mutation* end;
+    const MAT::Mutation *begin;
+    const MAT::Mutation *end;
     unsigned int sibling_start_idx;
     unsigned short level;
     bool is_leaf;
@@ -19,19 +20,16 @@ struct Ripples_Mapper_Mut {
     unsigned short mut_idx;
     char curr_mut;
     char dest_mut;
-    inline bool valid() const {
-        return curr_mut != dest_mut;
-    }
+    inline bool valid() const { return curr_mut != dest_mut; }
     Ripples_Mapper_Mut()
         : position(INT_MAX), mut_idx(NULL_MUT_IDX), curr_mut(0), dest_mut(0) {}
     Ripples_Mapper_Mut(const MAT::Mutation &mut, size_t idx)
-        : position(mut.position), mut_idx(idx), curr_mut(mut.ref_nuc),
-          dest_mut(mut.mut_nuc) {
-    }
+        : position(mut.get_position()), mut_idx(idx), curr_mut(MAT::get_nuc(mut.get_ref_one_hot())),
+          dest_mut(MAT::get_nuc(mut.get_mut_one_hot())) {}
     Ripples_Mapper_Mut(const MAT::Mutation &mut)
-        : position(mut.position), mut_idx(NULL_MUT_IDX), curr_mut(mut.mut_nuc),
-          dest_mut(mut.ref_nuc) {
-        //assert(mut.par_nuc == mut.ref_nuc);
+        : position(mut.get_position()), mut_idx(NULL_MUT_IDX), curr_mut(MAT::get_nuc(mut.get_mut_one_hot())),
+          dest_mut(MAT::get_nuc(mut.get_ref_one_hot())) {
+        // assert(mut.par_nuc == mut.ref_nuc);
     }
     Ripples_Mapper_Mut(const Ripples_Mapper_Mut &mut, char new_mut)
         : position(mut.position), mut_idx(mut.mut_idx), curr_mut(new_mut),
@@ -45,12 +43,8 @@ class Mut_Count_t {
     void set(unsigned short count_before_exclusive, bool is_self) {
         internal = (is_self << 15) | count_before_exclusive;
     }
-    unsigned short count_before_exclusive() const {
-        return internal & 0x7fff;
-    }
-    unsigned short is_self_counted() const {
-        return (internal >> 15);
-    }
+    unsigned short count_before_exclusive() const { return internal & 0x7fff; }
+    unsigned short is_self_counted() const { return (internal >> 15); }
     unsigned short count_before_inclusive() const {
         return count_before_exclusive() + is_self_counted();
     }
@@ -60,12 +54,12 @@ typedef std::vector<std::vector<Ripples_Mapper_Mut>> Mut_Out_t;
 
 struct Ripples_Mapper_Output_Interface {
     Mut_Count_Out_t mut_count_out;
-    //Mut_Out_t mut_out;
+    // Mut_Out_t mut_out;
     std::vector<char> is_sibling;
 };
 
 struct Pruned_Sample {
-    MAT::Node* sample_name;
+    MAT::Node *sample_name;
     std::vector<MAT::Mutation> sample_mutations;
     std::unordered_set<uint32_t> positions;
 
@@ -73,11 +67,11 @@ struct Pruned_Sample {
     void add_mutation(MAT::Mutation mut);
     Pruned_Sample() {}
 
-    Pruned_Sample(MAT::Node* name);
+    Pruned_Sample(MAT::Node *name);
 };
 
 struct Recomb_Node {
-    const MAT::Node* node;
+    const MAT::Node *node;
     int node_parsimony;
     int parsimony;
     bool is_sibling;
@@ -86,12 +80,12 @@ struct Recomb_Node {
         parsimony = -1;
         is_sibling = false;
     }
-    Recomb_Node(const MAT::Node* node, int np, int p, char s)
+    Recomb_Node(const MAT::Node *node, int np, int p, char s)
         : node(node), node_parsimony(np), parsimony(p), is_sibling(s) {}
     inline bool operator<(const Recomb_Node &n) const {
-        return (
-                   ((*this).parsimony < n.parsimony) ||
-                   ((this->node->identifier < n.node->identifier) && ((*this).parsimony == n.parsimony)));
+        return (((*this).parsimony < n.parsimony) ||
+                ((this->node->node_id < n.node->node_id) &&
+                 ((*this).parsimony == n.parsimony)));
     }
 };
 
@@ -122,26 +116,25 @@ std::vector<Recomb_Interval>
 combine_intervals(std::vector<Recomb_Interval> pair_list);
 po::variables_map check_options(int argc, char **argv);
 void ripples_mapper(const Pruned_Sample &sample,
-                    Ripples_Mapper_Output_Interface &out,
-                    size_t node_size,
-                    const std::vector<int>& idx_map,
-                    const std::vector<bool>& do_parallel,
+                    Ripples_Mapper_Output_Interface &out, size_t node_size,
+                    const std::vector<int> &idx_map,
+                    const std::vector<bool> &do_parallel,
                     const std::vector<Mapper_Info> &traversal_track,
-                    const unsigned short tree_height,
-                    const MAT::Node *root,
-                    const MAT::Node *skip_node) ;
+                    const unsigned short tree_height, const MAT::Node *root,
+                    const MAT::Node *skip_node);
+
 void ripplrs_merger(const Pruned_Sample &pruned_sample,
-                    const std::vector<int> & idx_map,
+                    const std::vector<int> &idx_map,
                     const std::vector<MAT::Node *> &nodes_to_search,
                     size_t node_size, int pasimony_threshold,
                     const MAT::Tree &T,
                     tbb::concurrent_vector<Recomb_Interval> &valid_pairs,
                     const Ripples_Mapper_Output_Interface &out_ifc,
-                    int nthreads, int branch_len, int min_range,
-                    int max_range) ;
+                    int nthreads, int branch_len, int min_range, int max_range);
+
 size_t check_parallelizable(const MAT::Node *root,
                             std::vector<bool> &do_parallel,
-                            size_t parallel_threshold,
-                            size_t check_threshold,
-                            unsigned short& tree_height,
-                            std::vector<Mapper_Info>& traversal_track,unsigned short level);
+                            size_t parallel_threshold, size_t check_threshold,
+                            unsigned short &tree_height,
+                            std::vector<Mapper_Info> &traversal_track,
+                            unsigned short level);

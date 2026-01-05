@@ -40,6 +40,8 @@
 #include <iostream>
 #define BOOST_STACKTRACE_USE_ADDR2LINE
 #include <boost/stacktrace.hpp>
+#include "src/ripples/ripples_fast/ripples_runner.hpp"
+
 static void print_stack_trace(int ){
     std::cout << boost::stacktrace::stacktrace() << std::endl;
 }
@@ -497,6 +499,24 @@ static void child_proc(int fd, TreeCollectionPtr &trees_ptr) {
                      sample_start_idx, sample_end_idx, low_confidence_samples,
                      position_wise_out, false);
         fputc('\n', f);
+
+        // Ripples server integration
+        MAT::Tree T_new = tree.copy_tree();
+		
+        // Set ripples-fast parameters
+		uint32_t branch_len = 3;
+        std::string outdir = ".";
+        uint32_t num_desc = 10;
+
+        // Converting samples_to_place to missing_samples format
+        std::vector<Missing_Sample> missing_samples(samples_to_place.size());
+        for (size_t i = 0; i < samples_to_place.size(); ++i) {
+            missing_samples[i].name = tree.get_node_name(samples_to_place[i].sample_idx);
+        }
+
+        ripples_runner runner(T_new, missing_samples, num_threads, branch_len,
+                              num_desc, outdir);
+        runner();
     }
     fputc(4, f);
     fputc('\n', f);

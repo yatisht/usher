@@ -1,5 +1,5 @@
 #include "ripples.hpp"
-#include "src/mutation_annotated_tree.hpp"
+#include "src/matOptimize/mutation_annotated_tree.hpp"
 #include <cassert>
 #include <csignal>
 #include <stack>
@@ -45,7 +45,7 @@ std::pair<const MAT::Node*,MAT::Mutation> get_parent_mut(const MAT::Node* node,i
     node=node->parent;
     while (node!=nullptr) {
         for(auto mut:node->mutations) {
-            if(mut.position==pos) {
+            if(mut.get_position()==pos) {
                 return std::make_pair(node,mut);
             }
         }
@@ -84,15 +84,15 @@ void set_mut_count(int this_idx,
     if(this_idx!=0) {
         for (; this_mut_start<this_mut_end; this_mut_start++) {
             const auto& this_mut=*this_mut_start;
-            while (iter->position < this_mut.position) {
+            while (iter->position < this_mut.get_position()) {
                 only_from_parent(*iter,this_idx,mut_accumulated,this_mut_out,cfg);
                 iter++;
             }
-            if (iter->position == this_mut.position) {
+            if (iter->position == this_mut.get_position()) {
                 if (iter->mut_idx != iter->NULL_MUT_IDX) {
                     // Position being counted
                     // Need descendant to know no matter whether it is valid
-                    this_mut_out.emplace_back(*iter, this_mut.mut_nuc);
+                    this_mut_out.emplace_back(*iter, MAT::get_nuc(this_mut.get_mut_one_hot()));
                     auto &mut_for_descendant = this_mut_out.back();
                     // May be splited
                     bool have_to_be_valid =
@@ -110,8 +110,8 @@ void set_mut_count(int this_idx,
                     }
                 } else {
                     assert(iter->valid());
-                    if (this_mut.mut_nuc != iter->dest_mut) {
-                        this_mut_out.emplace_back(*iter, this_mut.mut_nuc);
+                    if (MAT::get_nuc(this_mut.get_mut_one_hot()) != iter->dest_mut) {
+                        this_mut_out.emplace_back(*iter, MAT::get_nuc(this_mut.get_mut_one_hot()));
                         mut_accumulated++;
                     } else {
                         has_common=true;
@@ -119,8 +119,8 @@ void set_mut_count(int this_idx,
                 }
                 iter++;
             } else {
-                //Only at this node, back mutations for descendant, but maybe split
-                if (this_mut.mut_nuc != this_mut.ref_nuc) {
+                //Only at this node, back mutations for descendant, but maybe spli
+                if (MAT::get_nuc(this_mut.get_mut_one_hot()) != MAT::get_nuc(this_mut.get_ref_one_hot())) {
                     this_mut_out.emplace_back(this_mut);
                     has_unique=true;
                 } else {
@@ -144,23 +144,23 @@ void merge_mutation_only(std::vector<Ripples_Mapper_Mut>& this_mut_out,const MAT
     auto end = parent_muts.end();
     this_mut_out.reserve(node->mutations.size()+parent_muts.size());
     for (const auto &this_mut : node->mutations) {
-        while (iter->position < this_mut.position) {
+        while (iter->position < this_mut.get_position()) {
             this_mut_out.push_back((*iter));
             iter++;
         }
-        if (iter->position == this_mut.position) {
+        if (iter->position == this_mut.get_position()) {
             if (iter->mut_idx != iter->NULL_MUT_IDX) {
-                this_mut_out.emplace_back(*iter, this_mut.mut_nuc);
+                this_mut_out.emplace_back(*iter, MAT::get_nuc(this_mut.get_mut_one_hot()));
             } else {
                 assert(iter->valid());
-                if (this_mut.mut_nuc != iter->dest_mut) {
-                    this_mut_out.emplace_back(*iter, this_mut.mut_nuc);
+                if (MAT::get_nuc(this_mut.get_mut_one_hot()) != iter->dest_mut) {
+                    this_mut_out.emplace_back(*iter, MAT::get_nuc(this_mut.get_mut_one_hot()));
                 }
             }
             iter++;
         } else {
             //Only at this node, back mutations for descendant, but maybe split
-            if (this_mut.mut_nuc != this_mut.ref_nuc) {
+            if (MAT::get_nuc(this_mut.get_mut_one_hot()) != MAT::get_nuc(this_mut.get_ref_one_hot())) {
                 this_mut_out.emplace_back(this_mut);
             }
         }
@@ -220,7 +220,7 @@ struct Mapper_Op {
               const MAT::Node *node)
         : parent_muts(parent_muts), cfg(cfg), node(node) {}
     void execute() {
-        auto dfs_idx=node->dfs_idx;
+        auto dfs_idx=node->dfs_index;
         auto this_idx = cfg.idx_map[dfs_idx];
         if(this_idx<0||this_idx==cfg.skip_idx) {
             return;
@@ -233,9 +233,9 @@ struct Mapper_Op {
         Mapper_Cont cont;
         auto &this_mut_out = cont.muts;
 
-        if (node->identifier=="node_7194") {
+        //if (node->identifier=="node_7194") {
             //raise(SIGTRAP);
-        }
+        //}
         //if (this_idx>=0)
         //{
         set_mut_count(this_idx, this_mut_out, node->mutations.data(),
@@ -283,7 +283,7 @@ void ripples_mapper(const Pruned_Sample &sample,
                          idx_map,
                          do_parallel,
                          traversal_track,
-                         idx_map[skip_node->dfs_idx],
+                         idx_map[skip_node->dfs_index],
                          tree_height};
     Mapper_Op root_op(root_muts, cfg, root);
     root_op.execute();

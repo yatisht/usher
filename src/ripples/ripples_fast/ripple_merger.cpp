@@ -1,5 +1,5 @@
 #include "ripples.hpp"
-#include "src/mutation_annotated_tree.hpp"
+#include "src/matOptimize/mutation_annotated_tree.hpp"
 #include <algorithm>
 #include <cassert>
 #include <stdio.h>
@@ -240,14 +240,14 @@ static void find_pairs(
                         (orig_parsimony >= d.parsimony + a.parsimony +
                                                parsimony_improvement)
                                                */) {
-                int start_range_high = pruned_sample_mutations[i].position;
+                int start_range_high = pruned_sample_mutations[i].get_position();
                 int start_range_low =
-                    (i >= 1) ? pruned_sample_mutations[i - 1].position : 0;
+                    (i >= 1) ? pruned_sample_mutations[i - 1].get_position() : 0;
 
                 // int end_range_high = pruned_sample_mutations[j].position;
                 int end_range_high = 1e9;
                 int end_range_low =
-                    (j >= 1) ? pruned_sample_mutations[j - 1].position : 0;
+                    (j >= 1) ? pruned_sample_mutations[j - 1].get_position() : 0;
                 Pruned_Sample donor;
                 donor.sample_mutations.clear();
                 Pruned_Sample acceptor;
@@ -255,62 +255,62 @@ static void find_pairs(
 
                 auto donor_node = d.node;
 
-                for (auto anc : T.rsearch(donor_node->identifier, true)) {
+                for (auto anc : T.rsearch(const_cast<Mutation_Annotated_Tree::Node*>(donor_node), true)) {
                     for (auto mut : anc->mutations) {
                         donor.add_mutation(mut);
                     }
                 }
 
                 for (auto mut : donor.sample_mutations) {
-                    if ((mut.position > start_range_low) &&
-                            (mut.position <= start_range_high)) {
+                    if ((mut.get_position() > start_range_low) &&
+                            (mut.get_position() <= start_range_high)) {
                         bool in_pruned_sample = false;
                         for (auto mut2 : pruned_sample_mutations) {
-                            if (mut.position == mut2.position) {
+                            if (mut.get_position() == mut2.get_position()) {
                                 in_pruned_sample = true;
                             }
                         }
                         if (!in_pruned_sample) {
-                            start_range_low = mut.position;
+                            start_range_low = mut.get_position();
                         }
                     }
-                    if ((mut.position > end_range_low) &&
-                            (mut.position <= end_range_high)) {
+                    if ((mut.get_position() > end_range_low) &&
+                            (mut.get_position() <= end_range_high)) {
                         bool in_pruned_sample = false;
                         for (auto mut2 : pruned_sample_mutations) {
-                            if (mut.position == mut2.position) {
+                            if (mut.get_position() == mut2.get_position()) {
                                 in_pruned_sample = true;
                             }
                         }
                         if (!in_pruned_sample) {
-                            end_range_high = mut.position;
+                            end_range_high = mut.get_position();
                         }
                     }
                 }
 
                 for (auto mut : pruned_sample_mutations) {
-                    if ((mut.position > start_range_low) &&
-                            (mut.position <= start_range_high)) {
+                    if ((mut.get_position() > start_range_low) &&
+                            (mut.get_position() <= start_range_high)) {
                         bool in_pruned_sample = false;
                         for (auto mut2 : donor.sample_mutations) {
-                            if (mut.position == mut2.position) {
+                            if (mut.get_position() == mut2.get_position()) {
                                 in_pruned_sample = true;
                             }
                         }
                         if (!in_pruned_sample) {
-                            start_range_low = mut.position;
+                            start_range_low = mut.get_position();
                         }
                     }
-                    if ((mut.position > end_range_low) &&
-                            (mut.position <= end_range_high)) {
+                    if ((mut.get_position() > end_range_low) &&
+                            (mut.get_position() <= end_range_high)) {
                         bool in_pruned_sample = false;
                         for (auto mut2 : donor.sample_mutations) {
-                            if (mut.position == mut2.position) {
+                            if (mut.get_position() == mut2.get_position()) {
                                 in_pruned_sample = true;
                             }
                         }
                         if (!in_pruned_sample) {
-                            end_range_high = mut.position;
+                            end_range_high = mut.get_position();
                         }
                     }
                 }
@@ -399,7 +399,7 @@ struct search_position {
     int last_i;
     bool is_j_end_of_range(int start_range_high, int total_size) const {
         return j >= total_size || total_size - (j - i) < branch_len ||
-               pruned_sample_mutations[j-1].position - start_range_high >
+               pruned_sample_mutations[j-1].get_position() - start_range_high >
                max_range;
     }
     std::pair<int, int> operator()(tbb::flow_control &fc) const {
@@ -413,7 +413,7 @@ struct search_position {
         j++;
         // j end
         if (i!=-1) {
-            start_range_high = pruned_sample_mutations[i].position;
+            start_range_high = pruned_sample_mutations[i].get_position();
         }
 
         while (i==-1||is_j_end_of_range(start_range_high, total_size)) {
@@ -422,9 +422,9 @@ struct search_position {
                 fc.stop();
                 return std::make_pair(0, 0);
             }
-            start_range_high = pruned_sample_mutations[i].position;
+            start_range_high = pruned_sample_mutations[i].get_position();
             j = i + branch_len;
-            while (j < total_size && pruned_sample_mutations[j - 1].position <
+            while (j < total_size && pruned_sample_mutations[j - 1].get_position() <
                     start_range_high + min_range) {
                 j++;
             }
@@ -443,16 +443,16 @@ void ripplrs_merger(const Pruned_Sample &pruned_sample,
                     int nthreads, int branch_len, int min_range,
                     int max_range) {
     auto pruned_node = pruned_sample.sample_name;
-    int skip_start_idx=std::abs(idx_map[pruned_node->dfs_idx]);
+    int skip_start_idx=std::abs(idx_map[pruned_node->dfs_index]);
     //The next index after the one corresponding to dfs_idx -1
-    int skip_end_idx=std::abs(idx_map[pruned_node->dfs_end_idx]);
+    int skip_end_idx=std::abs(idx_map[pruned_node->dfs_end_index]);
 
     const auto &sample_mutations = pruned_sample.sample_mutations;
     int i = -1;
     int j = 0;
-    const auto last_pos = sample_mutations.back().position - min_range;
+    const auto last_pos = sample_mutations.back().get_position() - min_range;
     int last_i = sample_mutations.size() - branch_len;
-    while (last_i > 0 && sample_mutations[last_i].position > last_pos) {
+    while (last_i > 0 && sample_mutations[last_i].get_position() > last_pos) {
         last_i--;
     }
 
