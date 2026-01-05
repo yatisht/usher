@@ -195,6 +195,7 @@ Mutation_Annotated_Tree::Tree Mutation_Annotated_Tree::Tree::copy_tree() {
     }
     return out;
 }
+
 std::string Mutation_Annotated_Tree::Tree::get_clade_assignment (const Node* n, int clade_id, bool include_self) const {
     const Node* anc=n;
     while (anc) {
@@ -415,6 +416,21 @@ void Mutation_Annotated_Tree::Tree::rotate_for_display(bool reverse) {
     auto dfs = depth_first_expansion();
     rotate_each_node(dfs, reverse);    
 }
+std::vector<Node *> Mutation_Annotated_Tree::Tree::rsearch(Node *node, bool include_self) const{
+    std::vector<Node *> output;
+    if (node == NULL)
+        return output;
+    if (include_self) {
+        output.push_back(node);
+    }
+    node = node->parent;
+    while (node) {
+        output.push_back(node);
+        node = node->parent;
+    }
+    return output;
+}
+
 void Mutation_Annotated_Tree::get_random_single_subtree(
     const Mutation_Annotated_Tree::Tree & T, std::vector<Node *> samples,
     std::string outdir, size_t subtree_size, size_t tree_idx, bool use_tree_idx,

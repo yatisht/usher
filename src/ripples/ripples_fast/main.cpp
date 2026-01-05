@@ -1,5 +1,5 @@
-#include "ripples.hpp"
-#include "src/usher_graph.hpp"
+#include "ripples_util.hpp"
+#include "src/matOptimize/usher_graph.hpp"
 #include "tbb/concurrent_unordered_set.h"
 #include <array>
 #include <boost/filesystem.hpp>
@@ -8,6 +8,9 @@
 #include <random>
 #include <time.h>
 #include <vector>
+Timer timer;
+
+/*
 #define CHECK_MAPPER
 Timer timer;
 struct idx_hash {
@@ -73,6 +76,8 @@ struct Ripple_Finalizer {
 
     void operator()(Ripple_Result_Pack*) const;
 };
+*/
+
 int main(int argc, char **argv) {
     po::variables_map vm = check_options(argc, argv);
     std::string input_mat_filename = vm["input-mat"].as<std::string>();
@@ -96,10 +101,10 @@ int main(int argc, char **argv) {
     fprintf(stderr, "Loading input MAT file %s.\n", input_mat_filename.c_str());
 
     // Load input MAT and uncondense tree
-    MAT::Tree T = MAT::load_mutation_annotated_tree(input_mat_filename);
+    MAT::Tree T;
+    MAT::load_mutation_annotated_tree(input_mat_filename, T);
     T.uncondense_leaves();
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
-    //get_node_cstr(T,"");
     timer.Start();
 
     fprintf(stderr,
@@ -137,7 +142,7 @@ int main(int argc, char **argv) {
                         words[0].c_str());
                 exit(1);
             } else {
-                for (auto anc : T.rsearch(n->identifier, true)) {
+                for (auto anc : T.rsearch(n, true)) {
                      if (anc->is_root()) {
                          continue;
                      }
@@ -157,7 +162,7 @@ int main(int argc, char **argv) {
                     continue;
                 }
                 if (n->mutations.size() >= branch_len) {
-                    if (T.get_num_leaves(n) >= num_descendants) {
+                    if (T.get_leaves(n).size() >= num_descendants) {
                         nodes_to_consider.insert(n);
                     }
                 }
@@ -209,7 +214,7 @@ int main(int argc, char **argv) {
     std::vector<MAT::Node*> nodes_to_search;
     nodes_to_search.reserve(dfs.size());
     for (auto &node : dfs) {
-        if ((node->dfs_end_idx - node->dfs_idx) >= num_descendants) {
+        if ((node->dfs_end_index - node->dfs_index) >= num_descendants) {
             nodes_to_search.push_back(node);
         }
     }
@@ -221,7 +226,7 @@ int main(int argc, char **argv) {
     int node_to_search_idx=0;
     index_map.reserve(dfs.size());
     for (int dfs_idx = 0; dfs_idx <(int) dfs.size(); dfs_idx++) {
-        if (node_to_search_idx!=(int)nodes_to_search.size()&&(int)nodes_to_search[node_to_search_idx]->dfs_idx==dfs_idx) {
+        if (node_to_search_idx!=(int)nodes_to_search.size()&&(int)nodes_to_search[node_to_search_idx]->dfs_index==dfs_idx) {
             index_map.push_back(node_to_search_idx);
             node_to_search_idx++;
         } else {
@@ -265,6 +270,8 @@ int main(int argc, char **argv) {
 
     fprintf(stderr, "Completed in %ld msec \n\n", timer.Stop());
 }
+
+/*
 Ripple_Result_Pack* Ripple_Pipeline::operator()(MAT::Node* node_to_consider) const {
     fprintf(stderr, "At node id: %s\n",
             node_to_consider->identifier.c_str());
@@ -294,18 +301,11 @@ Ripple_Result_Pack* Ripple_Pipeline::operator()(MAT::Node* node_to_consider) con
                    min_range, max_range);
     std::vector<Recomb_Interval> temp(std::vector<Recomb_Interval>(valid_pairs_con.begin(),valid_pairs_con.end()));
     std::sort(temp.begin(),temp.end(),interval_sorter());
-    /*       for(auto p: temp) {
-               std::string end_range_high_str = (p.end_range_high == 1e9) ? "GENOME_SIZE" : std::to_string(p.end_range_high);
-                           fprintf(
-                   before_joining_fh,
-                   "%s\t(%i,%i)\t(%i,%s)\t%s\t%s\n",
-                   node_to_consider->identifier.c_str(), p.start_range_low,
-                   p.start_range_high, p.end_range_low, end_range_high_str.c_str(),
-                   p.d.node->identifier.c_str(), p.a.node->identifier.c_str());
-               fflush(before_joining_fh);
-           }*/
     return (new Ripple_Result_Pack{combine_intervals(temp),node_to_consider,orig_parsimony});
 }
+*/
+
+/*
 void Ripple_Finalizer::operator()(Ripple_Result_Pack* result) const {
     // print combined pairs
     auto & valid_pairs=result->intervals;
@@ -346,3 +346,4 @@ void Ripple_Finalizer::operator()(Ripple_Result_Pack* result) const {
     }
     delete result;
 }
+*/
