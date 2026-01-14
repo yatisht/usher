@@ -22,7 +22,7 @@ if ("${VERSION_PATCH}" MATCHES "[0-9]+")
 endif()
 message(STATUS "${usher_VERSION}")
 
-if(NOT "${CMAKE_CXX_COMPILER_ID}" STREQUAL "AppleClang")
+if(NOT APPLE)
   add_link_options("-Wl,--undefined-version")
 endif()
 
