@@ -421,7 +421,7 @@ static void process(MAT::Tree& tree,infile_t& fd) {
             queue.set_capacity(10);
             tbb::flow::input_node<line_start_later> line(input_graph,line_align(queue));
             tbb::flow::make_edge(line,parser);
-            //raise(SIGTRAP);
+            line.activate();
             fd(queue);
             input_graph.wait_for_all();
         }

@@ -293,6 +293,7 @@ uncompress_file(const std::string &path) {
         decompressor_t<no_free_input> {uncompressed_buffer});
     tbb::flow::input_node<uint8_t *> src(g, file_loader{curr, end_of_file-8});
     tbb::flow::make_edge(src, decompressor);
+    src.activate();
     g.wait_for_all();
     munmap(file, file_size);
     close(fd);

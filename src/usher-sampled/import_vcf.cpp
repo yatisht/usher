@@ -78,7 +78,8 @@ struct line_align {
         : in(out) {
         prev.start = nullptr;
     }
-    bool operator()(line_start_later &out) const {
+    line_start_later operator()(tbb::flow_control& fc) const {
+        line_start_later out;
         std::pair<char *, unsigned char *> line;
         in.pop(line);
         if (line.first == nullptr) {
@@ -86,9 +87,10 @@ struct line_align {
                 out = prev;
                 prev.start = nullptr;
                 prev_end[0] = 0;
-                return true;
+                return out;
             } else {
-                return false;
+                fc.stop();
+                return out;
             }
         }
         if (!prev.start) {
@@ -100,7 +102,7 @@ struct line_align {
                 out=prev;
                 prev.start=nullptr;
                 *prev_end=0;
-                return true;
+                return out;
             }
         }
         auto start_ptr = strchr(line.first, '\n');
@@ -115,7 +117,7 @@ struct line_align {
         prev.start = start_ptr;
         prev.alloc_start = line.first;
         prev_end = line.second;
-        return true;
+        return out;
     }
 };
 struct gzip_input_source {
@@ -496,16 +498,10 @@ static void process(infile_t &fd, std::vector<Sample_Muts> &sample_mutations,
     read_size = first_approx_size * single_line_size;
     alloc_size = (first_approx_size + 2) * single_line_size;
     tbb::concurrent_bounded_queue<std::pair<char *, uint8_t *>> queue;
-    auto line_wrapper = [queue_ref = std::ref(queue)](tbb::flow_control& fc) mutable -> line_start_later {
-        line_start_later result;
-        line_align aligner(queue_ref);
-        if (!aligner(result)) {
-            fc.stop();
-        }
-        return result;
-    };
-    tbb::flow::input_node<line_start_later> line(input_graph, line_wrapper);
+    queue.set_capacity(10);
+    tbb::flow::input_node<line_start_later> line(input_graph, line_align(queue));
     tbb::flow::make_edge(line, parser);
+    line.activate();
     fd(queue);
     input_graph.wait_for_all();
     }

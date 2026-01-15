@@ -22,6 +22,10 @@ if ("${VERSION_PATCH}" MATCHES "[0-9]+")
 endif()
 message(STATUS "${usher_VERSION}")
 
+if(NOT APPLE)
+  add_link_options("-Wl,--undefined-version")
+endif()
+
 include(FetchContent)
 set(TBB_VERSION "v2022.2.0")
 FetchContent_Declare(oneTBB
@@ -57,6 +61,11 @@ if(Protobuf_FOUND)
     message(STATUS "Using Protocol Buffers ${Protobuf_VERSION}")
 endif()
 include_directories(${Protobuf_INCLUDE_DIRS})
+
+if(Protobuf_VERSION VERSION_GREATER_EQUAL "4.0.0")
+  find_package(absl REQUIRED)
+  link_libraries(absl::log absl::log_internal_check_impl)
+endif()
 
 FIND_PACKAGE(Boost COMPONENTS program_options iostreams filesystem date_time REQUIRED CONFIG)
 
@@ -507,6 +516,29 @@ else(SAVE_PROFILE)
         TARGET_COMPILE_OPTIONS(usher PRIVATE )
     endif(DEBUG)
 endif(SAVE_PROFILE)
+
+
+if(Protobuf_VERSION VERSION_GREATER_EQUAL "4.0.0")
+  find_package(absl REQUIRED)
+  link_libraries(absl::log absl::log_internal_check_impl)
+  # Patch protobuf generated files before compilation
+  # The patch fixes a naming conflict where a variable 'target' shadows the class type 'target'
+  add_custom_command(
+    OUTPUT ${CMAKE_BINARY_DIR}/mutation_detailed.pb.cc.patched
+    COMMAND ${PROJECT_SOURCE_DIR}/patch-protobuf.sh
+    COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_BINARY_DIR}/mutation_detailed.pb.cc.patched
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+    DEPENDS ${CMAKE_BINARY_DIR}/mutation_detailed.pb.cc
+    COMMENT "Patching protobuf generated files"
+  )
+
+  # Make the object file depend on the patch stamp to ensure patch runs before compilation
+  set_source_files_properties(
+    ${CMAKE_BINARY_DIR}/mutation_detailed.pb.cc
+    PROPERTIES OBJECT_DEPENDS ${CMAKE_BINARY_DIR}/mutation_detailed.pb.cc.patched
+  )
+endif()
+
 #set_property(TARGET matOptimize PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 TARGET_LINK_LIBRARIES(compareVCF PRIVATE stdc++  ${Boost_LIBRARIES} TBB::tbb ${Protobuf_LIBRARIES} ZLIB::ZLIB) # OpenMP::OpenMP_CXX)
 
