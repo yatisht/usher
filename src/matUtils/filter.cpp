@@ -222,17 +222,15 @@ void reroot_tree(MAT::Tree* T, const std::string& rnid, const std::string& input
     // The new root will not be a leaf when we are done, but keep track of whether it started
     // as a leaf.
     bool new_root_was_leaf = (norder[0]->children.size() == 0);
-    if (T->root->mutations.size() != 0) {
-        // The way mutations are handled below assumes that the root and reference are synonymous,
-        // and as we change the rooting of the tree, we change the mutations to reflect that the
-        // reference is changing as well.  In order to preserve the original reference in the case
-        // that the root differs from it, we would have to do something else with mutations to keep
-        // things consistent.  I'm not going to implement that until & unless there's a need for it.
-        fprintf(stderr, "ERROR: Root node has mutations; support for maintaining existing reference has not been implemented. Exiting\n");
-        exit(1);
-    }
-    fprintf(stderr, "Moving root to node %s over a distance of %ld connections.\n", rnid.c_str(), norder.size());
+    fprintf(stderr, "Moving root to node %s over a distance of %ld connections.\n", rnid.c_str(), norder.size()-1);
     std::vector<MAT::Mutation> ref_changes;
+    // If the current root node has mutations, then move them to the ref_changes list.
+    if (T->root->mutations.size() != 0) {
+        for (auto m: T->root->mutations) {
+            add_ref_change(ref_changes, m);
+        }
+        T->root->mutations.clear();
+    }
     std::reverse(norder.begin(), norder.end()); //reverse so the root is first.
     for (size_t i = 0; i < norder.size() - 1; i++) {
 
