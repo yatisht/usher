@@ -21,7 +21,10 @@ void ripples::filtration::recomb_writer::write(const recombinant &recomb) {
          << acceptor_clade << "\t" << acceptor_lineage << "\t"
          << recomb.find_representative_sample(tree_) << "\t"
          << recomb.parsimony_original() << "\t"
-         << recomb.parsimony_improvement() << "\n";
+         << recomb.parsimony_improvement() << "\t"
+         << recomb.get_collapsed_mutations(tree_, recomb.id()) << "\t"
+         << recomb.get_collapsed_mutations(tree_, recomb.donor_id()) << "\t"
+         << recomb.get_collapsed_mutations(tree_, recomb.acceptor_id()) << "\n";
 }
 
 ripples::server::Status ripples::filtration::recomb_writer::write(

@@ -55,6 +55,14 @@ int ripples::filtration::recombinant::parsimony_improvement() const {
     return scores_.original - scores_.recomb;
 }
 
+void ripples::filtration::recombinant::set_bp1(std::string_view bp) {
+    breakpoints_.bp1 = bp;
+}
+
+void ripples::filtration::recombinant::set_bp2(std::string_view bp) {
+    breakpoints_.bp2 = bp;
+}
+
 ripples::filtration::CladeLineagePair
 ripples::filtration::recombinant::get_clade_assignments(MAT::Tree &tree) const {
     return std::make_pair(tree.get_clade_assignment(node_, 0),
@@ -99,3 +107,27 @@ std::string ripples::filtration::recombinant::find_representative_sample(
     return rep_samples[0].node_id;
 }
 
+std::string ripples::filtration::recombinant::get_collapsed_mutations(MAT::Tree &tree, std::string_view node_id) const {
+    // Get the path from node to root, including node, then reverse it to get root to node.
+    std::vector<MAT::Node*> path = tree.rsearch(std::string(node_id), true);
+    std::reverse(path.begin(), path.end());
+    // Make a new node to accumulate all mutations on the path from root to node, collapsing multiple changes at the
+    // same position including reversions.
+    MAT::Node n;
+    for (auto node: path) {
+        for (auto mut: node->mutations) {
+            n.add_mutation(mut);
+        }
+    }
+    bool is_first = true;
+    std::string mut_string;
+    for (auto mut: n.mutations) {
+        if (is_first) {
+            is_first = false;
+        } else {
+            mut_string += ",";
+        }
+        mut_string += mut.get_string();
+    }
+    return mut_string;
+}

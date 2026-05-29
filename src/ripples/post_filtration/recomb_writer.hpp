@@ -23,7 +23,8 @@ class recomb_writer {
         "1\tbreakpoint interval 2\trecombinant clade\trecombinant "
         "lineage\tdonor clade\tdonor lineage\tacceptor clade\tacceptor "
         "lineage\trepresentative descendant\toriginal parsimony "
-        "score\tparsimony score improvement\n"};
+        "score\tparsimony score improvement\trecombinant mutations\t"
+        "donor mutations\tacceptor mutations\n"};
 
     MAT::Tree &tree_;
     std::ofstream log_;
