@@ -71,7 +71,12 @@ class recombinant {
     int parsimony_original() const;
     int parsimony_improvement() const;
 
+    // Setters
+    void set_bp1(string_view bp);
+    void set_bp2(string_view bp);
+
     string find_representative_sample(MAT::Tree &tree) const;
+    string get_collapsed_mutations(MAT::Tree &tree, std::string_view node_id) const;
 
   private:
     breakpoints breakpoints_;
