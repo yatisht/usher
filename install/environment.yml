@@ -5,16 +5,16 @@ channels:
   - anaconda
 dependencies:
   - cxx-compiler
-  - cmake<=3.20
-  - protobuf<=3.20.3 
+  - cmake=3.20
+  - protobuf=3.12.4 
   - make
   - autoconf
   - boost-cpp
   - mafft
-  - python
   - git
   - wget
   - rsync
-  - openmpi
+  - openmpi=3.1.0
   - openssh
   - isa-l
+  - libhwloc
